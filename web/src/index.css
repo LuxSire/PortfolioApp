@@ -1,0 +1,1044 @@
+:root {
+  --paper: #f4f5f7;
+  --surface: #ffffff;
+  --surface-2: #eceef2;
+  --line: #dde1e7;
+  --ink: #14171c;
+  --muted: #62697a;
+  --accent: #a9661f;
+  --accent-ink: #6b4114;
+  --accent-soft: #f1e2cd;
+  --good: #1f8a5b;
+  --bad: #c0453a;
+  --warn: #a3841a;
+  --orange: #c2660f;
+  --focus: #2f6f9e;
+  --shadow: 0 1px 2px rgba(20, 23, 28, 0.06), 0 8px 24px rgba(20, 23, 28, 0.06);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #0f1216;
+    --surface: #171b21;
+    --surface-2: #1d222a;
+    --line: #2a2f38;
+    --ink: #e7e9ee;
+    --muted: #929aab;
+    --accent: #d99a4e;
+    --accent-ink: #f3d9b3;
+    --accent-soft: #3a2c17;
+    --good: #4cbd86;
+    --bad: #e2685c;
+    --warn: #d6b542;
+    --orange: #e08a3c;
+    --focus: #6fa8d4;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  min-height: 100%;
+  background: var(--paper);
+  color: var(--ink);
+}
+
+body {
+  font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.num {
+  font-family: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.tooltip-cell[data-tip] {
+  cursor: help;
+  position: relative;
+}
+
+.tooltip-cell[data-tip]:hover::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 6px;
+  padding: 6px 10px;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 11px;
+  font-weight: 400;
+  white-space: nowrap;
+  border-radius: 6px;
+  box-shadow: var(--shadow);
+  z-index: 20;
+  pointer-events: none;
+}
+
+/* Plain block flow, deliberately not flex. A flex column's children get a
+   default min-width: auto, which floors them at their content's intrinsic
+   size — a wide child (a table, a chart) can then force itself, and this
+   container, wider than the viewport instead of shrinking to fit, with the
+   excess bleeding past the right edge instead of respecting the padding
+   below. Block children have no such floor: each one is naturally capped
+   at 100% of this element's content box and handles its own internal
+   overflow (e.g. .table-wrap's own overflow-x) if it needs to. */
+.app {
+  max-width: none;
+  margin: 0 auto;
+  padding: 28px 32px 60px;
+}
+
+.app > * + * {
+  margin-top: 20px;
+}
+
+.tab-bar {
+  display: flex;
+  gap: 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.tab-btn {
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 0 2px 10px;
+  cursor: pointer;
+}
+
+.tab-btn:hover {
+  color: var(--ink);
+}
+
+.tab-btn.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+header.masthead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px 24px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 16px;
+}
+
+header.masthead .title-block h1 {
+  font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+  font-size: 26px;
+  font-weight: 600;
+  margin: 0 0 2px;
+  text-wrap: balance;
+  letter-spacing: 0.2px;
+}
+
+header.masthead .title-block p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  max-width: 60ch;
+}
+
+.back-link {
+  display: inline-block;
+  margin-bottom: 4px;
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 13px;
+}
+
+.back-link:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
+
+.ticker-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.ticker-link:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.stat-row {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  min-width: 64px;
+}
+
+.stat .n {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.stat .n.good {
+  color: var(--good);
+}
+
+.stat .n.bad {
+  color: var(--bad);
+}
+
+.stat-subvalue {
+  margin-left: 6px;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.stat .l {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+/* Briefly highlights a live price cell (Positions' Bid/Ask/Price columns)
+   when its value changes — direction (up/down), not the value's own sign,
+   picks the color, since a rising bid should flash green even at $4.50. */
+@keyframes flash-up-anim {
+  from { background-color: color-mix(in srgb, var(--good) 45%, transparent); }
+  to { background-color: transparent; }
+}
+@keyframes flash-down-anim {
+  from { background-color: color-mix(in srgb, var(--bad) 45%, transparent); }
+  to { background-color: transparent; }
+}
+.flash-cell {
+  display: inline-block;
+  border-radius: 3px;
+  padding: 0 3px;
+  margin: 0 -3px;
+}
+.flash-cell.flash-up {
+  animation: flash-up-anim 0.8s ease-out;
+}
+.flash-cell.flash-down {
+  animation: flash-down-anim 0.8s ease-out;
+}
+
+.asset-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  padding: 20px 24px;
+  max-width: 100%;
+  /* max-width caps this box's own size against normal layout pressure, but
+     doesn't retroactively clip a child that renders wider anyway —
+     Recharts' ResponsiveContainer sets an explicit pixel width via inline
+     style/SVG attributes from its own measurement, which CSS max-width on
+     an ancestor can't constrain. overflow: hidden is what actually clips
+     that instead of letting it bleed past this card's edge. */
+  overflow: hidden;
+}
+
+.asset-card h2 {
+  margin: 0 0 14px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.asset-summary p {
+  margin: 0;
+  line-height: 1.55;
+  color: var(--ink);
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+/* Price History card — see PriceChart in Asset.jsx (Recharts-based; most
+   mark styling is passed as props there, not CSS). */
+.chart-last-price {
+  margin-left: 10px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--ink);
+  text-transform: none;
+  letter-spacing: normal;
+  font-family: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Menlo, monospace;
+}
+
+.chart-change {
+  margin-left: 8px;
+  font-size: 12.5px;
+  font-weight: 700;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.chart-change.good {
+  color: var(--good);
+}
+
+.chart-change.bad {
+  color: var(--bad);
+}
+
+.chart-wrap {
+  position: relative;
+}
+
+.chart-wrap-volume {
+  margin-top: 4px;
+  border-top: 1px solid var(--line);
+  padding-top: 4px;
+}
+
+.chart-tooltip {
+  position: absolute;
+  top: 4px;
+  transform: translateX(-50%);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 4px 8px;
+  box-shadow: var(--shadow);
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  white-space: nowrap;
+}
+
+.chart-tooltip-value {
+  font-family: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Menlo, monospace;
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.chart-tooltip-value.good {
+  color: var(--good);
+}
+
+.chart-tooltip-value.bad {
+  color: var(--bad);
+}
+
+.chart-tooltip-ohlc {
+  font-family: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Menlo, monospace;
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
+.chart-tooltip-date {
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
+.asset-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 18px 24px;
+}
+
+.asset-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.asset-stat .n {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.asset-stat .l {
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.asset-stat .n.good {
+  color: var(--good);
+}
+
+.asset-stat .n.bad {
+  color: var(--bad);
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.search-box {
+  position: relative;
+  flex: 1 1 220px;
+  max-width: 320px;
+  display: flex;
+  align-items: center;
+}
+
+.search-box svg {
+  position: absolute;
+  left: 9px;
+  width: 14px;
+  height: 14px;
+  stroke: var(--muted);
+  pointer-events: none;
+}
+
+.search-box input {
+  width: 100%;
+  padding: 8px 10px 8px 30px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13.5px;
+}
+
+.search-box input:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.sector-control {
+  position: relative;
+}
+
+button.sector-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13.5px;
+  cursor: pointer;
+}
+
+button.sector-toggle:hover {
+  border-color: var(--muted);
+}
+
+button.sector-toggle:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+button.sector-toggle .chip-count {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  border-radius: 999px;
+  padding: 1px 7px;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.sector-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  width: 300px;
+  max-height: 380px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+}
+
+.sector-panel .sp-search {
+  padding: 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.sector-panel .sp-search input {
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.sector-panel .sp-list {
+  overflow-y: auto;
+  padding: 6px 4px;
+}
+
+.sp-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.sp-item:hover {
+  background: var(--surface-2);
+}
+
+.sp-item input {
+  accent-color: var(--accent);
+}
+
+.sp-item svg {
+  width: 14px;
+  height: 14px;
+  stroke: var(--muted);
+  flex-shrink: 0;
+}
+
+.sp-item .cnt {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-family: ui-monospace, monospace;
+}
+
+.sector-panel .sp-actions {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 10px;
+  border-top: 1px solid var(--line);
+}
+
+.sp-actions button {
+  background: none;
+  border: none;
+  color: var(--focus);
+  font-size: 12.5px;
+  cursor: pointer;
+  padding: 4px 6px;
+}
+
+.sp-actions button:hover {
+  text-decoration: underline;
+}
+
+.active-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  border-radius: 999px;
+  padding: 3px 6px 3px 10px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.chip button {
+  border: none;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  padding: 2px;
+  border-radius: 999px;
+}
+
+.chip button:hover {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.chip button svg {
+  width: 10px;
+  height: 10px;
+}
+
+.result-count {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 14px 0;
+}
+
+.pagination button {
+  padding: 6px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.pagination button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.pagination button:not(:disabled):hover {
+  border-color: var(--accent);
+}
+
+.pagination-info {
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.position-filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink);
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.position-filter input {
+  cursor: pointer;
+}
+
+.table-wrap {
+  overflow-x: auto;
+  overflow-y: auto;
+  max-height: 96vh;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  /* table-layout: auto treats `width` as a minimum, not a ceiling — if
+     columns' combined natural content width exceeds it, the table (and
+     anything relying on its rendered box) can render WIDER than 100%
+     instead of compressing, silently pushing content past the visible
+     page with no way back to it. max-width forces the real ceiling auto
+     layout otherwise ignores. */
+  max-width: 100%;
+  table-layout: auto;
+}
+
+/* The whole Positions tab (Account card, masthead, table) shares one
+   bounded width — .app itself has none (the Screener tab wants full
+   window width), and without this the masthead's stat-row could end up
+   stretched to the far edge of an ultra-wide window while the table sits
+   narrow and disconnected below it. */
+/* Block flow, not flex — same reasoning as .app above. */
+.positions-page {
+  max-width: 1560px; /* 1200px + 30% */
+}
+
+.positions-page > * + * {
+  margin-top: 20px;
+}
+
+/* Positions has far fewer columns than the screener table — the global
+   1220px min-width above would force it wide regardless of the narrower
+   column widths already set (.sector-group-cell, .pos-name-cell); it can
+   now shrink to fit within .positions-page's bound instead. */
+.positions-table-wrap table {
+  min-width: 0;
+}
+
+thead th {
+  position: sticky;
+  top: 0;
+  background: var(--surface-2);
+  z-index: 5;
+  text-align: right;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  font-weight: 600;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--line);
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+thead th:hover {
+  color: var(--ink);
+}
+
+thead th:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+thead th.col-left {
+  text-align: left;
+}
+
+thead th .arrow {
+  display: inline-block;
+  width: 9px;
+  margin-left: 3px;
+  opacity: 0.6;
+}
+
+tbody td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  text-align: right;
+  white-space: nowrap;
+}
+
+tbody tr:last-child td {
+  border-bottom: none;
+}
+
+tbody tr:hover td {
+  background: var(--surface-2);
+}
+
+td.col-left {
+  text-align: left;
+}
+
+td.col-ticker {
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+td.col-name {
+  color: var(--muted);
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Earnings-date proximity, measured from the row's lastDownload timestamp —
+   see earningsUrgencyClass in earnings.js (shared by PeTable.jsx and
+   Asset.jsx). Reported earlier today = green, still due later today = red,
+   1-2 days out = orange, 2-5 days out = yellow. */
+td.col-name.earnings-today-past,
+.stat.earnings-stat.earnings-today-past {
+  background: color-mix(in srgb, var(--good) 26%, var(--surface));
+}
+
+td.col-name.earnings-today-future,
+.stat.earnings-stat.earnings-today-future {
+  background: color-mix(in srgb, var(--bad) 26%, var(--surface));
+}
+
+td.col-name.earnings-near,
+.stat.earnings-stat.earnings-near {
+  background: color-mix(in srgb, var(--orange) 30%, var(--surface));
+}
+
+td.col-name.earnings-soon,
+.stat.earnings-stat.earnings-soon {
+  background: color-mix(in srgb, var(--warn) 22%, var(--surface));
+}
+
+.stat.earnings-stat {
+  padding: 4px 12px;
+  border-radius: 8px;
+}
+
+.subrank {
+  font-size: 10px;
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.sector-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 2px 10px 2px 8px;
+  font-size: 11.5px;
+  color: var(--muted);
+  white-space: nowrap;
+  max-width: 145px; /* ~50% of the longest industry name's natural width */
+  overflow: hidden;
+}
+
+.sector-cell-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.sector-cell svg {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+}
+
+/* Positions tab — see PositionsView.jsx. */
+.pos-asset {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.pos-ticker {
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.pos-name {
+  color: var(--muted);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Indents the asset name in from the sector column, so rows read as
+   nested under their sector rather than starting flush with it. */
+.pos-name-cell {
+  padding-left: 26px;
+}
+
+/* One cell per sector, rowSpan'd down across that sector's positions —
+   a dedicated column instead of a full-width banner row, so the sector
+   label and the individual asset names never share a column. */
+.sector-group-cell {
+  background: var(--surface-2);
+  border-right: 1px solid var(--line);
+  vertical-align: middle;
+  max-width: 110px;
+  white-space: normal;
+  overflow-wrap: break-word;
+}
+
+/* Narrower than the base td.col-name (220px, shared with PeTable.jsx) —
+   this table already has a dedicated Sector column, so the asset name
+   doesn't need as much room. */
+.pos-name-cell {
+  max-width: 150px;
+}
+
+.sector-group-label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.sector-group-label svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+.sector-group-total {
+  display: block;
+  font-weight: 700;
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.sector-group-pnl {
+  display: block;
+  font-weight: 600;
+  font-size: 11px;
+  margin-top: 1px;
+}
+
+.sector-group-pnl.good {
+  color: var(--good);
+}
+
+.sector-group-pnl.bad {
+  color: var(--bad);
+}
+
+td.perf-pos,
+td.good {
+  color: var(--good);
+  font-weight: 600;
+}
+
+td.perf-neg,
+td.bad {
+  color: var(--bad);
+  font-weight: 600;
+}
+
+td.col-rec {
+  text-align: center;
+}
+
+.rec-badge {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+}
+
+.rec-badge.rec-strong-buy {
+  background: color-mix(in srgb, var(--good) 28%, var(--surface));
+  border-color: color-mix(in srgb, var(--good) 55%, var(--line));
+  color: var(--good);
+  font-weight: 700;
+}
+
+.rec-badge.rec-buy {
+  background: color-mix(in srgb, var(--good) 12%, var(--surface));
+  border-color: color-mix(in srgb, var(--good) 35%, var(--line));
+  color: var(--good);
+}
+
+.rec-badge.rec-underperform {
+  background: color-mix(in srgb, var(--warn) 16%, var(--surface));
+  border-color: color-mix(in srgb, var(--warn) 45%, var(--line));
+  color: var(--warn);
+}
+
+.rec-badge.rec-sell {
+  background: color-mix(in srgb, var(--bad) 16%, var(--surface));
+  border-color: color-mix(in srgb, var(--bad) 45%, var(--line));
+  color: var(--bad);
+}
+
+.rec-badge.rec-neutral {
+  background: var(--surface);
+  border-color: var(--line);
+  color: var(--muted);
+}
+
+.score-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.score-bar {
+  width: 46px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.score-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+}
+
+.rank-cell {
+  color: var(--muted);
+}
+
+.price-cell {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+/* The price itself takes a back seat here — the IB Gateway vs. yfinance
+   ratio (.live-price, below) is the number worth noticing at a glance. */
+.price-value {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* IB Gateway live snapshot, shown next to the sorted_screen.csv price for
+   the top LIVE_PRICE_TOP_N rows — see ib_price_server.py. */
+.live-price {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+/* Within +/-0.5%, IB vs. yfinance is basically noise — call it out as
+   neutral rather than green/red. */
+.live-price.perf-neutral {
+  color: var(--ink);
+}
+
+.live-price.perf-pos {
+  color: var(--good);
+}
+
+.live-price.perf-neg {
+  color: var(--bad);
+}
+
+.empty-row td,
+.status-row td {
+  text-align: center;
+  color: var(--muted);
+  padding: 32px 12px;
+}
+
+footer.note {
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
+  padding-top: 4px;
+}
+
+@media (max-width: 640px) {
+  .stat-row {
+    display: none;
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "name": "web",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "sync-data": "cp ../sorted_screen.csv public/sorted_screen.csv && (cp ../raw_data.json public/raw_data.json 2>/dev/null || true) && (cp ../social_sentiment.json public/social_sentiment.json 2>/dev/null || true) && (cp ../price_history.json public/price_history.json 2>/dev/null || true) && (cp ../price_history_hourly.json public/price_history_hourly.json 2>/dev/null || true) && (cp ../price_history_daily_3mo.json public/price_history_daily_3mo.json 2>/dev/null || true) && (cp ../portfolio_performance.json public/portfolio_performance.json 2>/dev/null || true)",
+    "predev": "npm run sync-data",
+    "prebuild": "npm run sync-data",
+    "dev": "vite",
+    "build": "vite build",
+    "lint": "oxlint",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "lucide-react": "^1.24.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "recharts": "^3.10.1"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.3",
+    "oxlint": "^1.71.0",
+    "vite": "^8.1.1"
+  }
+}
