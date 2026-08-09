@@ -5,7 +5,7 @@ A stock screener and IBKR portfolio tracker. A Python backend (yfinance +
 tabs:
 
 - **Screener** — a ranked, filterable, paginated table of US stocks scored on
-  a 17-factor composite (valuation, quality, growth/momentum/mean-reversion,
+  an 18-factor composite (valuation, quality, growth/momentum/mean-reversion,
   EPS estimate trend, analyst conviction, short interest, and combined
   news+social sentiment — see [Score formula](#score-formula) below).
 - **Positions** — live IB Gateway prices/positions/account data streamed over
