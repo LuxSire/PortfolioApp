@@ -2,11 +2,15 @@ import { StrictMode, useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
-import Asset from './Asset.jsx'
+import Asset from './components/Asset.jsx'
+import NewsPopup from './components/NewsPopup.jsx'
 
 function parseRoute(hash) {
-  const m = hash.match(/^#\/asset\/([^/]+)$/)
-  return m ? { page: 'asset', ticker: decodeURIComponent(m[1]) } : { page: 'app' }
+  const assetMatch = hash.match(/^#\/asset\/([^/]+)$/)
+  if (assetMatch) return { page: 'asset', ticker: decodeURIComponent(assetMatch[1]) }
+  const newsMatch = hash.match(/^#\/news\/([^/]+)$/)
+  if (newsMatch) return { page: 'news', ticker: decodeURIComponent(newsMatch[1]) }
+  return { page: 'app' }
 }
 
 function Router() {
@@ -18,7 +22,9 @@ function Router() {
     return () => window.removeEventListener('hashchange', onHashChange)
   }, [])
 
-  return route.page === 'asset' ? <Asset ticker={route.ticker} /> : <App />
+  if (route.page === 'asset') return <Asset ticker={route.ticker} />
+  if (route.page === 'news') return <NewsPopup ticker={route.ticker} />
+  return <App />
 }
 
 createRoot(document.getElementById('root')).render(

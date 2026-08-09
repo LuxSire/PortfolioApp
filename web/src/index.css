@@ -147,6 +147,118 @@ header.masthead .title-block h1 {
   letter-spacing: 0.2px;
 }
 
+/* Scoped wrapper (not .title-block itself, which Asset.jsx also uses for
+   a vertically-stacked back-link + h1) so the Score Formula toggle sits
+   inline next to the h1 without affecting other pages' title blocks. */
+.title-with-info {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.score-formula {
+  position: relative;
+}
+
+.score-formula-toggle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.score-formula-toggle:hover {
+  color: var(--ink);
+  border-color: var(--muted);
+}
+
+.score-formula-toggle:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.score-formula-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  width: 380px;
+  max-height: 420px;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  z-index: 20;
+  padding: 12px 14px;
+}
+
+.score-formula-header {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.score-formula-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.score-formula-list li {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.score-formula-weight {
+  flex: 0 0 auto;
+  min-width: 34px;
+  text-align: right;
+  font-family: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.score-formula-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.score-formula-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.score-formula-note {
+  font-size: 11.5px;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.score-formula-footer {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  font-size: 11.5px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
 header.masthead .title-block p {
   margin: 0;
   color: var(--muted);
@@ -175,6 +287,21 @@ header.masthead .title-block p {
 .ticker-link:hover {
   color: var(--accent);
   text-decoration: underline;
+}
+
+.zacks-link,
+.news-popup-link {
+  display: inline-flex;
+  margin-left: 5px;
+  color: var(--muted);
+  vertical-align: middle;
+  opacity: 0.6;
+}
+
+.zacks-link:hover,
+.news-popup-link:hover {
+  color: var(--accent);
+  opacity: 1;
 }
 
 .stat-row {
@@ -274,6 +401,26 @@ header.masthead .title-block p {
   word-break: break-word;
 }
 
+/* Business Summary + News side by side instead of stacked — flex-start
+   (not the flex default, stretch) so each card sizes to its own content
+   instead of both being forced to match whichever is taller; wraps to a
+   single column below a ~360px-per-card width instead of squishing both
+   arbitrarily narrow. */
+.asset-summary-news-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 20px;
+}
+
+.asset-summary-news-row .asset-summary {
+  flex: 3 1 360px;
+}
+
+.asset-summary-news-row .asset-card:not(.asset-summary) {
+  flex: 2 1 360px;
+}
+
 /* Price History card — see PriceChart in Asset.jsx (Recharts-based; most
    mark styling is passed as props there, not CSS). */
 .chart-last-price {
@@ -310,6 +457,14 @@ header.masthead .title-block p {
   margin-top: 4px;
   border-top: 1px solid var(--line);
   padding-top: 4px;
+}
+
+/* Cancels .asset-card's own 24px horizontal padding (see
+   SectorPosValueChart.tsx) so a full-width ResponsiveContainer inside
+   measures out to the card's full outer width — the same width as a
+   sibling .table-wrap, which has no horizontal padding of its own. */
+.chart-wrap-full-bleed {
+  margin: 0 -24px;
 }
 
 .chart-tooltip {
@@ -384,6 +539,82 @@ header.masthead .title-block p {
 
 .asset-stat .n.bad {
   color: var(--bad);
+}
+
+/* News card — see NewsPanel in Asset.jsx. Paginated at 10 articles per
+   page (see NEWS_PAGE_SIZE), so no height cap/scroll needed here — the
+   page-count bounds how tall this ever gets next to Business Summary
+   (see .asset-summary-news-row). */
+.news-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.news-item {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  padding: 10px 0;
+  border-top: 1px solid var(--line);
+}
+
+.news-item:first-child {
+  padding-top: 0;
+  border-top: none;
+}
+
+.news-sentiment {
+  flex: 0 0 auto;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+
+.news-sentiment.good {
+  color: var(--good);
+}
+
+.news-sentiment.bad {
+  color: var(--bad);
+}
+
+.news-headline {
+  flex: 1 1 320px;
+  color: var(--ink);
+}
+
+.news-headline-expandable {
+  cursor: pointer;
+}
+
+.news-headline-expandable:hover {
+  text-decoration: underline;
+}
+
+.news-meta {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+/* Article body — fetched lazily on click (see NewsItem in Asset.jsx),
+   not pre-loaded for every headline. flex-basis: 100% drops it to its
+   own line under the headline row it belongs to, inside the same
+   flex-wrap .news-item. */
+.news-body {
+  flex: 1 1 100%;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+  padding-top: 6px;
+  white-space: pre-wrap;
 }
 
 .controls {
@@ -636,10 +867,27 @@ button.sector-toggle .chip-count {
   cursor: pointer;
 }
 
+/* No overflow at all here (correction of an earlier attempt at this same
+   fix, which kept overflow-x: auto believing it was independent of the
+   vertical-sticky problem — it isn't). thead th below is position:
+   sticky, which pins within its nearest scrolling ancestor: the nearest
+   ancestor whose overflow is non-visible on EITHER axis, whether or not
+   that axis ever actually has anything to scroll. Per the CSS Overflow
+   spec, a non-visible value on one axis forces the other axis's used
+   value to 'auto' too even if left 'visible' -- so overflow-x: auto
+   alone was already enough to make this box thead's sticky containing
+   block, regardless of the max-height/overflow-y removal above. Since
+   this box's height always matches its own content (no max-height),
+   there's never any scroll distance *inside* it for sticky to respond
+   to -- the header just sat static in a box that itself scrolled away
+   with the page, which looks identical to "not sticking." No overflow
+   on any axis here makes the page itself the only scroll context, so
+   `top: 0` sticks against the real viewport. Trade-off: an overly wide
+   table (many columns, narrow window) now scrolls the whole page
+   horizontally instead of scrolling within this box -- there's no pure-
+   CSS way to get both a horizontally-clipped container AND page-level
+   sticky on its descendants, because of that same axis-pairing rule. */
 .table-wrap {
-  overflow-x: auto;
-  overflow-y: auto;
-  max-height: 96vh;
   border: 1px solid var(--line);
   border-radius: 10px;
   background: var(--surface);
@@ -647,7 +895,17 @@ button.sector-toggle .chip-count {
 }
 
 table {
-  border-collapse: collapse;
+  /* separate, not collapse -- position: sticky on thead th (below) is
+     unreliable-to-broken under border-collapse: collapse in several
+     browsers (notably Safari): the collapsed border model changes how
+     the browser treats each cell's box, and sticky cells simply don't
+     stick. border-spacing: 0 keeps cells visually seamless (no gap
+     between them) the way collapse did -- every border here already
+     comes from an individual cell's own border-bottom/border-right
+     (tbody td, .sector-group-cell, etc.), not a merged shared edge, so
+     nothing actually relied on collapse's border-merging behavior. */
+  border-collapse: separate;
+  border-spacing: 0;
   width: 100%;
   /* table-layout: auto treats `width` as a minimum, not a ceiling — if
      columns' combined natural content width exceeds it, the table (and
@@ -669,6 +927,39 @@ table {
   max-width: 1560px; /* 1200px + 30% */
 }
 
+/* Portfolio's own daily table has grown to 17 columns (cash/NAV/stock
+   long-short-net-gross/flows/commissions/dividends/interest/realized/
+   unrealized/Total P&L $ and %/Cumulative P&L $ and %) — .positions-page's
+   shared cap (sized for Positions' much narrower table) left it cramped
+   into a horizontal scroll. Scoped to this page specifically (not
+   .positions-page itself) so Positions' own layout is untouched. */
+.portfolio-page {
+  max-width: 2000px;
+}
+
+/* Positions' own table has grown (side/sector group columns, Avg Price,
+   CVol) past what the shared 1560px cap comfortably fits — widened 30%
+   further, same scoped-override pattern as .portfolio-page above (not
+   touching .positions-page itself, which Trades/News also share). */
+.positions-view {
+  max-width: 2028px; /* 1560px + 30% */
+}
+
+/* Sectors' table (Group/# Assets/Pos Value + all 18 shared factor
+   columns) is wide enough that even .positions-view's raised ceiling
+   still gets clipped by the viewport before the table itself runs out
+   of room to shrink -- .table-wrap has no overflow-x of its own (see its
+   own comment: that broke position: sticky headers when tried earlier),
+   so content wider than an ancestor's max-width just visually spills
+   past .table-wrap's right border instead of scrolling inside it.
+   Removing the cap entirely (same as PeTable.jsx's Screener table, which
+   sits directly in the uncapped .app) fixes it the same way: .table-wrap
+   grows to match its own content, and the PAGE scrolls horizontally
+   instead, rather than the table overflowing a too-narrow box. */
+.positions-unbounded {
+  max-width: none;
+}
+
 .positions-page > * + * {
   margin-top: 20px;
 }
@@ -679,6 +970,36 @@ table {
    now shrink to fit within .positions-page's bound instead. */
 .positions-table-wrap table {
   min-width: 0;
+}
+
+/* JS-driven fallback for the Screener's sticky header (see PeTable.jsx's
+   useStickyHeaderClone) -- a position: fixed clone of the header row,
+   shown once the real header has scrolled above the viewport, with each
+   column's width pinned via inline style to match the real table's
+   current layout exactly. Its own <thead th> already inherits the
+   styling below (same tag selector), so only the wrapper's positioning
+   needs a rule here. box-shadow gives it a visible edge against the rows
+   now scrolled underneath it, since it no longer has .table-wrap's own
+   border on this side. */
+.sticky-header-clone {
+  /* margin still applies to position: fixed elements (neither fixed nor
+     absolute cancels it) -- without this, .app > * + * (the page's
+     generic "space out my direct children" rule, see above) adds its
+     20px margin-top here too, since this div is just another sibling of
+     .masthead/.controls/.table-wrap under .app. That 20px offset was the
+     entire bug: it pushed this clone down just enough to reveal the top
+     of the real (already correctly sticky) header peeking out above it
+     -- a "double header" that was actually two real headers, not a
+     sticky failure at all. */
+  margin: 0;
+  z-index: 20;
+  overflow: hidden;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+.sticky-header-clone table {
+  width: 100%;
+  table-layout: fixed;
 }
 
 thead th {
@@ -750,18 +1071,22 @@ td.col-name {
   text-overflow: ellipsis;
 }
 
-/* Earnings-date proximity, measured from the row's lastDownload timestamp —
-   see earningsUrgencyClass in earnings.js (shared by PeTable.jsx and
-   Asset.jsx). Reported earlier today = green, still due later today = red,
-   1-2 days out = orange, 2-5 days out = yellow. */
-td.col-name.earnings-today-past,
-.stat.earnings-stat.earnings-today-past {
+/* Earnings-date urgency, measured against the live current instant (see
+   useNowTick / earningsUrgencyClass in earnings.js, shared by PeTable.jsx
+   and Asset.jsx). Already reported today or yesterday = green; due within
+   24 BUSINESS hours (UTC Sat/Sun don't count) = bright red; 24-72 business
+   hours out = orange; 72-108 business hours out = yellow. */
+td.col-name.earnings-reported,
+.stat.earnings-stat.earnings-reported {
   background: color-mix(in srgb, var(--good) 26%, var(--surface));
 }
 
-td.col-name.earnings-today-future,
-.stat.earnings-stat.earnings-today-future {
-  background: color-mix(in srgb, var(--bad) 26%, var(--surface));
+/* Brighter than the other three tiers' 22-30% mix — this is the "act
+   now" bucket. Background only, same as the others; default text color
+   still reads fine against a 50% mix of --bad. */
+td.col-name.earnings-imminent,
+.stat.earnings-stat.earnings-imminent {
+  background: color-mix(in srgb, var(--bad) 50%, var(--surface));
 }
 
 td.col-name.earnings-near,
@@ -840,6 +1165,71 @@ td.col-name.earnings-soon,
   padding-left: 26px;
 }
 
+/* One cell per side (Long/Short), rowSpan'd down across every position on
+   that side regardless of sector — the outermost grouping level, to the
+   left of .sector-group-cell's per-sector one, so the book's two
+   fundamentally different exposures read as clearly separate bands
+   before sector detail even enters the picture. Darker than
+   .sector-group-cell's --surface-2 so the nesting (outer band, inner
+   band, individual rows) is visually legible at a glance. */
+.side-group-cell {
+  background: var(--line);
+  border-right: 1px solid var(--line);
+  vertical-align: middle;
+  max-width: 70px;
+  white-space: normal;
+  overflow-wrap: break-word;
+}
+
+/* Short side gets its own yellow-ochre band (reusing --warn — already
+   that exact tone in this palette) instead of the neutral --line Long
+   uses, so short exposure reads as visually distinct, not just a second
+   instance of the same grouping. Label/total text pinned to a dark,
+   theme-independent color here rather than var(--ink) — --warn is a
+   mid-to-light gold in both themes, and light-mode --ink would already
+   read fine against it, but dark-mode --ink (near-white) would not. */
+.side-group-cell-short {
+  background: var(--warn);
+  border-right-color: var(--warn);
+}
+
+.side-group-cell-short .side-group-label,
+.side-group-cell-short .side-group-total {
+  color: #2b2205;
+}
+
+.side-group-label {
+  display: block;
+  text-transform: uppercase;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.side-group-total {
+  display: block;
+  font-weight: 700;
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.side-group-pnl {
+  display: block;
+  font-weight: 600;
+  font-size: 11px;
+  margin-top: 1px;
+}
+
+.side-group-pnl.good {
+  color: var(--good);
+}
+
+.side-group-pnl.bad {
+  color: var(--bad);
+}
+
 /* One cell per sector, rowSpan'd down across that sector's positions —
    a dedicated column instead of a full-width banner row, so the sector
    label and the individual asset names never share a column. */
@@ -847,7 +1237,7 @@ td.col-name.earnings-soon,
   background: var(--surface-2);
   border-right: 1px solid var(--line);
   vertical-align: middle;
-  max-width: 110px;
+  max-width: 150px;
   white-space: normal;
   overflow-wrap: break-word;
 }
@@ -900,6 +1290,86 @@ td.col-name.earnings-soon,
   color: var(--bad);
 }
 
+/* Sectors tab's expandable Sector > Industry > Asset tree (see
+   SectorsView.jsx) — each level's own indent/weight/size makes the
+   hierarchy legible without needing rowSpan'd grouping cells the way
+   Positions' side/sector columns do (a plain per-row toggle is simpler
+   here since every level, not just the outermost one, expands/collapses
+   independently). */
+.factor-tree-row {
+  cursor: pointer;
+}
+
+.factor-tree-row:hover td {
+  background: var(--surface-2);
+}
+
+.factor-tree-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.factor-tree-toggle svg {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+
+.factor-tree-level-0 .factor-tree-toggle {
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 12px;
+  letter-spacing: 0.05em;
+}
+
+.factor-tree-level-0 .factor-tree-toggle svg:last-of-type {
+  color: var(--accent);
+}
+
+.factor-tree-level-1 .factor-tree-toggle {
+  padding-left: 22px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.factor-tree-level-2 {
+  cursor: default;
+}
+
+.factor-tree-level-2:hover td {
+  background: none;
+}
+
+.factor-tree-leaf {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 44px;
+}
+
+.factor-tree-leaf-name {
+  color: var(--muted);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Zebra striping for the individual position rows — alternates between
+   the same two neutral greys used everywhere else in this palette
+   (surface/surface-2), so a wide row of numbers is easier to track
+   across the table. :not() excludes the side/sector group cells, which
+   already carry their own fixed background (--warn for Short, --line for
+   Long, --surface-2 for the sector band) regardless of which row of
+   their rowSpan'd group this is. */
+.positions-table-wrap tbody tr:nth-child(even) td:not(.side-group-cell):not(.sector-group-cell) {
+  background: var(--surface-2);
+}
+
+.positions-table-wrap tbody tr:nth-child(odd) td:not(.side-group-cell):not(.sector-group-cell) {
+  background: var(--surface);
+}
+
 td.perf-pos,
 td.good {
   color: var(--good);
@@ -910,6 +1380,17 @@ td.perf-neg,
 td.bad {
   color: var(--bad);
   font-weight: 600;
+}
+
+/* Monthly Performance table's YTD column — a total, set off from the
+   individual months with a left border and extra weight. */
+.monthly-returns-table th:last-child,
+.ytd-cell {
+  border-left: 1px solid var(--line);
+}
+
+.ytd-cell {
+  font-weight: 700;
 }
 
 td.col-rec {
@@ -952,6 +1433,13 @@ td.col-rec {
   background: color-mix(in srgb, var(--bad) 16%, var(--surface));
   border-color: color-mix(in srgb, var(--bad) 45%, var(--line));
   color: var(--bad);
+}
+
+.rec-badge.rec-strong-sell {
+  background: color-mix(in srgb, var(--bad) 28%, var(--surface));
+  border-color: color-mix(in srgb, var(--bad) 55%, var(--line));
+  color: var(--bad);
+  font-weight: 700;
 }
 
 .rec-badge.rec-neutral {

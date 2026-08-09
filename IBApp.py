@@ -6,10 +6,12 @@ Core methods for ibkr_pe: get_ibkr_watchlist_tickers() and get_forward_pe().
 """
 
 import asyncio
+import html
 import json
 import logging
 import math
 import os
+import re
 import sys
 import threading
 import time
@@ -42,22 +44,42 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 logging.getLogger("yfinance").setLevel(logging.WARNING)
 
 TRADING_DAYS_PER_YEAR = 252
+# 6.5-hour regular session (9:30-16:00 ET) x 252 trading days -- lets
+# _regression_momentum annualize an hourly-bar series correctly instead
+# of treating each hourly bar as if it were a full trading day.
+TRADING_HOURS_PER_YEAR = 1638
+
+# get_momentum returns two independent factors -- daily-timeframe
+# momentum and hourly-timeframe mean reversion (see that method's
+# docstring) -- each scored in scoring.py as its own 5% of the composite,
+# rather than blended into one number with a weight here. Below these bar
+# counts a regression is too thin to trust -- momentum falls back to the
+# plain yfinance 1-month-daily calculation instead; mean_reversion has no
+# fallback and is just left None. ~30 daily bars is roughly 6 weeks; ~30
+# hourly bars is roughly a trading week.
+MIN_DAILY_BARS_FOR_BLEND = 30
+MIN_HOURLY_BARS_FOR_BLEND = 30
 
 
-def _regression_momentum(closes):
-    """Annualized slope of an OLS regression on log(closes) (trading-day
-    index vs. log price), scaled by the fit's R² and then divided by the
-    annualized volatility of daily log returns — a Sharpe-style
-    risk adjustment on top of the Clenow-style trend-quality one. R²
-    penalizes a choppy fit to the trend line; the volatility term
-    separately penalizes large day-to-day swings even along a
-    well-fitted trend (e.g. a steady but violently noisy climb), so the
-    two catch different shapes of "noisy." Positive means a steady
-    uptrend, negative a steady downtrend; magnitude shrinks toward 0 for
-    flat or noisy price action regardless of net return. None if daily
-    returns have zero variance (a flat or single-step price series) —
-    the volatility denominator is 0 there, and the numerator is 0 too
-    (a flat series yields R²=0), so it's a real 0/0, not a signal."""
+def _regression_momentum(closes, periods_per_year=TRADING_DAYS_PER_YEAR):
+    """Annualized slope of an OLS regression on log(closes) (bar index vs.
+    log price), scaled by the fit's R² and then divided by the annualized
+    volatility of log returns — a Sharpe-style risk adjustment on top of
+    the Clenow-style trend-quality one. R² penalizes a choppy fit to the
+    trend line; the volatility term separately penalizes large swings
+    even along a well-fitted trend (e.g. a steady but violently noisy
+    climb), so the two catch different shapes of "noisy." Positive means
+    a steady uptrend, negative a steady downtrend; magnitude shrinks
+    toward 0 for flat or noisy price action regardless of net return.
+    None if returns have zero variance (a flat or single-step price
+    series) — the volatility denominator is 0 there, and the numerator is
+    0 too (a flat series yields R²=0), so it's a real 0/0, not a signal.
+
+    periods_per_year makes this frequency-agnostic: pass
+    TRADING_DAYS_PER_YEAR (252) for daily bars, TRADING_HOURS_PER_YEAR
+    (1638) for hourly bars — same formula, correctly annualized either
+    way, so get_momentum can run it on both a 3-month daily series and a
+    recent hourly series and blend the two."""
     n = len(closes)
     ys = [math.log(c) for c in closes]
     xs = list(range(n))
@@ -70,14 +92,61 @@ def _regression_momentum(closes):
     ss_res = sum((y - (intercept + slope * x)) ** 2 for x, y in zip(xs, ys))
     ss_tot = sum((y - mean_y) ** 2 for y in ys)
     r_squared = 1 - ss_res / ss_tot if ss_tot > 0 else 0
-    annualized_slope = math.exp(slope * TRADING_DAYS_PER_YEAR) - 1
+    annualized_slope = math.exp(slope * periods_per_year) - 1
     trend_quality = annualized_slope * r_squared
 
-    daily_log_returns = [ys[i] - ys[i - 1] for i in range(1, n)]
-    mean_ret = sum(daily_log_returns) / len(daily_log_returns)
-    variance = sum((r - mean_ret) ** 2 for r in daily_log_returns) / (len(daily_log_returns) - 1)
-    annualized_vol = math.sqrt(variance * TRADING_DAYS_PER_YEAR)
+    log_returns = [ys[i] - ys[i - 1] for i in range(1, n)]
+    mean_ret = sum(log_returns) / len(log_returns)
+    variance = sum((r - mean_ret) ** 2 for r in log_returns) / (len(log_returns) - 1)
+    annualized_vol = math.sqrt(variance * periods_per_year)
     return trend_quality / annualized_vol if annualized_vol > 0 else None
+
+
+# get_news_article_async's HTML-body cleanup. Block-level tags are matched
+# and replaced with a blank line FIRST, before the second pass strips
+# every remaining tag outright -- doing it in one pass (strip everything
+# straight to a single space) is what the original version of this did,
+# and it ran every paragraph together into one unreadable wall of text
+# instead of preserving the source's own paragraph breaks.
+_HTML_PARA_BREAK_RE = re.compile(r"</p\s*>|<br\s*/?>|</div\s*>|</pre\s*>", re.I)
+_HTML_TAG_RE = re.compile(r"<[^>]+>")
+# Some providers (confirmed: Dow Jones, not just the Briefing.com case
+# this was originally written for) don't reliably set NewsArticle's own
+# articleType to 1 for HTML bodies -- sniff the text itself as a second,
+# more reliable signal rather than trusting that flag alone.
+_LOOKS_LIKE_HTML_RE = re.compile(r"<[a-zA-Z/][^>]*>")
+
+
+def _html_article_to_text(html_text):
+    """Converts a news article's raw HTML body to readable plain text,
+    keeping paragraph breaks as blank lines (see _HTML_PARA_BREAK_RE)
+    instead of collapsing the whole article into one run-on block."""
+    text = _HTML_PARA_BREAK_RE.sub("\n\n", html_text)
+    text = _HTML_TAG_RE.sub("", text)
+    text = html.unescape(text)
+    lines = [re.sub(r"[ \t]+", " ", line).strip() for line in text.splitlines()]
+    text = "\n".join(lines)
+    return re.sub(r"\n{3,}", "\n\n", text).strip()
+
+
+def _eps_revision(current, baseline):
+    """(current - baseline) / abs(baseline) -- how much a consensus EPS
+    estimate has moved relative to some earlier snapshot of itself (see
+    get_forward_pe's use against yfinance's get_eps_trend(), comparing
+    "current" to "30daysAgo" for a given period). Positive means
+    analysts have been raising the estimate (bullish revision trend),
+    negative means cuts. None for a missing/NaN input or a zero baseline
+    (nothing to compute a meaningful ratio against)."""
+    if current is None or baseline is None:
+        return None
+    try:
+        current = float(current)
+        baseline = float(baseline)
+    except (TypeError, ValueError):
+        return None
+    if math.isnan(current) or math.isnan(baseline) or baseline == 0:
+        return None
+    return (current - baseline) / abs(baseline)
 
 
 class IBApp:
@@ -323,6 +392,42 @@ class IBApp:
         except Exception as e:
             logging.error(f"Error fetching past trades: {e}", exc_info=True)
             return []
+
+    async def get_today_executions_async(self):
+        """Returns {symbol: {"qty": signed net shares traded today,
+        "value": sum(signedQty * fillPrice)}} from today's fills only —
+        the raw ingredients a correct daily P&L needs to mark shares
+        traded today at their own fill price instead of assuming the
+        whole position was held since yesterday's close (which silently
+        misprices any symbol traded intraday, e.g. a same-day buy/sell).
+        Aggregated per symbol rather than kept as individual fills: a
+        mark-to-market P&L calc only ever needs the net signed quantity
+        and its matching cost, not each fill separately. "Today" is
+        midnight in this machine's local timezone, same convention the
+        rest of this file uses for daily boundaries.
+
+        Async so callers already sharing this instance's IB Gateway
+        connection with other concurrent work (live ticks, snapshot
+        polling) can await it without blocking that connection's event
+        loop, unlike get_past_trades' blocking reqExecutions."""
+        start_of_day = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        try:
+            fills = await self.ib.reqExecutionsAsync(
+                ExecutionFilter(time=start_of_day.strftime("%Y%m%d-%H:%M:%S"))
+            )
+        except Exception as e:
+            logging.error(f"Error fetching today's executions: {e}", exc_info=True)
+            return {}
+
+        trades = {}
+        for fill in fills:
+            symbol = fill.contract.symbol
+            ex = fill.execution
+            signed_qty = ex.shares if ex.side == "BOT" else -ex.shares
+            entry = trades.setdefault(symbol, {"qty": 0.0, "value": 0.0})
+            entry["qty"] += signed_qty
+            entry["value"] += signed_qty * ex.price
+        return trades
 
     def get_filled_trades(self):
         try:
@@ -625,7 +730,16 @@ class IBApp:
         token,
         query_id,
         base_url="https://gdcdyn.interactivebrokers.com/Universal/servlet/FlexStatementService",
+        max_statement_attempts=6,
+        poll_interval=15,
     ):
+        """Returns the raw Flex Query report (XML or CSV bytes) from a live
+        SendRequest/GetStatement round trip against IBKR's Flex Web
+        Service, or b"" if that round trip didn't produce one -- every
+        failure branch below prints the actual reason (bad token/query id,
+        IBKR error code, timeout) so a silent b"" here is always
+        explainable from the console, not just inferred from the caller
+        falling back to a local export."""
         params = {"t": token, "q": query_id, "v": "3"}
         headers = {"User-Agent": "IB Flex Query Client/1.0"}
         try:
@@ -634,23 +748,70 @@ class IBApp:
             )
             resp.raise_for_status()
             root = ET.fromstring(resp.text)
-            if root.findtext("Status") != "Success":
+            status = root.findtext("Status")
+            if status != "Success":
+                print(
+                    f"Flex query SendRequest failed: status={status!r} "
+                    f"errorCode={root.findtext('ErrorCode')!r} "
+                    f"errorMessage={root.findtext('ErrorMessage')!r} "
+                    "-- check QUERY_TOKEN/QUERY_ID in .env"
+                )
                 return b""
             ref_code = root.findtext("ReferenceCode")
             if not ref_code:
+                print(f"Flex query SendRequest returned Success but no ReferenceCode: {resp.text!r}")
                 return b""
+            print(f"Flex query SendRequest accepted (reference {ref_code}); IBKR is generating the statement...")
             time.sleep(10)
-            get_resp = requests.get(
-                f"{base_url}.GetStatement",
-                params={"t": token, "q": ref_code, "v": "3"},
-                headers=headers,
-                timeout=60,
-                allow_redirects=True,
-            )
-            get_resp.raise_for_status()
-            return get_resp.content
+            # A statement not yet ready comes back as a small
+            # <FlexStatementResponse> status wrapper (Status=Warn,
+            # ErrorCode 1019 "Statement generation in progress") rather
+            # than the real report -- confirmed happening in practice, not
+            # hypothetical. That's a routine "not ready yet", distinct
+            # from Status=Fail (a real failure, e.g. error 1001), so it's
+            # worth a short poll loop instead of giving up on the first
+            # attempt.
+            for attempt in range(max_statement_attempts):
+                get_resp = requests.get(
+                    f"{base_url}.GetStatement",
+                    params={"t": token, "q": ref_code, "v": "3"},
+                    headers=headers,
+                    timeout=60,
+                    allow_redirects=True,
+                )
+                get_resp.raise_for_status()
+                content = get_resp.content
+                if content.lstrip().startswith(b"<FlexStatementResponse"):
+                    try:
+                        wrapper = ET.fromstring(content)
+                        wrapper_status = wrapper.findtext("Status")
+                    except ET.ParseError:
+                        wrapper_status = None
+                        wrapper = None
+                    if wrapper_status == "Warn" and attempt < max_statement_attempts - 1:
+                        print(
+                            f"Flex query statement still generating "
+                            f"(attempt {attempt + 1}/{max_statement_attempts}), "
+                            f"polling again in {poll_interval}s..."
+                        )
+                        time.sleep(poll_interval)
+                        continue
+                    # A real failure (Status=Fail) or a Warn we've run out of
+                    # attempts for -- either way this wrapper is an error
+                    # notice, not a report, so it must not be handed back to
+                    # the caller as if it were one (that used to happen here).
+                    print(
+                        f"Flex query GetStatement did not return a report: "
+                        f"status={wrapper_status!r} "
+                        f"errorCode={(wrapper.findtext('ErrorCode') if wrapper is not None else None)!r} "
+                        f"errorMessage={(wrapper.findtext('ErrorMessage') if wrapper is not None else None)!r}"
+                    )
+                    return b""
+                print(f"Flex query GetStatement succeeded: downloaded {len(content)} bytes")
+                return content
+            return b""
         except requests.RequestException as e:
-            logging.error(f"Flex query error: {e}", exc_info=True)
+            print(f"Flex query request failed: {e}")
             return b""
 
     # ------------------------------------------------------------------ #
@@ -700,14 +861,34 @@ class IBApp:
             logging.error(f"Error fetching IBKR watchlist tickers: {e}", exc_info=True)
             return []
 
-    def get_forward_pe(self, tickers, usa_only=True, max_workers=2, raw_out=None):
+    def get_forward_pe(self, tickers, usa_only=True, max_workers=2, raw_out=None, country_overrides=None):
         """
-        Returns {ticker: {name, forwardPE, forwardEps, trailingPE, pegRatio,
-        priceToFCF, debtToEquity, quickRatio, currentRatio, price, sector,
+        Returns {ticker: {name, forwardPE, forwardEps, trailingPE, trailingPS,
+        pegRatio, priceToFCF, enterpriseToEbitda, beta, debtToEquity, quickRatio,
+        currentRatio, shortRatio, shortPercentOfFloat, price, sector,
         country, targetMeanPrice, targetHighPrice, targetLowPrice,
-        numberOfAnalystOpinions, revenueGrowth, recommendationKey,
-        earningsTimestampStart, lastDownload}} from Yahoo Finance. When
+        numberOfAnalystOpinions, revenueGrowth, returnOnEquity,
+        profitMargins, operatingMargins, recommendationKey,
+        recommendationMean, earningsTimestampStart, epsRevision0y,
+        epsRevision1y, lastDownload}} from
+        Yahoo Finance. When
         usa_only=True, only US-domiciled companies are returned.
+
+        epsRevision0y/epsRevision1y are the consensus EPS estimate's
+        30-day revision trend (see _eps_revision) for the current ("0y")
+        and next ("+1y") fiscal year, from yfinance's get_eps_trend() --
+        a separate request per ticker alongside get_info(), best-effort:
+        a failure there doesn't fail the whole ticker (unlike get_info()
+        itself, which is what the retry loop below is really for), it
+        just leaves both fields None.
+
+        country_overrides, if given, is a collection of tickers to keep
+        regardless of what yfinance reports for `country` -- e.g. CRSP is
+        Swiss-incorporated despite being an ordinary US-listed, US-focused
+        security, which usa_only would otherwise silently drop. A manual
+        correction, same spirit as main.py's sector overrides, just applied
+        here since usa_only filters a symbol out of the results entirely
+        rather than just mislabeling a field on it.
 
         If raw_out is a dict, the complete, unfiltered yfinance `info` payload
         for every ticker (including ones later dropped by usa_only) is stored
@@ -719,7 +900,8 @@ class IBApp:
         def fetch(symbol):
             for attempt in range(3):
                 try:
-                    info = yf.Ticker(symbol).get_info()
+                    yt = yf.Ticker(symbol)
+                    info = yt.get_info()
                     if raw_out is not None:
                         raw_out[symbol] = {**info, "lastDownload": now}
                     market_cap = info.get("marketCap")
@@ -737,16 +919,34 @@ class IBApp:
                     trailing_pe = info.get("trailingPE")
                     if trailing_pe is None and price and trailing_eps:
                         trailing_pe = price / trailing_eps
+                    eps_revision_0y = None
+                    eps_revision_1y = None
+                    try:
+                        eps_trend = yt.get_eps_trend()
+                        if eps_trend is not None and not eps_trend.empty:
+                            if "0y" in eps_trend.index:
+                                eps_revision_0y = _eps_revision(
+                                    eps_trend.loc["0y", "current"], eps_trend.loc["0y", "30daysAgo"]
+                                )
+                            if "+1y" in eps_trend.index:
+                                eps_revision_1y = _eps_revision(
+                                    eps_trend.loc["+1y", "current"], eps_trend.loc["+1y", "30daysAgo"]
+                                )
+                    except Exception as e:
+                        logging.info(f"get_forward_pe: {symbol} eps trend failed: {e}")
                     return symbol, {
                         "name": info.get("shortName"),
                         "forwardPE": info.get("forwardPE"),
                         "forwardEps": info.get("forwardEps"),
                         "trailingPE": trailing_pe,
+                        "trailingPS": info.get("priceToSalesTrailing12Months"),
                         "pegRatio": info.get("pegRatio"),
                         "priceToFCF": price_to_fcf,
                         "debtToEquity": info.get("debtToEquity"),
                         "quickRatio": info.get("quickRatio"),
                         "currentRatio": info.get("currentRatio"),
+                        "shortRatio": info.get("shortRatio"),
+                        "shortPercentOfFloat": info.get("shortPercentOfFloat"),
                         "price": price,
                         # "industry" (e.g. "Semiconductors") rather than the
                         # coarser "sector" (e.g. "Technology"), so peer groups
@@ -760,8 +960,16 @@ class IBApp:
                         "targetLowPrice": info.get("targetLowPrice"),
                         "numberOfAnalystOpinions": info.get("numberOfAnalystOpinions"),
                         "revenueGrowth": info.get("revenueGrowth"),
+                        "returnOnEquity": info.get("returnOnEquity"),
+                        "profitMargins": info.get("profitMargins"),
+                        "operatingMargins": info.get("operatingMargins"),
+                        "enterpriseToEbitda": info.get("enterpriseToEbitda"),
+                        "beta": info.get("beta"),
                         "recommendationKey": info.get("recommendationKey"),
+                        "recommendationMean": info.get("recommendationMean"),
                         "earningsTimestampStart": info.get("earningsTimestampStart"),
+                        "epsRevision0y": eps_revision_0y,
+                        "epsRevision1y": eps_revision_1y,
                         "lastDownload": now,
                     }
                 except Exception as e:
@@ -776,7 +984,10 @@ class IBApp:
                 results[sym] = data
 
         if usa_only:
-            results = {s: d for s, d in results.items() if d.get("country") == "United States"}
+            overrides = country_overrides or ()
+            results = {
+                s: d for s, d in results.items() if s in overrides or d.get("country") == "United States"
+            }
 
         return results
 
@@ -880,23 +1091,249 @@ class IBApp:
 
         return history
 
-    def get_momentum(self, tickers, max_workers=2, history_out=None):
+    async def get_ib_historical_bars_async(self, tickers, duration, bar_size, max_requests_per_10min=55):
+        """Async twin of get_ib_historical_bars, same pacing/request logic,
+        for callers that share this instance's IB Gateway connection with
+        other concurrent work (live ticks, snapshot polling) on the same
+        asyncio event loop — awaiting reqHistoricalDataAsync and sleeping
+        via asyncio.sleep (instead of the sync method's blocking
+        self.ib.reqHistoricalData/self.ib.sleep) means the many minutes or
+        hours a large ticker list takes never stalls anything else sharing
+        that loop, the way calling the sync version from a coroutine would.
         """
-        Returns {ticker: momentum_score}, sourced from a single Yahoo Finance
-        daily history fetch per ticker (period=1mo). The score is a
-        regression-slope momentum (Clenow-style): the annualized slope of a
-        linear regression on log(close) over the trailing ~1 month, scaled by
-        the fit's R². A steady uptrend scores higher than a choppy one with
-        the same net return, since R² shrinks toward 0 for noisy/gappy price
-        action. Tickers with fewer than 5 closes are omitted.
+        contracts = [self.make_contract(t) for t in tickers]
+        contracts = [c for c in contracts if c is not None]
+        qualified = await self.ib.qualifyContractsAsync(*contracts)
+        logging.info(f"get_ib_historical_bars_async: qualified {len(qualified)}/{len(tickers)} contracts")
 
-        If history_out is a dict, the daily close series from that same
-        fetch is stored into it as {ticker: [{date, close}, ...]} — lets
-        callers that already need this fetch for momentum persist it for
-        charting too, without a second network round-trip.
+        history = {}
+        request_times = self._historical_request_times
+        for i, c in enumerate(qualified):
+            now = time.monotonic()
+            while request_times and now - request_times[0] > 600:
+                request_times.popleft()
+            if len(request_times) >= max_requests_per_10min:
+                sleep_for = 600 - (now - request_times[0]) + 1
+                logging.info(
+                    f"get_ib_historical_bars_async: pacing limit reached ({i}/{len(qualified)} done), "
+                    f"sleeping {sleep_for:.0f}s"
+                )
+                await asyncio.sleep(sleep_for)
+            request_times.append(time.monotonic())
+
+            try:
+                bars = await self.ib.reqHistoricalDataAsync(
+                    c,
+                    endDateTime="",
+                    durationStr=duration,
+                    barSizeSetting=bar_size,
+                    whatToShow="TRADES",
+                    useRTH=True,
+                    formatDate=1,
+                )
+                history[c.symbol] = [
+                    {
+                        "date": (b.date.strftime("%Y-%m-%d %H:%M:%S") if hasattr(b.date, "strftime") else str(b.date)),
+                        "open": b.open,
+                        "high": b.high,
+                        "low": b.low,
+                        "close": b.close,
+                        "volume": b.volume,
+                    }
+                    for b in bars
+                ]
+            except Exception as e:
+                logging.error(f"get_ib_historical_bars_async: {c.symbol} failed: {e}")
+                history[c.symbol] = []
+
+        return history
+
+    async def _req_historical_news_async(self, conId, provider_codes, start, end, total_results, timeout=20):
+        """Same request ib.reqHistoricalNewsAsync makes, but with a
+        configurable timeout instead of that method's hard-coded 4
+        seconds (see ib_insync/ib.py) -- confirmed live that 4s is too
+        short for this account/query shape (reqHistoricalNewsAsync:
+        Timeout on almost every call), while the request itself
+        eventually does complete given more time."""
+        reqId = self.ib.client.getReqId()
+        future = self.ib.wrapper.startReq(reqId)
+        start_fmt = util.formatIBDatetime(start)
+        end_fmt = util.formatIBDatetime(end)
+        self.ib.client.reqHistoricalNews(reqId, conId, provider_codes, start_fmt, end_fmt, total_results, [])
+        try:
+            await asyncio.wait_for(future, timeout)
+            return future.result()
+        except asyncio.TimeoutError:
+            logging.error(f"_req_historical_news_async: timeout after {timeout}s for conId={conId}")
+            return None
+
+    async def get_news_headlines_async(self, tickers, days=3, max_headlines_per_ticker=100, max_requests_per_10min=55):
+        """Returns {ticker: [{articleId, time, provider, headline}, ...]} —
+        every headline from the last `days` days per ticker (bounded by
+        max_headlines_per_ticker, IB's per-request cap), from whichever
+        news providers this account is subscribed to (see
+        reqNewsProviders — confirmed for this account: Briefing.com and
+        Dow Jones only, no Reuters/Benzinga/Zacks). Headlines only, no
+        article body (see reqNewsArticle for that; not used here).
+
+        articleId (e.g. "DJ-N$1f1057ff") is IB's own provider-qualified,
+        per-article identifier — the caller (ib_price_server.py's
+        news_loop) uses it to dedupe when merging into a rolling-window
+        news.json across repeated fetches.
+
+        IB doesn't publish an explicit pacing limit for reqHistoricalNews,
+        unlike reqHistoricalData's documented ~60-requests-per-10-minutes
+        rule. This errs conservative with its own INDEPENDENT sliding-
+        window budget (not shared with get_ib_historical_bars_async's
+        self._historical_request_times — different IB request category,
+        no evidence they draw from the same account-wide bucket),
+        defaulting to that same 55-requests-per-10-minutes assumption in
+        the absence of documented guidance otherwise. At that rate, a
+        full pass over a large ticker list takes multiple hours; see
+        ib_price_server.py's news_loop for how that's handled (a
+        continuous background cycle that saves progress as it goes, not
+        a one-shot that only writes at the very end)."""
+        providers = await self.ib.reqNewsProvidersAsync()
+        provider_codes = "+".join(p.code for p in providers)
+        if not provider_codes:
+            logging.error("get_news_headlines_async: no subscribed news providers on this account")
+            return {}
+
+        contracts = [self.make_contract(t) for t in tickers]
+        contracts = [c for c in contracts if c is not None]
+        qualified = await self.ib.qualifyContractsAsync(*contracts)
+        logging.info(f"get_news_headlines_async: qualified {len(qualified)}/{len(tickers)} contracts")
+
+        start = datetime.utcnow() - timedelta(days=days)
+        end = datetime.utcnow()
+
+        results = {}
+        request_times = deque()
+        for i, c in enumerate(qualified):
+            now = time.monotonic()
+            while request_times and now - request_times[0] > 600:
+                request_times.popleft()
+            if len(request_times) >= max_requests_per_10min:
+                sleep_for = 600 - (now - request_times[0]) + 1
+                logging.info(
+                    f"get_news_headlines_async: pacing limit reached ({i}/{len(qualified)} done), "
+                    f"sleeping {sleep_for:.0f}s"
+                )
+                await asyncio.sleep(sleep_for)
+            request_times.append(time.monotonic())
+
+            try:
+                headlines = await self._req_historical_news_async(
+                    c.conId, provider_codes, start, end, max_headlines_per_ticker
+                )
+                results[c.symbol] = [
+                    {
+                        "articleId": h.articleId,
+                        "time": h.time.isoformat() if hasattr(h.time, "isoformat") else str(h.time),
+                        "provider": h.providerCode,
+                        "headline": h.headline,
+                    }
+                    for h in (headlines or [])
+                ]
+            except Exception as e:
+                logging.error(f"get_news_headlines_async: {c.symbol} failed: {e}")
+                results[c.symbol] = []
+
+        return results
+
+    async def get_news_article_async(self, provider_code, article_id, timeout=15):
+        """Fetches ONE article's full body via reqNewsArticle — the
+        lazy, on-demand counterpart to get_news_headlines_async's
+        headline-only bulk fetch. Never called across the whole
+        screener; ib_price_server.py's GET /api/news/article calls this
+        only when a user actually expands a specific headline in the
+        UI, since body text is both far larger than a headline and
+        subject to the same undocumented per-account news pacing limits
+        get_news_headlines_async already has to budget for.
+
+        Returns plain text, or None if the article has no body / the
+        request times out. articleType 0 is plain text already;
+        articleType 1 (documented for Briefing.com, but seen from Dow
+        Jones here too) is HTML -- converted to readable plain text (see
+        _html_article_to_text) since callers only ever display this as
+        prose, not render it as markup. articleType alone isn't trusted
+        to catch every HTML body (see _LOOKS_LIKE_HTML_RE's own
+        comment), so the text itself is sniffed for tags too."""
+        try:
+            article = await asyncio.wait_for(
+                self.ib.reqNewsArticleAsync(provider_code, article_id), timeout
+            )
+        except asyncio.TimeoutError:
+            logging.error(f"get_news_article_async: timeout for {provider_code}/{article_id}")
+            return None
+        except Exception as e:
+            logging.error(f"get_news_article_async: {provider_code}/{article_id} failed: {e}")
+            return None
+        text = getattr(article, "articleText", None) if article else None
+        if not text:
+            return None
+        if getattr(article, "articleType", 0) == 1 or _LOOKS_LIKE_HTML_RE.search(text):
+            text = _html_article_to_text(text)
+        return text
+
+    def get_momentum(
+        self, tickers, max_workers=2, history_out=None, daily_3mo_by_ticker=None, hourly_by_ticker=None
+    ):
         """
+        Returns {ticker: {"momentum": ..., "mean_reversion": ...}} -- two
+        independent factors (scoring.py's momentum_rank and
+        mean_reversion_rank each score their own 5% of the composite),
+        not blended into one number the way this used to work.
+
+        momentum: regression-momentum (see _regression_momentum) on the
+        3-month IB Gateway daily series (daily_3mo_by_ticker -- see
+        ib_price_server.py's price_history_daily_3mo.json) when it has at
+        least MIN_DAILY_BARS_FOR_BLEND bars, else the original
+        single-source fallback: a Yahoo Finance daily history fetch
+        (period=1mo), regression-momentum on that alone. None only if
+        neither source has enough closes.
+
+        mean_reversion: the NEGATED regression-momentum on the hourly IB
+        Gateway series (hourly_by_ticker -- see
+        ib_price_server.py's price_history_hourly.json, only fetched for
+        CANDLESTICK_TOP_N ranked/held tickers, not the whole universe)
+        when it has at least MIN_HOURLY_BARS_FOR_BLEND bars -- a
+        short-term trend/momentum reading treated as a mean-reversion
+        signal instead of a second momentum vote, since a stock that's
+        run up hard in the last few hours/days is, on this timeframe,
+        more likely due for a pullback than to keep accelerating in the
+        same direction the (separate) daily momentum factor already
+        captures. There's no fallback data source for hourly bars the
+        way momentum has one (the yfinance call here is daily-only), so
+        this is None for any ticker IB Gateway hasn't fetched hourly
+        candlesticks for.
+
+        The yfinance fetch happens for every ticker regardless of which
+        source `momentum` ends up using, since other parts of this app
+        (price_history.json) depend on history_out covering the whole
+        universe, not just the ones missing IB data. If history_out is a
+        dict, that fetch's daily close series is stored into it as
+        {ticker: [{date, close}, ...]}.
+        """
+        daily_3mo_by_ticker = daily_3mo_by_ticker or {}
+        hourly_by_ticker = hourly_by_ticker or {}
+
+        def ib_daily_momentum(symbol):
+            daily_series = daily_3mo_by_ticker.get(symbol)
+            if not daily_series or len(daily_series) < MIN_DAILY_BARS_FOR_BLEND:
+                return None
+            return _regression_momentum([b["close"] for b in daily_series], TRADING_DAYS_PER_YEAR)
+
+        def hourly_mean_reversion(symbol):
+            hourly_series = hourly_by_ticker.get(symbol)
+            if not hourly_series or len(hourly_series) < MIN_HOURLY_BARS_FOR_BLEND:
+                return None
+            hourly_mom = _regression_momentum([b["close"] for b in hourly_series], TRADING_HOURS_PER_YEAR)
+            return None if hourly_mom is None else -hourly_mom
 
         def fetch(symbol):
+            ib_mom = ib_daily_momentum(symbol)
+            reversion = hourly_mean_reversion(symbol)
             for attempt in range(3):
                 try:
                     hist = yf.Ticker(symbol).history(period="1mo")
@@ -906,18 +1343,27 @@ class IBApp:
                             {"date": ts.strftime("%Y-%m-%d"), "close": round(c, 4)}
                             for ts, c in closes.items()
                         ]
+                    if ib_mom is not None:
+                        return symbol, {"momentum": ib_mom, "mean_reversion": reversion}
                     if len(closes) < 5:
-                        return symbol, None
-                    return symbol, _regression_momentum(closes.tolist())
+                        return symbol, {"momentum": None, "mean_reversion": reversion}
+                    return symbol, {
+                        "momentum": _regression_momentum(closes.tolist()),
+                        "mean_reversion": reversion,
+                    }
                 except Exception:
                     if attempt == 2:
-                        return symbol, None
+                        # yfinance failed, but an IB-based momentum
+                        # reading doesn't need it -- only actually give
+                        # up on momentum if we have neither; mean_reversion
+                        # never depended on yfinance at all.
+                        return symbol, {"momentum": ib_mom, "mean_reversion": reversion}
                     time.sleep(1.5)
 
         momentum = {}
         with ThreadPoolExecutor(max_workers=max_workers) as ex:
             futures = {ex.submit(fetch, s): s for s in tickers}
-            for sym, score in (f.result() for f in as_completed(futures)):
-                momentum[sym] = score
+            for sym, result in (f.result() for f in as_completed(futures)):
+                momentum[sym] = result
 
         return momentum

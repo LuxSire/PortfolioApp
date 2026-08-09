@@ -5491,6 +5491,15 @@
     "sector": "Oil & Gas E&P"
   },
   {
+    "symbol": "CRCL",
+    "type": "STOCK",
+    "currency": "USD",
+    "market": "SMART",
+    "country": "US",
+    "active": 1,
+    "sector": "Capital Markets"
+  },
+  {
     "symbol": "CRCT",
     "type": "STOCK",
     "currency": "USD",
@@ -6052,7 +6061,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Software - Application"
   },
   {
@@ -17153,7 +17162,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Insurance - Property & Casualty"
   },
   {
@@ -18934,7 +18943,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Medical Care Facilities"
   },
   {
@@ -19255,7 +19264,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "REIT - Healthcare Facilities"
   },
   {
@@ -20078,7 +20087,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1
+    "active": 0
   },
   {
     "symbol": "STEP",
@@ -22023,15 +22032,6 @@
     "country": "US",
     "active": 1,
     "sector": "Medical Instruments & Supplies"
-  },
-  {
-    "symbol": "UTZ",
-    "type": "STOCK",
-    "currency": "USD",
-    "market": "SMART",
-    "country": "US",
-    "active": 1,
-    "sector": "Packaged Foods"
   },
   {
     "symbol": "UUUU",

@@ -193,3 +193,17 @@ export function getSectorGroup(industry) {
   }
   return DEFAULT_GROUP
 }
+
+// Display-only shorthand for a couple of long sector-group names, used
+// wherever a getSectorGroup result is actually shown as a label
+// (Positions' sector-group cells, the Sectors tab's top-level rows) —
+// grouping, sorting, and icon lookup elsewhere all still key off the real
+// getSectorGroup output; this only trims what's rendered as text.
+const GROUP_LABEL_OVERRIDES = {
+  'Communication Services': 'Communication',
+  'Financial Services': 'Financials',
+}
+
+export function sectorGroupLabel(group) {
+  return GROUP_LABEL_OVERRIDES[group] || group
+}

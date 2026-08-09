@@ -1,10 +1,13 @@
 """
-main.py — entry point.
+main.py — entry point. Owns the download pipeline and file I/O; every
+individual scoring indicator/factor calculation (and score_rows itself,
+which combines them) lives in scoring.py instead -- see that module's own
+docstring for the full list of factor functions and their weights.
 
 download_all():    fetch tickers from symbols.json (active == 1), pull forward/trailing
                     P/E + price-to-FCF from Yahoo Finance, then add the
                     regression-slope momentum score, and write raw_data.json +
-                    forward_pe.csv + screen.csv + sorted_screen.csv. Tickers
+                    forward_pe.csv + sorted_screen.csv. Tickers
                     downloaded within the last FRESH_HOURS hours are skipped
                     (their previous row is reused as-is), and tickers whose
                     fetch fails this run (e.g. a transient Yahoo Finance
@@ -20,53 +23,124 @@ download_all():    fetch tickers from symbols.json (active == 1), pull forward/t
                     the pipeline.
 download_prices():  reuse the forward-PE data already in forward_pe.csv and only
                     refresh the momentum score, then rewrite forward_pe.csv +
-                    screen.csv + sorted_screen.csv.
+                    sorted_screen.csv.
+rescore():          rewrite sorted_screen.csv (and forward_pe.csv) from forward_pe.csv
+                    already on disk with ZERO network calls -- not even the momentum
+                    refresh download_prices() still does. For when only the scoring
+                    itself changed (a scoring.py edit, a manual data fix, a newly
+                    backfilled CSV column) and every field on disk is otherwise still
+                    good. Run via `python main.py rescore`.
 download_symbols(): refetch forward-PE + price-performance data for a specific
                     list of tickers only (e.g. ones missing from the outputs
                     after a transient Yahoo Finance failure), merging into the
                     existing forward_pe.csv/raw_data.json, then rewrite
-                    screen.csv + sorted_screen.csv. Run via
+                    sorted_screen.csv. Run via
                     `python main.py symbol TICKER [TICKER ...]`.
 
-Writes:
-  raw_data.json     the complete, unfiltered yfinance `info` payload per
+Writes (JSON outputs under DATA_DIR ("data/"); CSVs and symbols.json, a
+hand-maintained input rather than generated output, stay at the project
+root):
+  data/raw_data.json  the complete, unfiltered yfinance `info` payload per
                      ticker (every field Yahoo exposes), for discovering
                      fields not yet curated into forward_pe.csv.
   forward_pe.csv    all tickers, sorted by forwardPE ascending.
-  screen.csv        only tickers with positive forwardPE (negative or missing
-                     priceToFCF is kept, not excluded), sorted by forwardPE
-                     ascending.
-  sorted_screen.csv screen.csv rows priced at $8+, ranked by a composite score:
-                     15% low forwardPE, 10% low forwardPE relative to its
-                     sector's average forwardPE, 15% low priceToFCF (negative
-                     or missing FCF is treated as a fixed 200 for this factor
-                     only), 10% high momentum (regression-slope momentum
-                     score, divided by the annualized volatility of daily
-                     log returns; missing penalized as worst),
+  sorted_screen.csv screen_rows(data) (tickers with positive forwardPE —
+                     negative or missing priceToFCF is kept, not excluded)
+                     filtered to price >= $8, ranked by a composite score:
+                     5% low forwardPE (down from 10%, moved to the EPS
+                     trend factor below), 10% low forwardPE relative to its
+                     sector's average forwardPE, 5% low priceToFCF
+                     (negative or missing FCF treated as a fixed 200 for
+                     this factor only) + 5% low enterpriseToEbitda
+                     (negative EBITDA ranked worst instead -- two
+                     independent cash-flow-valuation factors; see
+                     scoring.ev_ebitda_rank), 5% high daily-timeframe momentum
+                     (regression-slope momentum score, divided by the
+                     annualized volatility of daily log returns -- the
+                     3-month IB Gateway daily series where available,
+                     else the plain ~1-month yfinance calculation; see
+                     IBApp.get_momentum; missing penalized as worst) + 5%
+                     high hourly-timeframe mean reversion (the NEGATED
+                     regression-momentum score on IB Gateway's hourly
+                     series -- a short-term trend/momentum reading
+                     treated as a mean-reversion signal, not a second
+                     momentum vote; only populated for the
+                     CANDLESTICK_TOP_N ranked/held tickers IB Gateway
+                     fetches hourly bars for, no fallback source, missing
+                     penalized as worst) -- two independent factors, not
+                     blended into one the way this used to work, 5% EPS
+                     trend (eps_trend_rank -- average of the current- and
+                     next-fiscal-year 30-day consensus EPS estimate
+                     revision ranks, from yfinance's get_eps_trend(); see
+                     IBApp.get_forward_pe/_eps_revision; missing penalized
+                     as worst),
                      10% analyst conviction — the average of high
-                     targetUpside and low recommendationMean ranks (negative
-                     upside, and a 0 or missing recommendationMean, both
-                     penalized as worst), 15% based on
+                     targetUpside, low recommendationMean, and low
+                     target-price dispersion ((high-low)/mean) ranks
+                     (negative upside, a 0 or missing recommendationMean,
+                     and a missing/inconsistent target triple, all
+                     penalized as worst; dispersion catches real analyst
+                     disagreement the mean alone hides), 5% based on
                      forwardPE - trailingPE when trailingPE is positive and
                      finite (infinite or negative trailingPE — the company
                      lost money over the trailing twelve months — penalized
                      as worst for this factor instead of masked behind a
-                     placeholder), 5% low pegRatio (negative PEG penalized as
-                     worst, not treated as "low"), 10% high revenueGrowth
+                     placeholder) — down from 10%, moved to analyst
+                     conviction above, 5% low pegRatio (negative PEG penalized as
+                     worst, not treated as "low"), 2.5% low trailingPS (price /
+                     trailing-twelve-month revenue; missing penalized as worst) —
+                     a separate valuation lens from forwardPE/priceToFCF/
+                     enterpriseToEbitda, not blended with any of them, that
+                     stays meaningful for unprofitable/negative-FCF names those
+                     break down for (revenue is essentially never negative,
+                     unlike earnings/FCF/EBITDA) — taken out of liquidity's
+                     weight below, 7.5% high revenueGrowth
                      (negative growth penalized as worst, not treated as
-                     "low"), 5% low debtToEquity relative to its sector's
+                     "low" — down from 10%, moved to margins below), 5% low
+                     debtToEquity relative to its sector's
                      average debtToEquity (negative or missing debtToEquity
-                     penalized as worst, same treatment as pegRatio), 5%
+                     penalized as worst, same treatment as pegRatio), 2.5%
                      liquidity — the average of high quickRatio and high
-                     currentRatio ranks (missing penalized as worst). Sorted
-                     best (lowest score) first.
-  social_sentiment.json  {ticker: {bullish, bearish, tagged, total, score,
+                     currentRatio ranks (missing penalized as worst — down
+                     from 5%, moved to trailingPS above), 5%
+                     high returnOnEquity (negative ROE penalized as worst,
+                     not treated as "low", same treatment as revenueGrowth),
+                     5% short interest — the average of high shortRatio and
+                     high shortPercentOfFloat ranks (missing penalized as
+                     worst) — deliberately contrarian: the more a stock is
+                     shorted, the better it scores here. 5% combined news +
+                     social sentiment (StockTwits' social_sentiment.json
+                     blended with FinBERT-scored headlines in
+                     news_sentiment.json — see load_sentiment_scores;
+                     missing penalized as worst) — taken out of forwardPE's
+                     own weight, previously 15%. 7.5% margins — the average
+                     of high profitMargins and high operatingMargins ranks
+                     (negative margins penalized as worst, same treatment
+                     as revenueGrowth/ROE) — up from 5%, the other 2.5%
+                     taken out of revenueGrowth's weight above.
+                     Sorted best (lowest score) first. Also carries a
+                     `rating` column: a forced-distribution Strong Buy/Buy/
+                     Hold/Sell/Strong Sell label from this file's own score
+                     percentile (top/bottom 5% = Strong Buy/Strong Sell,
+                     next 15% each = Buy/Sell, middle 60% = Hold — same
+                     shape as Zacks Rank's bucketing, unlike Wall Street's
+                     own analyst consensus, which skews heavily toward
+                     "Buy" since sell-side analysts rarely publish Sell
+                     ratings). Symmetric bucket sizes guarantee equal
+                     Strong Buy / Strong Sell counts (up to rounding).
+                     Every priced (>= MIN_PRICE) ticker with a non-positive
+                     forwardPE is also appended after the ranked rows, for
+                     visibility only -- blank score, rating "NA", alphabetical
+                     order, and never picked up by load_top_tickers (so
+                     never streamed/snapshotted a live IB price either) --
+                     see write_sorted_screen_csv.
+  data/social_sentiment.json  {ticker: {bullish, bearish, tagged, total, score,
                      lastDownload}} StockTwits sentiment for the top
                      SENTIMENT_TOP_N ranked tickers; score is
                      (bullish - bearish) / tagged. Merged across runs, so
                      tickers that drop out of the top N keep their last
                      known score rather than being deleted.
-  price_history.json  {ticker: [{date, close}, ...]} trailing ~1 month of
+  data/price_history.json  {ticker: [{date, close}, ...]} trailing ~1 month of
                      daily closes, captured from the same yfinance fetch
                      add_momentum already makes for the momentum score (see
                      IBApp.get_momentum) — no extra network round-trip.
@@ -76,29 +150,71 @@ Writes:
 
 import csv
 import json
-import math
+import os
 import sys
 from datetime import datetime, timedelta
 
 from IBApp import IBApp
-from social_sentiment import fetch_social_sentiment
+from scoring import (
+    RATING_NA,
+    add_avg_liquidity_ratio,
+    add_target_upside,
+    load_sentiment_scores,
+    rating_for_percentile,
+    score_rows,
+    to_float,
+)
+from social_sentiment import SENTIMENT_FILE, fetch_social_sentiment
+
+# Every JSON file a downloader (this module, ib_price_server.py,
+# social_sentiment.py) produces lives here -- keeps the project root from
+# filling up with generated output. CSVs (forward_pe.csv, sorted_screen.csv)
+# and symbols.json (a hand-maintained input, not generated) deliberately
+# stay at the root; only the JSON downloader outputs moved. Created on
+# import so a fresh checkout doesn't need a manual mkdir before the first
+# run.
+DATA_DIR = "data"
+os.makedirs(DATA_DIR, exist_ok=True)
 
 OUTPUT_CSV = "forward_pe.csv"
-SCREEN_CSV = "screen.csv"
 SORTED_SCREEN_CSV = "sorted_screen.csv"
-RAW_DATA_FILE = "raw_data.json"
-PRICE_HISTORY_FILE = "price_history.json"
+RAW_DATA_FILE = os.path.join(DATA_DIR, "raw_data.json")
+PRICE_HISTORY_FILE = os.path.join(DATA_DIR, "price_history.json")
+# Written separately by ib_price_server.py (IB Gateway's own bars, not
+# yfinance's), covering only CANDLESTICK_TOP_N ranked/held tickers, not
+# the whole universe -- see IBApp.get_momentum, which blends these in for
+# whatever ticker they cover and falls back to the plain yfinance
+# calculation for everything else. Read-only from here: this pipeline
+# doesn't write either file, and doesn't require ib_price_server.py (or
+# IB Gateway) to be running -- if they're missing or stale, get_momentum
+# just falls back for every ticker, same as before this existed.
+DAILY_3MO_HISTORY_FILE = os.path.join(DATA_DIR, "price_history_daily_3mo.json")
+HOURLY_HISTORY_FILE = os.path.join(DATA_DIR, "price_history_hourly.json")
+# Also written by ib_price_server.py's news_loop (see that module's
+# NEWS_SENTIMENT_FILE) -- duplicated here rather than imported since
+# ib_price_server.py itself imports SORTED_SCREEN_CSV/load_top_tickers
+# from this module, and importing it back would be circular. Read-only
+# from here, same as the price-history files above.
+NEWS_SENTIMENT_FILE = os.path.join(DATA_DIR, "news_sentiment.json")
 SYMBOLS_FILE = "symbols.json"
 MIN_PRICE = 8
 SENTIMENT_TOP_N = 200
+# yfinance reports these as foreign-domiciled (e.g. reincorporated abroad)
+# despite being ordinary US-listed, US-focused securities that belong in
+# this screener -- get_forward_pe's usa_only filter would otherwise
+# silently drop them. Add a ticker here only after confirming by hand
+# that it genuinely trades/reports as a normal US security.
+COUNTRY_OVERRIDE_TICKERS = {"CRSP"}
 
 FIELDNAMES = [
-    "ticker", "name", "sector", "forwardPE", "forwardEps", "trailingPE", "pegRatio", "priceToFCF",
-    "debtToEquity", "LiqRatio", "quickRatio", "currentRatio", "revenueGrowth", "price", "targetMeanPrice",
-    "targetHighPrice", "targetLowPrice", "targetUpside", "recommendationKey", "recommendationMean",
-    "numberOfAnalystOpinions", "momentum", "earningsTimestampStart", "lastDownload",
+    "ticker", "name", "sector", "forwardPE", "forwardEps", "trailingPE", "trailingPS", "pegRatio", "priceToFCF",
+    "enterpriseToEbitda", "beta", "debtToEquity", "LiqRatio", "quickRatio", "currentRatio", "shortRatio", "shortPercentOfFloat",
+    "revenueGrowth", "returnOnEquity", "profitMargins", "operatingMargins", "price",
+    "targetMeanPrice", "targetHighPrice", "targetLowPrice", "targetUpside", "recommendationKey",
+    "recommendationMean", "numberOfAnalystOpinions", "momentum", "meanReversion", "epsRevision0y",
+    "epsRevision1y", "earningsTimestampStart", "lastDownload",
 ]
-# screen.csv / sorted_screen.csv show sector last instead of right after name.
+# sorted_screen.csv shows sector last instead of right after name.
 SCREEN_FIELDNAMES = [f for f in FIELDNAMES if f != "sector"] + ["sector"]
 
 
@@ -140,36 +256,61 @@ def load_pe_data(path):
     return data
 
 
-def load_top_tickers(path, n):
+def load_top_tickers(path, n=None):
     """Reads the first n tickers from an existing sorted_screen.csv (already
-    ranked best-to-worst by score). Used to scope the social-sentiment
-    download to the top of the ranking as it stood before this run started,
-    since this run's own scores aren't computed until later. Returns []
-    if the file doesn't exist yet (e.g. first-ever run)."""
+    ranked best-to-worst by score), or every ranked ticker in the file if n
+    is None. Used to scope the social-sentiment download to the top of the
+    ranking as it stood before this run started, since this run's own
+    scores aren't computed until later -- and, unbounded, by
+    ib_price_server.py to decide which tickers get a live/snapshot IB
+    price at all.
+
+    Skips any row with no `score` -- see write_sorted_screen_csv, which
+    appends negative-forwardPE tickers at the end of the file, unscored
+    and unranked, for visibility in the Screener only. Unranked isn't
+    "ranked last"; it's not part of this ranking, so it shouldn't count
+    toward a top-N slice or (for ib_price_server.py's unbounded calls)
+    ever be treated as part of the live-priced universe.
+
+    Returns [] if the file doesn't exist yet (e.g. first-ever run)."""
     try:
         with open(path, newline="") as f:
             reader = csv.DictReader(f)
-            return [row["ticker"] for _, row in zip(range(n), reader)]
+            scored = (row for row in reader if row.get("score"))
+            if n is None:
+                return [row["ticker"] for row in scored]
+            return [row["ticker"] for _, row in zip(range(n), scored)]
     except FileNotFoundError:
         return []
 
 
-def to_float(value):
+def _load_json_or_empty(path):
     try:
-        return float(value)
-    except (TypeError, ValueError):
-        return None
+        with open(path) as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {}
 
 
 def add_momentum(app, data, history_out=None):
-    """Adds momentum (regression-slope momentum score over the trailing ~1
-    month of daily closes — see IBApp.get_momentum) to each entry in data,
-    in place. If history_out is a dict, also captures each ticker's daily
-    close series from that same fetch (see write_price_history) — no extra
-    network round-trip since IBApp.get_momentum already pulls it."""
-    momentum = app.get_momentum(list(data.keys()), history_out=history_out)
+    """Adds momentum + meanReversion (see IBApp.get_momentum -- momentum
+    from DAILY_3MO_HISTORY_FILE where it covers a ticker, else the plain
+    trailing-~1-month yfinance calculation; meanReversion from
+    HOURLY_HISTORY_FILE only, no fallback) to each entry in data, in
+    place. If history_out is a dict, also captures each ticker's daily
+    close series from that same yfinance fetch (see write_price_history)
+    — no extra network round-trip since IBApp.get_momentum already pulls
+    it."""
+    momentum = app.get_momentum(
+        list(data.keys()),
+        history_out=history_out,
+        daily_3mo_by_ticker=_load_json_or_empty(DAILY_3MO_HISTORY_FILE),
+        hourly_by_ticker=_load_json_or_empty(HOURLY_HISTORY_FILE),
+    )
     for symbol, d in data.items():
-        d["momentum"] = momentum.get(symbol)
+        result = momentum.get(symbol) or {}
+        d["momentum"] = result.get("momentum")
+        d["meanReversion"] = result.get("mean_reversion")
 
 
 def add_momentum_and_persist_history(app, data):
@@ -185,25 +326,6 @@ def add_momentum_and_persist_history(app, data):
         all_history = {}
     all_history.update(history)
     write_price_history(all_history)
-
-
-def add_target_upside(data):
-    """Adds targetUpside (sell-side mean target price vs. current price) to
-    each entry in data, in place."""
-    for d in data.values():
-        price = to_float(d.get("price"))
-        target = to_float(d.get("targetMeanPrice"))
-        d["targetUpside"] = target / price - 1 if price and target else None
-
-
-def add_avg_liquidity_ratio(data):
-    """Adds LiqRatio (mean of quickRatio and currentRatio) to each entry in
-    data, in place. Left blank when either ratio is missing, rather than
-    averaging just the one present value."""
-    for d in data.values():
-        quick = to_float(d.get("quickRatio"))
-        current = to_float(d.get("currentRatio"))
-        d["LiqRatio"] = (quick + current) / 2 if quick is not None and current is not None else None
 
 
 FRESH_HOURS = 12
@@ -295,203 +417,49 @@ def screen_rows(data):
     return filtered
 
 
-def write_screen_csv(data):
-    """Only tickers with positive forwardPE, sorted by forwardPE ascending."""
-    rows = sorted(screen_rows(data), key=lambda item: to_float(item[1]["forwardPE"]))
-    write_csv(SCREEN_CSV, SCREEN_FIELDNAMES, rows)
-
-
-def rank_ascending(rows, value_fn):
-    """Percentile rank (0 = best/lowest, 1 = worst) of rows by value_fn(d); rows
-    where value_fn returns None get the worst rank."""
-    valid = [(symbol, value_fn(d)) for symbol, d in rows if value_fn(d) is not None]
-    valid.sort(key=lambda item: item[1])
-    n = len(valid)
-    ranks = {symbol: i / (n - 1) if n > 1 else 0 for i, (symbol, _) in enumerate(valid)}
-    return {symbol: ranks.get(symbol, 1.0) for symbol, _ in rows}
-
-
-def sector_avg_forward_pe(rows):
-    """Average forwardPE per sector, across rows that have both a sector and a forwardPE."""
-    sums, counts = {}, {}
-    for _, d in rows:
-        sector = d.get("sector")
-        fwd_pe = to_float(d.get("forwardPE"))
-        if sector and fwd_pe is not None:
-            sums[sector] = sums.get(sector, 0) + fwd_pe
-            counts[sector] = counts.get(sector, 0) + 1
-    return {sector: sums[sector] / counts[sector] for sector in sums}
-
-
-def sector_avg_debt_to_equity(rows):
-    """Average non-negative debtToEquity per sector, across rows that have
-    both a sector and a non-negative debtToEquity (negative debtToEquity,
-    i.e. negative shareholder equity, is excluded so one distressed company
-    doesn't skew its sector's baseline)."""
-    sums, counts = {}, {}
-    for _, d in rows:
-        sector = d.get("sector")
-        de = to_float(d.get("debtToEquity"))
-        if sector and de is not None and de >= 0:
-            sums[sector] = sums.get(sector, 0) + de
-            counts[sector] = counts.get(sector, 0) + 1
-    return {sector: sums[sector] / counts[sector] for sector in sums}
-
-
-def score_rows(rows):
-    """Composite score per (symbol, d): 15% low forwardPE, 10% low forwardPE
-    relative to its sector's average forwardPE, 15% low priceToFCF (negative
-    or missing FCF treated as a fixed 200 for this factor only), 10% high
-    momentum (regression-slope momentum score, now also divided by the
-    annualized volatility of daily log returns — see
-    IBApp._regression_momentum; missing ranked worst), 10% analyst
-    conviction — the average of high targetUpside and low recommendationMean
-    ranks (negative upside, and a 0 or missing recommendationMean, both
-    ranked worst; upside alone says "analysts expect it to rise", pairing it
-    with recommendationMean asks whether they're also confident enough to
-    call it a buy, since a mean price target can look high just because it's
-    dragged up by a stale or thinly-covered outlier), 15% based on
-    forwardPE - trailingPE when trailingPE is positive and finite (more
-    negative is better; negative or infinite trailingPE — i.e. the company
-    lost money over the trailing twelve months — ranked worst instead of
-    being substituted with a value that let it look artificially good), 5%
-    low pegRatio (negative PEG ranked worst, not best), 10% high
-    revenueGrowth (negative growth ranked worst, not just low), 5% low
-    debtToEquity relative to its sector's average debtToEquity
-    (debtToEquity - sector avg; negative or missing debtToEquity ranked
-    worst, same treatment as pegRatio), 5% liquidity — the average of high
-    quickRatio and high currentRatio ranks (missing ranked worst). Lower
-    score is better."""
-    pe_ranks = rank_ascending(rows, lambda d: to_float(d.get("forwardPE")))
-
-    def effective_price_to_fcf(d):
-        fcf = to_float(d.get("priceToFCF"))
-        # Negative or missing priceToFCF (negative or unavailable free cash
-        # flow) carries no real cash-flow signal; treat it as a fixed 200
-        # instead of excluding it, the same treatment pe_vs_trailing gives
-        # negative/infinite trailingPE.
-        return 200 if fcf is None or fcf < 0 else fcf
-
-    fcf_ranks = rank_ascending(rows, effective_price_to_fcf)
-
-    def neg_perf(field):
-        def key(d):
-            perf = to_float(d.get(field))
-            return -perf if perf is not None else None
-        return key
-
-    def neg_if_positive(field):
-        """Like neg_perf, but zero/negative values are excluded from the
-        normal magnitude-based ranking and fall back to the worst rank
-        instead — the same treatment peg_ranks gives negative pegRatio.
-        Used for factors where "negative" is a qualitatively different,
-        much worse signal than "low positive", not just more of the same."""
-        def key(d):
-            value = to_float(d.get(field))
-            return -value if value is not None and value > 0 else None
-        return key
-
-    momentum_ranks = rank_ascending(rows, neg_perf("momentum"))
-    upside_ranks = rank_ascending(rows, neg_if_positive("targetUpside"))
-    growth_ranks = rank_ascending(rows, neg_if_positive("revenueGrowth"))
-
-    def recommendation_key(d):
-        value = to_float(d.get("recommendationMean"))
-        # 1 = strong buy, 5 = strong sell; 0 shows up for a couple of
-        # thinly-covered tickers (1 analyst) and isn't a real position on
-        # that scale, so it's treated as missing rather than "better than
-        # strong buy".
-        return value if value is not None and value > 0 else None
-
-    recommendation_ranks = rank_ascending(rows, recommendation_key)
-    analyst_ranks = {
-        symbol: (upside_ranks[symbol] + recommendation_ranks[symbol]) / 2 for symbol, _ in rows
-    }
-
-    def pe_vs_trailing(d):
-        trailing_pe = to_float(d.get("trailingPE"))
-        fwd_pe = to_float(d.get("forwardPE"))
-        # Infinite or negative trailingPE means the company lost money over
-        # the trailing twelve months and carries no real earnings signal;
-        # rank it worst instead of substituting a fixed placeholder, since
-        # fwd_pe - placeholder would otherwise look like the best possible
-        # diff for cheap stocks (the opposite of what negative earnings
-        # should signal).
-        if trailing_pe is None or fwd_pe is None or not math.isfinite(trailing_pe) or trailing_pe < 0:
-            return None
-        return fwd_pe - trailing_pe
-
-    diff_ranks = rank_ascending(rows, pe_vs_trailing)
-    peg_ranks = rank_ascending(
-        rows,
-        lambda d: to_float(d.get("pegRatio")) if (to_float(d.get("pegRatio")) or 0) > 0 else None,
-    )
-    # Negative debtToEquity comes from negative shareholder equity (financial
-    # distress), not "low debt"; rank it worst, same treatment as negative PEG.
-    debt_sector_avg = sector_avg_debt_to_equity(rows)
-
-    def debt_relative(d):
-        sector = d.get("sector")
-        de = to_float(d.get("debtToEquity"))
-        avg = debt_sector_avg.get(sector)
-        if de is None or de < 0 or not sector or avg is None:
-            return None
-        return de - avg
-
-    debt_ranks = rank_ascending(rows, debt_relative)
-
-    def liquidity_rank_key(field):
-        def key(d):
-            value = to_float(d.get(field))
-            return -value if value is not None else None
-        return key
-
-    quick_ranks = rank_ascending(rows, liquidity_rank_key("quickRatio"))
-    current_ranks = rank_ascending(rows, liquidity_rank_key("currentRatio"))
-    liquidity_ranks = {
-        symbol: (quick_ranks[symbol] + current_ranks[symbol]) / 2 for symbol, _ in rows
-    }
-
-    sector_avg = sector_avg_forward_pe(rows)
-
-    def sector_relative_pe(d):
-        sector = d.get("sector")
-        fwd_pe = to_float(d.get("forwardPE"))
-        avg = sector_avg.get(sector)
-        return fwd_pe / avg if sector and fwd_pe is not None and avg else None
-
-    sector_ranks = rank_ascending(rows, sector_relative_pe)
-
-    scored = []
-    for symbol, d in rows:
-        score = (
-            pe_ranks[symbol] * 0.15
-            + sector_ranks[symbol] * 0.10
-            + fcf_ranks[symbol] * 0.15
-            + momentum_ranks[symbol] * 0.10
-            + analyst_ranks[symbol] * 0.10
-            + diff_ranks[symbol] * 0.15
-            + peg_ranks[symbol] * 0.05
-            + growth_ranks[symbol] * 0.10
-            + debt_ranks[symbol] * 0.05
-            + liquidity_ranks[symbol] * 0.05
-        )
-        scored.append((symbol, d, score))
-    return scored
-
-
 def write_sorted_screen_csv(data):
-    """screen_rows() filtered to price >= MIN_PRICE, ranked by score ascending (best first)."""
-    rows = [(s, d) for s, d in screen_rows(data) if (to_float(d.get("price")) or 0) >= MIN_PRICE]
-    scored = sorted(score_rows(rows), key=lambda item: item[2])
+    """screen_rows() filtered to price >= MIN_PRICE, ranked by score ascending
+    (best first). Also assigns each row a `rating` from its percentile
+    position in this ranking -- see rating_for_percentile.
 
-    fieldnames = SCREEN_FIELDNAMES + ["score"]
+    Followed by every other priced (>= MIN_PRICE) ticker with a non-positive
+    forwardPE -- shown for visibility in the Screener only, appended after
+    every real ranked row with a blank score and rating RATING_NA ("NA")
+    rather than scored alongside them: forwardPE feeds three separate
+    scoring factors (its own rank, sector-relative rank, and the
+    forwardPE-vs-trailingPE diff), and a
+    negative value would corrupt all three under naive ascending-is-better
+    ranking (most negative sorting as "cheapest"/best, the opposite of what
+    it means). Simpler and safer to keep them out of scoring entirely than
+    to special-case every factor that touches forwardPE. load_top_tickers
+    skips these blank-score rows, so they also never enter the live/
+    snapshot IB price universe ib_price_server.py builds from this file."""
+    rows = [(s, d) for s, d in screen_rows(data) if (to_float(d.get("price")) or 0) >= MIN_PRICE]
+    sentiment_scores = load_sentiment_scores(SENTIMENT_FILE, NEWS_SENTIMENT_FILE)
+    scored = sorted(score_rows(rows, sentiment_scores), key=lambda item: item[2])
+    n = len(scored)
+
+    scored_symbols = {s for s, _, _ in scored}
+    unranked = [
+        (s, d)
+        for s, d in data.items()
+        if s not in scored_symbols
+        and (to_float(d.get("price")) or 0) >= MIN_PRICE
+        and (fwd_pe := to_float(d.get("forwardPE"))) is not None
+        and fwd_pe <= 0
+    ]
+    unranked.sort(key=lambda item: item[0])  # alphabetical -- nothing else to rank them by
+
+    fieldnames = SCREEN_FIELDNAMES + ["score", "rating"]
     with open(SORTED_SCREEN_CSV, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(fieldnames)
-        for symbol, d, score in scored:
-            writer.writerow([symbol] + [d.get(field, "") for field in SCREEN_FIELDNAMES[1:]] + [score])
-    print(f"Wrote {SORTED_SCREEN_CSV}")
+        for i, (symbol, d, score) in enumerate(scored):
+            rating = rating_for_percentile(i / n) if n else ""
+            writer.writerow([symbol] + [d.get(field, "") for field in SCREEN_FIELDNAMES[1:]] + [score, rating])
+        for symbol, d in unranked:
+            writer.writerow([symbol] + [d.get(field, "") for field in SCREEN_FIELDNAMES[1:]] + ["", RATING_NA])
+    print(f"Wrote {SORTED_SCREEN_CSV}: {len(scored)} ranked + {len(unranked)} unranked (negative forwardPE) ticker(s)")
 
 
 def download_all():
@@ -512,7 +480,7 @@ def download_all():
         print(f"Skipping {fresh} tickers downloaded within the last {FRESH_HOURS}h")
 
     raw_info = {}
-    fetched = app.get_forward_pe(stale, usa_only=True, raw_out=raw_info)
+    fetched = app.get_forward_pe(stale, usa_only=True, raw_out=raw_info, country_overrides=COUNTRY_OVERRIDE_TICKERS)
     print(f"{len(fetched)} are USA-domiciled with Yahoo Finance data")
 
     data = {t: previous[t] for t in tickers if t not in stale and t in previous}
@@ -540,7 +508,6 @@ def download_all():
     add_target_upside(data)
     add_avg_liquidity_ratio(data)
     write_full_csv(data)
-    write_screen_csv(data)
     write_sorted_screen_csv(data)
 
 
@@ -555,8 +522,33 @@ def download_prices():
     add_target_upside(data)
     add_avg_liquidity_ratio(data)
     write_full_csv(data)
-    write_screen_csv(data)
     write_sorted_screen_csv(data)
+
+
+def rescore():
+    """Rewrites sorted_screen.csv (and forward_pe.csv, for the reapplied
+    sector overrides/derived fields) purely from forward_pe.csv already on
+    disk -- zero network calls, unlike download_prices (which still hits
+    yfinance once per ticker to refresh the momentum score) or download_all.
+    momentum/meanReversion are left exactly as forward_pe.csv already has
+    them; run `python main.py prices` (or `all`) instead if those need
+    refreshing too.
+
+    For when only the scoring itself changed (a scoring.py formula/weight
+    edit, a manual data fix, a newly backfilled CSV column) and every
+    other field on disk is still perfectly good -- score_rows,
+    add_target_upside, add_avg_liquidity_ratio, and write_sorted_screen_csv
+    are all pure computation over data already in memory, so there's
+    nothing here that needs a live fetch."""
+    data = load_pe_data(OUTPUT_CSV)
+    print(f"Loaded {len(data)} tickers from {OUTPUT_CSV}")
+
+    apply_sector_overrides(data, load_sectors(SYMBOLS_FILE))
+    add_target_upside(data)
+    add_avg_liquidity_ratio(data)
+    write_full_csv(data)
+    write_sorted_screen_csv(data)
+    print(f"Rescored and wrote {SORTED_SCREEN_CSV} (and {OUTPUT_CSV}) -- no network calls made.")
 
 
 def download_symbols(symbols):
@@ -564,12 +556,12 @@ def download_symbols(symbols):
     (e.g. ones that hit a transient Yahoo Finance error during a full run
     and are silently missing from every output), merging the results into
     the existing forward_pe.csv/raw_data.json rather than refetching the
-    whole universe, then rewriting screen.csv + sorted_screen.csv."""
+    whole universe, then rewriting sorted_screen.csv."""
     symbols = sorted({s.strip().upper() for s in symbols})
     app = IBApp()
 
     raw_info = {}
-    fetched = app.get_forward_pe(symbols, usa_only=True, raw_out=raw_info)
+    fetched = app.get_forward_pe(symbols, usa_only=True, raw_out=raw_info, country_overrides=COUNTRY_OVERRIDE_TICKERS)
     print(f"Fetched {len(fetched)}/{len(symbols)} requested tickers")
     missing = sorted(set(symbols) - set(fetched))
     if missing:
@@ -591,7 +583,6 @@ def download_symbols(symbols):
     data = load_pe_data(OUTPUT_CSV)
     data.update(fetched)
     write_full_csv(data)
-    write_screen_csv(data)
     write_sorted_screen_csv(data)
 
 
@@ -601,9 +592,11 @@ if __name__ == "__main__":
         download_all()
     elif mode == "prices":
         download_prices()
+    elif mode == "rescore":
+        rescore()
     elif mode == "symbol":
         if len(sys.argv) < 3:
             sys.exit("Usage: python main.py symbol TICKER [TICKER ...]")
         download_symbols(sys.argv[2:])
     else:
-        sys.exit(f"Unknown mode {mode!r}, expected 'all', 'prices', or 'symbol'")
+        sys.exit(f"Unknown mode {mode!r}, expected 'all', 'prices', 'rescore', or 'symbol'")

@@ -11,8 +11,10 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { belowOneClass, inversePctThresholdClass, rangeClass, targetClass } from './colorRules'
-import { earningsUrgencyClass, fmtEarningsDate } from './earnings'
+import { belowOneClass, inversePctThresholdClass, rangeClass, targetClass } from '../colorRules'
+import { earningsUrgencyClass, fmtEarningsDate, useNowTick } from '../earnings'
+import { IB_NEWS_ARTICLE_URL, IB_NEWS_URL } from '../ibStream'
+import { SENTIMENT_LABEL, fmtNewsTime, sentimentClass } from '../news'
 
 // Fields already surfaced in one of the curated cards above — kept out of
 // the raw field dump at the bottom so nothing shows twice.
@@ -399,11 +401,110 @@ function CandlestickChart({ data, title, dateFormatter, barSize }) {
   )
 }
 
+const NEWS_PAGE_SIZE = 10
+
+// One headline, lazily expandable to its full article body. Body text
+// isn't fetched up front for every headline (IB's reqNewsArticle is a
+// per-article request, subject to the same undocumented pacing budget as
+// the headline fetch itself — see IBApp.get_news_article_async) — only
+// when a user actually clicks a headline does GET /api/news/article go
+// fetch and cache it, in state keyed by articleId so re-collapsing and
+// re-expanding the same headline doesn't refetch.
+function NewsItem({ ticker, article }) {
+  const [body, setBody] = useState({ open: false, text: null, error: null, loading: false })
+
+  function toggle() {
+    if (!body.open) {
+      if (body.text === null && !body.loading && !body.error) {
+        setBody({ open: true, text: null, error: null, loading: true })
+        fetch(`${IB_NEWS_ARTICLE_URL}?ticker=${encodeURIComponent(ticker)}&articleId=${encodeURIComponent(article.articleId)}`)
+          .then((r) => {
+            if (!r.ok) throw new Error(`${r.status} ${r.statusText}`)
+            return r.json()
+          })
+          .then((data) => {
+            if (data.error) throw new Error(data.error)
+            setBody({ open: true, text: data.text || 'No article body available.', error: null, loading: false })
+          })
+          .catch((e) => setBody({ open: true, text: null, error: e.message, loading: false }))
+      } else {
+        setBody((b) => ({ ...b, open: true }))
+      }
+    } else {
+      setBody((b) => ({ ...b, open: false }))
+    }
+  }
+
+  return (
+    <li className="news-item">
+      <span className={`news-sentiment ${sentimentClass(article.sentiment)}`}>
+        {SENTIMENT_LABEL[article.sentiment] || '—'}
+      </span>
+      <span className="news-headline news-headline-expandable" onClick={toggle}>
+        {article.headline}
+      </span>
+      <span className="news-meta">
+        {article.provider} · {fmtNewsTime(article.time)}
+      </span>
+      {body.open && (
+        <div className="news-body">
+          {body.loading && 'Loading article…'}
+          {body.error && `Couldn't load article — ${body.error}`}
+          {body.text}
+        </div>
+      )}
+    </li>
+  )
+}
+
+// articles: [{articleId, time, provider, headline, sentiment}, ...] from
+// GET /api/news (ib_price_server.py) — best-effort live overlay, same
+// contract as useTickerSeries' other callers (missing server/no news for
+// this ticker just means this card doesn't render, not a load error).
+function NewsPanel({ ticker, articles }) {
+  const [page, setPage] = useState(0)
+  const pageCount = Math.max(1, Math.ceil(articles.length / NEWS_PAGE_SIZE))
+  // Clamped rather than reset-on-change: a ticker switch remounts this
+  // component fresh (Asset's key is the ticker), so there's no stale-page
+  // case to guard against here — just a background refresh shrinking the
+  // article count out from under the current page.
+  const currentPage = Math.min(page, pageCount - 1)
+  const paged = articles.slice(currentPage * NEWS_PAGE_SIZE, (currentPage + 1) * NEWS_PAGE_SIZE)
+
+  return (
+    <div className="asset-card">
+      <h2>News</h2>
+      <ul className="news-list">
+        {paged.map((a) => (
+          <NewsItem key={a.articleId} ticker={ticker} article={a} />
+        ))}
+      </ul>
+      {articles.length > NEWS_PAGE_SIZE && (
+        <div className="pagination">
+          <button type="button" onClick={() => setPage(currentPage - 1)} disabled={currentPage === 0}>
+            Prev
+          </button>
+          <span className="pagination-info">
+            Page {currentPage + 1} of {pageCount}
+          </span>
+          <button type="button" onClick={() => setPage(currentPage + 1)} disabled={currentPage >= pageCount - 1}>
+            Next
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function Asset({ ticker }) {
   // result.ticker tracks which ticker result.info/error belong to, so a
   // ticker change is treated as loading (rather than flashing the previous
   // ticker's data) without resetting state synchronously inside the effect.
   const [result, setResult] = useState({ ticker: null, info: null, error: null })
+  // Live current instant — see useNowTick — so the earnings stat's
+  // urgency color (earningsUrgencyClass) stays accurate as real time
+  // passes, not just when raw_data.json happens to be refetched.
+  const now = useNowTick()
 
   useEffect(() => {
     let cancelled = false
@@ -437,6 +538,10 @@ export default function Asset({ ticker }) {
   const priceHistory = useTickerSeries('/price_history.json', ticker)
   const hourlyHistory = useTickerSeries('/price_history_hourly.json', ticker)
   const dailyHistory3mo = useTickerSeries('/price_history_daily_3mo.json', ticker)
+  // Live from ib_price_server.py (GET /api/news), not a static build
+  // artifact — same best-effort contract as the three series above, just a
+  // different (absolute, cross-origin) URL.
+  const news = useTickerSeries(IB_NEWS_URL, ticker)
 
   const { info, error } = result.ticker === ticker ? result : { info: null, error: null }
   const loaded = !error && info && info !== 'notfound'
@@ -469,7 +574,7 @@ export default function Asset({ ticker }) {
               <span className="l">Last Price</span>
             </div>
             <div
-              className={`stat earnings-stat ${earningsUrgencyClass(info.earningsTimestampStart, info.lastDownload)}`}
+              className={`stat earnings-stat ${earningsUrgencyClass(info.earningsTimestampStart, now)}`}
             >
               <span className="n">
                 {fmtEarningsDate(info.earningsTimestampStart)}
@@ -491,10 +596,16 @@ export default function Asset({ ticker }) {
 
       {loaded && (
         <>
-          {info.longBusinessSummary && (
-            <div className="asset-card asset-summary">
-              <h2>Business Summary</h2>
-              <p>{info.longBusinessSummary}</p>
+          {(info.longBusinessSummary || (news && news.length > 0)) && (
+            <div className="asset-summary-news-row">
+              {info.longBusinessSummary && (
+                <div className="asset-card asset-summary">
+                  <h2>Business Summary</h2>
+                  <p>{info.longBusinessSummary}</p>
+                </div>
+              )}
+
+              {news && news.length > 0 && <NewsPanel ticker={ticker} articles={news} />}
             </div>
           )}
 

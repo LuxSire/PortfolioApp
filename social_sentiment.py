@@ -7,12 +7,13 @@ sentiment tags on those messages. Kept as its own download, separate from
 the yfinance-based fetch in IBApp.py, since it's a different (unofficial,
 rate-limited) data source that can fail independently of the main pipeline.
 
-Writes social_sentiment.json: {ticker: {bullish, bearish, tagged, total,
-score, lastDownload}}, merged with whatever was already in the file so
-tickers outside the current batch keep their last known score.
+Writes data/social_sentiment.json: {ticker: {bullish, bearish, tagged,
+total, score, lastDownload}}, merged with whatever was already in the
+file so tickers outside the current batch keep their last known score.
 """
 
 import json
+import os
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
@@ -25,7 +26,13 @@ from curl_cffi.requests.exceptions import RequestException
 from curl_cffi import requests
 
 STREAM_URL = "https://api.stocktwits.com/api/2/streams/symbol/{symbol}.json"
-SENTIMENT_FILE = "social_sentiment.json"
+# Every JSON downloader output lives under data/ -- see main.py's
+# DATA_DIR. os.makedirs here too (not just relying on main.py's own,
+# import-time makedirs) since this module works standalone, not just as
+# an import of main.py's.
+DATA_DIR = "data"
+os.makedirs(DATA_DIR, exist_ok=True)
+SENTIMENT_FILE = os.path.join(DATA_DIR, "social_sentiment.json")
 
 # StockTwits' unauthenticated API is rate-limited per IP; keep concurrency
 # low and back off on 429 instead of hammering it.
