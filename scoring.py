@@ -12,12 +12,13 @@ that's enforced, there's no runtime assertion):
    5% pe_rank                     10% sector_relative_pe_rank
    5% fcf_rank                     5% ev_ebitda_rank
    5% momentum_rank                5% mean_reversion_rank
-   5% eps_trend_rank              10% analyst_conviction_rank
+   5% eps_trend_rank             7.5% analyst_conviction_rank
    5% pe_vs_trailing_rank          5% peg_rank
 2.5% trailing_ps_rank             7.5% growth_rank
    5% debt_rank                  2.5% liquidity_rank
    5% roe_rank                     5% short_interest_rank
-   5% sentiment_rank              7.5% margin_rank
+   5% sentiment_rank               5% insiders_rank
+   5% margin_rank
 See each function's own docstring for what "better" means for that factor,
 and score_rows's docstring for the full picture.
 """
@@ -101,28 +102,46 @@ def add_avg_liquidity_ratio(data):
 # ---------------------------------------------------------------------- #
 #  Sentiment -- loading + blending StockTwits/FinBERT scores              #
 # ---------------------------------------------------------------------- #
-def load_sentiment_scores(social_sentiment_file, news_sentiment_file):
+# A single-quarter swing this large in aggregate institutional shares held
+# is already an extreme, rare signal (see fetch_13f_holdings' own real
+# numbers for context: mega-caps like AAPL/MSFT/NVDA move a few percent a
+# quarter, not tens) -- beyond this shouldn't count for proportionally
+# more in the sentiment blend below, same reasoning IBApp.py's
+# GROWTH_CAP/MARGIN_CAP already use for revenueGrowth/operatingMargins.
+INST_CHANGE_CLIP = 0.5
+
+
+def load_sentiment_scores(social_sentiment_file, news_sentiment_file, institutional_holdings_file=None):
     """{ticker: score in [-1, 1]}, blending StockTwits social sentiment
-    (social_sentiment_file, already -1..1 -- see social_sentiment.py) and
+    (social_sentiment_file, already -1..1 -- see social_sentiment.py),
     FinBERT news sentiment (news_sentiment_file, {ticker: {articleId:
     score}} with each score 1 (very bearish) - 5 (very bullish) --
-    written by ib_price_server.py's news_loop) into the single sentiment
-    factor sentiment_rank uses. Neutral (score 3) articles are dropped
-    before averaging -- a ticker whose headlines are all routine filings/
-    dividend notices shouldn't average out to "neutral" in a way that's
-    indistinguishable from "no signal", it should just contribute no news
-    opinion at all (same as having no news). Remaining news scores are
-    averaged per ticker then recentered/rescaled to -1..1 as (avg - 3) / 2,
-    so both sources share the same scale before blending. A ticker with
-    only one source uses that source alone; simple average when both are
-    present. Either file missing (e.g. that background process/script has
-    never run), or a ticker whose news was entirely neutral, just means
-    that ticker falls back to social-only, news-only, or (if neither
-    applies) an empty map -- sentiment_rank already ranks a missing score
-    worst, same treatment as every other factor's missing data, so this
-    never blocks scoring. Takes both file paths as arguments (rather than
-    importing them from main.py) so main.py can import from this module
-    without a circular import back the other way."""
+    written by ib_price_server.py's news_loop), and institutional
+    quarter-over-quarter share-count change (institutional_holdings_file,
+    {ticker: {pctShareChangeQoQ, ...}} -- see
+    sec_edgar.fetch_13f_holdings; institutions net-buying vs. net-selling)
+    into the single sentiment factor sentiment_rank uses. Neutral (score
+    3) articles are dropped before averaging -- a ticker whose headlines
+    are all routine filings/dividend notices shouldn't average out to
+    "neutral" in a way that's indistinguishable from "no signal", it
+    should just contribute no news opinion at all (same as having no
+    news). Remaining news scores are averaged per ticker then
+    recentered/rescaled to -1..1 as (avg - 3) / 2, so all three sources
+    share the same scale before blending -- pctShareChangeQoQ is clipped
+    to +/-INST_CHANGE_CLIP then divided by it. A ticker with only some of
+    the three sources uses whichever it has; simple average of whatever's
+    present. A missing file (e.g. that background process/script has
+    never run), a ticker whose news was entirely neutral, or a ticker
+    with no institutional-holdings match, just means that ticker falls
+    back to whatever subset of sources it has, or (if none apply) an
+    empty map -- sentiment_rank already ranks a missing score worst, same
+    treatment as every other factor's missing data, so this never blocks
+    scoring. Takes all file paths as arguments (rather than importing
+    them from main.py) so main.py can import from this module without a
+    circular import back the other way. institutional_holdings_file
+    defaults to None (skipped entirely, same as if it were missing) so
+    existing callers that only pass the first two files keep working
+    unchanged."""
     try:
         with open(social_sentiment_file) as f:
             social = json.load(f)
@@ -133,9 +152,16 @@ def load_sentiment_scores(social_sentiment_file, news_sentiment_file):
             news = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         news = {}
+    institutional = {}
+    if institutional_holdings_file:
+        try:
+            with open(institutional_holdings_file) as f:
+                institutional = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            institutional = {}
 
     scores = {}
-    for ticker in set(social) | set(news):
+    for ticker in set(social) | set(news) | set(institutional):
         parts = []
         social_score = social.get(ticker, {}).get("score")
         if social_score is not None:
@@ -143,6 +169,10 @@ def load_sentiment_scores(social_sentiment_file, news_sentiment_file):
         non_neutral = [s for s in news.get(ticker, {}).values() if s != 3]
         if non_neutral:
             parts.append((sum(non_neutral) / len(non_neutral) - 3) / 2)
+        inst_change = institutional.get(ticker, {}).get("pctShareChangeQoQ")
+        if inst_change is not None:
+            clipped = max(-INST_CHANGE_CLIP, min(INST_CHANGE_CLIP, inst_change))
+            parts.append(clipped / INST_CHANGE_CLIP)
         if parts:
             scores[ticker] = sum(parts) / len(parts)
     return scores
@@ -156,6 +186,54 @@ def sentiment_rank(rows, sentiment_scores):
     than looked up by symbol inside the key function."""
     augmented = [(symbol, {**d, "_sentimentScore": sentiment_scores.get(symbol)}) for symbol, d in rows]
     return rank_ascending(augmented, lambda d: -d["_sentimentScore"] if d.get("_sentimentScore") is not None else None)
+
+
+# ---------------------------------------------------------------------- #
+#  Insiders -- SEC Form 4 open-market buy/sell activity                   #
+# ---------------------------------------------------------------------- #
+def load_insider_scores(form4_file):
+    """{ticker: score in [-1, 1]} from SEC EDGAR Form 4 filings (see
+    sec_edgar.py's fetch_form4) -- (buys - sells) / (buys + sells), counting
+    only open-market transactions (transactionCode 'P' = purchase, 'S' =
+    sale). Every other code (M = option exercise, F = tax withholding, A =
+    grant/award, G = gift, ...) is routine compensation mechanics, not a
+    discretionary bet, and is excluded the same way load_sentiment_scores
+    drops neutral news headlines above -- it shouldn't pull the score
+    toward anything, it just shouldn't count. A ticker with no P/S
+    transactions in the file (no Form 4 coverage at all, or only
+    non-open-market activity) is left out of the returned map entirely;
+    insiders_rank already ranks a missing score worst, same treatment as
+    every other factor's missing data. Takes the file path as an argument
+    rather than importing it from main.py, same reasoning as
+    load_sentiment_scores."""
+    try:
+        with open(form4_file) as f:
+            filings_by_ticker = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+    scores = {}
+    for ticker, filings in filings_by_ticker.items():
+        buys = sells = 0
+        for filing in filings:
+            for tx in filing.get("transactions", []):
+                code = tx.get("code")
+                if code == "P":
+                    buys += 1
+                elif code == "S":
+                    sells += 1
+        total = buys + sells
+        if total:
+            scores[ticker] = (buys - sells) / total
+    return scores
+
+
+def insiders_rank(rows, insider_scores):
+    """High insider open-market buying (see load_insider_scores) ranks
+    better; missing ranked worst. Same rank_ascending-over-injected-score
+    pattern as sentiment_rank."""
+    augmented = [(symbol, {**d, "_insiderScore": insider_scores.get(symbol)}) for symbol, d in rows]
+    return rank_ascending(augmented, lambda d: -d["_insiderScore"] if d.get("_insiderScore") is not None else None)
 
 
 # ---------------------------------------------------------------------- #
@@ -468,7 +546,7 @@ def short_interest_rank(rows):
 # ---------------------------------------------------------------------- #
 #  Composite score                                                         #
 # ---------------------------------------------------------------------- #
-def score_rows(rows, sentiment_scores=None):
+def score_rows(rows, sentiment_scores=None, insider_scores=None):
     """Composite score per (symbol, d): 5% low forwardPE (pe_rank -- down
     from 10%, moved to eps_trend_rank below), 10% low forwardPE
     relative to its sector's average forwardPE (sector_relative_pe_rank),
@@ -484,10 +562,9 @@ def score_rows(rows, sentiment_scores=None):
     now), 5% earnings estimate revision trend (eps_trend_rank --
     average of the current- and next-fiscal-year 30-day EPS-estimate
     revision ranks; missing ranked worst; taken out of pe_rank's weight),
-    10% analyst conviction
-    (analyst_conviction_rank -- back up from 5% (which was itself down
-    from 10% to make room for margins below), taking the 5% back out of
-    pe_vs_trailing below instead), 5% forwardPE - trailingPE
+    7.5% analyst conviction
+    (analyst_conviction_rank -- down from 10%, the other 2.5% moved to
+    insiders below), 5% forwardPE - trailingPE
     (pe_vs_trailing_rank; more negative is better, negative/infinite
     trailingPE ranked worst -- down from 10%), 5% low
     pegRatio (peg_rank; negative PEG ranked worst, not best), 2.5% low
@@ -503,13 +580,17 @@ def score_rows(rows, sentiment_scores=None):
     5% high returnOnEquity (roe_rank; negative ROE ranked
     worst, not just low), 5% short interest (short_interest_rank; missing
     ranked worst -- deliberately contrarian, see that function's
-    docstring), 5% combined news + social sentiment (sentiment_rank; see
-    load_sentiment_scores -- taken out of forwardPE's own weight,
-    previously 15%), 7.5% margins (margin_rank; negative margins ranked
-    worst -- up from 5%, taking the other 2.5% out of growth's weight
-    above). Lower score is better. Every individual factor function above
-    has the exact ranking rule in its own docstring."""
+    docstring), 5% combined news + social + institutional-QoQ-share-change
+    sentiment (sentiment_rank; see load_sentiment_scores -- taken out of
+    forwardPE's own weight, previously 15%), 5% insider open-market
+    buy/sell activity (insiders_rank; see load_insider_scores -- missing
+    ranked worst; up from 2.5%, the other 2.5% taken out of margin_rank's
+    weight below), 5% margins (margin_rank; negative margins ranked worst
+    -- down from 7.5%, see insiders_rank above for where that 2.5% went).
+    Lower score is better. Every individual factor function above has the
+    exact ranking rule in its own docstring."""
     sentiment_scores = sentiment_scores or {}
+    insider_scores = insider_scores or {}
 
     weighted_ranks = {
         "pe": (pe_rank(rows), 0.05),
@@ -519,7 +600,7 @@ def score_rows(rows, sentiment_scores=None):
         "momentum": (momentum_rank(rows), 0.05),
         "mean_reversion": (mean_reversion_rank(rows), 0.05),
         "eps_trend": (eps_trend_rank(rows), 0.05),
-        "analyst": (analyst_conviction_rank(rows), 0.10),
+        "analyst": (analyst_conviction_rank(rows), 0.075),
         "pe_vs_trailing": (pe_vs_trailing_rank(rows), 0.05),
         "peg": (peg_rank(rows), 0.05),
         "trailing_ps": (trailing_ps_rank(rows), 0.025),
@@ -529,7 +610,8 @@ def score_rows(rows, sentiment_scores=None):
         "roe": (roe_rank(rows), 0.05),
         "short_interest": (short_interest_rank(rows), 0.05),
         "sentiment": (sentiment_rank(rows, sentiment_scores), 0.05),
-        "margin": (margin_rank(rows), 0.075),
+        "insiders": (insiders_rank(rows, insider_scores), 0.05),
+        "margin": (margin_rank(rows), 0.05),
     }
     scored = []
     for symbol, d in rows:

@@ -14,13 +14,14 @@ download_all():    fetch tickers from symbols.json (active == 1), pull forward/t
                     error) fall back to their last successful row instead of
                     disappearing from the outputs. Right after raw_data.json
                     is written, also fetches StockTwits social sentiment
-                    (see social_sentiment.py) for the top SENTIMENT_TOP_N
-                    tickers of the ranking as it stood before this run
-                    (sorted_screen.csv isn't rewritten with fresh scores
-                    until later in the same run), writing/merging into
-                    social_sentiment.json. This is a separate, unofficial
-                    data source that can fail without affecting the rest of
-                    the pipeline.
+                    (see social_sentiment.py) for every RATED_FOR_EXTRAS
+                    ticker (Strong Buy/Buy/Sell/Strong Sell -- everything
+                    outside the broad Hold middle) of the ranking as it
+                    stood before this run (sorted_screen.csv isn't
+                    rewritten with fresh scores until later in the same
+                    run), writing/merging into social_sentiment.json. This
+                    is a separate, unofficial data source that can fail
+                    without affecting the rest of the pipeline.
 download_prices():  reuse the forward-PE data already in forward_pe.csv and only
                     refresh the momentum score, then rewrite forward_pe.csv +
                     sorted_screen.csv.
@@ -30,6 +31,45 @@ rescore():          rewrite sorted_screen.csv (and forward_pe.csv) from forward_
                     itself changed (a scoring.py edit, a manual data fix, a newly
                     backfilled CSV column) and every field on disk is otherwise still
                     good. Run via `python main.py rescore`.
+download_form4():   fetch SEC EDGAR Form 4 insider-transaction filings (see
+                    sec_edgar.py) for every RATED_FOR_EXTRAS ticker, same
+                    scoping as the social-sentiment fetch above -- a
+                    separate, independently-rate-limited data source, run
+                    on its own via `python main.py form4` rather than
+                    folded into download_all.
+download_xbrl():    fetch SEC EDGAR XBRL company facts (see sec_edgar.py) --
+                    multi-year revenue/income/assets/equity/EPS history --
+                    for every RATED_FOR_EXTRAS ticker, same scoping/
+                    standalone-download reasoning as download_form4. Run via
+                    `python main.py xbrl`.
+download_13f():     fetch SEC's latest quarterly bulk 13F institutional-
+                    holdings dataset (see sec_edgar.py) for every
+                    RATED_FOR_EXTRAS ticker, matched by company name (13F
+                    is filed BY managers ABOUT what they hold, not by the
+                    issuer, so there's no per-ticker CIK the way Form 4/
+                    XBRL have) -- a single bulk download, not one request
+                    per ticker. Run via `python main.py 13f`.
+download_themes():  classifies tickers' business descriptions
+                    (raw_data.json's longBusinessSummary) against a fixed
+                    theme taxonomy (see theme_classifier.py) for the
+                    Themes tab. With no tickers given, classifies every
+                    stock currently held in the IB Gateway account
+                    instead (a fresh direct connection, not
+                    RATED_FOR_EXTRAS -- this is a portfolio-holdings
+                    tool, not a whole-screener-universe one). Run via
+                    `python main.py themes` (whole portfolio) or `python
+                    main.py themes TICKER [TICKER ...]` (specific
+                    tickers only, e.g. right after opening one new
+                    position).
+download_recommendations(): rebuild data/recommendations.json for the Recommendations
+                    tab (see recommendations.py) from sorted_screen.csv's score/
+                    rating plus recent-window news/insider/13F signals already on
+                    disk -- zero network calls, same as rescore(). Run via
+                    `python main.py recommendations`.
+run_chat():         ask the Recommendations tab's chatbot a single question with
+                    no chat history/live data (see chatbot.answer_question) --
+                    a fast, no-HTTP-layer way to test the tool set/system
+                    prompt. Run via `python main.py chat "your question here"`.
 download_symbols(): refetch forward-PE + price-performance data for a specific
                     list of tickers only (e.g. ones missing from the outputs
                     after a transient Yahoo Finance failure), merging into the
@@ -135,11 +175,25 @@ root):
                      never streamed/snapshotted a live IB price either) --
                      see write_sorted_screen_csv.
   data/social_sentiment.json  {ticker: {bullish, bearish, tagged, total, score,
-                     lastDownload}} StockTwits sentiment for the top
-                     SENTIMENT_TOP_N ranked tickers; score is
+                     lastDownload}} StockTwits sentiment for every
+                     RATED_FOR_EXTRAS ranked ticker; score is
                      (bullish - bearish) / tagged. Merged across runs, so
-                     tickers that drop out of the top N keep their last
-                     known score rather than being deleted.
+                     a ticker that drifts into Hold keeps its last known
+                     score rather than being deleted.
+  data/sec/form4/insider_transactions.json  see sec_edgar.py's own
+                     docstring -- SEC EDGAR Form 4 insider-transaction
+                     filings for every RATED_FOR_EXTRAS ranked ticker,
+                     merged across runs same as social_sentiment.json.
+  data/sec/xbrl/company_facts.json  see sec_edgar.py's own docstring --
+                     multi-year revenue/income/assets/equity/EPS history
+                     from SEC EDGAR XBRL filings, same RATED_FOR_EXTRAS
+                     scoping and merge-across-runs behavior.
+  data/sec/13f/institutional_holdings.json  see sec_edgar.py's own
+                     docstring -- institutional ownership (total value/
+                     shares/holder count) per RATED_FOR_EXTRAS ticker from
+                     SEC's latest quarterly bulk 13F dataset, matched by
+                     company name rather than CIK. Overwritten wholesale
+                     each run, unlike the merge-across-runs files above.
   data/price_history.json  {ticker: [{date, close}, ...]} trailing ~1 month of
                      daily closes, captured from the same yfinance fetch
                      add_momentum already makes for the momentum score (see
@@ -159,12 +213,17 @@ from scoring import (
     RATING_NA,
     add_avg_liquidity_ratio,
     add_target_upside,
+    load_insider_scores,
     load_sentiment_scores,
     rating_for_percentile,
     score_rows,
     to_float,
 )
+from chatbot import answer_question
+from recommendations import write_recommendations
+from sec_edgar import FORM4_FILE, THIRTEENF_FILE, fetch_13f_holdings, fetch_form4, fetch_xbrl_facts
 from social_sentiment import SENTIMENT_FILE, fetch_social_sentiment
+from theme_classifier import classify_themes
 
 # Every JSON file a downloader (this module, ib_price_server.py,
 # social_sentiment.py) produces lives here -- keeps the project root from
@@ -196,9 +255,17 @@ HOURLY_HISTORY_FILE = os.path.join(DATA_DIR, "price_history_hourly.json")
 # from this module, and importing it back would be circular. Read-only
 # from here, same as the price-history files above.
 NEWS_SENTIMENT_FILE = os.path.join(DATA_DIR, "news_sentiment.json")
+# Same duplicated-rather-than-imported reasoning as NEWS_SENTIMENT_FILE above.
+NEWS_FILE = os.path.join(DATA_DIR, "news.json")
 SYMBOLS_FILE = "symbols.json"
 MIN_PRICE = 8
-SENTIMENT_TOP_N = 200
+# Strong Buy/Buy/Sell/Strong Sell -- everything except the broad Hold
+# middle (60% of the ranked universe, see scoring.RATING_THRESHOLDS) and
+# the unranked/NA rows -- scopes both the social-sentiment fetch and the
+# SEC EDGAR downloads to names with enough conviction (in either
+# direction) to be worth the extra network cost, rather than a flat
+# top-N cutoff.
+RATED_FOR_EXTRAS = {"Strong Buy", "Buy", "Sell", "Strong Sell"}
 # yfinance reports these as foreign-domiciled (e.g. reincorporated abroad)
 # despite being ordinary US-listed, US-focused securities that belong in
 # this screener -- get_forward_pe's usa_only filter would otherwise
@@ -284,6 +351,19 @@ def load_top_tickers(path, n=None):
         return []
 
 
+def load_rated_tickers(path, ratings):
+    """Reads tickers from an existing sorted_screen.csv whose `rating`
+    column (see scoring.rating_for_percentile) is one of `ratings` -- e.g.
+    RATED_FOR_EXTRAS, every Strong Buy/Buy/Sell/Strong Sell ticker,
+    skipping the broad Hold middle and the unranked/NA rows. Returns []
+    if the file doesn't exist yet (e.g. first-ever run)."""
+    try:
+        with open(path, newline="") as f:
+            return [row["ticker"] for row in csv.DictReader(f) if row.get("rating") in ratings]
+    except FileNotFoundError:
+        return []
+
+
 def _load_json_or_empty(path):
     try:
         with open(path) as f:
@@ -328,7 +408,7 @@ def add_momentum_and_persist_history(app, data):
     write_price_history(all_history)
 
 
-FRESH_HOURS = 12
+FRESH_HOURS = 3
 
 
 def is_fresh(last_download, max_age_hours=FRESH_HOURS):
@@ -435,8 +515,9 @@ def write_sorted_screen_csv(data):
     skips these blank-score rows, so they also never enter the live/
     snapshot IB price universe ib_price_server.py builds from this file."""
     rows = [(s, d) for s, d in screen_rows(data) if (to_float(d.get("price")) or 0) >= MIN_PRICE]
-    sentiment_scores = load_sentiment_scores(SENTIMENT_FILE, NEWS_SENTIMENT_FILE)
-    scored = sorted(score_rows(rows, sentiment_scores), key=lambda item: item[2])
+    sentiment_scores = load_sentiment_scores(SENTIMENT_FILE, NEWS_SENTIMENT_FILE, THIRTEENF_FILE)
+    insider_scores = load_insider_scores(FORM4_FILE)
+    scored = sorted(score_rows(rows, sentiment_scores, insider_scores), key=lambda item: item[2])
     n = len(scored)
 
     scored_symbols = {s for s, _, _ in scored}
@@ -496,10 +577,10 @@ def download_all():
     write_raw_data(all_raw)
 
     # Scoped to the ranking as it stood before this run (sorted_screen.csv
-    # isn't rewritten with fresh scores until below) — see load_top_tickers.
-    top_tickers = load_top_tickers(SORTED_SCREEN_CSV, SENTIMENT_TOP_N)
-    if top_tickers:
-        fetch_social_sentiment(top_tickers)
+    # isn't rewritten with fresh scores until below) — see load_rated_tickers.
+    rated_tickers = load_rated_tickers(SORTED_SCREEN_CSV, RATED_FOR_EXTRAS)
+    if rated_tickers:
+        fetch_social_sentiment(rated_tickers)
     else:
         print(f"No existing {SORTED_SCREEN_CSV} yet; skipping social sentiment download")
 
@@ -551,6 +632,116 @@ def rescore():
     print(f"Rescored and wrote {SORTED_SCREEN_CSV} (and {OUTPUT_CSV}) -- no network calls made.")
 
 
+def download_form4():
+    """Fetches SEC EDGAR Form 4 insider-transaction filings (see
+    sec_edgar.fetch_form4) for every RATED_FOR_EXTRAS ticker in the
+    ranking as it currently stands on disk. A separate download, run on
+    its own via `python main.py form4` rather than folded into
+    download_all -- it hits a different rate-limited external service
+    (SEC EDGAR, not Yahoo Finance) on its own schedule, same reasoning as
+    social_sentiment.py being a standalone fetch."""
+    tickers = load_rated_tickers(SORTED_SCREEN_CSV, RATED_FOR_EXTRAS)
+    if not tickers:
+        print(f"No existing {SORTED_SCREEN_CSV} yet; run `python main.py all` first")
+        return
+    fetch_form4(tickers)
+
+
+def download_xbrl():
+    """Fetches SEC EDGAR XBRL company facts (see sec_edgar.fetch_xbrl_facts)
+    -- multi-year revenue/income/assets/equity/EPS history -- for every
+    RATED_FOR_EXTRAS ticker, same scoping and same standalone-download
+    reasoning as download_form4 above. Run via `python main.py xbrl`."""
+    tickers = load_rated_tickers(SORTED_SCREEN_CSV, RATED_FOR_EXTRAS)
+    if not tickers:
+        print(f"No existing {SORTED_SCREEN_CSV} yet; run `python main.py all` first")
+        return
+    fetch_xbrl_facts(tickers)
+
+
+def download_13f():
+    """Fetches SEC's latest quarterly bulk 13F institutional-holdings
+    dataset (see sec_edgar.fetch_13f_holdings) for every RATED_FOR_EXTRAS
+    ticker, matched by company name rather than CIK -- 13F is filed BY
+    institutional managers ABOUT what they hold, not by the issuer, so
+    there's no per-ticker CIK to query the way Form 4/XBRL have; see that
+    function's own docstring. A single ~90MB bulk download covering every
+    filer at once, not one request per ticker. Run via `python main.py
+    13f`."""
+    try:
+        with open(SORTED_SCREEN_CSV, newline="") as f:
+            ticker_names = {
+                row["ticker"]: row["name"]
+                for row in csv.DictReader(f)
+                if row.get("rating") in RATED_FOR_EXTRAS and row.get("name")
+            }
+    except FileNotFoundError:
+        ticker_names = {}
+    if not ticker_names:
+        print(f"No existing {SORTED_SCREEN_CSV} yet; run `python main.py all` first")
+        return
+    fetch_13f_holdings(ticker_names)
+
+
+def download_recommendations():
+    """Rebuilds data/recommendations.json for the Recommendations tab (see
+    recommendations.py's own docstring) purely from files already on disk
+    -- sorted_screen.csv's score/rating, data/news.json, SEC EDGAR Form 4 (
+    sec_edgar.FORM4_FILE), and the latest 13F quarter (sec_edgar.
+    THIRTEENF_FILE) -- zero network calls, same "just recompute" reasoning
+    as rescore(). Run via `python main.py recommendations` any time after
+    the pieces it reads from have been refreshed (`all`/`prices`, `form4`,
+    `13f`)."""
+    write_recommendations(SORTED_SCREEN_CSV, NEWS_FILE, FORM4_FILE, THIRTEENF_FILE, RATED_FOR_EXTRAS)
+
+
+def _get_held_tickers():
+    """Every stock ticker currently held in the IB Gateway account, for
+    download_themes' no-arguments case. Connects to IB Gateway directly
+    (same IBApp.connect() pattern download_all/download_prices already
+    use), not through ib_price_server.py's HTTP API -- that's a separate
+    process that may or may not be running, whereas a direct connection
+    is the one pattern every other IB-touching function in this file
+    already relies on. secType == "STK" only (matching this project's
+    "stocks only" convention elsewhere, e.g. ib_price_server.py's own
+    docstring): an option and its underlying share a ticker symbol,
+    which this doesn't disambiguate."""
+    app = IBApp()
+    app.connect()
+    positions = app.ib.reqPositions()
+    app.ib.disconnect()
+    return sorted({p.contract.symbol for p in positions if p.contract.secType == "STK" and p.position != 0})
+
+
+def download_themes(tickers=None):
+    """Classifies tickers' business descriptions against the theme
+    taxonomy (see theme_classifier.classify_themes) for the Themes tab.
+    With no tickers given, classifies every stock currently held in the
+    IB Gateway account instead (see _get_held_tickers) -- run via
+    `python main.py themes` with no arguments to recompute for the whole
+    portfolio, or `python main.py themes TICKER [TICKER ...]` for
+    specific ones (e.g. right after opening a brand new position, when
+    you don't want to wait on a full account query for just one
+    ticker)."""
+    if tickers:
+        tickers = sorted({t.strip().upper() for t in tickers})
+    else:
+        tickers = _get_held_tickers()
+        print(f"No tickers given -- classifying all {len(tickers)} currently held ticker(s): {', '.join(tickers)}")
+    classify_themes(tickers)
+
+
+def run_chat(question):
+    """Manual, no-HTTP-layer way to test the Recommendations tab's chatbot
+    (see chatbot.answer_question) -- a single question, no chat history, no
+    live positions/prices/account (those only exist inside the running
+    ib_price_server.py process; see that module's /api/chat handler for
+    the real thing). Fast iteration on the tool set/system prompt without
+    restarting the server or going through the browser. Run via `python
+    main.py chat "your question here"`."""
+    print(answer_question(question))
+
+
 def download_symbols(symbols):
     """Refetch forward-PE + price-performance data for specific tickers only
     (e.g. ones that hit a transient Yahoo Finance error during a full run
@@ -594,9 +785,26 @@ if __name__ == "__main__":
         download_prices()
     elif mode == "rescore":
         rescore()
+    elif mode == "form4":
+        download_form4()
+    elif mode == "xbrl":
+        download_xbrl()
+    elif mode == "13f":
+        download_13f()
+    elif mode == "themes":
+        download_themes(sys.argv[2:] if len(sys.argv) > 2 else None)
+    elif mode == "recommendations":
+        download_recommendations()
+    elif mode == "chat":
+        if len(sys.argv) < 3:
+            sys.exit('Usage: python main.py chat "your question here"')
+        run_chat(" ".join(sys.argv[2:]))
     elif mode == "symbol":
         if len(sys.argv) < 3:
             sys.exit("Usage: python main.py symbol TICKER [TICKER ...]")
         download_symbols(sys.argv[2:])
     else:
-        sys.exit(f"Unknown mode {mode!r}, expected 'all', 'prices', 'rescore', or 'symbol'")
+        sys.exit(
+            f"Unknown mode {mode!r}, expected 'all', 'prices', 'rescore', 'form4', 'xbrl', '13f', 'themes', "
+            "'recommendations', 'chat', or 'symbol'"
+        )

@@ -21,14 +21,25 @@ function fmtPrice(v) {
 
 // trades_by_ticker (see ib_price_server.py's refresh_trades /
 // IBApp.get_today_executions_async) is already a net-per-ticker
-// aggregate of today's fills -- {ticker: {qty, value}} -- not a list of
-// individual executions; that method deliberately only keeps the net
-// signed quantity and its matching cost, not each fill separately (a
-// mark-to-market P&L calc never needs more than that). So this is one
-// row per ticker traded today, not one row per fill -- "the list of
-// trades" this app actually has to show. qty/value are left unsigned
-// (no good/bad color) since a sell isn't inherently a worse outcome than
-// a buy -- taking profit on a winner is a sell too.
+// aggregate of today's fills -- {ticker: {qty, value, realizedPnl,
+// commission}} -- not a list of individual executions; that method
+// deliberately only keeps the net signed quantity and its matching cost
+// (plus, separately, IB's own FIFO-cost-basis realizedPnl/commission),
+// not each fill separately. So this is one row per ticker traded today,
+// not one row per fill -- "the list of trades" this app actually has to
+// show. qty/value are left unsigned (no good/bad color) since a sell
+// isn't inherently a worse outcome than a buy -- taking profit on a
+// winner is a sell too. realizedPnl IS signed/colored: unlike qty/value,
+// a positive figure there is unambiguously a gain. null (not 0) for
+// realizedPnl/commission means this connection wasn't alive to see that
+// fill live (see get_today_executions_async's own docstring) -- a real
+// $0 realized (e.g. a trade that only added to a position, closing
+// nothing) is a meaningful reading, kept distinct from "unknown."
+function pnlClass(v) {
+  if (v === null || v === undefined) return ''
+  return v >= 0 ? 'perf-pos' : 'perf-neg'
+}
+
 export default function TradesView() {
   const [trades, setTrades] = useState({})
   const [tickerInfo, setTickerInfo] = useState({})
@@ -65,6 +76,8 @@ export default function TradesView() {
       qty: t.qty,
       value: t.value,
       avgPrice: t.qty ? t.value / t.qty : null,
+      realizedPnl: t.realizedPnl ?? null,
+      commission: t.commission ?? null,
     }))
     .sort((a, b) => Math.abs(b.value ?? 0) - Math.abs(a.value ?? 0))
 
@@ -90,6 +103,9 @@ export default function TradesView() {
                 <th>Qty</th>
                 <th>Avg Price</th>
                 <th>Value</th>
+                <th title="IB's own FIFO-cost-basis realized P&amp;L for today's fills — '—' means this connection wasn't alive to see the fill live, not that it was exactly $0.">
+                  Realized P&amp;L
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -109,6 +125,12 @@ export default function TradesView() {
                   <td className="num">{fmtShares(r.qty)}</td>
                   <td className="num">{fmtPrice(r.avgPrice)}</td>
                   <td className="num">{fmtMoney(r.value)}</td>
+                  <td
+                    className={`num tooltip-cell ${pnlClass(r.realizedPnl)}`}
+                    data-tip={r.commission !== null ? `Commission: ${fmtMoney(-r.commission)}` : undefined}
+                  >
+                    {fmtMoney(r.realizedPnl)}
+                  </td>
                 </tr>
               ))}
             </tbody>

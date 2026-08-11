@@ -1,0 +1,113 @@
+{
+  "ARKK": [
+    "diversified_thematic_etf"
+  ],
+  "TPC": [
+    "construction_infrastructure"
+  ],
+  "PLMR": [
+    "specialty_insurance"
+  ],
+  "DOW": [
+    "chemicals_materials"
+  ],
+  "TDS": [
+    "telecom"
+  ],
+  "RELY": [
+    "fintech_payments"
+  ],
+  "NKE": [
+    "consumer_retail"
+  ],
+  "TPL": [
+    "oil_gas_energy",
+    "real_estate"
+  ],
+  "SBUX": [
+    "consumer_retail"
+  ],
+  "IPI": [
+    "agriculture_commodities"
+  ],
+  "PRG": [
+    "fintech_payments"
+  ],
+  "ARLO": [
+    "smart_home_iot"
+  ],
+  "IBKR": [
+    "capital_markets"
+  ],
+  "HRMY": [
+    "biotech_pharma"
+  ],
+  "SSRM": [
+    "gold_precious_metals"
+  ],
+  "CPNG": [
+    "consumer_retail"
+  ],
+  "SLDE": [
+    "specialty_insurance"
+  ],
+  "MU": [
+    "semiconductors_ai"
+  ],
+  "AVGO": [
+    "semiconductors_ai"
+  ],
+  "WBD": [
+    "media_entertainment"
+  ],
+  "WAY": [
+    "healthcare_it"
+  ],
+  "NVDA": [
+    "semiconductors_ai"
+  ],
+  "DAVE": [
+    "fintech_payments"
+  ],
+  "PGY": [
+    "fintech_payments"
+  ],
+  "ROCK": [
+    "construction_infrastructure"
+  ],
+  "QUAD": [
+    "marketing_print"
+  ],
+  "EOG": [
+    "oil_gas_energy"
+  ],
+  "GOOG": [
+    "digital_advertising",
+    "semiconductors_ai"
+  ],
+  "FRPH": [
+    "real_estate"
+  ],
+  "REX": [
+    "agriculture_commodities"
+  ],
+  "GEN": [
+    "cybersecurity_software"
+  ],
+  "EVER": [
+    "digital_advertising",
+    "specialty_insurance"
+  ],
+  "FLYW": [
+    "fintech_payments"
+  ],
+  "CIFR": [
+    "crypto"
+  ],
+  "COIN": [
+    "crypto"
+  ],
+  "CRCL": [
+    "crypto"
+  ]
+}

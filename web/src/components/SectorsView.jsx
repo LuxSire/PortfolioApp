@@ -3,7 +3,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react'
 import { parseCSV } from '../csv'
 import { getSectorGroup, sectorGroupLabel } from '../sectorGroups'
 import { getSectorIcon } from '../sectorIcons'
-import { avgNewsSentiment, toNum } from '../screenerFactors'
+import { avgInsiderScore, avgNewsSentiment, rankTo100, toNum } from '../screenerFactors'
 import { FACTOR_COLUMNS, computeFactorAverages } from './factorTable'
 import { IB_STREAM_URL } from '../ibStream'
 import FactorCells from './FactorCells'
@@ -58,15 +58,21 @@ export default function SectorsView() {
       }),
       // Same best-effort contract as PeTable.jsx/PositionsView.jsx's own
       // fetch of these — missing/failed just means every ticker's
-      // sent/newsSent is blank, not a load error.
+      // sent/newsSent/instChange/insiders is blank, not a load error.
       fetch('/social_sentiment.json')
         .then((r) => (r.ok ? r.json() : {}))
         .catch(() => ({})),
       fetch('/news_sentiment.json')
         .then((r) => (r.ok ? r.json() : {}))
         .catch(() => ({})),
+      fetch('/sec/form4/insider_transactions.json')
+        .then((r) => (r.ok ? r.json() : {}))
+        .catch(() => ({})),
+      fetch('/sec/13f/institutional_holdings.json')
+        .then((r) => (r.ok ? r.json() : {}))
+        .catch(() => ({})),
     ])
-      .then(([text, sentiment, newsSentiment]) => {
+      .then(([text, sentiment, newsSentiment, insiderTransactions, institutionalHoldings]) => {
         // industry's own average forwardPE across the FULL universe (see
         // PeTable.jsx's sectorAvgPE) — computed per raw/granular industry
         // (sorted_screen.csv's "sector" column — see IBApp.get_forward_pe,
@@ -83,6 +89,7 @@ export default function SectorsView() {
             peCounts.set(industry, (peCounts.get(industry) || 0) + 1)
           }
           const newsSent = avgNewsSentiment(newsSentiment[r.ticker])
+          const insiders = avgInsiderScore(insiderTransactions[r.ticker])
           // Simple average of whichever of the two periods is present —
           // same treatment as PeTable.jsx/PositionsView.jsx's own epsTrend.
           const epsTrendParts = [toNum(r.epsRevision0y), toNum(r.epsRevision1y)].filter((v) => v !== null)
@@ -99,6 +106,7 @@ export default function SectorsView() {
             feps: toNum(r.forwardEps),
             epsTrend,
             tpe: toNum(r.trailingPE),
+            tps: toNum(r.trailingPS),
             peg: toNum(r.pegRatio),
             revg: toNum(r.revenueGrowth),
             pfcf: toNum(r.priceToFCF),
@@ -113,8 +121,21 @@ export default function SectorsView() {
             sc: toNum(r.score),
             sent: toNum(sentiment[r.ticker]?.score),
             newsSent: newsSent.avg !== null ? newsSent.avg - 3 : null,
+            instChange: toNum(institutionalHoldings[r.ticker]?.pctShareChangeQoQ),
+            insiders: insiders.avg,
           }
         })
+        // Same rank-to-[-100, 100] rescale as PeTable.jsx/PositionsView.jsx
+        // (see rankTo100's own comment for why rank-based, not min-max),
+        // over this same full sorted_screen.csv universe (before grouping
+        // into sector/industry rows below), so the scale matches across
+        // every tab rather than being Sectors-only.
+        for (const key of ['mom', 'mr', 'sent', 'newsSent', 'instChange', 'insiders']) {
+          const ranked = rankTo100(parsed.map((r) => r[key]))
+          parsed.forEach((r, i) => {
+            r[key] = ranked[i]
+          })
+        }
         const avgPE = new Map()
         for (const [industry, sum] of peSums) avgPE.set(industry, sum / peCounts.get(industry))
         setRawRows(parsed.map((r) => ({ ...r, savgpe: avgPE.get(r.industry) ?? null })))

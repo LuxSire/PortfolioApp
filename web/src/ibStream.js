@@ -3,3 +3,4 @@
 export const IB_STREAM_URL = 'http://localhost:8765/api/stream'
 export const IB_NEWS_URL = 'http://localhost:8765/api/news'
 export const IB_NEWS_ARTICLE_URL = 'http://localhost:8765/api/news/article'
+export const IB_CHAT_URL = 'http://localhost:8765/api/chat'

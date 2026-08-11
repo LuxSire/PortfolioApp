@@ -35,8 +35,16 @@ _TAG_RE = re.compile(r"^\{[^}]*\}")
 # Musk Commits to Nvidia Chips for SpaceX" -- that "as ..." clause is
 # exactly the kind of content this template never has, and exactly what
 # makes a price-move headline worth scoring for real.
+# Verb list confirmed against this project's own cached headlines (data/
+# news.json), not guessed -- rallies/sheds/slips were all real, currently
+# occurring cases this regex was silently missing (e.g. "EQT Corp. Stock
+# Rallies 4.6%, Underperforms Peers" fell through to FinBERT and scored
+# bearish (2), purely from "Underperforms" outweighing "Rallies" in the
+# model's own reading -- exactly the wrong kind of signal this whole
+# regex exists to intercept before FinBERT ever sees it).
 _MECHANICAL_MOVE_RE = re.compile(
-    r"\bstock\s+(?:rises?|falls?|climbs?|slides?|advances?|declines?|gains?|drops?|jumps?|sinks?|surges?|plunges?)"
+    r"\bstock\s+(?:rises?|falls?|climbs?|slides?|slips?|advances?|declines?|gains?|drops?|jumps?|sinks?|surges?"
+    r"|plunges?|rall(?:y|ies)|sheds?)"
     r"\s+[\d.]+%,\s*(?:out|under)performs\s+(?:peers|market|sector|industry)\b",
     re.I,
 )

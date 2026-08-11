@@ -13,11 +13,14 @@ export const COLUMNS = [
   { key: 'possize', label: 'Position', fmt: 'num0', sortable: false },
   { key: 'posval', label: 'Pos Value', fmt: 'money', sortable: false },
   { key: 'rating', label: 'Rating', className: 'col-rec' },
+  { key: 'p', label: 'Price', fmt: 'price' },
+  { key: 'beta', label: 'Beta', fmt: 'num2' },
   { key: 'savgpe', label: 'Avg PE', fmt: 'num2' },
   { key: 'fpe', label: 'Fwd PE', fmt: 'num2' },
   { key: 'feps', label: 'Fwd EPS', fmt: 'price' },
   { key: 'epsTrend', label: 'EPS Trend', fmt: 'pct' },
   { key: 'tpe', label: 'Trail PE', fmt: 'num2' },
+  { key: 'tps', label: 'Trail PS', fmt: 'num2' },
   { key: 'peg', label: 'PEG', fmt: 'num2' },
   { key: 'revg', label: 'Rev Growth', fmt: 'pct' },
   { key: 'pfcf', label: 'P/FCF', fmt: 'num2' },
@@ -26,14 +29,15 @@ export const COLUMNS = [
   { key: 'de', label: 'D/E', fmt: 'num2' },
   { key: 'liq', label: 'Liq Ratio', fmt: 'num2' },
   { key: 'shortInt', label: 'Short Interest', fmt: 'pct' },
-  { key: 'p', label: 'Price', fmt: 'price' },
   { key: 'tgt', label: 'Target', fmt: 'price' },
   { key: 'upside', label: 'Upside', fmt: 'pct' },
   { key: 'rec', label: 'Rec', className: 'col-rec' },
-  { key: 'mom', label: 'Momentum', fmt: 'signed' },
-  { key: 'mr', label: 'MeanRev', fmt: 'signed' },
-  { key: 'sent', label: 'Sentiment', fmt: 'num2' },
-  { key: 'newsSent', label: 'News', fmt: 'num2' },
+  { key: 'mom', label: 'Momentum', fmt: 'index100' },
+  { key: 'mr', label: 'MeanRev', fmt: 'index100' },
+  { key: 'sent', label: 'Sentiment', fmt: 'index100' },
+  { key: 'newsSent', label: 'News', fmt: 'index100' },
+  { key: 'instChange', label: 'Inst Change', fmt: 'index100' },
+  { key: 'insiders', label: 'Insiders', fmt: 'index100' },
   { key: 'sc', label: 'Score', fmt: 'score' },
   { key: 'rank', label: 'Percentile' },
   { key: 'upd', label: 'Updated', className: 'col-left' },
@@ -92,6 +96,61 @@ export function fmtSentiment(v) {
   return (v >= 0 ? '+' : '') + v.toFixed(2)
 }
 
+// Momentum/MeanRev/Sentiment/News/Insiders sit on genuinely different raw
+// scales (a Sharpe-style ratio for the first two, a bounded [-1, 1] ratio
+// for the other three) — rankTo100 rescales all five onto one common,
+// visually comparable [-100, 100] index by RANK (ordinal position in the
+// sorted dataset), not by raw magnitude. A min-max rescale (value's
+// linear position between the observed min and max) was tried first and
+// measured against real data: momentum's raw range is -4..+305 purely
+// because of one outlier ticker, so min-max put 95% of every OTHER
+// ticker below -90 — a single extreme reading crushed the entire rest of
+// the distribution into a sliver near one end, which is exactly the
+// degenerate case rank-based avoids: the lowest value is still -100, the
+// highest still +100, but everything between is spread out by ordinal
+// position, immune to how far away the extremes happen to sit. Same
+// principle scoring.py's own rank_ascending already uses for the backend
+// composite score, for the same reason.
+//
+// Takes the whole column at once (not one value at a time, the way
+// min-max's old value/min/max signature did) since rank needs the full
+// sorted set to know each value's position — returns an array the same
+// length as `values`, in the same order, with null preserved for a
+// missing/non-finite input rather than assigning it a rank.
+//
+// Ties share the AVERAGE rank of their span, not each getting a
+// different position by array order -- Insiders' raw score in
+// particular is a small discrete ratio (buys-sells)/(buys+sells), so
+// dozens of tickers commonly land on the exact same value (e.g. every
+// "all sells, no buys" ticker is -1.0); without this they'd arbitrarily
+// scatter across nearby-but-different scores (-100, -99.6, -99.1, ...)
+// instead of all showing the one identical score their identical signal
+// actually earned.
+export function rankTo100(values) {
+  const withIndex = values.map((v, i) => ({ v, i }))
+  const valid = withIndex.filter((x) => x.v !== null && Number.isFinite(x.v))
+  valid.sort((a, b) => a.v - b.v)
+  const n = valid.length
+  const result = new Array(values.length).fill(null)
+  let i = 0
+  while (i < n) {
+    let j = i
+    while (j + 1 < n && valid[j + 1].v === valid[i].v) j++
+    const avgRank = (i + j) / 2
+    const scaled = n > 1 ? (avgRank / (n - 1)) * 200 - 100 : 0
+    for (let k = i; k <= j; k++) result[valid[k].i] = scaled
+    i = j + 1
+  }
+  return result
+}
+
+// Shared display treatment for the normalizeTo100 family — not a
+// percentage, not a raw ratio, just a signed rescaled index.
+export function fmtIndex100(v) {
+  if (v === null) return '—'
+  return (v >= 0 ? '+' : '') + v.toFixed(1)
+}
+
 const REC_LABELS = {
   strong_buy: 'Strong Buy',
   buy: 'Buy',
@@ -148,4 +207,27 @@ export function avgNewsSentiment(articles) {
   const scores = Object.values(articles).filter((s) => s !== 3)
   if (!scores.length) return { avg: null, count: 0 }
   return { avg: scores.reduce((a, b) => a + b, 0) / scores.length, count: scores.length }
+}
+
+// insider_transactions.json (see sec_edgar.py's fetch_form4) is
+// {ticker: [{..., transactions: [{code, ...}, ...]}, ...]} — one entry
+// per SEC Form 4 filing, each carrying its own list of non-derivative
+// transactions. Only open-market codes count as a discretionary buy/sell
+// signal (P = purchase, S = sale) — routine compensation mechanics
+// (M = option exercise, F = tax withholding, A = grant, G = gift, ...)
+// aren't a conviction signal and are excluded, same reasoning
+// avgNewsSentiment's neutral-headline exclusion above uses: they
+// shouldn't pull the score toward anything, they just shouldn't count.
+export function avgInsiderScore(filings) {
+  if (!filings) return { avg: null, buys: 0, sells: 0 }
+  let buys = 0
+  let sells = 0
+  for (const filing of filings) {
+    for (const tx of filing.transactions || []) {
+      if (tx.code === 'P') buys += 1
+      else if (tx.code === 'S') sells += 1
+    }
+  }
+  const total = buys + sells
+  return { avg: total ? (buys - sells) / total : null, buys, sells }
 }

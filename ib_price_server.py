@@ -40,31 +40,38 @@ Endpoints:
                            {"prices": {ticker: {last, bid, ask, timestamp}},
                             "positions": {ticker: {shares, avgCost}},
                             "account": {tag: value},
-                            "trades": {ticker: {qty, value}}} — the full
-                           current snapshot, sent on connect and again
-                           whenever any of the four changes. Positions cover
-                           the whole account, not just the top-ranked
-                           tickers: stream_prices_and_positions asks for
-                           positions right after connecting and streams all
+                            "trades": {ticker: {qty, value, realizedPnl,
+                            commission}}} — the full current snapshot, sent
+                           on connect and again whenever any of the four
+                           changes. Positions cover the whole account, not
+                           just the top-ranked tickers: stream_prices_and_positions
+                           asks for positions right after connecting and streams all
                            of them, uncapped, filling whatever's left of the
                            MAX_STREAMED_SYMBOLS budget with the
-                           highest-ranked screener tickers; on_position
+                           highest-ranked RATED_FOR_EXTRAS (Strong Buy/Buy/
+                           Sell/Strong Sell) screener tickers; on_position
                            catches anything opened later the same way.
                            `prices` ends up covering every held stock plus
-                           as many ranked tickers as fit. Stocks only — an
+                           as many ranked, actionably-rated tickers as fit.
+                           Stocks only — an
                            option and its underlying share a ticker symbol,
                            which this doesn't disambiguate. `trades` is
                            today's fills only (qty = signed net shares
                            traded today, value = sum(signedQty *
-                           fillPrice)) — see refresh_trades / IBApp.
-                           get_today_executions_async — and only has an
-                           entry for a symbol actually traded today.
-                           PositionsView.jsx derives today's realized P&L
-                           client-side from `trades` + `positions` + price
-                           history for any symbol traded today but no
-                           longer held (see its own comments) — mark-to-
-                           market vs. yesterday's close, same convention
-                           every other daily figure on that page uses, not
+                           fillPrice), realizedPnl/commission = IB's own
+                           FIFO-cost-basis figures, None rather than 0 if
+                           this connection wasn't alive to see a fill live
+                           -- see refresh_trades / IBApp.
+                           get_today_executions_async's own docstring for
+                           why realizedPnl needs a live-tracked fill) — and
+                           only has an entry for a symbol actually traded
+                           today. PositionsView.jsx separately derives
+                           today's realized P&L client-side from `trades` +
+                           `positions` + price history for any symbol
+                           traded today but no longer held (see its own
+                           comments) — mark-to-market vs. yesterday's
+                           close, same convention every other daily figure
+                           on that page uses, not
                            IB's FIFO-cost-basis definition.
   GET /api/last-prices  -> the current {ticker: {last, bid, ask, timestamp}} snapshot
                            as a one-shot JSON response. Kept for manual/curl
@@ -128,6 +135,15 @@ running in its own background thread; the HTTP server below runs on the
 main thread and never touches IB Gateway, so it doesn't add a second
 client. IB Gateway/TWS shows one connected API client for this process,
 not three.
+
+The streaming server also refreshes PORTFOLIO_PERFORMANCE_FILE on its own —
+see performance_loop, one of the background asyncio tasks run_ib_client
+starts (same pattern as snapshot_loop/trades_loop): once immediately on
+startup, then every PERFORMANCE_REFRESH_SECONDS for as long as the process
+stays up. `python ib_price_server.py performance [YYYY-MM-DD]` (below) is
+the standalone one-shot version of the exact same fetch, for a manual
+refresh or a specific start date without waiting on the server's own
+schedule or running the streaming server at all.
 
 One-shot mode: `python ib_price_server.py performance [YYYY-MM-DD]`
 fetches real day-by-day account NAV history via an IBKR Flex Query — not
@@ -469,11 +485,22 @@ async def snapshot_loop():
     outside the MAX_STREAMED_SYMBOLS live-streamed set. Recomputed fresh
     each cycle (not once at startup) since streamed_symbols can grow over
     the process's life as on_position picks up newly opened positions,
-    and sorted_screen.csv's own ranking can change between cycles too."""
+    and sorted_screen.csv's own ranking can change between cycles too.
+
+    Ordered Strong Buy/Strong Sell first (see _priority_tickers), then
+    every other ranked ticker -- a full sweep of ~1,600+ tickers can take
+    several SNAPSHOT_CHUNK_SIZE-chunks to complete, and the old plain-
+    file-order sweep meant Strong Sell (sorted_screen.csv's very last
+    rows) was consistently the LAST thing refreshed each cycle -- exactly
+    backwards from priority. This way the highest-conviction names get a
+    fresh price earliest in the cycle even while the rest of the sweep is
+    still in progress."""
     while True:
+        priority = _priority_tickers()
         ranked = load_top_tickers(SORTED_SCREEN_CSV)
+        ordered = priority + [t for t in ranked if t not in priority]
         with lock:
-            tickers = [t for t in ranked if t not in streamed_symbols]
+            tickers = [t for t in ordered if t not in streamed_symbols]
         if tickers:
             print(f"Snapshot: fetching {len(tickers)} screener ticker(s) outside the live stream...")
             results = await fetch_snapshot_prices(tickers)
@@ -1162,16 +1189,106 @@ def fetch_account_performance(start_date=None):
     return output
 
 
+PERFORMANCE_REFRESH_SECONDS = 6 * 3600  # 6 hours -- daily-granularity NAV data doesn't need finer than this, and the Flex Query API is slow/flaky (see fetch_account_performance's own docstring), so a patient interval beats a tight one.
+
+
+async def performance_loop():
+    """Runs forever as a background asyncio task on the single shared IB
+    Gateway connection (see run_ib_client) -- keeps
+    PORTFOLIO_PERFORMANCE_FILE (the Portfolio tab's NAV history) refreshed
+    automatically for as long as this server is running, instead of only
+    ever updating via the separate one-shot `python ib_price_server.py
+    performance` command (previously the ONLY way this file got updated --
+    there was no loop calling fetch_account_performance at all, which is
+    why the Portfolio tab could silently sit days stale with nobody
+    noticing). Refreshes immediately on startup (so a fresh server start
+    backfills whatever trading days piled up since the last run), then
+    every PERFORMANCE_REFRESH_SECONDS.
+
+    fetch_account_performance is a blocking synchronous HTTP round-trip
+    (IBKR's Flex Web Service has no async client, and can take
+    10-100+ seconds polling for the statement to finish generating -- see
+    its own docstring) -- run via asyncio.to_thread so it never stalls
+    this process's live price/position streaming the way calling it
+    directly on this shared event loop would.
+
+    fetch_account_performance also calls sys.exit() on a hard failure (no
+    live fetch AND no local export fallback) -- correct for the one-shot
+    CLI mode, where killing the process on failure is fine, but fatal here:
+    called from this loop unguarded, one flaky Flex Query response would
+    take down the ENTIRE server, live price streaming included. Caught
+    explicitly (SystemExit isn't an Exception subclass, so a bare `except
+    Exception` wouldn't catch it) and logged instead, so this loop just
+    retries next cycle."""
+    while True:
+        try:
+            await asyncio.to_thread(fetch_account_performance)
+        except SystemExit as e:
+            print(f"performance_loop: fetch_account_performance exited without writing (code {e.code}) -- will retry next cycle")
+        except Exception as e:
+            print(f"performance_loop: fetch_account_performance failed: {e}")
+        await asyncio.sleep(PERFORMANCE_REFRESH_SECONDS)
+
+
+def _interleave(a, b):
+    """[a0, b0, a1, b1, ...], trailing off into whichever list is longer
+    once the other runs out -- used by _priority_tickers below to blend two
+    same-size-ish priority buckets fairly instead of exhausting one before
+    the other ever gets a slot."""
+    out = []
+    for x, y in zip(a, b):
+        out.append(x)
+        out.append(y)
+    out.extend(a[len(b):])
+    out.extend(b[len(a):])
+    return out
+
+
+def _priority_tickers():
+    """RATED_FOR_EXTRAS tickers (Strong Buy/Buy/Sell/Strong Sell) from
+    sorted_screen.csv, reordered so the two highest-conviction ratings --
+    Strong Buy and Strong Sell -- are interleaved at the front (alternating
+    best-first Strong Buy with worst-first Strong Sell), ahead of the much
+    larger plain Buy/Sell buckets that follow the same way. This used to
+    just be sorted_screen.csv's own best-to-worst file order, truncated to
+    MAX_STREAMED_SYMBOLS -- but Strong Buy (~84) + Buy (~249) alone already
+    exceeds that budget, so a flat top-N slice by score never reached a
+    single Sell/Strong Sell row: every short idea silently went without a
+    live price or an early snapshot, no matter how extreme its rating.
+    Both stream_prices_and_positions' live-budget fill (see main()) and
+    snapshot_loop's periodic sweep order consult this now, so the scarce
+    99-line live budget, and whichever ticker gets fetched EARLIEST in a
+    20-minute snapshot cycle, both go to the names worth acting on first --
+    Strong Sell included -- not just whichever happens to sort first."""
+    try:
+        with open(SORTED_SCREEN_CSV, newline="") as f:
+            rows = list(csv.DictReader(f))
+    except FileNotFoundError:
+        return []
+
+    def tickers_for(rating):
+        return [r["ticker"] for r in rows if r.get("rating") == rating]
+
+    # Sell/Strong Sell reversed (worst score first) -- the most extreme,
+    # most-actionable end of each bucket goes first, same "worst first"
+    # convention the Recommendations tab's own Short list already uses.
+    strong = _interleave(tickers_for("Strong Buy"), list(reversed(tickers_for("Strong Sell"))))
+    rest = _interleave(tickers_for("Buy"), list(reversed(tickers_for("Sell"))))
+    return strong + rest
+
 
 async def stream_prices_and_positions(ranked_tickers):
     """Opens one streaming market-data subscription batch on the already-
     connected shared `app` (see run_ib_client, clientId 0) — every
     currently held position first (never truncated: a P&L blind spot on
     your own holdings is worse than bumping into IBKR's market-data-line
-    budget), then the highest-ranked remaining tickers up to
-    MAX_STREAMED_SYMBOLS total — and subscribes to account position
-    updates. Live ticks/position updates keep arriving afterward purely
-    through the event handlers registered below, driven by run_ib_client's
+    budget), then the highest-ranked remaining tickers from
+    `ranked_tickers` up to MAX_STREAMED_SYMBOLS total (ranked_tickers is
+    already RATED_FOR_EXTRAS-filtered by the caller -- see main() -- so a
+    Hold-rated ticker never competes for one of these slots regardless of
+    its raw rank position) — and subscribes to account position updates.
+    Live ticks/position updates keep arriving afterward purely through
+    the event handlers registered below, driven by run_ib_client's
     app.ib.run(); this coroutine itself finishes once setup is done."""
     # IBApp's own tick handler prints a line per tick, meant for a single
     # symbol in a foreground script; too noisy across MAX_STREAMED_SYMBOLS
@@ -1245,7 +1362,7 @@ async def stream_prices_and_positions(ranked_tickers):
     to_subscribe = [t for t in all_tickers if t not in streamed_symbols]
     print(f"Held tickers ({len(held_tickers)}): {', '.join(held_tickers)}")
     print(
-        f"Streaming {len(held_tickers)} held ticker(s) + {len(fill)} top-ranked ticker(s) "
+        f"Streaming {len(held_tickers)} held ticker(s) + {len(fill)} top-ranked Strong Buy/Buy/Sell/Strong Sell ticker(s) "
         f"({len(all_tickers) - len(to_subscribe)} already subscribed by on_position)"
     )
 
@@ -1344,6 +1461,72 @@ class Handler(BaseHTTPRequestHandler):
             self.send_response(404)
             self.end_headers()
 
+    def do_OPTIONS(self):
+        # Browsers preflight a POST carrying a Content-Type: application/json
+        # body (not a CORS "simple" content type, unlike the plain GETs
+        # every other endpoint here only ever receives) with an OPTIONS
+        # request before /api/chat's own POST -- without an explicit
+        # response here, the browser blocks the real request before it's
+        # even sent.
+        self.send_response(204)
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.end_headers()
+
+    def do_POST(self):
+        parsed = urlparse(self.path)
+        if parsed.path == "/api/chat":
+            self._handle_chat()
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+    def _handle_chat(self):
+        """POST /api/chat -- {"question": str, "history": [{"role",
+        "content"}, ...]} -> {"answer": str} (or {"error": str}). Lazily
+        imports chatbot (langchain + langchain-ollama, only needed here) so
+        a machine without those installed, or without Ollama running,
+        still gets a normal price-streaming server -- only this one
+        endpoint fails, with a plain-language error, until they're set up.
+        Snapshots positions/prices/account under `lock` the same instant
+        every other GET endpoint already reads them from, so the chatbot's
+        live-data tools (see chatbot._make_live_tools) see one consistent
+        moment, not values changing mid-request. A local LLM tool-calling
+        loop can take real time, but that's fine to block on here --
+        Handler runs under ThreadingHTTPServer (see Server below), so this
+        only ties up its own request thread, same as
+        _handle_news_article's blocking IB call above never stalling live
+        price streaming."""
+        length = int(self.headers.get("Content-Length", 0))
+        try:
+            body = json.loads(self.rfile.read(length))
+        except (ValueError, json.JSONDecodeError):
+            self.send_response(400)
+            self.end_headers()
+            return
+        question = (body.get("question") or "").strip()
+        if not question:
+            self.send_response(400)
+            self.end_headers()
+            return
+        history = body.get("history") or []
+
+        with lock:
+            live_state = {
+                "positions": dict(positions_by_ticker),
+                "prices": dict(last_price_by_ticker),
+                "account": dict(account_status),
+            }
+        try:
+            import chatbot
+
+            answer = chatbot.answer_question(question, history, live_state)
+        except Exception as e:
+            self._send_json({"error": str(e)})
+            return
+        self._send_json({"answer": answer})
+
     def _handle_news_article(self, query):
         """Lazy on-demand article body fetch (see IBApp.get_news_article_async)
         -- ?ticker=...&articleId=... identifies the article; providerCode
@@ -1441,8 +1624,14 @@ def main():
 
     # A candidate pool, not a guarantee — stream_prices_and_positions trims this to
     # whatever's left of MAX_STREAMED_SYMBOLS after held positions (which
-    # always get a slot) claim theirs.
-    tickers = load_top_tickers(SORTED_SCREEN_CSV, MAX_STREAMED_SYMBOLS)
+    # always get a slot) claim theirs. Restricted to RATED_FOR_EXTRAS
+    # (Strong Buy/Buy/Sell/Strong Sell, same rating-based scope main.py's
+    # SEC/social-sentiment downloads already use) rather than a flat
+    # top-N-by-rank cutoff, so the scarce 99-symbol IB Gateway budget goes
+    # to names worth acting on instead of Hold-rated middle-of-the-pack
+    # ones -- Strong Buy/Strong Sell interleaved first within that filtered
+    # set (see _priority_tickers), just truncated to the budget here.
+    tickers = _priority_tickers()[:MAX_STREAMED_SYMBOLS]
     if not tickers:
         sys.exit(f"No tickers found in {SORTED_SCREEN_CSV}; run main.py first")
     # Seed every candidate up front so the response shape is stable from
@@ -1479,6 +1668,7 @@ def run_ib_client(tickers, no_news=False):
     asyncio.ensure_future(stream_prices_and_positions(tickers))
     asyncio.ensure_future(snapshot_loop())
     asyncio.ensure_future(trades_loop())
+    asyncio.ensure_future(performance_loop())
     # Seeds news_by_ticker from news.json either way, so GET /api/news
     # still serves the existing rolling window even when no_news skips
     # starting the loop that fetches new headlines. _backfill_news_sentiment

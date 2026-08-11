@@ -384,6 +384,20 @@ header.masthead .title-block p {
   overflow: hidden;
 }
 
+/* Undoes .asset-card's own overflow: hidden above (that rule exists to
+   clip a Recharts ResponsiveContainer's explicit pixel width, not for
+   tables) for a card that has no chart in it, just a table wide enough
+   to need to bleed past the card edge and scroll the whole page
+   horizontally (.table-wrap's own overflow: visible already expects
+   exactly this -- see its comment on why it deliberately has no
+   overflow-x of its own -- but .asset-card's hidden was clipping it
+   before it ever reached the page, silently undoing that). Used by
+   PositionsView.jsx's "Portfolio Factors" card once its column count
+   grew wide enough to overflow even the uncapped .positions-view. */
+.asset-card-table-overflow-visible {
+  overflow: visible;
+}
+
 .asset-card h2 {
   margin: 0 0 14px;
   font-size: 12px;
@@ -481,6 +495,20 @@ header.masthead .title-block p {
   flex-direction: column;
   gap: 1px;
   white-space: nowrap;
+}
+
+/* Recharts' own tooltip wrapper already tracks the cursor (it's given
+   inline position via a translate() recharts computes on mousemove) --
+   .chart-tooltip's own top/transform above overrides that, pinning the
+   price-chart tooltips to a fixed spot centered over the x position
+   (deliberate there: a continuous timeline reads fine with the tooltip
+   parked at a constant height). A categorical bar chart like Sectors'
+   has too few, too-wide bars for that to read naturally, so this
+   modifier cancels the override and lets recharts' own cursor-tracked
+   placement (both x and y) apply instead. */
+.chart-tooltip-follow-cursor {
+  position: static;
+  transform: none;
 }
 
 .chart-tooltip-value {
@@ -938,11 +966,19 @@ table {
 }
 
 /* Positions' own table has grown (side/sector group columns, Avg Price,
-   CVol) past what the shared 1560px cap comfortably fits — widened 30%
-   further, same scoped-override pattern as .portfolio-page above (not
-   touching .positions-page itself, which Trades/News also share). */
+   CVol) past what the shared 1560px cap comfortably fits — widened 30%,
+   then 10% further, then genuinely overflowing again (Beta/Daily P&L/
+   Insiders/Inst Change columns added since) — same growing-table problem
+   Sectors' own .positions-unbounded below already ran into once its
+   column count grew past a fixed cap. Uncapped for the same reason and
+   the same fix, rather than raising this to yet another px ceiling that
+   the next added column would just overflow again: .table-wrap grows to
+   match its own content (both the Portfolio Factors table and the main
+   per-position table below it), and the PAGE scrolls horizontally
+   instead of a table overflowing a too-narrow box. Not touching
+   .positions-page itself, which Trades/News also share. */
 .positions-view {
-  max-width: 2028px; /* 1560px + 30% */
+  max-width: none;
 }
 
 /* Sectors' table (Group/# Assets/Pos Value + all 18 shared factor
@@ -1304,6 +1340,20 @@ td.col-name.earnings-soon,
   background: var(--surface-2);
 }
 
+/* ThemesView.jsx's summary row -- not a toggle target like every other
+   .factor-tree-row (see themeRows' own comment: this is a plain sum, no
+   children to expand), so no pointer cursor/hover highlight, just bold
+   text and a divider to set it apart from the list above it. */
+.themes-total-row {
+  cursor: default;
+  font-weight: 700;
+  border-top: 2px solid var(--line);
+}
+
+.themes-total-row:hover td {
+  background: transparent;
+}
+
 .factor-tree-toggle {
   display: flex;
   align-items: center;
@@ -1448,6 +1498,171 @@ td.col-rec {
   color: var(--muted);
 }
 
+/* Recommendations tab — see RecommendationsView.jsx. Each section (Long /
+   Short / To close) is its own responsive card grid, reusing .asset-card
+   for the outer card frame the way every other tab's secondary panels
+   already do. */
+.recommendation-section {
+  margin-bottom: 28px;
+}
+
+/* A thicker divider between Long/Short/To close -- the adjacent-sibling
+   selector skips the first section (nothing above it to separate from),
+   and applies to every section after it, so Short gets a clear break from
+   Long and To close gets one from Short, not just the section's own
+   margin-bottom. */
+.recommendation-section + .recommendation-section {
+  border-top: 4px solid var(--muted);
+  padding-top: 28px;
+}
+
+.recommendation-section-title {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0 0 14px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.recommendation-section-subtitle {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--muted);
+}
+
+.recommendation-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.recommendation-card {
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* A ticker already held (long or short — see RecommendationsView.jsx's
+   heldTickers) gets the app's standard alternate-surface tone instead of
+   the default card background, the same --surface-2 banding token used
+   for every other "this row is different" highlight in this app (e.g.
+   PositionsView's sector bands). Every "To close" card is held by
+   construction, so CloseCard applies this unconditionally rather than via
+   the `held` prop RecommendationCard uses. */
+.recommendation-card-held {
+  background: var(--surface-2);
+}
+
+.recommendation-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.recommendation-ticker {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.recommendation-name {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recommendation-badges {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.recommendation-action {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+/* Close is an action-needed flag, not a good/bad polarity (covering a
+   short because the stock turned bullish is "bad news" for that position
+   just as much as exiting a weak long is) -- one warn-colored tag for both
+   directions, text alone (Close long/Close short) carries which. */
+.recommendation-action-close {
+  background: color-mix(in srgb, var(--warn) 18%, var(--surface));
+  color: var(--warn);
+}
+
+/* Risk-only flags (concentration, crowded short, high beta, or momentum
+   alone) without a rating contradiction -- a softer "worth a look" framing
+   than Close, since the composite rating itself hasn't turned against the
+   position. */
+.recommendation-action-review {
+  background: color-mix(in srgb, var(--muted) 18%, var(--surface));
+  color: var(--muted);
+}
+
+/* Companion to recommendation-card-held above -- text, not just color, for
+   the "you already have exposure here" flag on Long/Short cards. */
+.recommendation-held-badge {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.recommendation-card-stats {
+  display: flex;
+  gap: 20px;
+}
+
+/* One or more reasons a held position landed in To close -- a rating
+   contradiction, unsupportive momentum, and/or a risk flag (concentration,
+   crowded short, high beta) can all fire independently, see
+   buildCloseReasons in RecommendationsView.jsx -- so this is a list, not a
+   single sentence. */
+.recommendation-close-reasons {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.recommendation-close-reasons li {
+  margin-bottom: 4px;
+}
+
+.recommendation-close-reasons li:last-child {
+  margin-bottom: 0;
+}
+
+.recommendation-rationale {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--ink);
+}
+
+.recommendation-rationale li {
+  margin-bottom: 2px;
+}
+
 .score-cell {
   display: flex;
   align-items: center;
@@ -1528,5 +1743,127 @@ footer.note {
 @media (max-width: 640px) {
   .stat-row {
     display: none;
+  }
+}
+
+/* Recommendations chatbot -- see RecommendationsChatbot.jsx. Each exchange
+   is a two-column row (question left, answer right); rows stack into the
+   visible conversation history above the input form. */
+.chatbot-panel {
+  margin-bottom: 28px;
+}
+
+.chatbot-panel h2 {
+  margin: 0 0 14px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.chatbot-history {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.chatbot-exchange {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(280px, 2fr);
+  gap: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--line);
+}
+
+.chatbot-exchange:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.chatbot-col-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.chatbot-question-text {
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.5;
+}
+
+.chatbot-answer-text p {
+  margin: 0 0 8px;
+  line-height: 1.55;
+  color: var(--ink);
+}
+
+.chatbot-answer-text p:last-child {
+  margin-bottom: 0;
+}
+
+.chatbot-thinking {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.chatbot-error {
+  color: var(--bad);
+  line-height: 1.5;
+}
+
+.chatbot-form {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+.chatbot-form textarea {
+  flex: 1;
+  resize: vertical;
+  min-height: 40px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 13.5px;
+}
+
+.chatbot-form textarea:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.chatbot-form button {
+  padding: 9px 18px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.chatbot-form button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.chatbot-form button:not(:disabled):hover {
+  border-color: var(--accent);
+}
+
+@media (max-width: 640px) {
+  .chatbot-exchange {
+    grid-template-columns: 1fr;
+    gap: 8px;
   }
 }

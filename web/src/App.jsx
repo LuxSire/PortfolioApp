@@ -4,7 +4,9 @@ import PositionsView from './components/PositionsView'
 import TradesView from './components/TradesView'
 import PortfolioView from './components/PortfolioView'
 import NewsView from './components/NewsView'
+import ThemesView from './components/ThemesView'
 import SectorsView from './components/SectorsView'
+import RecommendationsView from './components/RecommendationsView'
 
 const TABS = [
   { key: 'screener', label: 'Screener' },
@@ -12,7 +14,9 @@ const TABS = [
   { key: 'trades', label: 'Trades' },
   { key: 'portfolio', label: 'Portfolio' },
   { key: 'news', label: 'News' },
+  { key: 'themes', label: 'Themes' },
   { key: 'sectors', label: 'Sectors' },
+  { key: 'recommendations', label: 'Recommendations' },
 ]
 
 export default function App() {
@@ -38,7 +42,9 @@ export default function App() {
       {tab === 'trades' && <TradesView />}
       {tab === 'portfolio' && <PortfolioView />}
       {tab === 'news' && <NewsView />}
+      {tab === 'themes' && <ThemesView />}
       {tab === 'sectors' && <SectorsView />}
+      {tab === 'recommendations' && <RecommendationsView />}
     </div>
   )
 }

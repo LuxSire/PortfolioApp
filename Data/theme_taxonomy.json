@@ -1,0 +1,23 @@
+[
+  { "key": "gold_precious_metals", "label": "Gold & Precious Metals", "description": "Gold, silver, and other precious-metal mining and royalties." },
+  { "key": "oil_gas_energy", "label": "Oil & Gas / Energy", "description": "Crude oil and natural gas exploration, production, and royalties." },
+  { "key": "semiconductors_ai", "label": "Semiconductors & AI Infrastructure", "description": "Chip design/manufacturing and the data-center/AI buildout that depends on it." },
+  { "key": "fintech_payments", "label": "Fintech & Digital Payments", "description": "Consumer lending, cross-border payments, and buy-now-pay-later platforms." },
+  { "key": "specialty_insurance", "label": "Specialty Insurance & Catastrophe Risk", "description": "Property & casualty insurers with concentrated weather/catastrophe exposure (earthquake, hurricane, flood)." },
+  { "key": "consumer_retail", "label": "Consumer Discretionary & Retail", "description": "Apparel, restaurants, and e-commerce spending on the consumer's discretionary budget." },
+  { "key": "cybersecurity_software", "label": "Cybersecurity & Consumer Software", "description": "Security and subscription software sold to consumers and small businesses." },
+  { "key": "smart_home_iot", "label": "Smart Home & IoT", "description": "Connected home hardware and the cloud subscription services layered on it." },
+  { "key": "biotech_pharma", "label": "Biotech & Pharmaceuticals", "description": "Drug development and commercialization, concentrated clinical/regulatory risk." },
+  { "key": "healthcare_it", "label": "Healthcare IT & Payments", "description": "Software and payment infrastructure sold into the healthcare system itself, not biotech risk." },
+  { "key": "media_entertainment", "label": "Media, Entertainment & Streaming", "description": "Film/TV production and direct-to-consumer streaming." },
+  { "key": "digital_advertising", "label": "Digital Advertising & Internet Platforms", "description": "Ad-funded internet platforms and online marketplaces monetizing attention/leads." },
+  { "key": "construction_infrastructure", "label": "Construction & Infrastructure", "description": "Physical building, civil works, and the building-products supply chain." },
+  { "key": "chemicals_materials", "label": "Chemicals & Industrial Materials", "description": "Bulk chemicals and materials feeding into industrial/consumer manufacturing, cyclical with industrial demand." },
+  { "key": "telecom", "label": "Telecom & Broadband", "description": "Wireline/wireless communications infrastructure and subscriber services." },
+  { "key": "real_estate", "label": "Real Estate & Land Royalties", "description": "Owned land, commercial property, and royalty streams tied to land use." },
+  { "key": "agriculture_commodities", "label": "Agriculture & Commodities", "description": "Fertilizer inputs, ethanol/biofuel, and other bulk agricultural commodities." },
+  { "key": "capital_markets", "label": "Capital Markets & Brokerage", "description": "Trading, clearing, and brokerage infrastructure — revenue tied to market volume/volatility, not any one asset class." },
+  { "key": "marketing_print", "label": "Marketing & Legacy Print Media", "description": "Print-based marketing and direct-mail services, a structurally declining channel." },
+  { "key": "crypto", "label": "Crypto & Digital Assets", "description": "Cryptocurrency exchanges, stablecoin/blockchain infrastructure, and bitcoin mining or digital-asset data centers." },
+  { "key": "diversified_thematic_etf", "label": "Diversified Thematic Growth (ETF)", "description": "A basket ETF (not a single company) spanning genomics, AI, fintech, and other disruptive-innovation themes — exposure here reflects the whole basket, not one business." }
+]

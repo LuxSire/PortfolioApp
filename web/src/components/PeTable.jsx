@@ -8,14 +8,15 @@ import { getSectorGroup } from '../sectorGroups'
 import { IB_STREAM_URL } from '../ibStream'
 import {
   COLUMNS,
+  avgInsiderScore,
   avgNewsSentiment,
   fmtDebtToEquity,
+  fmtIndex100,
   fmtNum,
   fmtPct,
   fmtPrice,
   fmtScore,
-  fmtSentiment,
-  fmtSigned,
+  rankTo100,
   recClass,
   recLabel,
   ratingClass,
@@ -54,9 +55,16 @@ function fmtMoney(v) {
 }
 
 // lastDownload is stored as a full ISO timestamp (needed to check "within
-// the last 12h" server-side); the table only needs the date portion.
+// the last 12h" server-side); the table only needs the date portion --
+// except for today, where the date alone doesn't distinguish "updated 5
+// minutes ago" from "updated this morning", so show the time instead.
 function fmtDate(v) {
   if (!v) return '—'
+  const d = new Date(v)
+  const now = new Date()
+  const isToday =
+    d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate()
+  if (isToday) return d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
   return v.slice(0, 10)
 }
 
@@ -107,6 +115,22 @@ function sentimentTooltip(r) {
 function newsSentimentTooltip(r) {
   if (!r.newsSentCount) return undefined
   return `${r.newsSentCount} headline${r.newsSentCount === 1 ? '' : 's'} scored (FinBERT, last month)`
+}
+
+// The "90 days" here matches sec_edgar.py's FORM4_LOOKBACK_DAYS -- kept
+// in sync by hand, since there's no shared constant across the Python/JS
+// boundary.
+function insidersTooltip(r) {
+  if (!r.insiderBuys && !r.insiderSells) return undefined
+  return `${r.insiderBuys} open-market buy${r.insiderBuys === 1 ? '' : 's'} · ${r.insiderSells} sale${r.insiderSells === 1 ? '' : 's'} (SEC Form 4, last 90 days)`
+}
+
+// r.instChange itself gets overwritten by the rank-to-[-100,100] pass
+// (see the useEffect below) same as mom/mr/sent/newsSent/insiders, so the
+// actual raw percent is kept separately in instChangeRaw just for this.
+function instChangeTooltip(r) {
+  if (r.instChangeRaw === null) return undefined
+  return `${(r.instChangeRaw * 100).toFixed(1)}% change in institutional shares held vs. last quarter (SEC 13F)`
 }
 
 function zacksUrl(ticker) {
@@ -259,14 +283,19 @@ const SCORE_FACTORS = [
   },
   {
     label: 'Analyst conviction',
-    weight: 10,
+    weight: 7.5,
     note: 'avg of high target upside + low (strong-buy) recommendation mean + low target-price dispersion ranks',
   },
   { label: 'Forward PE vs. trailing PE', weight: 5, note: 'more negative is better; unprofitable ranked worst' },
-  { label: 'Revenue growth', weight: 7.5, note: 'high is better; negative ranked worst, not just low' },
   { label: 'PEG ratio', weight: 5, note: 'low is better; negative ranked worst, not best' },
+  {
+    label: 'Trailing P/S',
+    weight: 2.5,
+    note: 'low is better; a separate valuation lens from P/E/P-FCF/EV-EBITDA, stays meaningful when those break down',
+  },
+  { label: 'Revenue growth', weight: 7.5, note: 'high is better; negative ranked worst, not just low' },
   { label: 'Debt / Equity vs. sector average', weight: 5, note: 'low relative to sector is better' },
-  { label: 'Liquidity', weight: 5, note: 'avg of high quick ratio + high current ratio ranks' },
+  { label: 'Liquidity', weight: 2.5, note: 'avg of high quick ratio + high current ratio ranks' },
   { label: 'Return on equity', weight: 5, note: 'high is better; negative ranked worst, not just low' },
   {
     label: 'Short interest',
@@ -274,13 +303,18 @@ const SCORE_FACTORS = [
     note: 'avg of high short ratio + high short % of float ranks — contrarian: more shorted scores better',
   },
   {
-    label: 'News + social sentiment',
+    label: 'News + social + institutional sentiment',
     weight: 5,
-    note: 'avg of StockTwits social sentiment + FinBERT-scored news sentiment (neutral news excluded); missing ranked worst',
+    note: 'avg of StockTwits social sentiment + FinBERT-scored news sentiment (neutral news excluded) + institutional QoQ share-change (SEC 13F, clipped to ±50%); missing ranked worst',
+  },
+  {
+    label: 'Insiders',
+    weight: 5,
+    note: 'open-market buys minus sells, as a share of both (SEC Form 4); missing ranked worst',
   },
   {
     label: 'Margins',
-    weight: 7.5,
+    weight: 5,
     note: 'avg of high profit margin + high operating margin ranks; negative ranked worst, not just low',
   },
 ]
@@ -472,9 +506,10 @@ export default function PeTable() {
         if (!r.ok) throw new Error(`${r.status} ${r.statusText}`)
         return r.text()
       }),
-      // Only covers the top SENTIMENT_TOP_N tickers of a past run (see
-      // social_sentiment.py) and may not exist yet — missing/failed fetch
-      // just means every row's sentiment is blank, not a load error.
+      // Only covers RATED_FOR_EXTRAS tickers (Strong Buy/Buy/Sell/Strong
+      // Sell) of a past run (see social_sentiment.py) and may not exist
+      // yet — missing/failed fetch just means every row's sentiment is
+      // blank, not a load error.
       fetch('/social_sentiment.json')
         .then((r) => (r.ok ? r.json() : {}))
         .catch(() => ({})),
@@ -485,13 +520,27 @@ export default function PeTable() {
       fetch('/news_sentiment.json')
         .then((r) => (r.ok ? r.json() : {}))
         .catch(() => ({})),
+      // Same RATED_FOR_EXTRAS scope as social_sentiment.json above, from
+      // sec_edgar.py's fetch_form4 (`python main.py form4`) instead of
+      // the main pipeline — may not exist yet if that's never been run.
+      fetch('/sec/form4/insider_transactions.json')
+        .then((r) => (r.ok ? r.json() : {}))
+        .catch(() => ({})),
+      // Same RATED_FOR_EXTRAS scope, from sec_edgar.py's fetch_13f_holdings
+      // (`python main.py 13f`) — pctShareChangeQoQ per ticker, already a
+      // single number (no per-article/per-filing averaging needed the way
+      // newsSentiment/insiderTransactions above do).
+      fetch('/sec/13f/institutional_holdings.json')
+        .then((r) => (r.ok ? r.json() : {}))
+        .catch(() => ({})),
     ])
-      .then(([text, sentiment, newsSentiment]) => {
+      .then(([text, sentiment, newsSentiment, insiderTransactions, institutionalHoldings]) => {
         // sorted_screen.csv is already ranked best-to-worst by score; capture
         // that as a fixed rank so it doesn't shift when the table is
         // re-sorted or filtered.
         const parsed = parseCSV(text).map((r, idx) => {
           const newsSent = avgNewsSentiment(newsSentiment[r.ticker])
+          const insiders = avgInsiderScore(insiderTransactions[r.ticker])
           // Simple average of whichever of the two periods is present —
           // both are already the same %-change-ratio scale (see
           // IBApp._eps_revision), unlike e.g. shortRatio/shortPercentOfFloat,
@@ -511,10 +560,17 @@ export default function PeTable() {
             sentTotal: toNum(sentiment[r.ticker]?.total),
             newsSent: newsSent.avg !== null ? newsSent.avg - 3 : null,
             newsSentCount: newsSent.count || null,
+            instChange: toNum(institutionalHoldings[r.ticker]?.pctShareChangeQoQ),
+            instChangeRaw: toNum(institutionalHoldings[r.ticker]?.pctShareChangeQoQ),
+            insiders: insiders.avg,
+            insiderBuys: insiders.buys,
+            insiderSells: insiders.sells,
+            beta: toNum(r.beta),
             fpe: toNum(r.forwardPE),
             feps: toNum(r.forwardEps),
             epsTrend,
             tpe: toNum(r.trailingPE),
+            tps: toNum(r.trailingPS),
             peg: toNum(r.pegRatio),
             revg: toNum(r.revenueGrowth),
             pfcf: toNum(r.priceToFCF),
@@ -545,6 +601,21 @@ export default function PeTable() {
             upd: r.lastDownload || null,
           }
         })
+        // Momentum/MeanRev/Sentiment/News/Insiders share one common
+        // display scale: rank-rescaled to [-100, 100] against whatever
+        // this fetch actually observed (see rankTo100), so the single
+        // worst/best-ranked reading in each is always -100/+100 —
+        // immune to one outlier crushing everything else toward one end,
+        // unlike a min-max rescale (see rankTo100's own comment for why
+        // that was tried first and replaced). Ranking (rankDescending
+        // below) is unaffected either way — a monotonic rescale never
+        // changes relative order.
+        for (const key of ['mom', 'mr', 'sent', 'newsSent', 'instChange', 'insiders']) {
+          const ranked = rankTo100(parsed.map((r) => r[key]))
+          parsed.forEach((r, i) => {
+            r[key] = ranked[i]
+          })
+        }
         setRawRows(parsed)
       })
       .catch((e) => setError(e.message))
@@ -580,6 +651,7 @@ export default function PeTable() {
   // main.py's scoring treats them.
   const fpeRank = useMemo(() => (rawRows ? rankAscending(rawRows, 'fpe', (v) => v > 0) : new Map()), [rawRows])
   const pegRank = useMemo(() => (rawRows ? rankAscending(rawRows, 'peg', (v) => v > 0) : new Map()), [rawRows])
+  const tpsRank = useMemo(() => (rawRows ? rankAscending(rawRows, 'tps', (v) => v > 0) : new Map()), [rawRows])
   const pfcfRank = useMemo(() => (rawRows ? rankAscending(rawRows, 'pfcf', (v) => v > 0) : new Map()), [rawRows])
   const evEbitdaRank = useMemo(
     () => (rawRows ? rankAscending(rawRows, 'evEbitda', (v) => v > 0) : new Map()),
@@ -594,6 +666,8 @@ export default function PeTable() {
   const liqRank = useMemo(() => (rawRows ? rankDescending(rawRows, 'liq') : new Map()), [rawRows])
   const sentRank = useMemo(() => (rawRows ? rankDescending(rawRows, 'sent') : new Map()), [rawRows])
   const newsSentRank = useMemo(() => (rawRows ? rankDescending(rawRows, 'newsSent') : new Map()), [rawRows])
+  const instChangeRank = useMemo(() => (rawRows ? rankDescending(rawRows, 'instChange') : new Map()), [rawRows])
+  const insidersRank = useMemo(() => (rawRows ? rankDescending(rawRows, 'insiders') : new Map()), [rawRows])
 
   // Short Interest's subrank blends both ranks the same way main.py's
   // short_interest_ranks does — shortInt (shortPercentOfFloat) and
@@ -647,6 +721,7 @@ export default function PeTable() {
       savgpe: sectorAvgPE.get(r.s) ?? null,
       fpeRank: fpeRank.get(r.t) ?? null,
       pegRank: pegRank.get(r.t) ?? null,
+      tpsRank: tpsRank.get(r.t) ?? null,
       pfcfRank: pfcfRank.get(r.t) ?? null,
       evEbitdaRank: evEbitdaRank.get(r.t) ?? null,
       deRank: deRank.get(r.t) ?? null,
@@ -660,12 +735,15 @@ export default function PeTable() {
       shortIntRank: shortIntRank.get(r.t) ?? null,
       sentRank: sentRank.get(r.t) ?? null,
       newsSentRank: newsSentRank.get(r.t) ?? null,
+      instChangeRank: instChangeRank.get(r.t) ?? null,
+      insidersRank: insidersRank.get(r.t) ?? null,
     }))
   }, [
     rawRows,
     sectorAvgPE,
     fpeRank,
     pegRank,
+    tpsRank,
     pfcfRank,
     evEbitdaRank,
     deRank,
@@ -679,6 +757,8 @@ export default function PeTable() {
     shortIntRank,
     sentRank,
     newsSentRank,
+    instChangeRank,
+    insidersRank,
   ])
 
   const industryCounts = useMemo(() => {
@@ -872,7 +952,7 @@ export default function PeTable() {
             <span className="l">avg score</span>
           </div>
           <div className="stat">
-            <span className="n num">{stats.avgMom === null ? '—' : fmtSigned(stats.avgMom)}</span>
+            <span className="n num">{stats.avgMom === null ? '—' : fmtIndex100(stats.avgMom)}</span>
             <span className="l">avg momentum</span>
           </div>
         </div>
@@ -1002,6 +1082,8 @@ export default function PeTable() {
               const epsTrendClass = r.epsTrend === null ? '' : r.epsTrend >= 0 ? 'perf-pos' : 'perf-neg'
               const sentClass = r.sent === null ? '' : r.sent >= 0 ? 'perf-pos' : 'perf-neg'
               const newsSentClass = r.newsSent === null ? '' : r.newsSent >= 0 ? 'perf-pos' : 'perf-neg'
+              const instChangeClass = r.instChange === null ? '' : r.instChange >= 0 ? 'perf-pos' : 'perf-neg'
+              const insidersClass = r.insiders === null ? '' : r.insiders >= 0 ? 'perf-pos' : 'perf-neg'
               const upsideClass = r.upside === null ? '' : r.upside >= 0 ? 'perf-pos' : 'perf-neg'
               // Green only above 10% growth, red below 0%, neutral between.
               const revgClass = inversePctThresholdClass(r.revg, 0, 10)
@@ -1026,6 +1108,10 @@ export default function PeTable() {
               // margin), neutral between.
               const opMarginClass = inversePctThresholdClass(r.opMargin, 0, 15)
               const tpeClass = rangeClass(r.tpe, 10, 50)
+              // P/S runs on a much smaller scale than P/E/P-FCF — cheap
+              // under 2x revenue, expensive above 10x (vs. those factors'
+              // 10/50 band).
+              const tpsClass = rangeClass(r.tps, 2, 10)
               const fpeClass = rangeClass(r.fpe, 10, 50)
               // r.de is already in percentage-point units (150.5 means
               // 150.5%), same as the threshold values below — under 50%
@@ -1110,6 +1196,18 @@ export default function PeTable() {
                   <td className="col-rec" title="This screener's own forced-distribution rating, from its score percentile — not an analyst consensus.">
                     <span className={`rec-badge ${ratingClass(r.rating)}`}>{r.rating || '—'}</span>
                   </td>
+                  <td className="num price-cell">
+                    <span className="price-value">{live?.last != null ? fmtPrice(live.last) : fmtPrice(r.p)}</span>
+                    {liveRatio !== null && (
+                      <span
+                        className={`live-price ${liveClass}`}
+                        title={`IB Gateway ${fmtPrice(live.last)} at ${live.timestamp} vs. yesterday's close ${fmtPrice(referencePrice)}`}
+                      >
+                        {fmtPct(liveRatio)}
+                      </span>
+                    )}
+                  </td>
+                  <td className="num">{fmtNum(r.beta)}</td>
                   <td className="num">{fmtNum(r.savgpe)}</td>
                   <td className={`num ${fpeClass}`}>{fmtNum(r.fpe)} <Subrank rank={r.fpeRank} /></td>
                   <td className="num">{fmtPrice(r.feps)}</td>
@@ -1117,6 +1215,7 @@ export default function PeTable() {
                     {fmtPct(r.epsTrend)} <Subrank rank={r.epsTrendRank} />
                   </td>
                   <td className={`num ${tpeClass}`}>{fmtNum(r.tpe)} <Subrank rank={r.diffRank} /></td>
+                  <td className={`num ${tpsClass}`}>{fmtNum(r.tps)} <Subrank rank={r.tpsRank} /></td>
                   <td className={`num ${pegClass}`}>{fmtNum(r.peg)} <Subrank rank={r.pegRank} /></td>
                   <td className={`num ${revgClass}`}>{fmtPct(r.revg)} <Subrank rank={r.revgRank} /></td>
                   <td className={`num ${pfcfClass}`}>{fmtNum(r.pfcf)} <Subrank rank={r.pfcfRank} /></td>
@@ -1130,29 +1229,24 @@ export default function PeTable() {
                   >
                     {fmtPct(r.shortInt)} <Subrank rank={r.shortIntRank} />
                   </td>
-                  <td className="num price-cell">
-                    <span className="price-value">{live?.last != null ? fmtPrice(live.last) : fmtPrice(r.p)}</span>
-                    {liveRatio !== null && (
-                      <span
-                        className={`live-price ${liveClass}`}
-                        title={`IB Gateway ${fmtPrice(live.last)} at ${live.timestamp} vs. yesterday's close ${fmtPrice(referencePrice)}`}
-                      >
-                        {fmtPct(liveRatio)}
-                      </span>
-                    )}
-                  </td>
                   <td className="num tooltip-cell" data-tip={targetTooltip(r)}>{fmtPrice(r.tgt)}</td>
                   <td className={`num ${upsideClass}`}>{fmtPct(r.upside)} <Subrank rank={r.upsideRank} /></td>
                   <td className="col-rec">
                     <span className={`rec-badge ${recClass(r.rec)}`}>{recLabel(r.rec)}</span>
                   </td>
-                  <td className={`num ${momClass}`}>{fmtSigned(r.mom)} <Subrank rank={r.momRank} /></td>
-                  <td className={`num ${mrClass}`}>{fmtSigned(r.mr)} <Subrank rank={r.mrRank} /></td>
+                  <td className={`num ${momClass}`}>{fmtIndex100(r.mom)} <Subrank rank={r.momRank} /></td>
+                  <td className={`num ${mrClass}`}>{fmtIndex100(r.mr)} <Subrank rank={r.mrRank} /></td>
                   <td className={`num tooltip-cell ${sentClass}`} data-tip={sentimentTooltip(r)}>
-                    {fmtSentiment(r.sent)} <Subrank rank={r.sentRank} />
+                    {fmtIndex100(r.sent)} <Subrank rank={r.sentRank} />
                   </td>
                   <td className={`num tooltip-cell ${newsSentClass}`} data-tip={newsSentimentTooltip(r)}>
-                    {fmtSentiment(r.newsSent)} <Subrank rank={r.newsSentRank} />
+                    {fmtIndex100(r.newsSent)} <Subrank rank={r.newsSentRank} />
+                  </td>
+                  <td className={`num tooltip-cell ${instChangeClass}`} data-tip={instChangeTooltip(r)}>
+                    {fmtIndex100(r.instChange)} <Subrank rank={r.instChangeRank} />
+                  </td>
+                  <td className={`num tooltip-cell ${insidersClass}`} data-tip={insidersTooltip(r)}>
+                    {fmtIndex100(r.insiders)} <Subrank rank={r.insidersRank} />
                   </td>
                   <td className="num">
                     <div className="score-cell">

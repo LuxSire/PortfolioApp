@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Search } from 'lucide-react'
-import { IB_NEWS_ARTICLE_URL, IB_NEWS_URL } from '../ibStream'
+import { IB_NEWS_ARTICLE_URL, IB_NEWS_URL, IB_STREAM_URL } from '../ibStream'
 import { SENTIMENT_LABEL, fmtNewsTime, sentimentClass } from '../news'
 
 const PAGE_SIZE = 100
@@ -105,6 +105,24 @@ export default function NewsView() {
   // avgNewsSentiment). Hidden by default; this is just a view-level
   // filter, not a re-score, so toggling it never touches the data itself.
   const [showNeutral, setShowNeutral] = useState(false)
+  // {ticker: {shares, avgCost}} — same live SSE stream every other
+  // positions-aware tab (Positions/Sectors/Themes) already subscribes
+  // to, used only to know which tickers are currently held. Best-effort:
+  // no server running just means the filter checkbox below has nothing
+  // to show as "held", same "empty state, not an error" treatment the
+  // rest of this page's news fetch already uses.
+  const [positions, setPositions] = useState({})
+  const [heldOnly, setHeldOnly] = useState(false)
+
+  useEffect(() => {
+    const source = new EventSource(IB_STREAM_URL)
+    source.onmessage = (e) => {
+      const { positions: pos } = JSON.parse(e.data)
+      setPositions(pos || {})
+    }
+    source.onerror = () => {} // EventSource auto-reconnects; nothing to do here.
+    return () => source.close()
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -125,10 +143,13 @@ export default function NewsView() {
   }, [])
 
   const tickerQuery = tickerFilter.trim().toUpperCase()
-  const byTicker = useMemo(
-    () => (rows ? (tickerQuery ? rows.filter((a) => a.ticker.toUpperCase().includes(tickerQuery)) : rows) : null),
-    [rows, tickerQuery]
-  )
+  const byTicker = useMemo(() => {
+    if (!rows) return null
+    let result = rows
+    if (tickerQuery) result = result.filter((a) => a.ticker.toUpperCase().includes(tickerQuery))
+    if (heldOnly) result = result.filter((a) => positions[a.ticker]?.shares)
+    return result
+  }, [rows, tickerQuery, heldOnly, positions])
   const neutralCount = useMemo(() => (byTicker ? byTicker.filter((a) => a.sentiment === 3).length : 0), [byTicker])
   const filtered = useMemo(
     () => (byTicker ? (showNeutral ? byTicker : byTicker.filter((a) => a.sentiment !== 3)) : null),
@@ -139,7 +160,7 @@ export default function NewsView() {
   // the result set just changed size out from under whatever page was
   // showing, same "detect the filter changed mid-render" convention as
   // PeTable.jsx's lastFilterKey.
-  const filterKey = JSON.stringify([tickerQuery, showNeutral])
+  const filterKey = JSON.stringify([tickerQuery, showNeutral, heldOnly])
   const [lastFilterKey, setLastFilterKey] = useState(filterKey)
   if (filterKey !== lastFilterKey) {
     setLastFilterKey(filterKey)
@@ -180,6 +201,11 @@ export default function NewsView() {
             <input type="checkbox" checked={showNeutral} onChange={(e) => setShowNeutral(e.target.checked)} />
             Show neutral news{neutralCount > 0 ? ` (${neutralCount} hidden)` : ''}
           </label>
+
+          <label className="position-filter">
+            <input type="checkbox" checked={heldOnly} onChange={(e) => setHeldOnly(e.target.checked)} />
+            Held positions only{Object.keys(positions).length > 0 ? ` (${Object.keys(positions).length})` : ''}
+          </label>
         </div>
       )}
 
@@ -189,7 +215,10 @@ export default function NewsView() {
       {!error && rows === null && <div className="asset-card">Loading…</div>}
       {!error && rows && rows.length === 0 && <div className="asset-card">No news available.</div>}
       {!error && rows && rows.length > 0 && byTicker.length === 0 && (
-        <div className="asset-card">No news for "{tickerFilter.trim()}".</div>
+        <div className="asset-card">
+          No news for{tickerQuery ? ` "${tickerFilter.trim()}"` : ''}
+          {heldOnly ? (tickerQuery ? ' among held positions' : ' any held position') : ''}.
+        </div>
       )}
       {!error && byTicker && byTicker.length > 0 && filtered.length === 0 && (
         <div className="asset-card">

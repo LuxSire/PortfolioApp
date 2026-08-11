@@ -4,7 +4,7 @@ import { earningsUrgencyClass } from '../earnings'
 import { getSectorGroup, sectorGroupLabel } from '../sectorGroups'
 import { getSectorIcon } from '../sectorIcons'
 import { IB_STREAM_URL } from '../ibStream'
-import { avgNewsSentiment, toNum } from '../screenerFactors'
+import { avgInsiderScore, avgNewsSentiment, rankTo100, ratingClass, toNum } from '../screenerFactors'
 import { FACTOR_COLUMNS, computeFactorAverages } from './factorTable'
 import FactorCells from './FactorCells'
 
@@ -40,9 +40,11 @@ const WEIGHTED_TABLE_COLUMNS = [
   { key: 't', label: 'Ticker', className: 'col-left col-ticker' },
   { key: 'n', label: 'Name', className: 'col-left col-name' },
   { key: 'posval', label: 'Pos Value' },
-  { key: 'weightSum', label: 'Sum of % of NAV' },
+  { key: 'weightSum', label: '% of NAV' },
+  { key: 'dayPnl', label: 'Daily P&L' },
   ...FACTOR_COLUMNS,
   { key: 'beta', label: 'Beta' },
+  { key: 'dollarPer1PctMove', label: '$/1% Mkt' },
 ]
 
 function fmtPrice(v) {
@@ -286,6 +288,18 @@ function portfolioVolatilityDecomposition(rows, dailyHistory3mo, monthlyHistory)
 // excluded, so a large position with no beta doesn't just vanish from
 // the calculation; `covered` still tracks how many had a REAL beta, for
 // the UI to disclose how much of the figure is assumed vs. actual.
+// weightedSum (Σ value_i × beta_i) is also, on its own, exactly the
+// first-order dollar P&L this set of rows would take from a 1% market
+// move — beta_i is "expected % move for a 1% market move," so
+// value_i × beta_i × 1% is that position's expected dollar move, and the
+// sum is the book's. Dividing by grossWeightTotal to get the *average*
+// beta above loses that dollar figure (grossWeightTotal is gross, not
+// net, exposure, so beta * netValue would NOT recover it correctly for
+// a one-sided book -- verified by hand for an all-short subset: beta_avg
+// there is negative and netValue is also negative, so beta_avg *
+// netValue comes out positive, the wrong sign, whereas weightedSum
+// itself already has the right sign built in). So this returns both,
+// rather than making callers try to reconstruct one from the other.
 function portfolioBetaExposure(rows) {
   let weightedSum = 0
   let grossWeightTotal = 0
@@ -298,8 +312,8 @@ function portfolioBetaExposure(rows) {
     weightedSum += r.value * (hasBeta ? r.beta : 1)
     grossWeightTotal += Math.abs(r.value)
   }
-  if (!grossWeightTotal) return { beta: null, covered, total }
-  return { beta: weightedSum / grossWeightTotal, covered, total }
+  if (!grossWeightTotal) return { beta: null, dollarPer1PctMove: null, covered, total }
+  return { beta: weightedSum / grossWeightTotal, dollarPer1PctMove: weightedSum * 0.01, covered, total }
 }
 
 // One row of the value-weighted portfolio-factors table (see
@@ -307,7 +321,7 @@ function portfolioBetaExposure(rows) {
 // value-weighted average (numeric factors), a sum (Pos Value = the side's
 // net dollar exposure; Sum of % of NAV = the sum of each position's own %
 // of NAV on this side), or descriptive text (Ticker/Name).
-function WeightedFactorRow({ side, count, netValue, sumWeightPct, factors, beta }) {
+function WeightedFactorRow({ side, count, netValue, sumWeightPct, dayPnl, factors, beta, dollarPer1PctMove }) {
   return (
     <tr>
       <td className={`col-left col-ticker side-group-cell${side === 'Short' ? ' side-group-cell-short' : ''}`}>
@@ -318,8 +332,15 @@ function WeightedFactorRow({ side, count, netValue, sumWeightPct, factors, beta 
       </td>
       <td className="num">{fmtMoney(netValue || null)}</td>
       <td className="num">{fmtPct(sumWeightPct)}</td>
+      <td className={`num ${dayPnl === 0 ? '' : dayPnl >= 0 ? 'good' : 'bad'}`}>{fmtMoney(dayPnl || null)}</td>
       <FactorCells factors={factors} />
       <td className="num">{fmtRatio(beta)}</td>
+      <td
+        className={`num ${dollarPer1PctMove === null ? '' : dollarPer1PctMove >= 0 ? 'good' : 'bad'}`}
+        title="Σ(value × beta) × 1% — this side's expected dollar P&L from a 1% move in the broad market."
+      >
+        {fmtMoney(dollarPer1PctMove)}
+      </td>
     </tr>
   )
 }
@@ -366,16 +387,22 @@ export default function PositionsView() {
     Promise.all([
       fetch('/sorted_screen.csv').then((r) => (r.ok ? r.text() : '')),
       // Same best-effort contract as PeTable.jsx's own fetch of these —
-      // missing/failed just means every ticker's sent/newsSent is blank,
-      // not a load error.
+      // missing/failed just means every ticker's sent/newsSent/instChange/
+      // insiders is blank, not a load error.
       fetch('/social_sentiment.json')
         .then((r) => (r.ok ? r.json() : {}))
         .catch(() => ({})),
       fetch('/news_sentiment.json')
         .then((r) => (r.ok ? r.json() : {}))
         .catch(() => ({})),
+      fetch('/sec/form4/insider_transactions.json')
+        .then((r) => (r.ok ? r.json() : {}))
+        .catch(() => ({})),
+      fetch('/sec/13f/institutional_holdings.json')
+        .then((r) => (r.ok ? r.json() : {}))
+        .catch(() => ({})),
     ])
-      .then(([text, sentiment, newsSentiment]) => {
+      .then(([text, sentiment, newsSentiment, insiderTransactions, institutionalHoldings]) => {
         const info = {}
         const factors = {}
         const peSums = new Map()
@@ -387,6 +414,7 @@ export default function PositionsView() {
             price: toNum(row.price),
             ern: toNum(row.earningsTimestampStart),
             upd: row.lastDownload || null,
+            rating: row.rating || null,
           }
           const fpe = toNum(row.forwardPE)
           if (row.sector && fpe !== null && fpe > 0) {
@@ -394,6 +422,7 @@ export default function PositionsView() {
             peCounts.set(row.sector, (peCounts.get(row.sector) || 0) + 1)
           }
           const newsSent = avgNewsSentiment(newsSentiment[row.ticker])
+          const insiders = avgInsiderScore(insiderTransactions[row.ticker])
           // Simple average of whichever of the two periods is present —
           // same treatment as PeTable.jsx's own epsTrend (both periods
           // are already the same %-change-ratio scale, see
@@ -408,6 +437,7 @@ export default function PositionsView() {
             feps: toNum(row.forwardEps),
             epsTrend,
             tpe: toNum(row.trailingPE),
+            tps: toNum(row.trailingPS),
             peg: toNum(row.pegRatio),
             revg: toNum(row.revenueGrowth),
             pfcf: toNum(row.priceToFCF),
@@ -424,7 +454,22 @@ export default function PositionsView() {
             sc: toNum(row.score),
             sent: toNum(sentiment[row.ticker]?.score),
             newsSent: newsSent.avg !== null ? newsSent.avg - 3 : null,
+            instChange: toNum(institutionalHoldings[row.ticker]?.pctShareChangeQoQ),
+            insiders: insiders.avg,
           }
+        }
+        // Same rank-to-[-100, 100] rescale as PeTable.jsx's Screener (see
+        // rankTo100's own comment for why rank-based, not min-max), and
+        // over the same full sorted_screen.csv universe (this parses that
+        // same file before subsetting to held positions below), so
+        // Momentum/MeanRev/Sentiment/News/Insiders read on one identical
+        // scale across every tab, not a Positions-only ranking.
+        const factorRows = Object.values(factors)
+        for (const key of ['mom', 'mr', 'sent', 'newsSent', 'instChange', 'insiders']) {
+          const ranked = rankTo100(factorRows.map((f) => f[key]))
+          factorRows.forEach((f, i) => {
+            f[key] = ranked[i]
+          })
         }
         const avgPE = new Map()
         for (const [sector, sum] of peSums) avgPE.set(sector, sum / peCounts.get(sector))
@@ -540,6 +585,7 @@ export default function PositionsView() {
         dayPnl,
         ern: info?.ern ?? null,
         upd: info?.upd ?? null,
+        rating: info?.rating ?? null,
         // Screener factor columns (see screenerFactors.js) — feeds the
         // value-weighted Long/Short portfolio-factors table below only;
         // nothing else in this component reads these.
@@ -605,8 +651,11 @@ export default function PositionsView() {
       // portfolioBetaExposure is already gross-weighted (see its own
       // comment), same convention every other column in this table uses
       // — reused as-is per side, not just for the top Portfolio Beta stat.
-      const { beta } = portfolioBetaExposure(sideRows)
-      return { side: g.side, count, netValue: g.total, sumWeightPct, factors, beta }
+      const { beta, dollarPer1PctMove } = portfolioBetaExposure(sideRows)
+      // g.dayPnl (from sideGroups above) is the same per-position dayPnl
+      // sum the main table's side-group header and the masthead's Daily
+      // P&L stat already use — reused as-is, not recomputed.
+      return { side: g.side, count, netValue: g.total, sumWeightPct, factors, beta, dollarPer1PctMove, dayPnl: g.dayPnl }
     })
   }, [sideGroups, rows, account])
 
@@ -764,11 +813,20 @@ export default function PositionsView() {
             <span className="n num">{fmtRatio(portfolioBeta.beta)}</span>
             <span className="l">Portfolio Beta</span>
           </div>
+          <div
+            className="stat"
+            title="Σ(value × beta) × 1% — the whole book's expected dollar P&L from a 1% move in the broad market, combining every position's own beta-implied co-movement (long positions add to it, short positions subtract, same sign convention as Portfolio Beta itself)."
+          >
+            <span className={`n num${portfolioBeta.dollarPer1PctMove === null ? '' : portfolioBeta.dollarPer1PctMove >= 0 ? ' good' : ' bad'}`}>
+              {fmtMoney(portfolioBeta.dollarPer1PctMove)}
+            </span>
+            <span className="l">$ / 1% Market Move</span>
+          </div>
         </div>
       </header>
 
       {weightedSideFactors.length > 0 && (
-        <div className="asset-card">
+        <div className="asset-card asset-card-table-overflow-visible">
           <h2>Portfolio Factors (Value-Weighted)</h2>
           <div className="table-wrap">
             <table>
@@ -789,8 +847,10 @@ export default function PositionsView() {
                     count={w.count}
                     netValue={w.netValue}
                     sumWeightPct={w.sumWeightPct}
+                    dayPnl={w.dayPnl}
                     factors={w.factors}
                     beta={w.beta}
+                    dollarPer1PctMove={w.dollarPer1PctMove}
                   />
                 ))}
               </tbody>
@@ -806,6 +866,9 @@ export default function PositionsView() {
               <th className="col-left">Position</th>
               <th className="col-left">Sector</th>
               <th className="col-left col-name">Asset / Security</th>
+              <th className="col-rec" title="This screener's own forced-distribution rating, from its score percentile — not an analyst consensus.">
+                Rating
+              </th>
               <th>Shares</th>
               <th>Value</th>
               <th title="Value divided by the account's Net Liquidation — this position's share of the whole account.">
@@ -818,7 +881,7 @@ export default function PositionsView() {
               <th>Price</th>
               <th>Daily %</th>
               <th>Daily $</th>
-              <th>P&amp;L since acquisition</th>
+              <th title="P&amp;L since acquisition">P&amp;L SI</th>
               <th title="Component volatility — this position's exact share of the portfolio's total dollar volatility (see Portfolio Vol.); every position's CVol sums to it precisely. Can be negative for a position that tends to move opposite the rest of the book, genuinely reducing total risk.">
                 CVol
               </th>
@@ -830,7 +893,7 @@ export default function PositionsView() {
           <tbody>
             {rows.length === 0 && (
               <tr className="status-row">
-                <td colSpan={16}>
+                <td colSpan={17}>
                   No open positions — or ib_price_server.py isn't running / hasn't reported positions yet.
                 </td>
               </tr>
@@ -885,6 +948,9 @@ export default function PositionsView() {
                           </a>
                           <span className="pos-name">{r.name}</span>
                         </span>
+                      </td>
+                      <td className="col-rec">
+                        <span className={`rec-badge ${ratingClass(r.rating)}`}>{r.rating || '—'}</span>
                       </td>
                       <td className="num">{fmtShares(r.shares)}</td>
                       <td className="num">{fmtMoney(r.value)}</td>

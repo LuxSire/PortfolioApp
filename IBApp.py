@@ -149,6 +149,33 @@ def _eps_revision(current, baseline):
     return (current - baseline) / abs(baseline)
 
 
+# revenueGrowth/operatingMargins are ratios against a company's own trailing
+# revenue -- for a company whose revenue only recently went from near-zero to
+# something real (e.g. an early-stage aerospace/biotech name shipping its
+# first meaningful sales), that denominator being tiny makes the ratio
+# explode to a mathematically-correct but practically-meaningless magnitude
+# (JOBY's revenueGrowth reads +257,493% -- real trailing revenue was $15K a
+# year ago -- and names like TIPT/SLDP show operatingMargins over +2900% the
+# same way). scoring.rank_ascending is ordinal so a single extreme value
+# doesn't distort *other* tickers' ranks, but it does let a pure base-effect
+# artifact claim the single best (or worst) rank ahead of a company with a
+# real, still-exceptional number -- clamping keeps that from happening while
+# leaving every value inside the band untouched.
+GROWTH_CAP = 3.0  # +300%; triple-digit YoY growth is already exceptional
+MARGIN_FLOOR = -3.0  # -300%
+MARGIN_CAP = 2.0  # +200%; above this is essentially always a tiny-revenue artifact, not real margin
+
+
+def _clamp(value, lo, hi):
+    try:
+        value = float(value)
+    except (TypeError, ValueError):
+        return None
+    if math.isnan(value):
+        return None
+    return max(lo, min(hi, value))
+
+
 class IBApp:
 
     IBKR_BASE_URL = "https://localhost:4001/v1/api"
@@ -395,22 +422,46 @@ class IBApp:
 
     async def get_today_executions_async(self):
         """Returns {symbol: {"qty": signed net shares traded today,
-        "value": sum(signedQty * fillPrice)}} from today's fills only —
-        the raw ingredients a correct daily P&L needs to mark shares
-        traded today at their own fill price instead of assuming the
-        whole position was held since yesterday's close (which silently
-        misprices any symbol traded intraday, e.g. a same-day buy/sell).
-        Aggregated per symbol rather than kept as individual fills: a
-        mark-to-market P&L calc only ever needs the net signed quantity
-        and its matching cost, not each fill separately. "Today" is
-        midnight in this machine's local timezone, same convention the
-        rest of this file uses for daily boundaries.
+        "value": sum(signedQty * fillPrice), "realizedPnl": ...,
+        "commission": ...}} from today's fills. qty/value are the raw
+        ingredients a correct daily P&L needs to mark shares traded today
+        at their own fill price instead of assuming the whole position
+        was held since yesterday's close (which silently misprices any
+        symbol traded intraday, e.g. a same-day buy/sell) -- aggregated
+        per symbol from reqExecutionsAsync, which finds every execution
+        IB has on record for the account today regardless of which client
+        placed it or whether this connection was alive to see it live.
+
+        realizedPnl/commission come from a DIFFERENT source, self.ib.trades()
+        (this connection's own live-tracked Trade objects), not the fills
+        above -- IB's commissionReport (the only source of realizedPNL) is
+        a separate, unkeyed event stream that only reliably lands on a
+        live-tracked fill; a fill sourced from reqExecutionsAsync's
+        historical query is left holding an empty, all-zero
+        CommissionReport() by ib_insync itself (see wrapper.py's
+        execDetails/commissionReport: commission reports get matched
+        against fills already in the live cache, with no guarantee one
+        arrives before a historical query's own response finishes).
+        Verified live: summing realizedPnl here across every symbol traded
+        today matched the account's own RealizedPnL figure (see
+        ACCOUNT_STATUS_TAGS) exactly. None (not 0) for a symbol
+        reqExecutionsAsync found today but this connection wasn't alive to
+        see fill live (e.g. the server restarted partway through the day)
+        -- a real 0 (a share-adding trade that hasn't closed anything yet)
+        is a meaningful reading, not the same as "unknown," so the two
+        stay distinct.
+
+        "Today" is midnight in this machine's local timezone, same
+        convention the rest of this file uses for daily boundaries --
+        computed timezone-aware (not naive) specifically so it can also be
+        compared directly against fill.time below, which ib_insync always
+        reports as UTC-aware.
 
         Async so callers already sharing this instance's IB Gateway
         connection with other concurrent work (live ticks, snapshot
         polling) can await it without blocking that connection's event
         loop, unlike get_past_trades' blocking reqExecutions."""
-        start_of_day = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        start_of_day = datetime.now().astimezone().replace(hour=0, minute=0, second=0, microsecond=0)
         try:
             fills = await self.ib.reqExecutionsAsync(
                 ExecutionFilter(time=start_of_day.strftime("%Y%m%d-%H:%M:%S"))
@@ -424,38 +475,24 @@ class IBApp:
             symbol = fill.contract.symbol
             ex = fill.execution
             signed_qty = ex.shares if ex.side == "BOT" else -ex.shares
-            entry = trades.setdefault(symbol, {"qty": 0.0, "value": 0.0})
+            entry = trades.setdefault(
+                symbol, {"qty": 0.0, "value": 0.0, "realizedPnl": None, "commission": None}
+            )
             entry["qty"] += signed_qty
             entry["value"] += signed_qty * ex.price
-        return trades
 
-    def get_filled_trades(self):
-        try:
-            self.ib.reqAllOpenOrders()
-            self.ib.sleep(0.5)
-            enriched = []
-            for trade in (t for t in self.ib.trades() if t.orderStatus.status == "Filled"):
-                total_pnl = total_commission = total_shares = total_value = 0.0
-                for fill in trade.fills:
-                    cr = fill.commissionReport
-                    total_pnl += getattr(cr, "realizedPNL", 0.0) or 0.0
-                    total_commission += getattr(cr, "commission", 0.0) or 0.0
-                    shares = getattr(getattr(fill, "execution", None), "shares", 0.0) or 0.0
-                    price = getattr(getattr(fill, "execution", None), "price", 0.0) or 0.0
-                    total_shares += shares
-                    total_value += shares * price
-                avg_price = total_value / total_shares if total_shares > 0 else 0.0
-                enriched.append({
-                    "trade": trade,
-                    "realizedPnl": total_pnl,
-                    "commission": total_commission,
-                    "shares": total_shares,
-                    "AvgPrice": avg_price,
-                })
-            return enriched
-        except Exception as e:
-            logging.error(f"Error fetching filled trades: {e}", exc_info=True)
-            return []
+        for trade in self.ib.trades():
+            symbol = trade.contract.symbol
+            if symbol not in trades:
+                continue
+            for live_fill in trade.fills:
+                if live_fill.time < start_of_day:
+                    continue
+                cr = live_fill.commissionReport
+                entry = trades[symbol]
+                entry["realizedPnl"] = (entry["realizedPnl"] or 0.0) + (getattr(cr, "realizedPNL", 0.0) or 0.0)
+                entry["commission"] = (entry["commission"] or 0.0) + (getattr(cr, "commission", 0.0) or 0.0)
+        return trades
 
     def get_orders_and_trades(self):
         try:
@@ -882,6 +919,10 @@ class IBApp:
         itself, which is what the retry loop below is really for), it
         just leaves both fields None.
 
+        revenueGrowth and operatingMargins are clamped (see GROWTH_CAP /
+        MARGIN_FLOOR / MARGIN_CAP above) to keep a near-zero-revenue name's
+        base-effect artifact from reading as a genuine extreme.
+
         country_overrides, if given, is a collection of tickers to keep
         regardless of what yfinance reports for `country` -- e.g. CRSP is
         Swiss-incorporated despite being an ordinary US-listed, US-focused
@@ -959,10 +1000,10 @@ class IBApp:
                         "targetHighPrice": info.get("targetHighPrice"),
                         "targetLowPrice": info.get("targetLowPrice"),
                         "numberOfAnalystOpinions": info.get("numberOfAnalystOpinions"),
-                        "revenueGrowth": info.get("revenueGrowth"),
+                        "revenueGrowth": _clamp(info.get("revenueGrowth"), -math.inf, GROWTH_CAP),
                         "returnOnEquity": info.get("returnOnEquity"),
                         "profitMargins": info.get("profitMargins"),
-                        "operatingMargins": info.get("operatingMargins"),
+                        "operatingMargins": _clamp(info.get("operatingMargins"), MARGIN_FLOOR, MARGIN_CAP),
                         "enterpriseToEbitda": info.get("enterpriseToEbitda"),
                         "beta": info.get("beta"),
                         "recommendationKey": info.get("recommendationKey"),

@@ -1,5 +1,5 @@
 import { inverseRangeClass, inversePctThresholdClass, rangeClass } from '../colorRules'
-import { fmtDebtToEquity, fmtNum, fmtPct, fmtPrice, fmtScore, fmtSigned } from '../screenerFactors'
+import { fmtDebtToEquity, fmtIndex100, fmtNum, fmtPct, fmtPrice, fmtScore } from '../screenerFactors'
 
 const signedClass = (v) => (v === null || v === undefined ? '' : v >= 0 ? 'perf-pos' : 'perf-neg')
 
@@ -19,6 +19,7 @@ export default function FactorCells({ factors }) {
       <td className="num">{fmtPrice(factors.feps)}</td>
       <td className={`num ${signedClass(factors.epsTrend)}`}>{fmtPct(factors.epsTrend)}</td>
       <td className={`num ${rangeClass(factors.tpe, 10, 50)}`}>{fmtNum(factors.tpe)}</td>
+      <td className={`num ${rangeClass(factors.tps, 2, 10)}`}>{fmtNum(factors.tps)}</td>
       <td className={`num ${rangeClass(factors.peg, 1, 1)}`}>{fmtNum(factors.peg)}</td>
       <td className={`num ${inversePctThresholdClass(factors.revg, 0, 10)}`}>{fmtPct(factors.revg)}</td>
       <td className={`num ${rangeClass(factors.pfcf, 10, 50)}`}>{fmtNum(factors.pfcf)}</td>
@@ -28,10 +29,12 @@ export default function FactorCells({ factors }) {
       <td className={`num ${inverseRangeClass(factors.liq, 1, 3)}`}>{fmtNum(factors.liq)}</td>
       <td className={`num ${inversePctThresholdClass(factors.shortInt, 2, 10)}`}>{fmtPct(factors.shortInt)}</td>
       <td className={`num ${signedClass(factors.upside)}`}>{fmtPct(factors.upside)}</td>
-      <td className={`num ${signedClass(factors.mom)}`}>{fmtSigned(factors.mom)}</td>
-      <td className={`num ${signedClass(factors.mr)}`}>{fmtSigned(factors.mr)}</td>
-      <td className={`num ${signedClass(factors.sent)}`}>{fmtSigned(factors.sent)}</td>
-      <td className={`num ${signedClass(factors.newsSent)}`}>{fmtSigned(factors.newsSent)}</td>
+      <td className={`num ${signedClass(factors.mom)}`}>{fmtIndex100(factors.mom)}</td>
+      <td className={`num ${signedClass(factors.mr)}`}>{fmtIndex100(factors.mr)}</td>
+      <td className={`num ${signedClass(factors.sent)}`}>{fmtIndex100(factors.sent)}</td>
+      <td className={`num ${signedClass(factors.newsSent)}`}>{fmtIndex100(factors.newsSent)}</td>
+      <td className={`num ${signedClass(factors.instChange)}`}>{fmtIndex100(factors.instChange)}</td>
+      <td className={`num ${signedClass(factors.insiders)}`}>{fmtIndex100(factors.insiders)}</td>
       <td className="num">{fmtScore(factors.sc)}</td>
     </>
   )

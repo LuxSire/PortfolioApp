@@ -35,7 +35,7 @@ function ChartTooltip({ active, payload }: ChartTooltipProps) {
   if (!active || !payload || !payload.length) return null
   const point = payload[0].payload
   return (
-    <div className="chart-tooltip">
+    <div className="chart-tooltip chart-tooltip-follow-cursor">
       <span className={`chart-tooltip-value ${point.posValue >= 0 ? 'good' : 'bad'}`}>
         {fmtMoney(point.posValue)}
       </span>

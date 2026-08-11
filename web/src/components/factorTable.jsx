@@ -14,8 +14,8 @@
 // of a stock, already meant to stand on equal footing; see
 // computeFactorAverages' own always-plain-average treatment of it.
 export const FACTOR_KEYS = [
-  'savgpe', 'fpe', 'feps', 'epsTrend', 'tpe', 'peg', 'revg', 'pfcf', 'evEbitda', 'opMargin', 'de',
-  'liq', 'shortInt', 'upside', 'mom', 'mr', 'sent', 'newsSent',
+  'savgpe', 'fpe', 'feps', 'epsTrend', 'tpe', 'tps', 'peg', 'revg', 'pfcf', 'evEbitda', 'opMargin', 'de',
+  'liq', 'shortInt', 'upside', 'mom', 'mr', 'sent', 'newsSent', 'instChange', 'insiders',
 ]
 
 // The shared factor-columns tail (Avg PE ... Score) rendered by
@@ -31,6 +31,7 @@ export const FACTOR_COLUMNS = [
   { key: 'feps', label: 'Fwd EPS' },
   { key: 'epsTrend', label: 'EPS Trend' },
   { key: 'tpe', label: 'Trail PE' },
+  { key: 'tps', label: 'Trail PS' },
   { key: 'peg', label: 'PEG' },
   { key: 'revg', label: 'Rev Growth' },
   { key: 'pfcf', label: 'P/FCF' },
@@ -44,6 +45,8 @@ export const FACTOR_COLUMNS = [
   { key: 'mr', label: 'MeanRev' },
   { key: 'sent', label: 'Sentiment' },
   { key: 'newsSent', label: 'News' },
+  { key: 'instChange', label: 'Inst Change' },
+  { key: 'insiders', label: 'Insiders' },
   { key: 'sc', label: 'Score' },
 ]
 
