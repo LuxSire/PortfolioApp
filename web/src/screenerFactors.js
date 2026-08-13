@@ -50,13 +50,13 @@ export function toNum(v) {
 }
 
 export function fmtNum(v) {
-  if (v === null) return '—'
+  if (v === null || v === undefined) return '—'
   if (!Number.isFinite(v)) return v > 0 ? '∞' : '−∞'
   return v.toFixed(1)
 }
 
 export function fmtPct(v) {
-  if (v === null) return '—'
+  if (v === null || v === undefined) return '—'
   return (v >= 0 ? '+' : '') + (v * 100).toFixed(1) + '%'
 }
 
@@ -66,7 +66,7 @@ export function fmtPct(v) {
 // reads as "units of risk-adjusted trend strength" instead of implying a
 // percentage return that isn't what this value means.
 export function fmtSigned(v) {
-  if (v === null) return '—'
+  if (v === null || v === undefined) return '—'
   if (!Number.isFinite(v)) return v > 0 ? '∞' : '−∞'
   return (v >= 0 ? '+' : '') + v.toFixed(2)
 }
@@ -74,17 +74,17 @@ export function fmtSigned(v) {
 // debtToEquity comes from yfinance already in percentage units (150.5 means
 // 150.5%), unlike revg/upside/perf which are fractions — no *100 here.
 export function fmtDebtToEquity(v) {
-  if (v === null) return '—'
+  if (v === null || v === undefined) return '—'
   return v.toFixed(1) + '%'
 }
 
 export function fmtPrice(v) {
-  if (v === null) return '—'
+  if (v === null || v === undefined) return '—'
   return '$' + v.toFixed(1)
 }
 
 export function fmtScore(v) {
-  if (v === null) return '—'
+  if (v === null || v === undefined) return '—'
   return v.toFixed(3)
 }
 
@@ -92,7 +92,7 @@ export function fmtScore(v) {
 // [-1, 1]. Shown with an explicit sign since 0 is a meaningful midpoint
 // (evenly split), not "no signal" — that's what '—' is for.
 export function fmtSentiment(v) {
-  if (v === null) return '—'
+  if (v === null || v === undefined) return '—'
   return (v >= 0 ? '+' : '') + v.toFixed(2)
 }
 
@@ -147,7 +147,7 @@ export function rankTo100(values) {
 // Shared display treatment for the normalizeTo100 family — not a
 // percentage, not a raw ratio, just a signed rescaled index.
 export function fmtIndex100(v) {
-  if (v === null) return '—'
+  if (v === null || v === undefined) return '—'
   return (v >= 0 ? '+' : '') + v.toFixed(1)
 }
 

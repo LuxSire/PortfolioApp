@@ -1,8 +1,22 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Info } from 'lucide-react'
 import { parseCSV } from '../csv'
 import { IB_STREAM_URL } from '../ibStream'
 import { fmtPct, fmtPrice, fmtSigned, ratingClass } from '../screenerFactors'
 import RecommendationsChatbot from './RecommendationsChatbot'
+
+// Same click-outside-closes-the-popover hook as PeTable.jsx's Score Formula
+// toggle -- duplicated locally rather than shared, this project's existing
+// convention for small single-use hooks (see previousClose below).
+function useOutsideClick(ref, onOutside) {
+  useEffect(() => {
+    function handler(e) {
+      if (ref.current && !ref.current.contains(e.target)) onOutside()
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [ref, onOutside])
+}
 
 const BUY_RATINGS = new Set(['Strong Buy', 'Buy'])
 const SELL_RATINGS = new Set(['Sell', 'Strong Sell'])
@@ -32,11 +46,13 @@ function fmtShares(shares) {
 }
 
 
-// scorePercentile is sorted_screen.csv's own score * 100 (0 = best rank in
-// the ranked universe, 100 = worst — see scoring.rank_ascending) -- phrased
-// relative to the direction that matters for this row's own rating rather
-// than a raw number, since "62nd percentile" reads as meaningless without
-// knowing which end is good.
+// scorePercentile is the ticker's true rank position in sorted_screen.csv
+// (0 = best, 100 = worst) -- see recommendations.py's build_recommendations
+// and this file's own tickerScreener effect for why that's NOT the same as
+// score * 100 (score itself clusters non-uniformly around the middle; only
+// rank position is uniform). Phrased relative to the direction that
+// matters for this row's own rating rather than a raw number, since "62nd
+// percentile" reads as meaningless without knowing which end is good.
 function percentileLabel(c) {
   if (c.scorePercentile === null || c.scorePercentile === undefined) return null
   // Which half of the distribution it's actually in, not which half its
@@ -280,11 +296,56 @@ function CloseCard({ c, live, dailyHistory3mo, monthlyHistory }) {
   )
 }
 
-function RecommendationSection({ title, subtitle, rows, renderCard, emptyMessage }) {
+// A Strong Buy/Strong Sell candidate that failed one of the Long/Short
+// idea-list gates -- see buildRejectionReasons. recommendation-card-blocked
+// (explicit instruction: light grey, not this app's dark-mode near-black
+// default surface) is its own modifier, independent of recommendation-
+// card-held's --surface-2 banding -- most of these aren't held positions
+// at all, just candidates that scored a top rating but didn't clear an
+// opening gate, so reusing "held" styling here would be the wrong signal.
+function RejectedCard({ c, live, dailyHistory3mo, monthlyHistory }) {
+  return (
+    <div className="asset-card recommendation-card recommendation-card-blocked">
+      <div className="recommendation-card-header">
+        <div>
+          <a
+            href={`#/asset/${encodeURIComponent(c.ticker)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="ticker-link recommendation-ticker"
+          >
+            {c.ticker}
+          </a>
+          <span className="recommendation-name">{c.name}</span>
+        </div>
+        <div className="recommendation-badges">
+          <span className={`rec-badge ${ratingClass(c.rating)}`}>{c.rating}</span>
+        </div>
+      </div>
+
+      <div className="recommendation-card-stats">
+        <PriceStat c={c} live={live} dailyHistory3mo={dailyHistory3mo} monthlyHistory={monthlyHistory} />
+        <div className="stat">
+          <span className="n num">{c.sector || '—'}</span>
+          <span className="l">Sector</span>
+        </div>
+      </div>
+
+      <ul className="recommendation-close-reasons">
+        {c.reasons.map((r, i) => (
+          <li key={i}>{r.text}</li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+function RecommendationSection({ title, titleInfo, subtitle, rows, renderCard, emptyMessage }) {
   return (
     <section className="recommendation-section">
       <h2 className="recommendation-section-title">
         {title}
+        {titleInfo}
         <span className="recommendation-section-subtitle">{subtitle}</span>
       </h2>
       {rows.length === 0 ? (
@@ -333,12 +394,17 @@ function RecommendationSection({ title, subtitle, rows, renderCard, emptyMessage
 // drifted to Hold/Buy/Strong Buy -- not just the fully-opposite rating,
 // explicit instruction "opposite side or HOLD"), momentum alone no longer
 // supporting the side even if the rating hasn't caught up yet (explicit
-// instruction, "particularly if momentum is no longer supportive"), and
-// three risk-only flags that fire regardless of rating or momentum:
-// position-size concentration, a short that's become crowded, and a beta
-// high enough to amplify risk well past the position's own dollar weight
+// instruction, "particularly if momentum is no longer supportive"), a
+// still-Buy/Sell score sitting close enough to the Hold boundary that it's
+// likely to cross soon (explicit instruction: score-based reasons, not
+// beta -- an earlier high-beta check here turned out not to be a useful
+// signal in practice), fundamentals rolling over (a long whose EPS estimate
+// trend or revenue growth has turned negative, or a short whose EPS
+// estimate trend has turned positive), and a short that's become crowded
 // (explicit instruction: flag a position "not adequate for the portfolio
-// because of too high risk or other reasons").
+// because of too high risk or other reasons"). Position-size concentration
+// used to be flagged here too; dropped per explicit instruction -- not a
+// useful closing signal on its own.
 function eligibleToBuy(c) {
   return c.momentum !== null && c.momentum !== undefined && c.momentum > 0
 }
@@ -359,18 +425,94 @@ function notCrowded(c) {
   return c.shortPercentOfFloat === null || c.shortPercentOfFloat === undefined || c.shortPercentOfFloat <= MAX_SHORT_INTEREST
 }
 
-// Position-size concentration: a common institutional-style guardrail, not
-// tied to any one factor's data quality -- a single name over this share of
-// net liquidation value is a portfolio-construction risk regardless of how
-// well it scores. A high-conviction pick can still be a bad idea to hold
-// this large.
-const CONCENTRATION_THRESHOLD = 0.1
+// Revenue-growth gate on the idea lists themselves (separate from the To
+// close fundamentals check above, which flags a HELD position after the
+// fact) -- explicit instruction: never recommend shorting a name still
+// growing revenue faster than REVENUE_GROWTH_THRESHOLD (a real grower is a
+// bad short candidate regardless of how it scores), and never recommend a
+// long that isn't clearing that same bar (a low/no-growth name is a weak
+// long idea even at a great score). Same fail-open treatment as
+// notCrowded's shortPercentOfFloat above, not the momentum gate's
+// fail-closed one: a candidate with no revenueGrowth data isn't assumed to
+// violate either side, so it still passes. revenueGrowth lives on
+// tickerScreener (sorted_screen.csv covers the whole universe), not on the
+// recommendations.json candidate itself -- see the longs/shorts pools
+// below, which look it up by ticker rather than expecting it on `c`.
+const REVENUE_GROWTH_THRESHOLD = 0.1
+function sufficientGrowthForLong(revenueGrowth) {
+  return revenueGrowth === null || revenueGrowth === undefined || revenueGrowth >= REVENUE_GROWTH_THRESHOLD
+}
+function notTooMuchGrowthForShort(revenueGrowth) {
+  return revenueGrowth === null || revenueGrowth === undefined || revenueGrowth <= REVENUE_GROWTH_THRESHOLD
+}
 
-// A beta this far from 1 (either direction) means the position swings
-// well beyond the broad market's own move -- amplifies this position's
-// contribution to portfolio risk beyond what its dollar weight alone
-// suggests, for a long or a short alike.
-const HIGH_BETA_THRESHOLD = 2.0
+// Short-term mean-reversion gate on the idea lists (mirrors the growth gate
+// above) -- meanReversion is the NEGATED hourly-timeframe regression-slope
+// trend (see IBApp.get_momentum): a sharp recent run-UP on the hourly
+// timeframe makes meanReversion strongly NEGATIVE (that move is "due for a
+// pullback" against a long -- the exact FIVN situation: bought at $33.29
+// right after a multi-day spike, meanReversion already deeply negative,
+// price mean-reverted down from there), while a sharp recent run-DOWN
+// makes it strongly POSITIVE (due for a bounce -- against a short). So the
+// gate is mirrored like the momentum gate (favorable sign flips per side),
+// not applied identically to both: a significantly negative reading blocks
+// a new long / flags a held long to close, a significantly positive one
+// blocks a new short / flags a held short to close. "Significant" is
+// deliberately a wide dead zone (MEAN_REVERSION_THRESHOLD), not any
+// nonzero reading -- explicit instruction: most tickers sit within a few
+// points of zero just from ordinary hourly noise (see the universe's own
+// distribution: the 25th/75th percentiles are only about -4/+0.1), so
+// gating on sign alone would trip constantly on noise. Only the tail
+// (roughly the most extreme ~10% of readings either way) is meant to
+// count. Same fail-open treatment as the growth/crowded-short gates: a
+// candidate with no meanReversion at all (it's only computed for
+// CANDLESTICK_TOP_N ranked/held tickers, not the whole universe -- see
+// IBApp.get_momentum) isn't assumed to violate either side, so it still
+// passes. Lives on tickerScreener, not the recommendations.json candidate,
+// same as revenueGrowth above.
+const MEAN_REVERSION_THRESHOLD = 10
+function meanReversionOkForLong(meanReversion) {
+  return meanReversion === null || meanReversion === undefined || meanReversion > -MEAN_REVERSION_THRESHOLD
+}
+function meanReversionOkForShort(meanReversion) {
+  return meanReversion === null || meanReversion === undefined || meanReversion < MEAN_REVERSION_THRESHOLD
+}
+
+// Fundamentals rolling over, independent of rating/momentum/score: a long
+// whose analyst EPS estimates have been cut over the last 30 days
+// (epsRevision0y/1y -- see IBApp._eps_revision/scoring.eps_trend_rank) or
+// whose trailing revenue growth has gone negative is losing the
+// fundamental support for the position even if the composite score/rating
+// hasn't caught up yet; a short whose EPS estimates have been raised is
+// the mirror case (estimates going up is bearish for a short thesis).
+// Averages epsRevision0y/1y the same way eps_trend_rank does when both are
+// present, but (unlike that rank) only uses whichever is actually present
+// rather than penalizing a missing period -- this is a raw sign check, not
+// a ranked score.
+function epsTrendValue(c) {
+  const rev0 = c?.epsRevision0y
+  const rev1 = c?.epsRevision1y
+  const has0 = rev0 !== null && rev0 !== undefined
+  const has1 = rev1 !== null && rev1 !== undefined
+  if (has0 && has1) return (rev0 + rev1) / 2
+  if (has0) return rev0
+  if (has1) return rev1
+  return null
+}
+
+// scoring.py's own rating_for_percentile buckets (RATING_THRESHOLDS: 0.05,
+// 0.20, 0.80, 0.95) -- duplicated here as percentile points (score * 100,
+// the same units scorePercentile already uses) since the frontend has no
+// access to that Python constant directly. Only the Buy|Hold (20) and
+// Sell|Hold (80) boundaries matter below -- those are the ones that flip a
+// position into the rating-based close trigger above; Strong Buy/Strong
+// Sell have much more room before their own boundary matters.
+const HOLD_BOUNDARY_LONG_PCT = 20
+const HOLD_BOUNDARY_SHORT_PCT = 80
+// How close (in percentile points) counts as "near" a boundary -- an early
+// warning before the rating itself has actually crossed, not a hard
+// prediction.
+const SCORE_BOUNDARY_MARGIN = 3
 
 // Everything that can put a held position in the To close group -- a
 // rating contradiction (see the existing closes logic) is the most
@@ -380,20 +522,29 @@ const HIGH_BETA_THRESHOLD = 2.0
 // is no longer supportive" -- the exact NVDA/MU situation surfaced earlier:
 // still Strong Buy rated, but momentum had already gone flat/negative),
 // oversized position concentration, a short that's become crowded since it
-// was opened, or a beta high enough to amplify risk well past the
-// position's own dollar weight. A position can trip more than one of
-// these at once -- returns every reason that applies, not just the first
-// match, so the card shows the full picture rather than picking one
-// arbitrarily.
-function buildCloseReasons({ shares, c, livePrice, netLiquidation }) {
+// was opened, or a still-Buy/Sell-rated score sitting close enough to the
+// Hold boundary that it's likely to cross soon (a high-beta check used to
+// sit here instead -- dropped as not a useful signal on its own; every
+// other check here is either momentum- or score-based instead, per
+// explicit instruction). A position can trip more than one of these at
+// once -- returns every reason that applies, not just the first match, so
+// the card shows the full picture rather than picking one arbitrarily.
+function buildCloseReasons({ shares, c }) {
   const reasons = []
   const isLong = shares > 0
   const rating = c?.rating
 
+  // Not gated on momentum (unlike the Long/Short idea lists' eligibleToBuy/
+  // eligibleToSell) -- the rating itself is the decisive signal for an
+  // existing position: a held short that's drifted to Hold is done being a
+  // short idea regardless of whether momentum has caught up yet. Momentum
+  // is tracked as its own independent reason right below, so a position
+  // whose rating flips but whose momentum still (for now) agrees shows
+  // both the rating reason and, correctly, no momentum reason.
   if (rating) {
-    if (isLong && !BUY_RATINGS.has(rating) && eligibleToSell(c)) {
+    if (isLong && !BUY_RATINGS.has(rating)) {
       reasons.push({ type: 'rating', text: `No longer rated Buy/Strong Buy (currently ${rating}) — consider closing.` })
-    } else if (!isLong && !SELL_RATINGS.has(rating) && eligibleToBuy(c)) {
+    } else if (!isLong && !SELL_RATINGS.has(rating)) {
       reasons.push({ type: 'rating', text: `No longer rated Sell/Strong Sell (currently ${rating}) — consider covering.` })
     }
   }
@@ -416,14 +567,46 @@ function buildCloseReasons({ shares, c, livePrice, netLiquidation }) {
     }
   }
 
-  const price = livePrice ?? c?.price ?? null
-  const positionValue = price !== null ? Math.abs(shares) * price : null
-  if (positionValue !== null && netLiquidation) {
-    const weight = positionValue / netLiquidation
-    if (weight > CONCENTRATION_THRESHOLD) {
+  const epsTrend = epsTrendValue(c)
+  if (epsTrend !== null) {
+    if (isLong && epsTrend < 0) {
       reasons.push({
-        type: 'concentration',
-        text: `${fmtPctAbs(weight)} of net liquidation value is concentrated in this one position (over the ${fmtPctAbs(CONCENTRATION_THRESHOLD)} guideline).`,
+        type: 'eps-trend',
+        text: `Analyst EPS estimates have been cut over the last 30 days (EPS trend ${fmtPct(epsTrend)}) — consider closing.`,
+      })
+    } else if (!isLong && epsTrend > 0) {
+      reasons.push({
+        type: 'eps-trend',
+        text: `Analyst EPS estimates have been raised over the last 30 days (EPS trend ${fmtPct(epsTrend)}) — consider covering.`,
+      })
+    }
+  }
+
+  if (isLong && c?.revenueGrowth !== null && c?.revenueGrowth !== undefined && c.revenueGrowth < 0) {
+    reasons.push({
+      type: 'revenue-growth',
+      text: `Revenue growth has turned negative (${fmtPct(c.revenueGrowth)}) — consider closing.`,
+    })
+  }
+
+  // Same significant-magnitude bar as meanReversionOkForLong/
+  // meanReversionOkForShort above (not any nonzero reading -- most tickers
+  // sit within a few points of zero from ordinary hourly noise). A held
+  // long that's spiked hard enough on the hourly timeframe to already be
+  // past the same bar that would have blocked opening it fresh today is
+  // the FIVN situation -- bought right after a run-up, mean-reverts
+  // against you from there. Mirror case for a held short: a hard enough
+  // drop that a bounce is due against the short.
+  if (c && c.meanReversion !== null && c.meanReversion !== undefined) {
+    if (isLong && c.meanReversion <= -MEAN_REVERSION_THRESHOLD) {
+      reasons.push({
+        type: 'mean-reversion',
+        text: `Short-term mean reversion has turned significantly negative (${fmtSigned(c.meanReversion)}) — stock has spiked on the hourly timeframe and is due for a pullback against a long.`,
+      })
+    } else if (!isLong && c.meanReversion >= MEAN_REVERSION_THRESHOLD) {
+      reasons.push({
+        type: 'mean-reversion',
+        text: `Short-term mean reversion has turned significantly positive (${fmtSigned(c.meanReversion)}) — stock has dropped on the hourly timeframe and is due for a bounce against a short.`,
       })
     }
   }
@@ -435,14 +618,216 @@ function buildCloseReasons({ shares, c, livePrice, netLiquidation }) {
     })
   }
 
-  if (c?.beta !== null && c?.beta !== undefined && Math.abs(c.beta) > HIGH_BETA_THRESHOLD) {
-    reasons.push({
-      type: 'beta',
-      text: `Beta of ${c.beta.toFixed(2)} amplifies this position's market-risk contribution well beyond its dollar weight.`,
-    })
+  // Still rated Buy/Sell (not yet Hold, so the rating check above hasn't
+  // fired), but close enough to the Hold boundary that conviction is
+  // visibly fading -- an earlier warning than waiting for the rating
+  // label itself to actually change.
+  if (c && c.scorePercentile !== null && c.scorePercentile !== undefined) {
+    if (isLong && rating === 'Buy' && c.scorePercentile >= HOLD_BOUNDARY_LONG_PCT - SCORE_BOUNDARY_MARGIN) {
+      reasons.push({
+        type: 'score-boundary',
+        text: `Score is only ${(HOLD_BOUNDARY_LONG_PCT - c.scorePercentile).toFixed(1)} points above the Hold boundary — still rated Buy, but conviction is fading.`,
+      })
+    } else if (!isLong && rating === 'Sell' && c.scorePercentile <= HOLD_BOUNDARY_SHORT_PCT + SCORE_BOUNDARY_MARGIN) {
+      reasons.push({
+        type: 'score-boundary',
+        text: `Score is only ${(c.scorePercentile - HOLD_BOUNDARY_SHORT_PCT).toFixed(1)} points below the Hold boundary — still rated Sell, but conviction is fading.`,
+      })
+    }
   }
 
   return reasons
+}
+
+// Why a Strong Buy/Strong Sell candidate -- the two ratings with the most
+// conviction behind them -- did NOT make the Long/Short idea list, even
+// though it cleared the highest ratings bar. Runs the exact same gates the
+// longs/shorts pools filter on (eligibleToBuy/eligibleToSell,
+// sufficientGrowthForLong/notTooMuchGrowthForShort, notCrowded,
+// meanReversionOkForLong/meanReversionOkForShort) rather than a second
+// copy of the thresholds, so this can never drift out of sync with what
+// actually gates the pools. Deliberately does NOT include the
+// ROWS_PER_SIDE ranking cutoff -- a Strong Buy that cleared every gate but
+// simply didn't rank in the top 30 isn't "rejected", it's just not the
+// best of a large qualifying set, a different (and far more common)
+// situation that doesn't belong in a "why was this blocked" list.
+function buildRejectionReasons({ c, tickerScreener }) {
+  const reasons = []
+  const screenerRow = tickerScreener[c.ticker]
+  const revenueGrowth = screenerRow?.revenueGrowth
+  const meanReversion = screenerRow?.meanReversion
+
+  if (c.rating === 'Strong Buy') {
+    if (!eligibleToBuy(c)) {
+      reasons.push({
+        type: 'momentum',
+        text:
+          c.momentum === null || c.momentum === undefined
+            ? 'Momentum data is unavailable.'
+            : `Momentum is ${fmtSigned(c.momentum)}, not positive.`,
+      })
+    }
+    if (!sufficientGrowthForLong(revenueGrowth)) {
+      reasons.push({
+        type: 'revenue-growth',
+        text: `Revenue growth is ${fmtPct(revenueGrowth)}, below ${fmtPctAbs(REVENUE_GROWTH_THRESHOLD)}.`,
+      })
+    }
+    if (!meanReversionOkForLong(meanReversion)) {
+      reasons.push({
+        type: 'mean-reversion',
+        text: `Short-term mean reversion is ${fmtSigned(meanReversion)}, significantly negative.`,
+      })
+    }
+  } else if (c.rating === 'Strong Sell') {
+    if (!eligibleToSell(c)) {
+      reasons.push({
+        type: 'momentum',
+        text:
+          c.momentum === null || c.momentum === undefined
+            ? 'Momentum data is unavailable.'
+            : `Momentum is ${fmtSigned(c.momentum)}, not negative.`,
+      })
+    }
+    if (!notCrowded(c)) {
+      reasons.push({
+        type: 'crowded-short',
+        text: `${fmtPctAbs(c.shortPercentOfFloat)} of float already short, over ${fmtPctAbs(MAX_SHORT_INTEREST)}.`,
+      })
+    }
+    if (!notTooMuchGrowthForShort(revenueGrowth)) {
+      reasons.push({
+        type: 'revenue-growth',
+        text: `Revenue growth is ${fmtPct(revenueGrowth)}, above ${fmtPctAbs(REVENUE_GROWTH_THRESHOLD)}.`,
+      })
+    }
+    if (!meanReversionOkForShort(meanReversion)) {
+      reasons.push({
+        type: 'mean-reversion',
+        text: `Short-term mean reversion is ${fmtSigned(meanReversion)}, significantly positive.`,
+      })
+    }
+  }
+
+  return reasons
+}
+
+// Plain-English mirrors of eligibleToBuy/eligibleToSell/notCrowded/
+// sufficientGrowthForLong/notTooMuchGrowthForShort (Long/Short) and
+// buildCloseReasons (To close) above -- kept as their own lists (rather
+// than generated from the functions) the same way PeTable.jsx's
+// SCORE_FACTORS mirrors scoring.py's weights: there's no live endpoint
+// serving the rule sets themselves, only the resulting candidates/reason
+// strings, so these have to be kept in sync by hand whenever the
+// corresponding filter/reason function changes.
+const LONG_RULES = [
+  { label: 'Rating', note: 'Strong Buy or Buy.' },
+  { label: 'Momentum', note: 'Positive daily-timeframe momentum; unknown momentum excluded.' },
+  {
+    label: 'Revenue growth',
+    note: `Trailing revenue growth at or above ${fmtPctAbs(REVENUE_GROWTH_THRESHOLD)}; unknown growth not excluded.`,
+  },
+  {
+    label: 'Mean reversion',
+    note: `Short-term (hourly-timeframe) mean reversion not significantly negative — excludes a stock that's just spiked and is due for a pullback; unknown not excluded.`,
+  },
+  {
+    label: 'Ranking',
+    note: 'Best composite score first. A non-held candidate that hedges an existing short position (same sector/theme) gets a small score bonus.',
+  },
+]
+
+const SHORT_RULES = [
+  { label: 'Rating', note: 'Strong Sell or Sell.' },
+  { label: 'Momentum', note: 'Negative daily-timeframe momentum; unknown momentum excluded.' },
+  {
+    label: 'Not crowded',
+    note: `No more than ${fmtPctAbs(MAX_SHORT_INTEREST)} of float already sold short; unknown short interest not excluded.`,
+  },
+  {
+    label: 'Revenue growth',
+    note: `Trailing revenue growth at or below ${fmtPctAbs(REVENUE_GROWTH_THRESHOLD)}; unknown growth not excluded.`,
+  },
+  {
+    label: 'Mean reversion',
+    note: `Short-term (hourly-timeframe) mean reversion not significantly positive — excludes a stock that's just dropped and is due for a bounce; unknown not excluded.`,
+  },
+  {
+    label: 'Ranking',
+    note: 'Worst composite score first. A non-held candidate that hedges an existing long position (same sector/theme) gets a small score bonus.',
+  },
+]
+
+const CLOSE_RULES = [
+  {
+    label: 'Rating contradiction',
+    note: 'Held long no longer rated Buy/Strong Buy, or held short no longer rated Sell/Strong Sell — fires regardless of momentum.',
+  },
+  {
+    label: 'Momentum reversal',
+    note: 'Momentum has gone flat or negative for a long, or flat or positive for a short — even if the rating hasn’t caught up yet.',
+  },
+  {
+    label: 'Score near Hold boundary',
+    note: `Still rated Buy/Sell, but the composite score is within ${SCORE_BOUNDARY_MARGIN} points of the Hold boundary — conviction fading before the rating itself flips.`,
+  },
+  {
+    label: 'EPS trend reversal',
+    note: 'Long: analyst consensus EPS estimates have been cut over the last 30 days. Short: analyst consensus EPS estimates have been raised over the last 30 days.',
+  },
+  {
+    label: 'Revenue growth negative',
+    note: 'Long only — trailing revenue growth has turned negative.',
+  },
+  {
+    label: 'Mean reversion reversal',
+    note: 'Long: short-term mean reversion has turned significantly negative (recent spike, pullback due). Short: turned significantly positive (recent drop, bounce due).',
+  },
+  {
+    label: 'Crowded short',
+    note: `Short only — more than ${fmtPctAbs(MAX_SHORT_INTEREST)} of float is already sold short (squeeze risk).`,
+  },
+]
+
+// Toggle popover next to a section title, same interaction pattern as
+// PeTable.jsx's Score Formula toggle (click to open, click outside to
+// close) -- shared by Long/Short (their selection/ranking rules) and To
+// close (the reasons a held position can be flagged) below.
+function RulesInfo({ label, header, rules, footer }) {
+  const [open, setOpen] = useState(false)
+  const wrapRef = useRef(null)
+  useOutsideClick(wrapRef, () => setOpen(false))
+
+  return (
+    <div className="score-formula" ref={wrapRef}>
+      <button
+        type="button"
+        className="score-formula-toggle"
+        aria-haspopup="true"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <Info size={14} />
+        <span>{label}</span>
+      </button>
+      {open && (
+        <div className="score-formula-panel">
+          <div className="score-formula-header">{header}</div>
+          <ul className="score-formula-list">
+            {rules.map((r) => (
+              <li key={r.label}>
+                <span className="score-formula-body">
+                  <span className="score-formula-label">{r.label}</span>
+                  <span className="score-formula-note">{r.note}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+          {footer && <div className="score-formula-footer">{footer}</div>}
+        </div>
+      )}
+    </div>
+  )
 }
 
 export default function RecommendationsView() {
@@ -450,7 +835,6 @@ export default function RecommendationsView() {
   const [error, setError] = useState(null)
   const [positions, setPositions] = useState({})
   const [livePrices, setLivePrices] = useState({})
-  const [account, setAccount] = useState({})
   const [dailyHistory3mo, setDailyHistory3mo] = useState({})
   const [monthlyHistory, setMonthlyHistory] = useState({})
   const [tickerSector, setTickerSector] = useState({})
@@ -461,10 +845,9 @@ export default function RecommendationsView() {
   useEffect(() => {
     const source = new EventSource(IB_STREAM_URL)
     source.onmessage = (e) => {
-      const { prices, positions: pos, account: acc } = JSON.parse(e.data)
+      const { prices, positions: pos } = JSON.parse(e.data)
       setLivePrices(prices || {})
       setPositions(pos || {})
-      setAccount(acc || {})
     }
     source.onerror = () => {}
     return () => source.close()
@@ -513,22 +896,46 @@ export default function RecommendationsView() {
     fetch('/sorted_screen.csv')
       .then((r) => (r.ok ? r.text() : ''))
       .then((text) => {
+        const parsedRows = parseCSV(text)
+        // sorted_screen.csv's own `rating` column comes from a row's
+        // INDEX in this file's order (main.py's write_sorted_screen_csv:
+        // rating_for_percentile(i / n), scored rows first in ascending-
+        // score order, unranked/NA rows appended after) -- NOT from the
+        // `score` column's own value. score is a weighted average of ~19
+        // independent-ish factor percentile ranks, so its distribution
+        // clusters tightly around the middle rather than being uniform;
+        // `score * 100` (the original version of this) silently
+        // mislabeled that clustered value as a percentile -- confirmed
+        // wrong in practice: SSRM, genuinely Buy-rated (true rank
+        // percentile 14.9, correctly inside the 5-20 Buy band), was
+        // showing scorePercentile 46.9 under the old formula, nowhere
+        // near that band. Recomputed here the same way
+        // recommendations.py now does for its own candidates.
+        const scoredCount = parsedRows.filter((row) => row.score).length
         const sectors = {}
         const screener = {}
-        for (const row of parseCSV(text)) {
+        let scoredIndex = 0
+        for (const row of parsedRows) {
           sectors[row.ticker] = row.sector || null
-          const score = row.score ? Number(row.score) : null
+          const hasScore = Boolean(row.score)
+          const score = hasScore ? Number(row.score) : null
+          const scorePercentile = hasScore && scoredCount ? Math.round((scoredIndex / scoredCount) * 1000) / 10 : null
+          if (hasScore) scoredIndex++
           screener[row.ticker] = {
             ticker: row.ticker,
             name: row.name || null,
             rating: row.rating || null,
             score,
-            scorePercentile: score !== null ? Math.round(score * 1000) / 10 : null,
+            scorePercentile,
             momentum: row.momentum ? Number(row.momentum) : null,
             sector: row.sector || null,
             price: row.price ? Number(row.price) : null,
             beta: row.beta ? Number(row.beta) : null,
             shortPercentOfFloat: row.shortPercentOfFloat ? Number(row.shortPercentOfFloat) : null,
+            revenueGrowth: row.revenueGrowth ? Number(row.revenueGrowth) : null,
+            epsRevision0y: row.epsRevision0y ? Number(row.epsRevision0y) : null,
+            epsRevision1y: row.epsRevision1y ? Number(row.epsRevision1y) : null,
+            meanReversion: row.meanReversion ? Number(row.meanReversion) : null,
           }
         }
         setTickerSector(sectors)
@@ -583,7 +990,13 @@ export default function RecommendationsView() {
     if (!data) return []
     const matcher = buildOppositeMatcher([...heldShortTickers], tickerSector, tickerThemes)
     const pool = data.candidates
-      .filter((c) => BUY_RATINGS.has(c.rating) && eligibleToBuy(c))
+      .filter(
+        (c) =>
+          BUY_RATINGS.has(c.rating) &&
+          eligibleToBuy(c) &&
+          sufficientGrowthForLong(tickerScreener[c.ticker]?.revenueGrowth) &&
+          meanReversionOkForLong(tickerScreener[c.ticker]?.meanReversion)
+      )
       .map((c) => {
         const held = heldLongTickers.has(c.ticker)
         const match = held ? null : matcher(c)
@@ -591,13 +1004,20 @@ export default function RecommendationsView() {
         return { ...c, oppositeMatchLine: oppositeMatchLine(match, 'short', themeLabels), _sortScore: sortScore }
       })
     return pool.sort((a, b) => a._sortScore - b._sortScore).slice(0, ROWS_PER_SIDE)
-  }, [data, heldShortTickers, heldLongTickers, tickerSector, tickerThemes, themeLabels])
+  }, [data, heldShortTickers, heldLongTickers, tickerSector, tickerThemes, themeLabels, tickerScreener])
 
   const shorts = useMemo(() => {
     if (!data) return []
     const matcher = buildOppositeMatcher([...heldLongTickers], tickerSector, tickerThemes)
     const pool = data.candidates
-      .filter((c) => SELL_RATINGS.has(c.rating) && eligibleToSell(c) && notCrowded(c))
+      .filter(
+        (c) =>
+          SELL_RATINGS.has(c.rating) &&
+          eligibleToSell(c) &&
+          notCrowded(c) &&
+          notTooMuchGrowthForShort(tickerScreener[c.ticker]?.revenueGrowth) &&
+          meanReversionOkForShort(tickerScreener[c.ticker]?.meanReversion)
+      )
       .map((c) => {
         const held = heldShortTickers.has(c.ticker)
         const match = held ? null : matcher(c)
@@ -605,52 +1025,83 @@ export default function RecommendationsView() {
         return { ...c, oppositeMatchLine: oppositeMatchLine(match, 'long', themeLabels), _sortScore: sortScore }
       })
     return pool.sort((a, b) => b._sortScore - a._sortScore).slice(0, ROWS_PER_SIDE)
-  }, [data, heldLongTickers, heldShortTickers, tickerSector, tickerThemes, themeLabels])
+  }, [data, heldLongTickers, heldShortTickers, tickerSector, tickerThemes, themeLabels, tickerScreener])
 
   // Held positions whose own rating now contradicts the side they're held
-  // on -- a long position that's drifted to Sell/Strong Sell, or a short
-  // position that's drifted to Buy/Strong Buy -- filtered by the same
-  // momentum gate as Long/Short above: closing a Long is a sell (needs
-  // eligibleToSell), closing a Short is a buy/cover (needs eligibleToBuy).
-  // Not capped to ROWS_PER_SIDE like Long/Short -- this is a flag on the
-  // actual portfolio, not a ranked idea list, so every contradiction that
-  // clears the momentum gate shows, however many there are. Sorted by how
-  // far the rating leans the "wrong" way for that side, not by side, so the
-  // most urgent flags surface first regardless of direction.
+  // on -- a long position that's drifted to Hold/Sell/Strong Sell, or a
+  // short position that's drifted to Hold/Buy/Strong Buy -- fire
+  // regardless of momentum (unlike Long/Short's eligibleToBuy/
+  // eligibleToSell idea-list gate above): the rating itself is decisive
+  // for an existing position, even before momentum has caught up. Not
+  // capped to ROWS_PER_SIDE like Long/Short -- this is a flag on the
+  // actual portfolio, not a ranked idea list, so every contradiction
+  // shows, however many there are. Sorted by how far the rating leans the
+  // "wrong" way for that side, not by side, so the most urgent flags
+  // surface first regardless of direction.
   const closes = useMemo(() => {
     if (!data) return []
     const byTicker = new Map(data.candidates.map((c) => [c.ticker, c]))
-    const netLiquidation = account?.NetLiquidation ?? null
     const rows = []
     for (const [ticker, p] of Object.entries(positions)) {
       if (!p?.shares) continue
       // recommendations.json only covers RATED_FOR_EXTRAS, so a held
-      // position that's drifted to Hold has no entry there -- fall back to
-      // tickerScreener (sorted_screen.csv, every rated ticker) for its
-      // rating/score/momentum/beta/short-interest in that case. Prefer the
-      // candidate when both exist: it carries news/insiders/13F/analyst
-      // signal tickerScreener alone doesn't. Concentration risk needs only
-      // a live price, so an entirely unscored ticker (e.g. an ETF outside
-      // the screener universe) can still trip that one check even with c
-      // falling all the way back to an empty object.
-      const c = byTicker.get(ticker) || tickerScreener[ticker] || {}
-      const reasons = buildCloseReasons({ shares: p.shares, c, livePrice: livePrices[ticker]?.last, netLiquidation })
+      // position that's drifted to Hold has no entry there at all --
+      // tickerScreener (sorted_screen.csv, every rated ticker) is the
+      // baseline, with the candidate's richer news/insiders/13F/analyst
+      // fields layered on top when it exists. A plain `candidate ||
+      // screener` (either/or) previously meant ANY field only the
+      // screener carries -- beta was the real case that bit -- silently
+      // went missing for every RATED_FOR_EXTRAS ticker, since a truthy
+      // candidate object always won even when it simply didn't have that
+      // field: the high-beta check below never fired for NVDA/MU/PGY/
+      // etc. even at beta > 2, because they all have real candidate
+      // entries with no beta field on them.
+      const c = { ...tickerScreener[ticker], ...byTicker.get(ticker) }
+      const reasons = buildCloseReasons({ shares: p.shares, c })
       if (reasons.length === 0) continue
       const hasRatingReason = reasons.some((r) => r.type === 'rating')
       const hasMomentumReason = reasons.some((r) => r.type === 'momentum')
+      const hasScoreBoundaryReason = reasons.some((r) => r.type === 'score-boundary')
       // Rating contradictions rank highest (most decisive single signal),
-      // then unsupportive momentum, then however many risk-only flags
-      // (concentration/crowded-short/high-beta) apply -- so a position
-      // tripping several risk flags at once still outranks one tripping
-      // only a single, milder one.
+      // then unsupportive momentum, then a score close enough to the Hold
+      // boundary to likely cross soon, then however many pure risk/
+      // fundamentals flags (eps-trend/revenue-growth/crowded-short) apply
+      // -- so a position tripping several flags at once still outranks one
+      // tripping only a single, milder one.
       const severity =
         (hasRatingReason ? 100 : 0) +
         (hasMomentumReason ? 50 : 0) +
-        reasons.filter((r) => r.type !== 'rating' && r.type !== 'momentum').length * 10
+        (hasScoreBoundaryReason ? 30 : 0) +
+        reasons.filter((r) => !['rating', 'momentum', 'score-boundary'].includes(r.type)).length * 10
       rows.push({ ...c, closeSide: p.shares > 0 ? 'Long' : 'Short', shares: p.shares, reasons, hasRatingReason, _severity: severity })
     }
     return rows.sort((a, b) => b._severity - a._severity)
-  }, [data, positions, tickerScreener, livePrices, account])
+  }, [data, positions, tickerScreener])
+
+  // Strong Buy/Strong Sell candidates -- the top-conviction rating on
+  // either end -- that still didn't clear a Long/Short opening gate. Not
+  // capped to ROWS_PER_SIDE (this is an audit of every top-rated candidate
+  // that got blocked, not a ranked idea list), and independent of
+  // longs/shorts above other than sharing the same gate functions -- see
+  // buildRejectionReasons. Alphabetical by ticker (explicit instruction --
+  // this is a lookup list, not a ranked one, so sorting by severity the
+  // way closes does would just make a specific ticker harder to find).
+  // Split into two so each can sit right after its own side's idea list
+  // (Strong Buy after Long, Strong Sell after Short) rather than one
+  // combined section -- explicit instruction.
+  const rejectedStrong = useMemo(() => {
+    if (!data) return []
+    const rows = []
+    for (const c of data.candidates) {
+      if (c.rating !== 'Strong Buy' && c.rating !== 'Strong Sell') continue
+      const reasons = buildRejectionReasons({ c, tickerScreener })
+      if (reasons.length === 0) continue
+      rows.push({ ...c, reasons })
+    }
+    return rows.sort((a, b) => a.ticker.localeCompare(b.ticker))
+  }, [data, tickerScreener])
+  const rejectedStrongBuy = useMemo(() => rejectedStrong.filter((c) => c.rating === 'Strong Buy'), [rejectedStrong])
+  const rejectedStrongSell = useMemo(() => rejectedStrong.filter((c) => c.rating === 'Strong Sell'), [rejectedStrong])
 
   return (
     <div className="positions-page positions-unbounded">
@@ -675,6 +1126,10 @@ export default function RecommendationsView() {
             <span className="n num">{heldCount}</span>
             <span className="l">held positions</span>
           </div>
+          <div className="stat">
+            <span className="n num">{rejectedStrong.length}</span>
+            <span className="l">Strong-rated, blocked</span>
+          </div>
         </div>
       </header>
 
@@ -693,7 +1148,8 @@ export default function RecommendationsView() {
         <>
           <RecommendationSection
             title="Long"
-            subtitle="Strong Buy / Buy with positive momentum, best composite score first"
+            titleInfo={<RulesInfo label="Selection rules" header="Every candidate must clear all of these" rules={LONG_RULES} />}
+            subtitle={`Strong Buy / Buy with positive momentum and revenue growth ≥ ${fmtPctAbs(REVENUE_GROWTH_THRESHOLD)}, best composite score first`}
             rows={longs}
             renderCard={(c) => (
               <RecommendationCard
@@ -708,8 +1164,24 @@ export default function RecommendationsView() {
             emptyMessage="No Strong Buy/Buy candidates with positive momentum right now."
           />
           <RecommendationSection
+            title="Strong Buy — blocked"
+            subtitle="Strong Buy candidates that still failed a momentum, revenue-growth, or mean-reversion gate — see Long's Selection rules for what each gate checks"
+            rows={rejectedStrongBuy}
+            renderCard={(c) => (
+              <RejectedCard
+                key={c.ticker}
+                c={c}
+                live={livePrices[c.ticker]}
+                dailyHistory3mo={dailyHistory3mo}
+                monthlyHistory={monthlyHistory}
+              />
+            )}
+            emptyMessage="Every current Strong Buy candidate clears the Long opening gates."
+          />
+          <RecommendationSection
             title="Short"
-            subtitle="Strong Sell / Sell with negative momentum, worst composite score first — excludes crowded shorts (>20% of float already short)"
+            titleInfo={<RulesInfo label="Selection rules" header="Every candidate must clear all of these" rules={SHORT_RULES} />}
+            subtitle={`Strong Sell / Sell with negative momentum and revenue growth ≤ ${fmtPctAbs(REVENUE_GROWTH_THRESHOLD)}, worst composite score first — excludes crowded shorts (>${fmtPctAbs(MAX_SHORT_INTEREST)} of float already short)`}
             rows={shorts}
             renderCard={(c) => (
               <RecommendationCard
@@ -724,8 +1196,31 @@ export default function RecommendationsView() {
             emptyMessage="No Sell/Strong Sell candidates with negative momentum right now."
           />
           <RecommendationSection
+            title="Strong Sell — blocked"
+            subtitle="Strong Sell candidates that still failed a momentum, revenue-growth, mean-reversion, or crowded-short gate — see Short's Selection rules for what each gate checks"
+            rows={rejectedStrongSell}
+            renderCard={(c) => (
+              <RejectedCard
+                key={c.ticker}
+                c={c}
+                live={livePrices[c.ticker]}
+                dailyHistory3mo={dailyHistory3mo}
+                monthlyHistory={monthlyHistory}
+              />
+            )}
+            emptyMessage="Every current Strong Sell candidate clears the Short opening gates."
+          />
+          <RecommendationSection
             title="To close"
-            subtitle="Held positions no longer rated on their own side (opposite rating or Hold), momentum-gated the same way as Long/Short"
+            titleInfo={
+              <RulesInfo
+                label="Closing rules"
+                header="Any one of these flags a held position for review"
+                rules={CLOSE_RULES}
+                footer="A position can trip more than one of these at once — the card below lists every reason that applies, ranked with rating contradictions first, then momentum, then the rest."
+              />
+            }
+            subtitle="Held positions tripping a rating/momentum/score-boundary contradiction, a fundamentals reversal, or a crowded-short flag"
             rows={closes}
             renderCard={(c) => (
               <CloseCard
@@ -736,7 +1231,7 @@ export default function RecommendationsView() {
                 monthlyHistory={monthlyHistory}
               />
             )}
-            emptyMessage="No held position's rating currently contradicts its side (after the momentum gate)."
+            emptyMessage="No held position currently has a rating/momentum contradiction or a risk flag."
           />
         </>
       )}

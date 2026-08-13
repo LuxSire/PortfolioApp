@@ -408,7 +408,7 @@ def add_momentum_and_persist_history(app, data):
     write_price_history(all_history)
 
 
-FRESH_HOURS = 3
+FRESH_HOURS = 8
 
 
 def is_fresh(last_download, max_age_hours=FRESH_HOURS):

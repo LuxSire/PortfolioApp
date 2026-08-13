@@ -109,10 +109,13 @@ output lives under data/, see main.py's DATA_DIR):
                                 PeTable.jsx's screener column to average
                                 per ticker itself, same rolling
                                 NEWS_WINDOW_DAYS window as news.json.
-Both cover the top CANDLESTICK_TOP_N ranked tickers, unioned with every
-ticker this process actually streams a live price for (so a held position
-outside that ranked set, like an ETF not even in sorted_screen.csv, still
-gets covered) — fetched once at startup (see fetch_candlestick_history).
+Both cover the top CANDLESTICK_TOP_N ranked tickers, every RATED_FOR_EXTRAS
+ticker (Strong Buy/Buy/Sell/Strong Sell -- CANDLESTICK_TOP_N alone only
+ever reaches the best-scoring/Buy end, since it's a top-N slice of a file
+sorted ascending by score), and every ticker this process actually streams
+a live price for (so a held position outside both of those, like an ETF
+not even in sorted_screen.csv, still gets covered) — fetched once at
+startup (see fetch_candlestick_history).
 reqHistoricalData's pacing limit (~60 requests/10min, account-wide) means
 this can take hours for hundreds of tickers x 2 series; it runs as a
 background asyncio task on the same single IB Gateway connection as
@@ -169,7 +172,7 @@ from urllib.parse import parse_qs, urlparse
 from dateutil.parser import isoparse
 
 from IBApp import IBApp
-from main import SORTED_SCREEN_CSV, load_top_tickers
+from main import RATED_FOR_EXTRAS, SORTED_SCREEN_CSV, load_rated_tickers, load_top_tickers
 from news_sentiment import clean_headline, score_headlines
 
 MAX_STREAMED_SYMBOLS = 99  # this account's real ceiling — 100 hits IB error 101, "Max number of tickers has been reached"
@@ -389,20 +392,39 @@ async def fetch_candlestick_history(streamed_tickers):
     take hours) never stalls live prices/positions or snapshot polling
     sharing that same connection's event loop.
 
-    Covers the top CANDLESTICK_TOP_N ranked tickers, unioned with
+    Covers the top CANDLESTICK_TOP_N ranked tickers, unioned with every
+    RATED_FOR_EXTRAS ticker (Strong Buy/Buy/Sell/Strong Sell) and with
     streamed_tickers (every ticker actually streamed a live price —
     positions and ranked fill alike) so a held position outside the top
     N, like an ETF that isn't even in sorted_screen.csv, still gets
     covered rather than silently dropped.
 
+    The RATED_FOR_EXTRAS union matters because CANDLESTICK_TOP_N alone
+    only ever reaches the BEST-scoring end of the ranking -- load_top_tickers
+    takes the first N rows of a file already sorted ascending by score, so
+    a Strong Sell sitting near the bottom of ~1900 scored tickers is never
+    in that slice no matter how large N is, only a held position would
+    pull it in via streamed_tickers. Confirmed in practice: before this
+    union, 96% of Buy/Strong Buy tickers had hourly bars (and so a real
+    meanReversion reading) but only 11% of Sell/Strong Sell ones did --
+    explicit instruction to fix that gap, since RecommendationsView.jsx's
+    Short-side mean-reversion gate is only as good as this coverage.
+    Same RATED_FOR_EXTRAS scope MAX_STREAMED_SYMBOLS already uses to fill
+    out live-price streaming (see this module's own docstring above), just
+    applied here too.
+
     Writes HOURLY_HISTORY_FILE and DAILY_HISTORY_FILE once each series is
     done; Asset.jsx fetches them as static files, same as
     main.py's price_history.json."""
-    ranked = load_top_tickers(SORTED_SCREEN_CSV, CANDLESTICK_TOP_N)
-    tickers = sorted(set(ranked) | set(streamed_tickers))
+    ranked = set(load_top_tickers(SORTED_SCREEN_CSV, CANDLESTICK_TOP_N))
+    rated = set(load_rated_tickers(SORTED_SCREEN_CSV, RATED_FOR_EXTRAS))
+    covered = ranked | rated
+    tickers = sorted(covered | set(streamed_tickers))
     print(
         f"Candlestick history covers {len(tickers)} ticker(s): top {len(ranked)} ranked "
-        f"+ {len(tickers) - len(ranked)} streamed-but-unranked (e.g. positions outside the top {CANDLESTICK_TOP_N})"
+        f"+ {len(rated - ranked)} rated-for-extras-but-outside-top-N "
+        f"+ {len(set(tickers) - covered)} streamed-but-otherwise-uncovered "
+        f"(e.g. positions outside both of those)"
     )
 
     print(f"Fetching 1mo hourly bars for {len(tickers)} ticker(s) (this can take a while, paced by IB's rate limit)...")
@@ -1416,7 +1438,8 @@ async def stream_prices_and_positions(ranked_tickers):
         broadcast()
 
     # Background task on this same connection — see fetch_candlestick_history,
-    # which unions all_tickers with its own top-CANDLESTICK_TOP_N pull.
+    # which unions all_tickers with its own top-CANDLESTICK_TOP_N pull and
+    # every RATED_FOR_EXTRAS ticker.
     # Started here (not from run_ib_client) because all_tickers — every
     # ticker this process actually streams a price for, not just the ranked
     # pool — only exists once this function has built it.

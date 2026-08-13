@@ -3439,6 +3439,15 @@
     "sector": "Banks - Regional"
   },
   {
+    "symbol": "BMRN",
+    "type": "STOCK",
+    "currency": "USD",
+    "market": "SMART",
+    "country": "US",
+    "active": 1,
+    "sector": "Biotechnology"
+  },
+  {
     "symbol": "BMY",
     "type": "STOCK",
     "currency": "USD",
@@ -3860,6 +3869,15 @@
     "sector": "Engineering & Construction"
   },
   {
+    "symbol": "BWXT",
+    "type": "STOCK",
+    "currency": "USD",
+    "market": "SMART",
+    "country": "US",
+    "active": 1,
+    "sector": "Aerospace & Defense"
+  },
+  {
     "symbol": "BX",
     "type": "STOCK",
     "currency": "USD",
@@ -4092,6 +4110,15 @@
     "country": "US",
     "active": 1,
     "sector": "Internet Content & Information"
+  },
+  {
+    "symbol": "CART",
+    "type": "STOCK",
+    "currency": "USD",
+    "market": "SMART",
+    "country": "US",
+    "active": 1,
+    "sector": "Internet Retail"
   },
   {
     "symbol": "CASH",
@@ -5634,6 +5661,15 @@
     "sector": "Biotechnology"
   },
   {
+    "symbol": "CROX",
+    "type": "STOCK",
+    "currency": "USD",
+    "market": "SMART",
+    "country": "US",
+    "active": 1,
+    "sector": "Footwear & Accessories"
+  },
+  {
     "symbol": "CRSP",
     "type": "STOCK",
     "currency": "USD",
@@ -5650,6 +5686,15 @@
     "country": "US",
     "active": 1,
     "sector": "Computer Hardware"
+  },
+  {
+    "symbol": "CRUS",
+    "type": "STOCK",
+    "currency": "USD",
+    "market": "SMART",
+    "country": "US",
+    "active": 1,
+    "sector": "Semiconductors"
   },
   {
     "symbol": "CRVL",
@@ -5671,6 +5716,15 @@
   },
   {
     "symbol": "CRWD",
+    "type": "STOCK",
+    "currency": "USD",
+    "market": "SMART",
+    "country": "US",
+    "active": 1,
+    "sector": "Software - Infrastructure"
+  },
+  {
+    "symbol": "CRWV",
     "type": "STOCK",
     "currency": "USD",
     "market": "SMART",
@@ -6054,6 +6108,15 @@
     "country": "US",
     "active": 1,
     "sector": "Oil & Gas Integrated"
+  },
+  {
+    "symbol": "CW",
+    "type": "STOCK",
+    "currency": "USD",
+    "market": "SMART",
+    "country": "US",
+    "active": 1,
+    "sector": "Aerospace & Defense"
   },
   {
     "symbol": "CWAN",
@@ -10311,6 +10374,15 @@
     "sector": "Utilities - Regulated Electric"
   },
   {
+    "symbol": "HEI",
+    "type": "STOCK",
+    "currency": "USD",
+    "market": "SMART",
+    "country": "US",
+    "active": 1,
+    "sector": "Aerospace & Defense"
+  },
+  {
     "symbol": "HELE",
     "type": "STOCK",
     "currency": "USD",
@@ -11486,6 +11558,15 @@
     "sector": "Specialty Chemicals"
   },
   {
+    "symbol": "IOT",
+    "type": "STOCK",
+    "currency": "USD",
+    "market": "SMART",
+    "country": "US",
+    "active": 1,
+    "sector": "Software - Infrastructure"
+  },
+  {
     "symbol": "IOVA",
     "type": "STOCK",
     "currency": "USD",
@@ -11860,6 +11941,15 @@
     "country": "US",
     "active": 1,
     "sector": "Packaged Foods"
+  },
+  {
+    "symbol": "JKHY",
+    "type": "STOCK",
+    "currency": "USD",
+    "market": "SMART",
+    "country": "US",
+    "active": 1,
+    "sector": "Information Technology Services"
   },
   {
     "symbol": "JMSB",
@@ -12564,6 +12654,15 @@
     "sector": "Banks - Regional"
   },
   {
+    "symbol": "LCID",
+    "type": "STOCK",
+    "currency": "USD",
+    "market": "SMART",
+    "country": "US",
+    "active": 1,
+    "sector": "Auto Manufacturers"
+  },
+  {
     "symbol": "LCII",
     "type": "STOCK",
     "currency": "USD",
@@ -12589,6 +12688,15 @@
     "country": "US",
     "active": 1,
     "sector": "Mortgage Finance"
+  },
+  {
+    "symbol": "LDOS",
+    "type": "STOCK",
+    "currency": "USD",
+    "market": "SMART",
+    "country": "US",
+    "active": 1,
+    "sector": "Information Technology Services"
   },
   {
     "symbol": "LE",
@@ -13291,6 +13399,15 @@
     "sector": "Credit Services"
   },
   {
+    "symbol": "MAA",
+    "type": "STOCK",
+    "currency": "USD",
+    "market": "SMART",
+    "country": "US",
+    "active": 1,
+    "sector": "REIT - Residential"
+  },
+  {
     "symbol": "MAC",
     "type": "STOCK",
     "currency": "USD",
@@ -13882,6 +13999,15 @@
     "sector": "Financial Data & Stock Exchanges"
   },
   {
+    "symbol": "MKTX",
+    "type": "STOCK",
+    "currency": "USD",
+    "market": "SMART",
+    "country": "US",
+    "active": 1,
+    "sector": "Capital Markets"
+  },
+  {
     "symbol": "MLAB",
     "type": "STOCK",
     "currency": "USD",
@@ -14112,6 +14238,15 @@
     "country": "US",
     "active": 1,
     "sector": "Electronic Components"
+  },
+  {
+    "symbol": "MPWR",
+    "type": "STOCK",
+    "currency": "USD",
+    "market": "SMART",
+    "country": "US",
+    "active": 1,
+    "sector": "Semiconductors"
   },
   {
     "symbol": "MPX",
@@ -14616,6 +14751,15 @@
     "sector": "Banks - Regional"
   },
   {
+    "symbol": "NBIX",
+    "type": "STOCK",
+    "currency": "USD",
+    "market": "SMART",
+    "country": "US",
+    "active": 1,
+    "sector": "Drug Manufacturers - Specialty & Generic"
+  },
+  {
     "symbol": "NBN",
     "type": "STOCK",
     "currency": "USD",
@@ -14650,6 +14794,15 @@
     "country": "US",
     "active": 1,
     "sector": "Thermal Coal"
+  },
+  {
+    "symbol": "NCLH",
+    "type": "STOCK",
+    "currency": "USD",
+    "market": "SMART",
+    "country": "US",
+    "active": 1,
+    "sector": "Travel Services"
   },
   {
     "symbol": "NCMI",
@@ -16270,6 +16423,15 @@
     "sector": "Oil & Gas Refining & Marketing"
   },
   {
+    "symbol": "PATH",
+    "type": "STOCK",
+    "currency": "USD",
+    "market": "SMART",
+    "country": "US",
+    "active": 1,
+    "sector": "Software - Infrastructure"
+  },
+  {
     "symbol": "PATK",
     "type": "STOCK",
     "currency": "USD",
@@ -17364,6 +17526,15 @@
     "sector": "Specialty Industrial Machinery"
   },
   {
+    "symbol": "PSKY",
+    "type": "STOCK",
+    "currency": "USD",
+    "market": "SMART",
+    "country": "US",
+    "active": 1,
+    "sector": "Entertainment"
+  },
+  {
     "symbol": "PSMT",
     "type": "STOCK",
     "currency": "USD",
@@ -17613,6 +17784,15 @@
     "active": 0
   },
   {
+    "symbol": "QRVO",
+    "type": "STOCK",
+    "currency": "USD",
+    "market": "SMART",
+    "country": "US",
+    "active": 1,
+    "sector": "Semiconductors"
+  },
+  {
     "symbol": "QS",
     "type": "STOCK",
     "currency": "USD",
@@ -17703,6 +17883,15 @@
   },
   {
     "symbol": "RAPP",
+    "type": "STOCK",
+    "currency": "USD",
+    "market": "SMART",
+    "country": "US",
+    "active": 1,
+    "sector": "Biotechnology"
+  },
+  {
+    "symbol": "RARE",
     "type": "STOCK",
     "currency": "USD",
     "market": "SMART",
@@ -18042,6 +18231,15 @@
     "country": "US",
     "active": 1,
     "sector": "Computer Hardware"
+  },
+  {
+    "symbol": "RH",
+    "type": "STOCK",
+    "currency": "USD",
+    "market": "SMART",
+    "country": "US",
+    "active": 1,
+    "sector": "Specialty Retail"
   },
   {
     "symbol": "RHHBY",
@@ -18661,6 +18859,15 @@
     "country": "US",
     "active": 1,
     "sector": "Auto & Truck Dealerships"
+  },
+  {
+    "symbol": "SAIC",
+    "type": "STOCK",
+    "currency": "USD",
+    "market": "SMART",
+    "country": "US",
+    "active": 1,
+    "sector": "Information Technology Services"
   },
   {
     "symbol": "SAMG",
@@ -19779,6 +19986,15 @@
     "sector": "Specialty Chemicals"
   },
   {
+    "symbol": "SOLV",
+    "type": "STOCK",
+    "currency": "USD",
+    "market": "SMART",
+    "country": "US",
+    "active": 1,
+    "sector": "Medical Instruments & Supplies"
+  },
+  {
     "symbol": "SONO",
     "type": "STOCK",
     "currency": "USD",
@@ -19830,6 +20046,15 @@
     "country": "US",
     "active": 1,
     "sector": "Banks - Regional"
+  },
+  {
+    "symbol": "SPG",
+    "type": "STOCK",
+    "currency": "USD",
+    "market": "SMART",
+    "country": "US",
+    "active": 1,
+    "sector": "REIT - Retail"
   },
   {
     "symbol": "SPGI",
@@ -19990,6 +20215,15 @@
     "country": "US",
     "active": 1,
     "sector": "Utilities - Diversified"
+  },
+  {
+    "symbol": "SRPT",
+    "type": "STOCK",
+    "currency": "USD",
+    "market": "SMART",
+    "country": "US",
+    "active": 1,
+    "sector": "Biotechnology"
   },
   {
     "symbol": "SRRK",
@@ -20341,6 +20575,15 @@
     "sector": "Tools & Accessories"
   },
   {
+    "symbol": "SWKS",
+    "type": "STOCK",
+    "currency": "USD",
+    "market": "SMART",
+    "country": "US",
+    "active": 1,
+    "sector": "Semiconductors"
+  },
+  {
     "symbol": "SWX",
     "type": "STOCK",
     "currency": "USD",
@@ -20679,6 +20922,15 @@
     "country": "US",
     "active": 1,
     "sector": "Biotechnology"
+  },
+  {
+    "symbol": "TEM",
+    "type": "STOCK",
+    "currency": "USD",
+    "market": "SMART",
+    "country": "US",
+    "active": 1,
+    "sector": "Health Information Services"
   },
   {
     "symbol": "TENB",
@@ -22320,6 +22572,15 @@
     "sector": "Farm Products"
   },
   {
+    "symbol": "VKTX",
+    "type": "STOCK",
+    "currency": "USD",
+    "market": "SMART",
+    "country": "US",
+    "active": 1,
+    "sector": "Biotechnology"
+  },
+  {
     "symbol": "VLGEA",
     "type": "STOCK",
     "currency": "USD",
@@ -22336,6 +22597,15 @@
     "country": "US",
     "active": 1,
     "sector": "Oil & Gas Refining & Marketing"
+  },
+  {
+    "symbol": "VLTO",
+    "type": "STOCK",
+    "currency": "USD",
+    "market": "SMART",
+    "country": "US",
+    "active": 1,
+    "sector": "Pollution & Treatment Controls"
   },
   {
     "symbol": "VLY",
@@ -22717,6 +22987,15 @@
     "country": "US",
     "active": 1,
     "sector": "Telecom Services"
+  },
+  {
+    "symbol": "W",
+    "type": "STOCK",
+    "currency": "USD",
+    "market": "SMART",
+    "country": "US",
+    "active": 1,
+    "sector": "Internet Retail"
   },
   {
     "symbol": "WABC",

@@ -1556,6 +1556,38 @@ td.col-rec {
   background: var(--surface-2);
 }
 
+/* RejectedCard (Strong Buy/Strong Sell — blocked) — explicit instruction:
+   navy blue regardless of theme, not this app's dark-mode surface tokens
+   (which read as near-black) or plain light grey (read as too close to
+   white). Re-pins every token these cards' descendants read (badges,
+   price-change colors, borders) rather than only setting `background`, so
+   the card is fully legible regardless of the page's own theme -- same
+   dark-on-dark palette this app's own dark mode uses for good/bad/warn/
+   ink/muted (calibrated for a dark background already), just with a navy
+   `surface` instead of that mode's neutral near-black.
+
+   The explicit `color: var(--ink)` here is load-bearing, not decoration:
+   html/body sets `color: var(--ink)` once at the page root, and every
+   element below that inherits the already-computed value rather than
+   re-reading the variable -- ticker symbols, the sector stat's text, and
+   anything else with no `color` of its own would otherwise stay locked to
+   the PAGE's ink (near-white in dark mode) even after this class redefines
+   --ink to a value meant for a navy background, reading as barely-visible
+   pale text on navy instead of legible light text. Re-declaring `color`
+   here re-anchors inheritance for this whole subtree. */
+.recommendation-card-blocked {
+  --surface: #1b2a4a;
+  --surface-2: #23345c;
+  --line: #33456e;
+  --ink: #e7e9ee;
+  --muted: #9aa6c0;
+  --good: #4cbd86;
+  --bad: #e2685c;
+  --warn: #d6b542;
+  background: var(--surface);
+  color: var(--ink);
+}
+
 .recommendation-card-header {
   display: flex;
   align-items: flex-start;

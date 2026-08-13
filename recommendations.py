@@ -106,10 +106,29 @@ def build_recommendations(sorted_screen_csv, news_file, form4_file, institutiona
 
     try:
         with open(sorted_screen_csv, newline="") as f:
-            rows = [row for row in csv.DictReader(f) if row.get("rating") in ratings]
+            all_rows = list(csv.DictReader(f))
     except FileNotFoundError:
         return {"generatedAt": now.isoformat(), "candidates": []}
 
+    # True percentile position in the ranked universe -- main.py's own
+    # write_sorted_screen_csv assigns `rating` from a row's INDEX in this
+    # same ascending-by-score file order (rating_for_percentile(i / n)),
+    # NOT from the `score` column's own value. score is a weighted average
+    # of ~19 independent-ish factor percentile ranks, so by the central
+    # limit theorem its distribution clusters tightly around the middle --
+    # nowhere near uniform -- while rank position is uniform by
+    # construction. round(score * 100, 1) (the original version of this
+    # line) silently mislabeled that clustered value as a percentile: e.g.
+    # a real Buy-rated ticker (top 20% by rank) could show `score * 100`
+    # near 47, nowhere close to a genuine 5-20 range. Only scored rows
+    # (rows[i]["score"] truthy) count toward n -- the unranked/NA rows
+    # main.py appends after them (non-positive forwardPE) were never part
+    # of the ranking these percentiles describe.
+    scored_rows = [row for row in all_rows if row.get("score")]
+    n = len(scored_rows)
+    percentile_by_ticker = {row["ticker"]: (i / n * 100) for i, row in enumerate(scored_rows)} if n else {}
+
+    rows = [row for row in all_rows if row.get("rating") in ratings]
     tickers = [row["ticker"] for row in rows]
     news_counts = _recent_news_counts(news_file, tickers, now, RECENT_NEWS_DAYS)
     insider_counts = _recent_insider_counts(form4_file, tickers, now, RECENT_INSIDER_DAYS)
@@ -133,9 +152,10 @@ def build_recommendations(sorted_screen_csv, news_file, form4_file, institutiona
                 "sector": row.get("sector"),
                 "rating": row.get("rating"),
                 "score": score,
-                "scorePercentile": round(score * 100, 1) if score is not None else None,
+                "scorePercentile": round(percentile_by_ticker[ticker], 1) if ticker in percentile_by_ticker else None,
                 "price": to_float(row.get("price")),
                 "momentum": to_float(row.get("momentum")),
+                "beta": to_float(row.get("beta")),
                 "shortPercentOfFloat": to_float(row.get("shortPercentOfFloat")),
                 "targetMeanPrice": to_float(row.get("targetMeanPrice")),
                 "targetUpside": to_float(row.get("targetUpside")),
