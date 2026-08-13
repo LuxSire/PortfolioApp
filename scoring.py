@@ -435,21 +435,24 @@ def momentum_rank(rows):
 
 
 def mean_reversion_rank(rows):
-    """High mean_reversion ranks better; missing ranked worst.
-    mean_reversion is the NEGATED regression-momentum on the hourly IB
-    Gateway series (see IBApp.get_momentum) -- a short-term
-    trend/momentum reading treated as a mean-reversion signal instead of
-    a second momentum vote: a stock that's run up hard in the last few
-    hours/days is, on this timeframe, more likely due for a pullback than
-    to keep accelerating in the same direction momentum_rank's daily
-    trend already captures. Kept as its own factor (rather than blended
-    into momentum_rank as it originally was) so each timeframe's signal
-    can be weighted, ranked, and reasoned about independently. Only
-    populated for tickers IB Gateway has fetched hourly candlesticks for
-    (CANDLESTICK_TOP_N ranked/held tickers, not the whole universe) --
-    there's no fallback data source for hourly bars the way momentum_rank
-    falls back to yfinance daily, so this is missing far more often."""
-    return rank_ascending(rows, neg_perf("meanReversion"))
+    """Low mean_reversion ranks better; missing ranked worst.
+    mean_reversion is the SAME regression-momentum formula as momentum_rank
+    scores, just measured on the hourly IB Gateway series instead of the
+    daily one (see IBApp.get_momentum) -- same sign convention as momentum
+    (positive = hourly uptrend, negative = hourly downtrend), scored here
+    with the opposite direction on purpose: a stock already trending up
+    hard on the hourly timeframe is a stock this factor treats as being
+    chased rather than caught early, so a LOW (negative-hourly-momentum,
+    i.e. a stock that's just pulled back) reading ranks best, the mirror
+    of momentum_rank's own daily-timeframe "high is better" direction.
+    Kept as its own factor (rather than blended into momentum_rank as it
+    originally was) so each timeframe's signal can be weighted, ranked,
+    and reasoned about independently. Only populated for tickers IB
+    Gateway has fetched hourly candlesticks for (CANDLESTICK_TOP_N
+    ranked/held tickers, not the whole universe) -- there's no fallback
+    data source for hourly bars the way momentum_rank falls back to
+    yfinance daily, so this is missing far more often."""
+    return rank_ascending(rows, lambda d: to_float(d.get("meanReversion")))
 
 
 def eps_trend_rank(rows):
@@ -555,8 +558,11 @@ def score_rows(rows, sentiment_scores=None, insider_scores=None):
     (ev_ebitda_rank; negative EBITDA ranked worst -- two independent
     cash-flow-valuation factors, not blended into one; see
     ev_ebitda_rank's docstring for why), 5% high daily-timeframe momentum
-    (momentum_rank; missing ranked worst) + 5% high hourly-timeframe mean
-    reversion (mean_reversion_rank; missing ranked worst -- split out of
+    (momentum_rank; missing ranked worst) + 5% low hourly-timeframe mean
+    reversion (mean_reversion_rank; missing ranked worst -- a stock
+    already trending up hard on the hour is being chased, not caught
+    early, so LOW/negative hourly momentum ranks best here, the mirror of
+    momentum_rank's own daily-timeframe direction; split out of
     momentum_rank, which used to blend both timeframes into one 10%
     factor; see that function's docstring for why they're independent
     now), 5% earnings estimate revision trend (eps_trend_rank --

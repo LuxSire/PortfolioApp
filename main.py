@@ -100,15 +100,20 @@ root):
                      3-month IB Gateway daily series where available,
                      else the plain ~1-month yfinance calculation; see
                      IBApp.get_momentum; missing penalized as worst) + 5%
-                     high hourly-timeframe mean reversion (the NEGATED
-                     regression-momentum score on IB Gateway's hourly
-                     series -- a short-term trend/momentum reading
-                     treated as a mean-reversion signal, not a second
-                     momentum vote; only populated for the
-                     CANDLESTICK_TOP_N ranked/held tickers IB Gateway
-                     fetches hourly bars for, no fallback source, missing
-                     penalized as worst) -- two independent factors, not
-                     blended into one the way this used to work, 5% EPS
+                     low hourly-timeframe mean reversion (the SAME
+                     regression-momentum formula as the daily momentum
+                     factor above, just on IB Gateway's hourly series --
+                     a short-term trend/momentum reading treated as an
+                     entry-timing signal, not a second momentum vote: a
+                     stock already trending up hard on the hour is one
+                     you'd be chasing, so LOW/negative (a stock that's
+                     just pulled back) ranks best, the mirror of the
+                     daily momentum factor's own "high is better"
+                     direction; only populated for the CANDLESTICK_TOP_N
+                     ranked/held tickers IB Gateway fetches hourly bars
+                     for, no fallback source, missing penalized as worst)
+                     -- two independent factors, not blended into one the
+                     way this used to work, 5% EPS
                      trend (eps_trend_rank -- average of the current- and
                      next-fiscal-year 30-day consensus EPS estimate
                      revision ranks, from yfinance's get_eps_trend(); see
@@ -266,12 +271,22 @@ MIN_PRICE = 8
 # direction) to be worth the extra network cost, rather than a flat
 # top-N cutoff.
 RATED_FOR_EXTRAS = {"Strong Buy", "Buy", "Sell", "Strong Sell"}
-# yfinance reports these as foreign-domiciled (e.g. reincorporated abroad)
-# despite being ordinary US-listed, US-focused securities that belong in
-# this screener -- get_forward_pe's usa_only filter would otherwise
-# silently drop them. Add a ticker here only after confirming by hand
-# that it genuinely trades/reports as a normal US security.
-COUNTRY_OVERRIDE_TICKERS = {"CRSP"}
+# get_forward_pe's usa_only filter would otherwise silently drop every
+# ticker here, for two different reasons:
+#  - CRSP: yfinance mislabels it foreign-domiciled (reincorporated abroad)
+#    despite being an ordinary US-listed, US-focused security -- a data
+#    error worth correcting.
+#  - ARM/ASML/BIRK/NBIS/ONON: genuinely foreign-domiciled (UK/Netherlands/
+#    Switzerland), but explicit instruction is to include ADRs/foreign
+#    ordinary-share US-exchange listings in the screener anyway rather
+#    than exclude on domicile alone -- not a data error, a deliberate
+#    scope choice. LEGN isn't here: yfinance already reports it as US
+#    (Legend Biotech Corporation), so usa_only never drops it in the
+#    first place; it only needed adding to symbols.json.
+# Add a ticker here only after confirming by hand what it actually is --
+# genuinely US-focused (CRSP-style) or a foreign name being deliberately
+# included (ARM-style) -- not just because usa_only happened to drop it.
+COUNTRY_OVERRIDE_TICKERS = {"ARM", "ASML", "BIRK", "CRSP", "NBIS", "ONON"}
 
 FIELDNAMES = [
     "ticker", "name", "sector", "forwardPE", "forwardEps", "trailingPE", "trailingPS", "pegRatio", "priceToFCF",
@@ -541,6 +556,24 @@ def write_sorted_screen_csv(data):
         for symbol, d in unranked:
             writer.writerow([symbol] + [d.get(field, "") for field in SCREEN_FIELDNAMES[1:]] + ["", RATING_NA])
     print(f"Wrote {SORTED_SCREEN_CSV}: {len(scored)} ranked + {len(unranked)} unranked (negative forwardPE) ticker(s)")
+
+    # Every caller of write_sorted_screen_csv (download_all, download_prices,
+    # rescore, download_symbols) must also refresh data/recommendations.json
+    # right after -- explicit instruction, after a real staleness bug: a
+    # ticker's rating/score/momentum can drift between one sorted_screen.csv
+    # write and the next `python main.py recommendations` run (they used to
+    # be separate, easy-to-forget steps), and until that catches up,
+    # RecommendationsView.jsx's Long/Short lists and the "Strong Buy/Sell —
+    # blocked" audit rank and gate candidates against the STALE snapshot
+    # baked into recommendations.json, not today's real numbers -- silently
+    # wrong rather than erroring. Confirmed live: DINO's rank in the Long
+    # pool was 41st against a several-hours-stale recommendations.json,
+    # 8th once rebuilt from the sorted_screen.csv just written above.
+    # write_recommendations is the same zero-network "just recompute from
+    # files already on disk" operation download_recommendations() wraps for
+    # the CLI (`python main.py recommendations`) -- safe to always chain
+    # here, not just run on request.
+    write_recommendations(SORTED_SCREEN_CSV, NEWS_FILE, FORM4_FILE, THIRTEENF_FILE, RATED_FOR_EXTRAS)
 
 
 def download_all():

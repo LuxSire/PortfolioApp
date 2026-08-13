@@ -1927,6 +1927,15 @@
     "sector": "Building Products & Equipment"
   },
   {
+    "symbol": "ARM",
+    "type": "STOCK",
+    "currency": "USD",
+    "market": "SMART",
+    "country": "GB",
+    "active": 1,
+    "sector": "Semiconductors"
+  },
+  {
     "symbol": "ARMK",
     "type": "STOCK",
     "currency": "USD",
@@ -2077,6 +2086,15 @@
     "country": "US",
     "active": 1,
     "sector": "Airports & Air Services"
+  },
+  {
+    "symbol": "ASML",
+    "type": "STOCK",
+    "currency": "USD",
+    "market": "SMART",
+    "country": "NL",
+    "active": 1,
+    "sector": "Semiconductor Equipment & Materials"
   },
   {
     "symbol": "ASO",
@@ -3196,6 +3214,15 @@
     "country": "US",
     "active": 1,
     "sector": "Utilities - Regulated Gas"
+  },
+  {
+    "symbol": "BIRK",
+    "type": "STOCK",
+    "currency": "USD",
+    "market": "SMART",
+    "country": "GB",
+    "active": 1,
+    "sector": "Footwear & Accessories"
   },
   {
     "symbol": "BJ",
@@ -12726,6 +12753,15 @@
     "sector": "Residential Construction"
   },
   {
+    "symbol": "LEGN",
+    "type": "STOCK",
+    "currency": "USD",
+    "market": "SMART",
+    "country": "US",
+    "active": 1,
+    "sector": "Biotechnology"
+  },
+  {
     "symbol": "LEN",
     "type": "STOCK",
     "currency": "USD",
@@ -14751,6 +14787,15 @@
     "sector": "Banks - Regional"
   },
   {
+    "symbol": "NBIS",
+    "type": "STOCK",
+    "currency": "USD",
+    "market": "SMART",
+    "country": "NL",
+    "active": 1,
+    "sector": "Internet Content & Information"
+  },
+  {
     "symbol": "NBIX",
     "type": "STOCK",
     "currency": "USD",
@@ -15990,6 +16035,15 @@
     "country": "US",
     "active": 1,
     "sector": "Mortgage Finance"
+  },
+  {
+    "symbol": "ONON",
+    "type": "STOCK",
+    "currency": "USD",
+    "market": "SMART",
+    "country": "CH",
+    "active": 1,
+    "sector": "Footwear & Accessories"
   },
   {
     "symbol": "OOMA",

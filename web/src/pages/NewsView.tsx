@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Search } from 'lucide-react'
 import { IB_NEWS_ARTICLE_URL, IB_NEWS_URL, IB_STREAM_URL } from '../ibStream'
 import { SENTIMENT_LABEL, fmtNewsTime, sentimentClass } from '../news'
+import type { Article, ArticlesByTicker, FlatArticle, PositionsByTicker } from '../interfaces/INewsView'
 
 const PAGE_SIZE = 100
 
@@ -11,8 +12,8 @@ const PAGE_SIZE = 100
 // across every ticker, re-sorted newest first globally -- per-ticker
 // order alone doesn't give one combined chronological order across
 // tickers.
-function flattenNews(byTicker) {
-  const rows = []
+function flattenNews(byTicker: ArticlesByTicker): FlatArticle[] {
+  const rows: FlatArticle[] = []
   for (const [ticker, articles] of Object.entries(byTicker)) {
     for (const a of articles) rows.push({ ticker, ...a })
   }
@@ -20,13 +21,20 @@ function flattenNews(byTicker) {
   return rows
 }
 
+interface ArticleBody {
+  open: boolean
+  text: string | null
+  error: string | null
+  loading: boolean
+}
+
 // One headline row, lazily expandable to its full article body (same
 // GET /api/news/article, on-demand-only pattern as Asset.jsx's NewsItem —
 // see IBApp.get_news_article_async for why this is never bulk-fetched).
 // Rendered as two <tr>s so the expanded body row can span the whole table
 // width instead of squeezing into the Headline column.
-function NewsRow({ article }) {
-  const [body, setBody] = useState({ open: false, text: null, error: null, loading: false })
+function NewsRow({ article }: { article: FlatArticle }) {
+  const [body, setBody] = useState<ArticleBody>({ open: false, text: null, error: null, loading: false })
 
   function toggle() {
     if (!body.open) {
@@ -67,7 +75,7 @@ function NewsRow({ article }) {
           </a>
         </td>
         <td className={`col-left news-sentiment ${sentimentClass(article.sentiment)}`}>
-          {SENTIMENT_LABEL[article.sentiment] || '—'}
+          {(article.sentiment !== null && (SENTIMENT_LABEL as Record<number, string>)[article.sentiment]) || '—'}
         </td>
         <td className="col-left">{article.provider}</td>
         <td className="col-left news-headline-expandable" onClick={toggle}>
@@ -95,8 +103,8 @@ function NewsRow({ article }) {
 // news UI (Asset.jsx's NewsPanel, NewsPopup.jsx): a missing/unreachable
 // server just means an empty state, not a page error.
 export default function NewsView() {
-  const [rows, setRows] = useState(null)
-  const [error, setError] = useState(null)
+  const [rows, setRows] = useState<FlatArticle[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const [page, setPage] = useState(0)
   const [tickerFilter, setTickerFilter] = useState('')
   // Neutral (score 3) headlines are mostly routine filings/dividend
@@ -111,7 +119,7 @@ export default function NewsView() {
   // no server running just means the filter checkbox below has nothing
   // to show as "held", same "empty state, not an error" treatment the
   // rest of this page's news fetch already uses.
-  const [positions, setPositions] = useState({})
+  const [positions, setPositions] = useState<PositionsByTicker>({})
   const [heldOnly, setHeldOnly] = useState(false)
 
   useEffect(() => {
@@ -131,7 +139,7 @@ export default function NewsView() {
         if (!r.ok) throw new Error(`${r.status} ${r.statusText}`)
         return r.json()
       })
-      .then((all) => {
+      .then((all: ArticlesByTicker) => {
         if (!cancelled) setRows(flattenNews(all))
       })
       .catch((e) => {
@@ -214,13 +222,13 @@ export default function NewsView() {
       )}
       {!error && rows === null && <div className="asset-card">Loading…</div>}
       {!error && rows && rows.length === 0 && <div className="asset-card">No news available.</div>}
-      {!error && rows && rows.length > 0 && byTicker.length === 0 && (
+      {!error && rows && rows.length > 0 && byTicker && byTicker.length === 0 && (
         <div className="asset-card">
           No news for{tickerQuery ? ` "${tickerFilter.trim()}"` : ''}
           {heldOnly ? (tickerQuery ? ' among held positions' : ' any held position') : ''}.
         </div>
       )}
-      {!error && byTicker && byTicker.length > 0 && filtered.length === 0 && (
+      {!error && byTicker && byTicker.length > 0 && filtered && filtered.length === 0 && (
         <div className="asset-card">
           All {byTicker.length} matching headline{byTicker.length === 1 ? ' is' : 's are'} neutral — check "Show
           neutral news" above to see them.

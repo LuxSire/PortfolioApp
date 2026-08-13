@@ -1334,20 +1334,25 @@ class IBApp:
         (period=1mo), regression-momentum on that alone. None only if
         neither source has enough closes.
 
-        mean_reversion: the NEGATED regression-momentum on the hourly IB
-        Gateway series (hourly_by_ticker -- see
-        ib_price_server.py's price_history_hourly.json, only fetched for
-        CANDLESTICK_TOP_N ranked/held tickers, not the whole universe)
-        when it has at least MIN_HOURLY_BARS_FOR_BLEND bars -- a
-        short-term trend/momentum reading treated as a mean-reversion
-        signal instead of a second momentum vote, since a stock that's
-        run up hard in the last few hours/days is, on this timeframe,
-        more likely due for a pullback than to keep accelerating in the
-        same direction the (separate) daily momentum factor already
-        captures. There's no fallback data source for hourly bars the
-        way momentum has one (the yfinance call here is daily-only), so
-        this is None for any ticker IB Gateway hasn't fetched hourly
-        candlesticks for.
+        mean_reversion: the SAME regression-momentum formula as `momentum`
+        above, just measured on the hourly IB Gateway series
+        (hourly_by_ticker -- see ib_price_server.py's
+        price_history_hourly.json, only fetched for CANDLESTICK_TOP_N
+        ranked/held tickers, not the whole universe) instead of the daily
+        one, when it has at least MIN_HOURLY_BARS_FOR_BLEND bars -- a
+        second, short-term-timeframe momentum reading, same sign
+        convention as `momentum` (positive = hourly uptrend, negative =
+        hourly downtrend), used as an entry-timing signal rather than a
+        second momentum vote: a stock already trending up hard on THIS
+        timeframe is, read against a long entry, a stock you'd be chasing
+        (bad timing) rather than catching early, and read against a long
+        that's already held, a stock that may be due for a pullback
+        (worth a look) -- see RecommendationsView.tsx's
+        meanReversionOkForLong/meanReversionOkForShort and
+        buildCloseReasons for exactly how each side reads this sign.
+        There's no fallback data source for hourly bars the way momentum
+        has one (the yfinance call here is daily-only), so this is None
+        for any ticker IB Gateway hasn't fetched hourly candlesticks for.
 
         The yfinance fetch happens for every ticker regardless of which
         source `momentum` ends up using, since other parts of this app
@@ -1369,8 +1374,7 @@ class IBApp:
             hourly_series = hourly_by_ticker.get(symbol)
             if not hourly_series or len(hourly_series) < MIN_HOURLY_BARS_FOR_BLEND:
                 return None
-            hourly_mom = _regression_momentum([b["close"] for b in hourly_series], TRADING_HOURS_PER_YEAR)
-            return None if hourly_mom is None else -hourly_mom
+            return _regression_momentum([b["close"] for b in hourly_series], TRADING_HOURS_PER_YEAR)
 
         def fetch(symbol):
             ib_mom = ib_daily_momentum(symbol)

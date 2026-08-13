@@ -1,20 +1,21 @@
 import { useEffect, useState } from 'react'
 import { IB_STREAM_URL } from '../ibStream'
 import { parseCSV } from '../csv'
+import type { TickerInfoByTicker, TradeRow, TradesByTicker } from '../interfaces/ITradesView'
 
 // Whole numbers for the vast majority of fills; only show decimals for a
 // rare fractional-share trade.
-function fmtShares(v) {
+function fmtShares(v: number | null | undefined): string {
   if (v === null || v === undefined) return '—'
   return (v >= 0 ? '+' : '') + v.toLocaleString(undefined, { maximumFractionDigits: Number.isInteger(v) ? 0 : 4 })
 }
 
-function fmtMoney(v) {
+function fmtMoney(v: number | null | undefined): string {
   if (v === null || v === undefined) return '—'
   return (v >= 0 ? '+$' : '-$') + Math.abs(v).toLocaleString(undefined, { maximumFractionDigits: 0 })
 }
 
-function fmtPrice(v) {
+function fmtPrice(v: number | null | undefined): string {
   if (v === null || v === undefined) return '—'
   return '$' + v.toFixed(2)
 }
@@ -35,20 +36,20 @@ function fmtPrice(v) {
 // fill live (see get_today_executions_async's own docstring) -- a real
 // $0 realized (e.g. a trade that only added to a position, closing
 // nothing) is a meaningful reading, kept distinct from "unknown."
-function pnlClass(v) {
+function pnlClass(v: number | null | undefined): string {
   if (v === null || v === undefined) return ''
   return v >= 0 ? 'perf-pos' : 'perf-neg'
 }
 
 export default function TradesView() {
-  const [trades, setTrades] = useState({})
-  const [tickerInfo, setTickerInfo] = useState({})
+  const [trades, setTrades] = useState<TradesByTicker>({})
+  const [tickerInfo, setTickerInfo] = useState<TickerInfoByTicker>({})
 
   useEffect(() => {
     fetch('/sorted_screen.csv')
       .then((r) => (r.ok ? r.text() : ''))
       .then((text) => {
-        const info = {}
+        const info: TickerInfoByTicker = {}
         for (const row of parseCSV(text)) {
           info[row.ticker] = { name: row.name }
         }
@@ -69,7 +70,7 @@ export default function TradesView() {
     return () => source.close()
   }, [])
 
-  const rows = Object.entries(trades)
+  const rows: TradeRow[] = Object.entries(trades)
     .map(([ticker, t]) => ({
       ticker,
       name: tickerInfo[ticker]?.name ?? null,

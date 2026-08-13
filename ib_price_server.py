@@ -172,8 +172,20 @@ from urllib.parse import parse_qs, urlparse
 from dateutil.parser import isoparse
 
 from IBApp import IBApp
-from main import RATED_FOR_EXTRAS, SORTED_SCREEN_CSV, load_rated_tickers, load_top_tickers
+from main import (
+    OUTPUT_CSV,
+    RATED_FOR_EXTRAS,
+    RAW_DATA_FILE,
+    SORTED_SCREEN_CSV,
+    SYMBOLS_FILE,
+    load_rated_tickers,
+    load_top_tickers,
+)
+from main import PRICE_HISTORY_FILE as YAHOO_PRICE_HISTORY_FILE
 from news_sentiment import clean_headline, score_headlines
+from sec_edgar import FORM4_FILE, THIRTEENF_FILE, XBRL_FACTS_FILE
+from social_sentiment import SENTIMENT_FILE
+from theme_classifier import TAXONOMY_FILE, TICKER_THEMES_FILE
 
 MAX_STREAMED_SYMBOLS = 99  # this account's real ceiling — 100 hits IB error 101, "Max number of tickers has been reached"
 # Every JSON file this process writes lives here -- see main.py's DATA_DIR
@@ -188,6 +200,137 @@ DAILY_HISTORY_FILE = os.path.join(DATA_DIR, "price_history_daily_3mo.json")
 PORTFOLIO_PERFORMANCE_FILE = os.path.join(DATA_DIR, "portfolio_performance.json")
 NEWS_FILE = os.path.join(DATA_DIR, "news.json")
 NEWS_SENTIMENT_FILE = os.path.join(DATA_DIR, "news_sentiment.json")
+RECOMMENDATIONS_FILE = os.path.join(DATA_DIR, "recommendations.json")
+
+# GET /api/dataset-status (see _handle_dataset_status) -- every generated
+# file the web app's Dataset tab reports on, paired with the exact command
+# that regenerates it (None for a hand-maintained input no command
+# produces) and a one-line note on what that command needs (network,
+# live IB Gateway, or neither). This is the single place that pairing is
+# defined; the endpoint just stat()s each path at request time -- nothing
+# here is refreshed on a timer, so the tab always reflects the real files
+# on disk, not a cached snapshot of them.
+DATASETS = [
+    {
+        "path": SORTED_SCREEN_CSV,
+        "label": "Screener ranking",
+        "command": "python main.py all",
+        "notes": "or `prices` (lighter, skips fresh-within-FRESH_HOURS tickers) / `rescore` (offline, no fetch, just re-ranks what's already downloaded)",
+        "network": "Yahoo Finance",
+    },
+    {
+        "path": OUTPUT_CSV,
+        "label": "Forward P/E (raw, unranked)",
+        "command": "python main.py all",
+        "notes": "or `prices`",
+        "network": "Yahoo Finance",
+    },
+    {
+        "path": SYMBOLS_FILE,
+        "label": "Symbol universe",
+        "command": None,
+        "notes": "hand-maintained input -- not written by any command",
+        "network": None,
+    },
+    {
+        "path": RAW_DATA_FILE,
+        "label": "Raw Yahoo Finance payloads",
+        "command": "python main.py all",
+        "notes": "or `prices` / `symbol TICKER ...`",
+        "network": "Yahoo Finance",
+    },
+    {
+        "path": YAHOO_PRICE_HISTORY_FILE,
+        "label": "Daily price history, 1mo (Yahoo)",
+        "command": "python main.py all",
+        "notes": "or `prices` / `symbol TICKER ...`",
+        "network": "Yahoo Finance",
+    },
+    {
+        "path": HOURLY_HISTORY_FILE,
+        "label": "Hourly candlesticks (IB Gateway)",
+        "command": None,
+        "notes": "written by this server's own startup task (fetch_candlestick_history) -- no one-shot command; restart the server to refresh",
+        "network": "Live IB Gateway",
+    },
+    {
+        "path": DAILY_HISTORY_FILE,
+        "label": "Daily candlesticks, 3mo (IB Gateway)",
+        "command": None,
+        "notes": "same as Hourly candlesticks -- one combined fetch",
+        "network": "Live IB Gateway",
+    },
+    {
+        "path": SENTIMENT_FILE,
+        "label": "Social sentiment (StockTwits)",
+        "command": "python main.py all",
+        "notes": "only `all`, not `prices`",
+        "network": "StockTwits",
+    },
+    {
+        "path": NEWS_FILE,
+        "label": "News headlines",
+        "command": None,
+        "notes": "written by this server's own news_loop while it's running -- no one-shot command",
+        "network": "Live IB Gateway",
+    },
+    {
+        "path": NEWS_SENTIMENT_FILE,
+        "label": "News sentiment (FinBERT)",
+        "command": None,
+        "notes": "same as News headlines -- scored as part of the same loop",
+        "network": "Live IB Gateway",
+    },
+    {
+        "path": FORM4_FILE,
+        "label": "Insider transactions (SEC Form 4)",
+        "command": "python main.py form4",
+        "notes": None,
+        "network": "SEC EDGAR",
+    },
+    {
+        "path": XBRL_FACTS_FILE,
+        "label": "Company financials (SEC XBRL)",
+        "command": "python main.py xbrl",
+        "notes": None,
+        "network": "SEC EDGAR",
+    },
+    {
+        "path": THIRTEENF_FILE,
+        "label": "Institutional holdings (13F)",
+        "command": "python main.py 13f",
+        "notes": "bulk SEC download, ~90MB",
+        "network": "SEC EDGAR",
+    },
+    {
+        "path": TAXONOMY_FILE,
+        "label": "Theme taxonomy",
+        "command": None,
+        "notes": "hand-maintained input -- not written by any command",
+        "network": None,
+    },
+    {
+        "path": TICKER_THEMES_FILE,
+        "label": "Ticker → theme classification",
+        "command": "python main.py themes [TICKER ...]",
+        "notes": "no tickers given classifies every held position (needs a live IB Gateway connection just to list them); with tickers, fully offline",
+        "network": "Live IB Gateway only when run with no tickers",
+    },
+    {
+        "path": RECOMMENDATIONS_FILE,
+        "label": "Recommendations",
+        "command": "python main.py recommendations",
+        "notes": "offline, reads only files already on disk; also auto-rebuilt now by anything that rewrites Screener ranking (all/prices/rescore/symbol)",
+        "network": None,
+    },
+    {
+        "path": PORTFOLIO_PERFORMANCE_FILE,
+        "label": "Portfolio performance (Flex Query)",
+        "command": "python ib_price_server.py performance [YYYY-MM-DD]",
+        "notes": "also auto-refreshed every 6h by the running server",
+        "network": "IBKR Flex Web Service (not IB Gateway)",
+    },
+]
 # The query's own range starts 2026-06-30/07-01, but that first day (and
 # the bare baseline row before it) isn't a real trading day's worth of
 # activity in this account, so the Portfolio tab starts from here instead.
@@ -1480,6 +1623,8 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(snapshot)
         elif parsed.path == "/api/news/article":
             self._handle_news_article(parse_qs(parsed.query))
+        elif parsed.path == "/api/dataset-status":
+            self._handle_dataset_status()
         else:
             self.send_response(404)
             self.end_headers()
@@ -1594,6 +1739,42 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+
+    def _handle_dataset_status(self):
+        """GET /api/dataset-status -> {"files": [{path, label, command,
+        notes, network, exists, mtime (ISO 8601 UTC, None if missing),
+        sizeBytes}, ...]} -- one entry per DATASETS descriptor, in that
+        list's order (the web app's Dataset tab renders it as-is, no
+        client-side sort). Reads mtime/size straight off disk on every
+        request rather than caching -- this endpoint is a diagnostic the
+        user opens occasionally, not something polled, so there's no
+        reason to trade staleness for speed here the way /api/stream's
+        own snapshot does."""
+        files = []
+        for entry in DATASETS:
+            path = entry["path"]
+            try:
+                st = os.stat(path)
+                exists = True
+                mtime = datetime.fromtimestamp(st.st_mtime, tz=timezone.utc).isoformat()
+                size_bytes = st.st_size
+            except FileNotFoundError:
+                exists = False
+                mtime = None
+                size_bytes = None
+            files.append(
+                {
+                    "path": path,
+                    "label": entry["label"],
+                    "command": entry["command"],
+                    "notes": entry["notes"],
+                    "network": entry["network"],
+                    "exists": exists,
+                    "mtime": mtime,
+                    "sizeBytes": size_bytes,
+                }
+            )
+        self._send_json({"files": files})
 
     def _handle_stream(self):
         self.send_response(200)

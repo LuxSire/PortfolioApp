@@ -1,12 +1,14 @@
 import { useState } from 'react'
-import PeTable from './components/PeTable'
-import PositionsView from './components/PositionsView'
-import TradesView from './components/TradesView'
-import PortfolioView from './components/PortfolioView'
-import NewsView from './components/NewsView'
-import ThemesView from './components/ThemesView'
-import SectorsView from './components/SectorsView'
-import RecommendationsView from './components/RecommendationsView'
+import ScreenerView from './pages/ScreenerView'
+import PositionsView from './pages/PositionsView'
+import TradesView from './pages/TradesView'
+import PortfolioView from './pages/PortfolioView'
+import NewsView from './pages/NewsView'
+import ThemesView from './pages/ThemesView'
+import SectorsView from './pages/SectorsView'
+import HoldersView from './pages/HoldersView'
+import RecommendationsView from './pages/RecommendationsView'
+import DatasetView from './pages/DatasetView'
 
 const TABS = [
   { key: 'screener', label: 'Screener' },
@@ -16,7 +18,9 @@ const TABS = [
   { key: 'news', label: 'News' },
   { key: 'themes', label: 'Themes' },
   { key: 'sectors', label: 'Sectors' },
+  { key: 'holders', label: 'Holders' },
   { key: 'recommendations', label: 'Recommendations' },
+  { key: 'dataset', label: 'Dataset' },
 ]
 
 export default function App() {
@@ -37,14 +41,16 @@ export default function App() {
         ))}
       </div>
 
-      {tab === 'screener' && <PeTable />}
+      {tab === 'screener' && <ScreenerView />}
       {tab === 'positions' && <PositionsView />}
       {tab === 'trades' && <TradesView />}
       {tab === 'portfolio' && <PortfolioView />}
       {tab === 'news' && <NewsView />}
       {tab === 'themes' && <ThemesView />}
       {tab === 'sectors' && <SectorsView />}
+      {tab === 'holders' && <HoldersView />}
       {tab === 'recommendations' && <RecommendationsView />}
+      {tab === 'dataset' && <DatasetView />}
     </div>
   )
 }

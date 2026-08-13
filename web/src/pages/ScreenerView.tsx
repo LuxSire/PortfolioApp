@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { Search, ChevronDown, ExternalLink, Info, Newspaper, X } from 'lucide-react'
 import { inverseRangeClass, inversePctThresholdClass, rangeClass } from '../colorRules'
 import { parseCSV } from '../csv'
@@ -22,6 +22,14 @@ import {
   ratingClass,
   toNum,
 } from '../screenerFactors'
+import type {
+  HistoryByTicker,
+  LivePricesByTicker,
+  PositionsByTicker,
+  RawScreenerRow,
+  ScreenerRow,
+  StickyHeaderState,
+} from '../interfaces/IScreenerView'
 
 const PAGE_SIZE = 100
 
@@ -33,7 +41,7 @@ const PAGE_SIZE = 100
 // prior close silently understates or misreports the day's actual move.
 // Same helper as PositionsView.jsx's — see there for the fuller history
 // of why this matters (it's what made ARKK's P&L wrong before).
-function previousClose(series) {
+function previousClose(series: { date: string; close: number }[] | undefined): number | null {
   if (!series || series.length === 0) return null
   const today = new Date().toISOString().slice(0, 10)
   for (let i = series.length - 1; i >= 0; i--) {
@@ -44,12 +52,12 @@ function previousClose(series) {
 
 // Share counts are whole numbers for the vast majority of IBKR positions;
 // only show decimals for the rare fractional-share holding.
-function fmtShares(v) {
+function fmtShares(v: number | null): string {
   if (v === null) return '—'
   return v.toLocaleString(undefined, { maximumFractionDigits: Number.isInteger(v) ? 0 : 2 })
 }
 
-function fmtMoney(v) {
+function fmtMoney(v: number | null): string {
   if (v === null) return '—'
   return '$' + v.toLocaleString(undefined, { maximumFractionDigits: 0 })
 }
@@ -58,7 +66,7 @@ function fmtMoney(v) {
 // the last 12h" server-side); the table only needs the date portion --
 // except for today, where the date alone doesn't distinguish "updated 5
 // minutes ago" from "updated this morning", so show the time instead.
-function fmtDate(v) {
+function fmtDate(v: string | null): string {
   if (!v) return '—'
   const d = new Date(v)
   const now = new Date()
@@ -74,12 +82,12 @@ function fmtDate(v) {
 // is better" direction as the raw rank it replaces (and the composite
 // score itself). null for an unranked row (see rankedTotal's own
 // comment) rather than a nonsensical >100% figure.
-function fmtPercentileRank(rank, total) {
+function fmtPercentileRank(rank: number | null, total: number): string {
   if (rank === null || rank === undefined || !total) return '—'
   return ((rank / total) * 100).toFixed(2) + '%'
 }
 
-function percentileRankTooltip(rank, total) {
+function percentileRankTooltip(rank: number | null, total: number): string | undefined {
   if (rank === null || rank === undefined || !total) return undefined
   return `#${rank} of ${total} ranked`
 }
@@ -88,14 +96,14 @@ function percentileRankTooltip(rank, total) {
 // name when the column truncates it; fold the earnings date in as
 // human-readable text rather than leaving readers to decode the color tier
 // (or the raw epoch seconds backing it) on their own.
-function nameTooltip(r) {
+function nameTooltip(r: ScreenerRow): string {
   if (r.ern === null) return r.n
   return `${r.n} — earnings ${fmtEarningsDate(r.ern)}`
 }
 
-function targetTooltip(r) {
+function targetTooltip(r: ScreenerRow): string | undefined {
   if (r.tgtLow === null && r.tgtHigh === null && r.numAnalysts === null) return undefined
-  const parts = []
+  const parts: string[] = []
   if (r.tgtLow !== null || r.tgtHigh !== null) {
     parts.push(`Range ${fmtPrice(r.tgtLow)} – ${fmtPrice(r.tgtHigh)}`)
   }
@@ -105,14 +113,14 @@ function targetTooltip(r) {
   return parts.join(' · ')
 }
 
-function sentimentTooltip(r) {
+function sentimentTooltip(r: ScreenerRow): string | undefined {
   if (r.sentBullish === null && r.sentBearish === null) return undefined
   const parts = [`${r.sentBullish ?? 0} bullish · ${r.sentBearish ?? 0} bearish`]
   if (r.sentTotal !== null) parts.push(`${r.sentTotal} recent messages`)
   return parts.join(' · ')
 }
 
-function newsSentimentTooltip(r) {
+function newsSentimentTooltip(r: ScreenerRow): string | undefined {
   if (!r.newsSentCount) return undefined
   return `${r.newsSentCount} headline${r.newsSentCount === 1 ? '' : 's'} scored (FinBERT, last month)`
 }
@@ -120,7 +128,7 @@ function newsSentimentTooltip(r) {
 // The "90 days" here matches sec_edgar.py's FORM4_LOOKBACK_DAYS -- kept
 // in sync by hand, since there's no shared constant across the Python/JS
 // boundary.
-function insidersTooltip(r) {
+function insidersTooltip(r: ScreenerRow): string | undefined {
   if (!r.insiderBuys && !r.insiderSells) return undefined
   return `${r.insiderBuys} open-market buy${r.insiderBuys === 1 ? '' : 's'} · ${r.insiderSells} sale${r.insiderSells === 1 ? '' : 's'} (SEC Form 4, last 90 days)`
 }
@@ -128,12 +136,12 @@ function insidersTooltip(r) {
 // r.instChange itself gets overwritten by the rank-to-[-100,100] pass
 // (see the useEffect below) same as mom/mr/sent/newsSent/insiders, so the
 // actual raw percent is kept separately in instChangeRaw just for this.
-function instChangeTooltip(r) {
+function instChangeTooltip(r: ScreenerRow): string | undefined {
   if (r.instChangeRaw === null) return undefined
   return `${(r.instChangeRaw * 100).toFixed(1)}% change in institutional shares held vs. last quarter (SEC 13F)`
 }
 
-function zacksUrl(ticker) {
+function zacksUrl(ticker: string): string {
   const t = encodeURIComponent(ticker)
   return `https://www.zacks.com/stock/quote/${t}`
 }
@@ -141,7 +149,7 @@ function zacksUrl(ticker) {
 // A real popup window (fixed size, no browser chrome), not just a new
 // background tab — the point is a quick side-by-side look at Zacks'
 // quote page without losing your place in the screener.
-function openZacksPopup(e, ticker) {
+function openZacksPopup(e: React.MouseEvent, ticker: string) {
   e.preventDefault()
   window.open(zacksUrl(ticker), `zacks_${ticker}`, 'width=1000,height=800,noopener,noreferrer')
 }
@@ -150,54 +158,74 @@ function openZacksPopup(e, ticker) {
 // no tab bar — a relative hash href, resolved against this page's own
 // origin/path by the browser, same pattern as the ticker-link column
 // linking to #/asset/TICKER just without a page navigation.
-function newsPopupHref(ticker) {
+function newsPopupHref(ticker: string): string {
   return `#/news/${encodeURIComponent(ticker)}`
 }
 
 // Same real-popup-window treatment as openZacksPopup, just narrower and
 // taller — a table of headlines reads better tall than wide.
-function openNewsPopup(e, ticker) {
+function openNewsPopup(e: React.MouseEvent, ticker: string) {
   e.preventDefault()
   window.open(newsPopupHref(ticker), `news_${ticker}`, 'width=640,height=780,noopener,noreferrer')
 }
 
-function Subrank({ rank }) {
+function Subrank({ rank }: { rank: number | null | undefined }) {
   if (rank === null || rank === undefined) return null
   return <span className="subrank">{rank}</span>
 }
 
 // 1-indexed rank per ticker (best = 1); rows failing filterFn or missing a
 // value are left out of the map entirely (no subrank shown for them).
-function rankAscending(rows, key, filterFn) {
-  const valid = rows.filter((r) => r[key] !== null && (!filterFn || filterFn(r[key])))
-  valid.sort((a, b) => a[key] - b[key])
-  const map = new Map()
+function rankAscending(
+  rows: ScreenerRow[] | RawScreenerRow[],
+  key: keyof RawScreenerRow,
+  filterFn?: (v: number) => boolean
+): Map<string, number> {
+  const valid = rows.filter((r) => r[key] !== null && (!filterFn || filterFn(r[key] as number)))
+  valid.sort((a, b) => (a[key] as number) - (b[key] as number))
+  const map = new Map<string, number>()
   valid.forEach((r, i) => map.set(r.t, i + 1))
   return map
 }
 
-function rankDescending(rows, key) {
+function rankDescending(rows: ScreenerRow[] | RawScreenerRow[], key: keyof RawScreenerRow): Map<string, number> {
   const valid = rows.filter((r) => r[key] !== null)
-  valid.sort((a, b) => b[key] - a[key])
-  const map = new Map()
+  valid.sort((a, b) => (b[key] as number) - (a[key] as number))
+  const map = new Map<string, number>()
   valid.forEach((r, i) => map.set(r.t, i + 1))
   return map
 }
 
-function useOutsideClick(ref, onOutside) {
+function useOutsideClick(ref: RefObject<HTMLElement | null>, onOutside: () => void) {
   useEffect(() => {
-    function handler(e) {
-      if (ref.current && !ref.current.contains(e.target)) onOutside()
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) onOutside()
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [ref, onOutside])
 }
 
-function FilterDropdown({ noun, plural, items, selected, onToggle, onClear, getIcon }) {
+function FilterDropdown({
+  noun,
+  plural,
+  items,
+  selected,
+  onToggle,
+  onClear,
+  getIcon,
+}: {
+  noun: string
+  plural?: string
+  items: [string, number][]
+  selected: Set<string>
+  onToggle: (name: string) => void
+  onClear: () => void
+  getIcon?: (name: string) => React.ComponentType<{ size?: number }>
+}) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
-  const wrapRef = useRef(null)
+  const wrapRef = useRef<HTMLDivElement>(null)
   useOutsideClick(wrapRef, () => setOpen(false))
   const pluralNoun = plural || `${noun}s`
 
@@ -274,7 +302,7 @@ const SCORE_FACTORS = [
   {
     label: 'Short-term mean reversion',
     weight: 5,
-    note: 'negated hourly-timeframe regression-slope trend; high is better (a stock that ran up hard on the hour/day timeframe is due for a pullback)',
+    note: 'same regression-slope trend formula as Momentum, just on the hourly timeframe; low is better (a stock already trending up hard on the hour is one being chased, not caught early)',
   },
   {
     label: 'EPS trend',
@@ -325,8 +353,18 @@ const SCORE_FACTORS = [
 // as an explicit inline width per <th>, in COLUMNS order — used only by
 // the clone, to hold each column's rendered width steady once measured
 // (the real header keeps its normal table-layout: auto sizing).
-function HeaderCells({ sortKey, sortDir, onSort, widths }) {
-  return COLUMNS.map((col, i) => {
+function HeaderCells({
+  sortKey,
+  sortDir,
+  onSort,
+  widths,
+}: {
+  sortKey: string
+  sortDir: number
+  onSort: (key: string) => void
+  widths?: number[]
+}) {
+  return COLUMNS.map((col: { key: string; label: string; className?: string; sortable?: boolean }, i: number) => {
     const sortable = col.sortable !== false
     const active = sortKey === col.key
     return (
@@ -365,8 +403,8 @@ function HeaderCells({ sortKey, sortDir, onSort, widths }) {
 // own — see .table-wrap's own comment on why), not IntersectionObserver,
 // since this also needs the live column widths on every check, not just
 // a boolean.
-function useStickyHeaderClone(tableRef) {
-  const [state, setState] = useState({ stuck: false, left: 0, width: 0, widths: [] })
+function useStickyHeaderClone(tableRef: RefObject<HTMLTableElement | null>): StickyHeaderState {
+  const [state, setState] = useState<StickyHeaderState>({ stuck: false, left: 0, width: 0, widths: [] })
 
   useEffect(() => {
     let ticking = false
@@ -374,7 +412,7 @@ function useStickyHeaderClone(tableRef) {
       ticking = false
       const table = tableRef.current
       const thead = table?.querySelector('thead')
-      if (!thead) return
+      if (!thead || !table) return
       const headRect = thead.getBoundingClientRect()
       const tableRect = table.getBoundingClientRect()
       const widths = [...thead.querySelectorAll('th')].map((th) => th.getBoundingClientRect().width)
@@ -399,7 +437,7 @@ function useStickyHeaderClone(tableRef) {
 
 function ScoreFormula() {
   const [open, setOpen] = useState(false)
-  const wrapRef = useRef(null)
+  const wrapRef = useRef<HTMLDivElement>(null)
   useOutsideClick(wrapRef, () => setOpen(false))
 
   return (
@@ -440,20 +478,20 @@ function ScoreFormula() {
   )
 }
 
-export default function PeTable() {
-  const [rawRows, setRawRows] = useState(null)
-  const [error, setError] = useState(null)
+export default function ScreenerView() {
+  const [rawRows, setRawRows] = useState<RawScreenerRow[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
-  const [selectedIndustries, setSelectedIndustries] = useState(new Set())
-  const [selectedGroups, setSelectedGroups] = useState(new Set())
-  const [selectedRatings, setSelectedRatings] = useState(new Set())
+  const [selectedIndustries, setSelectedIndustries] = useState<Set<string>>(new Set())
+  const [selectedGroups, setSelectedGroups] = useState<Set<string>>(new Set())
+  const [selectedRatings, setSelectedRatings] = useState<Set<string>>(new Set())
   const [sortKey, setSortKey] = useState('sc')
   const [sortDir, setSortDir] = useState(1)
-  const [livePrices, setLivePrices] = useState({})
-  const [positions, setPositions] = useState({})
+  const [livePrices, setLivePrices] = useState<LivePricesByTicker>({})
+  const [positions, setPositions] = useState<PositionsByTicker>({})
   const [nonZeroOnly, setNonZeroOnly] = useState(false)
   const [page, setPage] = useState(0)
-  const tableRef = useRef(null)
+  const tableRef = useRef<HTMLTableElement>(null)
   const stickyHeader = useStickyHeaderClone(tableRef)
   // Live current instant — see useNowTick — so the Name cell's earnings-
   // urgency color (earningsUrgencyClass) stays accurate as real time
@@ -466,8 +504,8 @@ export default function PeTable() {
   // main.py) is the fallback for a ticker IB Gateway hasn't fetched
   // history for. Same two files, same fallback order, as
   // PositionsView.jsx.
-  const [dailyHistory3mo, setDailyHistory3mo] = useState({})
-  const [monthlyHistory, setMonthlyHistory] = useState({})
+  const [dailyHistory3mo, setDailyHistory3mo] = useState<HistoryByTicker>({})
+  const [monthlyHistory, setMonthlyHistory] = useState<HistoryByTicker>({})
 
   // ib_price_server.py — a separate always-running local process (not part
   // of this fetch-once pipeline) that pushes IB Gateway last-price ticks
@@ -512,40 +550,40 @@ export default function PeTable() {
       // blank, not a load error.
       fetch('/social_sentiment.json')
         .then((r) => (r.ok ? r.json() : {}))
-        .catch(() => ({})),
+        .catch(() => ({})) as Promise<Record<string, any>>,
       // Same best-effort contract as social_sentiment.json above, but from
       // ib_price_server.py's news_loop instead of a fetch-once script —
       // may not exist yet (server never run) or only cover tickers that
       // actually had news in the last NEWS_WINDOW_DAYS.
       fetch('/news_sentiment.json')
         .then((r) => (r.ok ? r.json() : {}))
-        .catch(() => ({})),
+        .catch(() => ({})) as Promise<Record<string, any>>,
       // Same RATED_FOR_EXTRAS scope as social_sentiment.json above, from
       // sec_edgar.py's fetch_form4 (`python main.py form4`) instead of
       // the main pipeline — may not exist yet if that's never been run.
       fetch('/sec/form4/insider_transactions.json')
         .then((r) => (r.ok ? r.json() : {}))
-        .catch(() => ({})),
+        .catch(() => ({})) as Promise<Record<string, any>>,
       // Same RATED_FOR_EXTRAS scope, from sec_edgar.py's fetch_13f_holdings
       // (`python main.py 13f`) — pctShareChangeQoQ per ticker, already a
       // single number (no per-article/per-filing averaging needed the way
       // newsSentiment/insiderTransactions above do).
       fetch('/sec/13f/institutional_holdings.json')
         .then((r) => (r.ok ? r.json() : {}))
-        .catch(() => ({})),
-    ])
+        .catch(() => ({})) as Promise<Record<string, any>>,
+    ] as const)
       .then(([text, sentiment, newsSentiment, insiderTransactions, institutionalHoldings]) => {
         // sorted_screen.csv is already ranked best-to-worst by score; capture
         // that as a fixed rank so it doesn't shift when the table is
         // re-sorted or filtered.
-        const parsed = parseCSV(text).map((r, idx) => {
+        const parsed: RawScreenerRow[] = parseCSV(text).map((r: any, idx: number) => {
           const newsSent = avgNewsSentiment(newsSentiment[r.ticker])
           const insiders = avgInsiderScore(insiderTransactions[r.ticker])
           // Simple average of whichever of the two periods is present —
           // both are already the same %-change-ratio scale (see
           // IBApp._eps_revision), unlike e.g. shortRatio/shortPercentOfFloat,
           // which need rank-averaging instead of raw-value averaging.
-          const epsTrendParts = [toNum(r.epsRevision0y), toNum(r.epsRevision1y)].filter((v) => v !== null)
+          const epsTrendParts = [toNum(r.epsRevision0y), toNum(r.epsRevision1y)].filter((v) => v !== null) as number[]
           const epsTrend = epsTrendParts.length
             ? epsTrendParts.reduce((a, b) => a + b, 0) / epsTrendParts.length
             : null
@@ -610,7 +648,7 @@ export default function PeTable() {
         // that was tried first and replaced). Ranking (rankDescending
         // below) is unaffected either way — a monotonic rescale never
         // changes relative order.
-        for (const key of ['mom', 'mr', 'sent', 'newsSent', 'instChange', 'insiders']) {
+        for (const key of ['mom', 'mr', 'sent', 'newsSent', 'instChange', 'insiders'] as const) {
           const ranked = rankTo100(parsed.map((r) => r[key]))
           parsed.forEach((r, i) => {
             r[key] = ranked[i]
@@ -629,17 +667,17 @@ export default function PeTable() {
   // isn't a "low" multiple, it'd just drag the sector average down into
   // meaninglessness.
   const sectorAvgPE = useMemo(() => {
-    if (!rawRows) return new Map()
-    const sums = new Map()
-    const counts = new Map()
+    if (!rawRows) return new Map<string, number>()
+    const sums = new Map<string, number>()
+    const counts = new Map<string, number>()
     for (const r of rawRows) {
       if (r.s && r.fpe !== null && r.fpe > 0) {
         sums.set(r.s, (sums.get(r.s) || 0) + r.fpe)
         counts.set(r.s, (counts.get(r.s) || 0) + 1)
       }
     }
-    const avg = new Map()
-    for (const [s, sum] of sums) avg.set(s, sum / counts.get(s))
+    const avg = new Map<string, number>()
+    for (const [s, sum] of sums) avg.set(s, sum / (counts.get(s) as number))
     return avg
   }, [rawRows])
 
@@ -649,25 +687,25 @@ export default function PeTable() {
   // ranked as "cheap"/"low debt" (most-negative sorting as "best" under a
   // naive ascending rank, the opposite of what it means), matching how
   // main.py's scoring treats them.
-  const fpeRank = useMemo(() => (rawRows ? rankAscending(rawRows, 'fpe', (v) => v > 0) : new Map()), [rawRows])
-  const pegRank = useMemo(() => (rawRows ? rankAscending(rawRows, 'peg', (v) => v > 0) : new Map()), [rawRows])
-  const tpsRank = useMemo(() => (rawRows ? rankAscending(rawRows, 'tps', (v) => v > 0) : new Map()), [rawRows])
-  const pfcfRank = useMemo(() => (rawRows ? rankAscending(rawRows, 'pfcf', (v) => v > 0) : new Map()), [rawRows])
+  const fpeRank = useMemo(() => (rawRows ? rankAscending(rawRows, 'fpe', (v) => v > 0) : new Map<string, number>()), [rawRows])
+  const pegRank = useMemo(() => (rawRows ? rankAscending(rawRows, 'peg', (v) => v > 0) : new Map<string, number>()), [rawRows])
+  const tpsRank = useMemo(() => (rawRows ? rankAscending(rawRows, 'tps', (v) => v > 0) : new Map<string, number>()), [rawRows])
+  const pfcfRank = useMemo(() => (rawRows ? rankAscending(rawRows, 'pfcf', (v) => v > 0) : new Map<string, number>()), [rawRows])
   const evEbitdaRank = useMemo(
-    () => (rawRows ? rankAscending(rawRows, 'evEbitda', (v) => v > 0) : new Map()),
+    () => (rawRows ? rankAscending(rawRows, 'evEbitda', (v) => v > 0) : new Map<string, number>()),
     [rawRows]
   )
-  const deRank = useMemo(() => (rawRows ? rankAscending(rawRows, 'de', (v) => v >= 0) : new Map()), [rawRows])
-  const momRank = useMemo(() => (rawRows ? rankDescending(rawRows, 'mom') : new Map()), [rawRows])
-  const mrRank = useMemo(() => (rawRows ? rankDescending(rawRows, 'mr') : new Map()), [rawRows])
-  const epsTrendRank = useMemo(() => (rawRows ? rankDescending(rawRows, 'epsTrend') : new Map()), [rawRows])
-  const upsideRank = useMemo(() => (rawRows ? rankDescending(rawRows, 'upside') : new Map()), [rawRows])
-  const revgRank = useMemo(() => (rawRows ? rankDescending(rawRows, 'revg') : new Map()), [rawRows])
-  const liqRank = useMemo(() => (rawRows ? rankDescending(rawRows, 'liq') : new Map()), [rawRows])
-  const sentRank = useMemo(() => (rawRows ? rankDescending(rawRows, 'sent') : new Map()), [rawRows])
-  const newsSentRank = useMemo(() => (rawRows ? rankDescending(rawRows, 'newsSent') : new Map()), [rawRows])
-  const instChangeRank = useMemo(() => (rawRows ? rankDescending(rawRows, 'instChange') : new Map()), [rawRows])
-  const insidersRank = useMemo(() => (rawRows ? rankDescending(rawRows, 'insiders') : new Map()), [rawRows])
+  const deRank = useMemo(() => (rawRows ? rankAscending(rawRows, 'de', (v) => v >= 0) : new Map<string, number>()), [rawRows])
+  const momRank = useMemo(() => (rawRows ? rankDescending(rawRows, 'mom') : new Map<string, number>()), [rawRows])
+  const mrRank = useMemo(() => (rawRows ? rankDescending(rawRows, 'mr') : new Map<string, number>()), [rawRows])
+  const epsTrendRank = useMemo(() => (rawRows ? rankDescending(rawRows, 'epsTrend') : new Map<string, number>()), [rawRows])
+  const upsideRank = useMemo(() => (rawRows ? rankDescending(rawRows, 'upside') : new Map<string, number>()), [rawRows])
+  const revgRank = useMemo(() => (rawRows ? rankDescending(rawRows, 'revg') : new Map<string, number>()), [rawRows])
+  const liqRank = useMemo(() => (rawRows ? rankDescending(rawRows, 'liq') : new Map<string, number>()), [rawRows])
+  const sentRank = useMemo(() => (rawRows ? rankDescending(rawRows, 'sent') : new Map<string, number>()), [rawRows])
+  const newsSentRank = useMemo(() => (rawRows ? rankDescending(rawRows, 'newsSent') : new Map<string, number>()), [rawRows])
+  const instChangeRank = useMemo(() => (rawRows ? rankDescending(rawRows, 'instChange') : new Map<string, number>()), [rawRows])
+  const insidersRank = useMemo(() => (rawRows ? rankDescending(rawRows, 'insiders') : new Map<string, number>()), [rawRows])
 
   // Short Interest's subrank blends both ranks the same way main.py's
   // short_interest_ranks does — shortInt (shortPercentOfFloat) and
@@ -675,18 +713,18 @@ export default function PeTable() {
   // are averaged, not the raw values. A ticker missing just one of the
   // two still gets a subrank from whichever it has; only missing both
   // yields no subrank at all.
-  const shortPctRank = useMemo(() => (rawRows ? rankDescending(rawRows, 'shortInt') : new Map()), [rawRows])
+  const shortPctRank = useMemo(() => (rawRows ? rankDescending(rawRows, 'shortInt') : new Map<string, number>()), [rawRows])
   const shortRatioRank = useMemo(
-    () => (rawRows ? rankDescending(rawRows, 'shortRatio') : new Map()),
+    () => (rawRows ? rankDescending(rawRows, 'shortRatio') : new Map<string, number>()),
     [rawRows]
   )
   const shortIntRank = useMemo(() => {
-    const map = new Map()
+    const map = new Map<string, number>()
     for (const r of rawRows || []) {
       const a = shortPctRank.get(r.t) ?? null
       const b = shortRatioRank.get(r.t) ?? null
       if (a === null && b === null) continue
-      map.set(r.t, a === null ? b : b === null ? a : (a + b) / 2)
+      map.set(r.t, a === null ? (b as number) : b === null ? a : (a + b) / 2)
     }
     return map
   }, [rawRows, shortPctRank, shortRatioRank])
@@ -696,25 +734,25 @@ export default function PeTable() {
   // earnings signal) is treated as 200 for this calculation only — the table
   // still displays the real trailingPE value.
   const diffRank = useMemo(() => {
-    if (!rawRows) return new Map()
+    if (!rawRows) return new Map<string, number>()
     const valid = rawRows
       .map((r) => {
         // A non-positive forwardPE is itself a broken input to this
         // factor (see fpeRank above) — excluded here too rather than
         // producing an artificially very-negative diff that would sort
         // as "best".
-        if (r.fpe === null || r.fpe <= 0 || r.tpe === null) return { t: r.t, diff: null }
+        if (r.fpe === null || r.fpe <= 0 || r.tpe === null) return { t: r.t, diff: null as number | null }
         const effectiveTpe = !Number.isFinite(r.tpe) || r.tpe < 0 ? 200 : r.tpe
         return { t: r.t, diff: r.fpe - effectiveTpe }
       })
-      .filter((r) => r.diff !== null)
+      .filter((r): r is { t: string; diff: number } => r.diff !== null)
     valid.sort((a, b) => a.diff - b.diff)
-    const map = new Map()
+    const map = new Map<string, number>()
     valid.forEach((r, i) => map.set(r.t, i + 1))
     return map
   }, [rawRows])
 
-  const rows = useMemo(() => {
+  const rows: ScreenerRow[] | null = useMemo(() => {
     if (!rawRows) return null
     return rawRows.map((r) => ({
       ...r,
@@ -761,9 +799,9 @@ export default function PeTable() {
     insidersRank,
   ])
 
-  const industryCounts = useMemo(() => {
+  const industryCounts: [string, number][] = useMemo(() => {
     if (!rows) return []
-    const counts = new Map()
+    const counts = new Map<string, number>()
     for (const r of rows) counts.set(r.s, (counts.get(r.s) || 0) + 1)
     return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
   }, [rows])
@@ -771,9 +809,9 @@ export default function PeTable() {
   // Broad sector groupings (Technology, Healthcare, etc.) derived from the
   // granular industry — a coarser filter dimension layered on top; every
   // other computation (scoring, subranks, industry avg PE) stays industry-based.
-  const groupCounts = useMemo(() => {
+  const groupCounts: [string, number][] = useMemo(() => {
     if (!rows) return []
-    const counts = new Map()
+    const counts = new Map<string, number>()
     for (const r of rows) {
       const g = getSectorGroup(r.s)
       counts.set(g, (counts.get(g) || 0) + 1)
@@ -786,20 +824,20 @@ export default function PeTable() {
   // more useful to scan here than "biggest bucket first". NA is a real
   // main.py rating value (see RATING_NA), not "no data" — every
   // non-positive-forwardPE ticker gets it explicitly rather than a blank.
-  const ratingCounts = useMemo(() => {
+  const ratingCounts: [string, number][] = useMemo(() => {
     if (!rows) return []
     const order = ['Strong Buy', 'Buy', 'Hold', 'Sell', 'Strong Sell', 'NA']
-    const counts = new Map()
+    const counts = new Map<string, number>()
     for (const r of rows) {
       const key = r.rating || 'NA'
       counts.set(key, (counts.get(key) || 0) + 1)
     }
-    return order.filter((name) => counts.has(name)).map((name) => [name, counts.get(name)])
+    return order.filter((name) => counts.has(name)).map((name) => [name, counts.get(name) as number] as [string, number])
   }, [rows])
 
-  const scoreRange = useMemo(() => {
+  const scoreRange: [number, number] = useMemo(() => {
     if (!rows) return [0, 1]
-    const scores = rows.map((r) => r.sc).filter((v) => v !== null)
+    const scores = rows.map((r) => r.sc).filter((v): v is number => v !== null)
     return [Math.min(...scores), Math.max(...scores)]
   }, [rows])
 
@@ -815,7 +853,7 @@ export default function PeTable() {
     return rows.filter((r) => r.sc !== null).length
   }, [rows])
 
-  const filtered = useMemo(() => {
+  const filtered: ScreenerRow[] = useMemo(() => {
     if (!rows) return []
     const q = search.trim().toLowerCase()
     return rows.filter((r) => {
@@ -831,18 +869,18 @@ export default function PeTable() {
     })
   }, [rows, search, selectedIndustries, selectedGroups, selectedRatings, nonZeroOnly, positions])
 
-  const sorted = useMemo(() => {
+  const sorted: ScreenerRow[] = useMemo(() => {
     const copy = [...filtered]
     copy.sort((a, b) => {
-      const av = a[sortKey]
-      const bv = b[sortKey]
-      if (typeof av === 'string') return av.localeCompare(bv) * sortDir
+      const av = a[sortKey as keyof ScreenerRow]
+      const bv = b[sortKey as keyof ScreenerRow]
+      if (typeof av === 'string') return av.localeCompare(bv as string) * sortDir
       const an = av === null
       const bn = bv === null
       if (an && bn) return 0
       if (an) return 1
       if (bn) return -1
-      return (av - bv) * sortDir
+      return ((av as number) - (bv as number)) * sortDir
     })
     return copy
   }, [filtered, sortKey, sortDir])
@@ -881,20 +919,20 @@ export default function PeTable() {
   )
 
   const stats = useMemo(() => {
-    if (!sorted.length) return { avgScore: null, avgMom: null }
+    if (!sorted.length) return { avgScore: null as number | null, avgMom: null as number | null }
     // Excludes unranked (negative-forwardPE) rows the same way avgMom
     // already excluded a missing momentum — dividing by the full row
     // count while treating a null score as 0 would silently dilute this
     // toward 0 as more unranked rows show up, rather than reflecting the
     // real ranked set's average.
     const scoreVals = sorted.filter((r) => r.sc !== null)
-    const avgScore = scoreVals.length ? scoreVals.reduce((s, r) => s + r.sc, 0) / scoreVals.length : null
+    const avgScore = scoreVals.length ? scoreVals.reduce((s, r) => s + (r.sc as number), 0) / scoreVals.length : null
     const momVals = sorted.filter((r) => r.mom !== null)
-    const avgMom = momVals.length ? momVals.reduce((s, r) => s + r.mom, 0) / momVals.length : null
+    const avgMom = momVals.length ? momVals.reduce((s, r) => s + (r.mom as number), 0) / momVals.length : null
     return { avgScore, avgMom }
   }, [sorted])
 
-  function handleSort(key) {
+  function handleSort(key: string) {
     if (sortKey === key) {
       setSortDir((d) => -d)
     } else {
@@ -903,7 +941,7 @@ export default function PeTable() {
     }
   }
 
-  function toggleIndustry(name) {
+  function toggleIndustry(name: string) {
     setSelectedIndustries((prev) => {
       const next = new Set(prev)
       if (next.has(name)) next.delete(name)
@@ -912,7 +950,7 @@ export default function PeTable() {
     })
   }
 
-  function toggleGroup(name) {
+  function toggleGroup(name: string) {
     setSelectedGroups((prev) => {
       const next = new Set(prev)
       if (next.has(name)) next.delete(name)
@@ -921,7 +959,7 @@ export default function PeTable() {
     })
   }
 
-  function toggleRating(name) {
+  function toggleRating(name: string) {
     setSelectedRatings((prev) => {
       const next = new Set(prev)
       if (next.has(name)) next.delete(name)
@@ -1198,10 +1236,10 @@ export default function PeTable() {
                   </td>
                   <td className="num price-cell">
                     <span className="price-value">{live?.last != null ? fmtPrice(live.last) : fmtPrice(r.p)}</span>
-                    {liveRatio !== null && (
+                    {liveRatio !== null && live && (
                       <span
                         className={`live-price ${liveClass}`}
-                        title={`IB Gateway ${fmtPrice(live.last)} at ${live.timestamp} vs. yesterday's close ${fmtPrice(referencePrice)}`}
+                        title={`IB Gateway ${fmtPrice(live.last ?? null)} at ${live.timestamp} vs. yesterday's close ${fmtPrice(referencePrice)}`}
                       >
                         {fmtPct(liveRatio)}
                       </span>

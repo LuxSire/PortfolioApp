@@ -4,12 +4,19 @@ import { parseCSV } from '../csv'
 import { getSectorGroup, sectorGroupLabel } from '../sectorGroups'
 import { getSectorIcon } from '../sectorIcons'
 import { avgInsiderScore, avgNewsSentiment, rankTo100, toNum } from '../screenerFactors'
-import { FACTOR_COLUMNS, computeFactorAverages } from './factorTable'
+import { FACTOR_COLUMNS, computeFactorAverages } from '../components/factorTable'
 import { IB_STREAM_URL } from '../ibStream'
-import FactorCells from './FactorCells'
-import SectorPosValueChart from './SectorPosValueChart'
+import FactorCells from '../components/FactorCells'
+import SectorPosValueChart from '../components/SectorPosValueChart'
+import type {
+  AssetRow,
+  IndustryGroup,
+  LivePricesByTicker,
+  PositionsByTicker,
+  SectorGroup,
+} from '../interfaces/ISectorsView'
 
-function fmtMoney(v) {
+function fmtMoney(v: number | null | undefined): string {
   if (v === null || v === undefined) return '—'
   return '$' + v.toLocaleString(undefined, { maximumFractionDigits: 0 })
 }
@@ -27,17 +34,17 @@ function fmtMoney(v) {
 // factorTable.js's computeFactorAverages: an "average" of one row is
 // just that row, so no separate leaf-rendering path is needed).
 export default function SectorsView() {
-  const [rawRows, setRawRows] = useState(null)
-  const [error, setError] = useState(null)
-  const [expandedSectors, setExpandedSectors] = useState(new Set())
-  const [expandedIndustries, setExpandedIndustries] = useState(new Set())
+  const [rawRows, setRawRows] = useState<AssetRow[] | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [expandedSectors, setExpandedSectors] = useState<Set<string | null>>(new Set())
+  const [expandedIndustries, setExpandedIndustries] = useState<Set<string>>(new Set())
   // Live IB Gateway prices + account positions — same SSE stream
   // PeTable.jsx/PositionsView.jsx already subscribe to — used only to
   // compute each ticker's Pos Value (possize * live-or-CSV price), same
   // formula PeTable.jsx's own Pos Value column uses. Best-effort: no
   // server running just means every Pos Value shows as held-nothing.
-  const [livePrices, setLivePrices] = useState({})
-  const [positions, setPositions] = useState({})
+  const [livePrices, setLivePrices] = useState<LivePricesByTicker>({})
+  const [positions, setPositions] = useState<PositionsByTicker>({})
 
   useEffect(() => {
     const source = new EventSource(IB_STREAM_URL)
@@ -61,17 +68,17 @@ export default function SectorsView() {
       // sent/newsSent/instChange/insiders is blank, not a load error.
       fetch('/social_sentiment.json')
         .then((r) => (r.ok ? r.json() : {}))
-        .catch(() => ({})),
+        .catch(() => ({})) as Promise<Record<string, any>>,
       fetch('/news_sentiment.json')
         .then((r) => (r.ok ? r.json() : {}))
-        .catch(() => ({})),
+        .catch(() => ({})) as Promise<Record<string, any>>,
       fetch('/sec/form4/insider_transactions.json')
         .then((r) => (r.ok ? r.json() : {}))
-        .catch(() => ({})),
+        .catch(() => ({})) as Promise<Record<string, any>>,
       fetch('/sec/13f/institutional_holdings.json')
         .then((r) => (r.ok ? r.json() : {}))
-        .catch(() => ({})),
-    ])
+        .catch(() => ({})) as Promise<Record<string, any>>,
+    ] as const)
       .then(([text, sentiment, newsSentiment, insiderTransactions, institutionalHoldings]) => {
         // industry's own average forwardPE across the FULL universe (see
         // PeTable.jsx's sectorAvgPE) — computed per raw/granular industry
@@ -79,9 +86,9 @@ export default function SectorsView() {
         // it's actually yfinance's "industry" field), not the broad
         // sectorGroup, matching what main.py's own sector-relative-PE
         // factor compares against.
-        const peSums = new Map()
-        const peCounts = new Map()
-        const parsed = parseCSV(text).map((r) => {
+        const peSums = new Map<string, number>()
+        const peCounts = new Map<string, number>()
+        const parsed: AssetRow[] = parseCSV(text).map((r: any) => {
           const fpe = toNum(r.forwardPE)
           const industry = r.sector || 'Unclassified'
           if (fpe !== null && fpe > 0) {
@@ -92,7 +99,7 @@ export default function SectorsView() {
           const insiders = avgInsiderScore(insiderTransactions[r.ticker])
           // Simple average of whichever of the two periods is present —
           // same treatment as PeTable.jsx/PositionsView.jsx's own epsTrend.
-          const epsTrendParts = [toNum(r.epsRevision0y), toNum(r.epsRevision1y)].filter((v) => v !== null)
+          const epsTrendParts = [toNum(r.epsRevision0y), toNum(r.epsRevision1y)].filter((v) => v !== null) as number[]
           const epsTrend = epsTrendParts.length
             ? epsTrendParts.reduce((a, b) => a + b, 0) / epsTrendParts.length
             : null
@@ -130,14 +137,14 @@ export default function SectorsView() {
         // over this same full sorted_screen.csv universe (before grouping
         // into sector/industry rows below), so the scale matches across
         // every tab rather than being Sectors-only.
-        for (const key of ['mom', 'mr', 'sent', 'newsSent', 'instChange', 'insiders']) {
+        for (const key of ['mom', 'mr', 'sent', 'newsSent', 'instChange', 'insiders'] as const) {
           const ranked = rankTo100(parsed.map((r) => r[key]))
           parsed.forEach((r, i) => {
             r[key] = ranked[i]
           })
         }
-        const avgPE = new Map()
-        for (const [industry, sum] of peSums) avgPE.set(industry, sum / peCounts.get(industry))
+        const avgPE = new Map<string, number>()
+        for (const [industry, sum] of peSums) avgPE.set(industry, sum / (peCounts.get(industry) as number))
         setRawRows(parsed.map((r) => ({ ...r, savgpe: avgPE.get(r.industry) ?? null })))
       })
       .catch((e) => setError(e.message))
@@ -147,7 +154,7 @@ export default function SectorsView() {
   // formula as PeTable.jsx's own Pos Value column. null (not held, or
   // held but unpriced) for the vast majority of the screener universe;
   // only actually held tickers contribute to a group's Pos Value sum.
-  const rows = useMemo(() => {
+  const rows: AssetRow[] | null = useMemo(() => {
     if (!rawRows) return null
     return rawRows.map((r) => {
       const possize = positions[r.t]?.shares ?? null
@@ -163,29 +170,34 @@ export default function SectorsView() {
   // (nulls last), same "lower is better" direction the Screener itself
   // sorts by default, so this reads as "which sector/industry looks best
   // right now" at a glance rather than needing to be re-sorted by hand.
-  const tree = useMemo(() => {
+  const tree: SectorGroup[] = useMemo(() => {
     if (!rows) return []
-    const bySector = new Map()
+    const bySector = new Map<string | null, Map<string, AssetRow[]>>()
     for (const r of rows) {
       if (!bySector.has(r.sectorGroup)) bySector.set(r.sectorGroup, new Map())
-      const byIndustry = bySector.get(r.sectorGroup)
+      const byIndustry = bySector.get(r.sectorGroup) as Map<string, AssetRow[]>
       if (!byIndustry.has(r.industry)) byIndustry.set(r.industry, [])
-      byIndustry.get(r.industry).push(r)
+      ;(byIndustry.get(r.industry) as AssetRow[]).push(r)
     }
-    const byScore = (a, b) => {
+    const byScore = (
+      a: { factors?: Record<string, number | null>; sc?: number | null },
+      b: { factors?: Record<string, number | null>; sc?: number | null }
+    ) => {
       const av = a.factors ? a.factors.sc : a.sc
       const bv = b.factors ? b.factors.sc : b.sc
-      if (av === null && bv === null) return 0
-      if (av === null) return 1
-      if (bv === null) return -1
+      if (av === null || av === undefined) return bv === null || bv === undefined ? 0 : 1
+      if (bv === null || bv === undefined) return -1
       return av - bv
     }
-    const posValSum = (groupRows) => groupRows.reduce((s, r) => s + (r.posval ?? 0), 0)
-    const sectors = [...bySector.entries()].map(([sectorGroup, byIndustry]) => {
+    const posValSum = (groupRows: AssetRow[]) => groupRows.reduce((s, r) => s + (r.posval ?? 0), 0)
+    const sectors: SectorGroup[] = [...bySector.entries()].map(([sectorGroup, byIndustry]) => {
       const sectorRows = [...byIndustry.values()].flat()
-      const { factors, count } = computeFactorAverages(sectorRows, () => 1)
-      const industries = [...byIndustry.entries()].map(([industry, industryRows]) => {
-        const { factors: industryFactors, count: industryCount } = computeFactorAverages(industryRows, () => 1)
+      const { factors, count } = computeFactorAverages(sectorRows, () => 1) as { factors: Record<string, number | null>; count: number }
+      const industries: IndustryGroup[] = [...byIndustry.entries()].map(([industry, industryRows]) => {
+        const { factors: industryFactors, count: industryCount } = computeFactorAverages(industryRows, () => 1) as {
+          factors: Record<string, number | null>
+          count: number
+        }
         return {
           industry,
           count: industryCount,
@@ -205,11 +217,16 @@ export default function SectorsView() {
   // already shown in the table's Pos Value column at the sector level,
   // just derived from `tree` here rather than duplicating the sum.
   const chartData = useMemo(
-    () => tree.map((sector) => ({ sector: sector.sectorGroup, label: sectorGroupLabel(sector.sectorGroup), posValue: sector.posValSum })),
+    () =>
+      tree.map((sector) => ({
+        sector: sector.sectorGroup ?? '',
+        label: sectorGroupLabel(sector.sectorGroup),
+        posValue: sector.posValSum,
+      })),
     [tree]
   )
 
-  function toggleSector(sectorGroup) {
+  function toggleSector(sectorGroup: string | null) {
     setExpandedSectors((prev) => {
       const next = new Set(prev)
       if (next.has(sectorGroup)) next.delete(sectorGroup)
@@ -218,7 +235,7 @@ export default function SectorsView() {
     })
   }
 
-  function toggleIndustry(key) {
+  function toggleIndustry(key: string) {
     setExpandedIndustries((prev) => {
       const next = new Set(prev)
       if (next.has(key)) next.delete(key)
@@ -246,7 +263,7 @@ export default function SectorsView() {
                 <th className="col-left col-name">Group</th>
                 <th># Assets</th>
                 <th>Pos Value</th>
-                {FACTOR_COLUMNS.map((col) => (
+                {FACTOR_COLUMNS.map((col: { key: string; label: string }) => (
                   <th key={col.key}>{col.label}</th>
                 ))}
               </tr>

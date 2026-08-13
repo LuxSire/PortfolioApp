@@ -43,7 +43,18 @@ company name, the only available free join key (the bulk data has no
 ticker field, only CUSIP, and there's no free ticker->CUSIP crosswalk).
 Overwrites the file wholesale each run rather than merging, since a stale
 prior quarter's figures for a ticker outside the current run would
-otherwise linger.
+otherwise linger. Both quarterly bulk .zip files are kept on disk under
+data/sec/ directly (not data/sec/13f/ -- explicit instruction) rather
+than discarded after one use, and reused as-is by a later run that asks
+for the same quarter again instead of re-downloading.
+
+Also writes data/sec/13f/institutional_holders.json: {ticker: [{name,
+valueUsd, shares}, ...]}, sorted by valueUsd descending and capped to
+MAX_HOLDERS_PER_TICKER -- the actual named institutions (e.g. "BERKSHIRE
+HATHAWAY INC") holding each ticker as of the CURRENT quarter only,
+resolved from the same bulk zip's COVERPAGE.tsv (join key
+ACCESSION_NUMBER -> FILINGMANAGER_NAME) that institutional_holdings.json's
+aggregate totals already come from -- no extra download.
 """
 
 import csv
@@ -51,7 +62,6 @@ import io
 import json
 import os
 import re
-import tempfile
 import threading
 import time
 import xml.etree.ElementTree as ET
@@ -73,6 +83,15 @@ CIK_MAP_FILE = os.path.join(SEC_DIR, "company_tickers.json")
 FORM4_FILE = os.path.join(FORM4_DIR, "insider_transactions.json")
 XBRL_FACTS_FILE = os.path.join(XBRL_DIR, "company_facts.json")
 THIRTEENF_FILE = os.path.join(THIRTEENF_DIR, "institutional_holdings.json")
+# Separate file (not merged into THIRTEENF_FILE's per-ticker aggregate) --
+# explicit instruction: named institutional holders, not just the
+# aggregate totals THIRTEENF_FILE already carries. See fetch_13f_holdings.
+THIRTEENF_HOLDERS_FILE = os.path.join(THIRTEENF_DIR, "institutional_holders.json")
+# Per ticker, not a hard SEC limit -- some large-caps have hundreds of
+# 13F filers; capped to the top N by position value to keep
+# THIRTEENF_HOLDERS_FILE a reasonable size (a name/value/shares row per
+# holder, not the full aggregate THIRTEENF_FILE already is).
+MAX_HOLDERS_PER_TICKER = 15
 
 # SEC asks every requester to self-identify; this isn't a credential, just
 # a contact string SEC can use if a script misbehaves.
@@ -534,7 +553,7 @@ def _13f_bulk_urls(n=2):
     return ["https://www.sec.gov" + m for m in matches[:n]]
 
 
-def _aggregate_13f_bulk(url, wanted):
+def _aggregate_13f_bulk(url, wanted, collect_holders=False):
     """Downloads one quarterly bulk 13F dataset (every institutional
     manager's holdings) and aggregates it down to just the issuers in
     `wanted` ({normalized issuer name: ticker}, see
@@ -549,44 +568,106 @@ def _aggregate_13f_bulk(url, wanted):
     share count landed right on Ally Financial's actual per-share price,
     not 1000x off.
 
+    If collect_holders, ALSO returns a second dict, {ticker: [{name,
+    valueUsd, shares}, ...]}, sorted by valueUsd descending and capped to
+    MAX_HOLDERS_PER_TICKER -- the actual institution names, resolved from
+    this same zip's COVERPAGE.tsv (ACCESSION_NUMBER -> FILINGMANAGER_NAME;
+    see SEC's form_13f_readme.pdf ยง5.2) rather than the CUSIP/accession
+    numbers INFOTABLE.tsv alone carries. Only worth reading COVERPAGE.tsv
+    (a second full pass' worth of parsing) when the caller actually wants
+    names -- fetch_13f_holdings only asks for this on the current quarter,
+    not the prior one it only uses for a QoQ delta.
+
+    The downloaded zip is saved to SEC_DIR directly, i.e. data/sec/ (named
+    after the URL's own filename, e.g. "01mar2026-31may2026_form13f.zip")
+    -- not THIRTEENF_DIR/data/sec/13f/, and not a temp file discarded
+    immediately after either -- explicit instruction to keep the raw SEC
+    data on disk under data/sec itself. Reused as-is (no re-download) if a
+    prior run already fetched that exact quarter's file. SUBMISSION.tsv/
+    INFOTABLE.tsv/COVERPAGE.tsv themselves are never extracted to their
+    own loose files -- they're read directly out of the saved zip's
+    entries via zipfile.ZipFile.open, one row at a time (INFOTABLE alone
+    is ~3.5M rows; the zip is the only thing that touches disk).
+
     A single ~90MB download covering every filer at once, unlike Form 4/
-    XBRL's one-request-per-ticker pattern -- streamed straight from the
-    downloaded zip's INFOTABLE.tsv (~3.5M rows) without ever writing the
-    2GB+ uncompressed dataset to disk, and without holding more than one
-    row in memory at a time."""
-    print(f"Downloading quarterly 13F bulk dataset from {url} (~90MB, this can take a while)...", flush=True)
-    resp = _sec_get(url, timeout=180)
-    if resp is None:
-        print(f"Failed to download {url} after 3 attempts.")
-        return {}
+    XBRL's one-request-per-ticker pattern."""
+    local_zip_path = os.path.join(SEC_DIR, os.path.basename(url))
+    if os.path.exists(local_zip_path):
+        print(f"Using already-downloaded {local_zip_path}", flush=True)
+    else:
+        print(f"Downloading quarterly 13F bulk dataset from {url} (~90MB, this can take a while)...", flush=True)
+        resp = _sec_get(url, timeout=180)
+        if resp is None:
+            print(f"Failed to download {url} after 3 attempts.")
+            return ({}, {}) if collect_holders else {}
+        with open(local_zip_path, "wb") as f:
+            f.write(resp.content)
 
     results = {}
     holder_accessions = {}
-    with tempfile.NamedTemporaryFile(suffix=".zip") as tmp:
-        tmp.write(resp.content)
-        tmp.flush()
-        with zipfile.ZipFile(tmp.name) as zf:
-            with zf.open("SUBMISSION.tsv") as f:
-                reader = csv.DictReader(io.TextIOWrapper(f, encoding="utf-8"), delimiter="\t")
-                original_accessions = {row["ACCESSION_NUMBER"] for row in reader if row["SUBMISSIONTYPE"] == "13F-HR"}
-            print(f"{len(original_accessions)} original (non-amendment) 13F-HR filings this quarter", flush=True)
+    holder_rows = {}  # ticker -> {accession_number: {valueUsd, shares}}, collect_holders only
+    with zipfile.ZipFile(local_zip_path) as zf:
+        with zf.open("SUBMISSION.tsv") as f:
+            reader = csv.DictReader(io.TextIOWrapper(f, encoding="utf-8"), delimiter="\t")
+            original_accessions = {row["ACCESSION_NUMBER"] for row in reader if row["SUBMISSIONTYPE"] == "13F-HR"}
+        print(f"{len(original_accessions)} original (non-amendment) 13F-HR filings this quarter", flush=True)
 
-            with zf.open("INFOTABLE.tsv") as f:
+        with zf.open("INFOTABLE.tsv") as f:
+            reader = csv.DictReader(io.TextIOWrapper(f, encoding="utf-8"), delimiter="\t")
+            for row in reader:
+                if row["ACCESSION_NUMBER"] not in original_accessions:
+                    continue
+                ticker = wanted.get(_normalize_issuer_name(row["NAMEOFISSUER"]))
+                if ticker is None:
+                    continue
+                value = int(row["VALUE"] or 0)
+                shares = int(row["SSHPRNAMT"] or 0)
+                agg = results.setdefault(ticker, {"totalValueUsd": 0, "totalShares": 0})
+                agg["totalValueUsd"] += value
+                agg["totalShares"] += shares
+                holder_accessions.setdefault(ticker, set()).add(row["ACCESSION_NUMBER"])
+                if collect_holders:
+                    # A single filer can carry more than one INFOTABLE row
+                    # for the same issuer (split lots, share classes that
+                    # normalize to the same ticker -- see
+                    # _normalize_issuer_name), so this accumulates rather
+                    # than assumes one row per (ticker, accession).
+                    entry = holder_rows.setdefault(ticker, {}).setdefault(
+                        row["ACCESSION_NUMBER"], {"valueUsd": 0, "shares": 0}
+                    )
+                    entry["valueUsd"] += value
+                    entry["shares"] += shares
+
+        filer_name_by_accession = {}
+        if collect_holders:
+            with zf.open("COVERPAGE.tsv") as f:
                 reader = csv.DictReader(io.TextIOWrapper(f, encoding="utf-8"), delimiter="\t")
-                for row in reader:
-                    if row["ACCESSION_NUMBER"] not in original_accessions:
-                        continue
-                    ticker = wanted.get(_normalize_issuer_name(row["NAMEOFISSUER"]))
-                    if ticker is None:
-                        continue
-                    agg = results.setdefault(ticker, {"totalValueUsd": 0, "totalShares": 0})
-                    agg["totalValueUsd"] += int(row["VALUE"] or 0)
-                    agg["totalShares"] += int(row["SSHPRNAMT"] or 0)
-                    holder_accessions.setdefault(ticker, set()).add(row["ACCESSION_NUMBER"])
+                filer_name_by_accession = {
+                    row["ACCESSION_NUMBER"]: row["FILINGMANAGER_NAME"]
+                    for row in reader
+                    if row["ACCESSION_NUMBER"] in original_accessions
+                }
 
     for ticker, accessions in holder_accessions.items():
         results[ticker]["holderCount"] = len(accessions)
-    return results
+
+    if not collect_holders:
+        return results
+
+    holders = {}
+    for ticker, per_accession in holder_rows.items():
+        rows = [
+            {
+                "name": filer_name_by_accession.get(accession, "Unknown filer"),
+                "valueUsd": v["valueUsd"],
+                "shares": v["shares"],
+            }
+            for accession, v in per_accession.items()
+        ]
+        rows.sort(key=lambda r: -r["valueUsd"])
+        holders[ticker] = rows[:MAX_HOLDERS_PER_TICKER]
+
+    return results, holders
 
 
 def fetch_13f_holdings(ticker_names):
@@ -599,11 +680,17 @@ def fetch_13f_holdings(ticker_names):
     institutions net-bought or net-sold, None if the ticker wasn't
     matched in the prior quarter's dataset (e.g. no institutional holders
     that quarter, or a name-matching miss -- see _normalize_issuer_name)
-    or its prior totalShares was 0.
+    or its prior totalShares was 0. Also writes THIRTEENF_HOLDERS_FILE,
+    the named top-MAX_HOLDERS_PER_TICKER institutions per ticker for the
+    CURRENT quarter only (the prior quarter is only ever used for the QoQ
+    delta above, never surfaced by name).
 
     Two ~90MB downloads (current + prior quarter), each a single bulk
     file covering every filer at once -- unlike Form 4/XBRL's
-    one-request-per-ticker pattern."""
+    one-request-per-ticker pattern. Each is cached to disk under
+    THIRTEENF_DIR by _aggregate_13f_bulk, so a rerun for the same quarter
+    (e.g. after this ticker universe changes) doesn't re-download either
+    file."""
     urls = _13f_bulk_urls(2)
     if not urls:
         print("Could not find any 13F bulk dataset URLs -- SEC may have redesigned the listing page.")
@@ -611,7 +698,7 @@ def fetch_13f_holdings(ticker_names):
 
     wanted = {_normalize_issuer_name(name): ticker for ticker, name in ticker_names.items()}
 
-    current = _aggregate_13f_bulk(urls[0], wanted)
+    current, holders = _aggregate_13f_bulk(urls[0], wanted, collect_holders=True)
     prior = _aggregate_13f_bulk(urls[1], wanted) if len(urls) > 1 else {}
     if not prior:
         print("No prior-quarter 13F dataset available -- pctShareChangeQoQ will be None for every ticker.")
@@ -626,5 +713,9 @@ def fetch_13f_holdings(ticker_names):
     with open(THIRTEENF_FILE, "w") as f:
         json.dump(current, f, indent=2)
     print(f"Wrote {THIRTEENF_FILE} ({len(current)}/{len(ticker_names)} tickers matched)")
+
+    with open(THIRTEENF_HOLDERS_FILE, "w") as f:
+        json.dump(holders, f, indent=2)
+    print(f"Wrote {THIRTEENF_HOLDERS_FILE} ({len(holders)} ticker(s), up to {MAX_HOLDERS_PER_TICKER} named holders each)")
 
     return current

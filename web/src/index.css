@@ -14,6 +14,18 @@
   --orange: #c2660f;
   --focus: #2f6f9e;
   --shadow: 0 1px 2px rgba(20, 23, 28, 0.06), 0 8px 24px rgba(20, 23, 28, 0.06);
+  /* PortfolioView.jsx's ExposureChart -- a 3-series categorical palette
+     (Net/Long/Short), NOT --good/--bad: the obvious green/long, red/short
+     mapping was tried first and fails the CVD-separation check on this
+     app's own --good/--bad hexes (light-mode deutan ΔE 5.4, below the 6
+     floor -- see dataviz skill's validate_palette.js). These three are
+     slots 1/3/2 of that skill's own documented default categorical
+     palette (blue/aqua/orange), re-validated against this app's actual
+     surfaces (#ffffff / #171b21) and confirmed passing all-pairs in both
+     modes, not just adjacent. */
+  --viz-net: #2a78d6;
+  --viz-long: #1baf7a;
+  --viz-short: #eb6834;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -33,6 +45,9 @@
     --orange: #e08a3c;
     --focus: #6fa8d4;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35);
+    --viz-net: #3987e5;
+    --viz-long: #199e70;
+    --viz-short: #d95926;
   }
 }
 
@@ -415,23 +430,26 @@ header.masthead .title-block p {
   word-break: break-word;
 }
 
-/* Business Summary + News side by side instead of stacked — flex-start
-   (not the flex default, stretch) so each card sizes to its own content
-   instead of both being forced to match whichever is taller; wraps to a
-   single column below a ~360px-per-card width instead of squishing both
-   arbitrarily narrow. */
-.asset-summary-news-row {
+/* Generic two-card row for Asset.tsx — flex-start (not the flex default,
+   stretch) so each card sizes to its own content instead of both being
+   forced to match whichever is taller; wraps to a single column below a
+   ~360px-per-card width instead of squishing both arbitrarily narrow.
+   Used twice: Business Summary + PriceChart, and Institutional Holders +
+   News (see Asset.tsx) -- the Business Summary card gets the wider 3:2
+   split via its own .asset-summary class; the other three cards (Price
+   History, Institutional Holders, News) split evenly. */
+.asset-two-col-row {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
   gap: 20px;
 }
 
-.asset-summary-news-row .asset-summary {
+.asset-two-col-row .asset-summary {
   flex: 3 1 360px;
 }
 
-.asset-summary-news-row .asset-card:not(.asset-summary) {
+.asset-two-col-row .asset-card:not(.asset-summary) {
   flex: 2 1 360px;
 }
 
@@ -537,6 +555,77 @@ header.masthead .title-block p {
   color: var(--muted);
 }
 
+/* Multi-series tooltip (ExposureChart) -- "one tooltip, every series" +
+   "line keys, not boxes" (dataviz skill's interaction.md): each row keys
+   its series with a short 2px stroke of the series color rather than a
+   filled swatch box, and the value (Strong) leads with the label
+   secondary, the tooltip's hierarchy inverted from the legend's. */
+.chart-tooltip-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 2px;
+}
+
+.chart-tooltip-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.chart-tooltip-key {
+  display: inline-block;
+  width: 10px;
+  height: 2px;
+  border-radius: 1px;
+  flex: 0 0 auto;
+  background: var(--key-color);
+}
+
+.chart-tooltip-row-label {
+  color: var(--muted);
+  flex: 1 1 auto;
+}
+
+.chart-tooltip-row-value {
+  font-family: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Menlo, monospace;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+/* Chart legend (ExposureChart) -- "legend always present for two or more
+   series" (marks-and-anatomy.md); rect swatches here (mirrors bar/area
+   marks, distinct from the tooltip's line keys per that same doc's "rect
+   for bars/areas, line for lines"). Sits inline with the chart's h2, same
+   position NavChart's last-price/change badges use. */
+.chart-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  margin-left: 12px;
+}
+
+.chart-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--muted);
+}
+
+.chart-legend-swatch {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  flex: 0 0 auto;
+  background: var(--swatch-color);
+}
+
 .asset-stat-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
@@ -569,10 +658,10 @@ header.masthead .title-block p {
   color: var(--bad);
 }
 
-/* News card — see NewsPanel in Asset.jsx. Paginated at 10 articles per
+/* News card — see NewsPanel in Asset.tsx. Paginated at 10 articles per
    page (see NEWS_PAGE_SIZE), so no height cap/scroll needed here — the
-   page-count bounds how tall this ever gets next to Business Summary
-   (see .asset-summary-news-row). */
+   page-count bounds how tall this ever gets next to Institutional Holders
+   (see .asset-two-col-row). */
 .news-list {
   list-style: none;
   margin: 0;
@@ -1898,4 +1987,139 @@ footer.note {
     grid-template-columns: 1fr;
     gap: 8px;
   }
+}
+
+/* Dataset tab -- see DatasetView.jsx. */
+.dataset-refresh-btn {
+  display: flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.dataset-refresh-btn:hover {
+  color: var(--ink);
+  border-color: var(--muted);
+}
+
+.dataset-refresh-btn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+.dataset-missing {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.dataset-notes {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--muted);
+  white-space: normal;
+}
+
+.dataset-label {
+  white-space: nowrap;
+}
+
+/* Holders tab -- see HoldersView.jsx. */
+.holder-card {
+  cursor: pointer;
+}
+
+.holder-card:hover {
+  border-color: var(--accent);
+}
+
+/* Full-holdings-list popup (HolderModal) -- this app's first true overlay
+   dialog (NewsPopup.jsx is a separate route/window, not an in-page
+   overlay), so these are new tokens, not a reuse of an existing pattern.
+   Click-outside-to-close via the backdrop's own onClick + stopPropagation
+   on the panel (same click-outside convention RecommendationsView.jsx's
+   useOutsideClick uses for its popovers, just via the backdrop instead of
+   a document listener since a full-screen backdrop already covers
+   "outside"). */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  /* margin: 0 is load-bearing, not defensive boilerplate: this is a
+     normal DOM child of .positions-page (React renders HolderModal
+     in-place, no portal), so .positions-page > * + *'s sibling-spacing
+     rule was giving it margin-top: 20px despite `position: fixed` --
+     inset: 0 still anchors correctly to the viewport, but the box's own
+     margin still shifts it, leaving a 20px dead strip at the top where
+     clicks fell through to whatever's behind the modal instead of
+     registering on the backdrop. Confirmed live: click-outside-to-close
+     silently did nothing when aimed at the top of the screen. */
+  margin: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 100;
+}
+
+.modal-panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  width: 100%;
+  max-width: 640px;
+  max-height: min(80vh, 720px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--line);
+  flex: 0 0 auto;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.modal-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.modal-close:hover {
+  color: var(--ink);
+  border-color: var(--muted);
+}
+
+.modal-body {
+  overflow-y: auto;
+  padding: 4px 20px;
+}
+
+.modal-panel .pagination {
+  flex: 0 0 auto;
+  border-top: 1px solid var(--line);
+  margin: 0;
 }

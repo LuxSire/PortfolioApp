@@ -1,154 +1,57 @@
 import { useEffect, useState } from 'react'
-import { Area, AreaChart, CartesianGrid, ReferenceDot, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import MonthlyReturnsTable from './MonthlyReturnsTable'
+import type { PortfolioDayRow, PortfolioPerformanceData } from '../interfaces/IPortfolioView'
+import ExposureChart from '../components/ExposureChart'
+import MonthlyReturnsTable from '../components/MonthlyReturnsTable'
+import NavChart from '../components/NavChart'
 
-function fmtMoney(v) {
+function fmtMoney(v: number | null | undefined): string {
   if (v === null || v === undefined) return '—'
   return (v >= 0 ? '+$' : '-$') + Math.abs(v).toLocaleString(undefined, { maximumFractionDigits: 0 })
 }
 
 // Same as fmtMoney but without the '$' — Realized/Unrealized/Total P&L
 // columns already carry their currency in the header.
-function fmtMoneyPlain(v) {
+function fmtMoneyPlain(v: number | null | undefined): string {
   if (v === null || v === undefined) return '—'
   return (v >= 0 ? '+' : '-') + Math.abs(v).toLocaleString(undefined, { maximumFractionDigits: 0 })
 }
 
 // Cash/NAV are magnitudes, not a day's change — no +/- sign clutter.
-function fmtLevel(v) {
+function fmtLevel(v: number | null | undefined): string {
   if (v === null || v === undefined) return '—'
   return '$' + v.toLocaleString(undefined, { maximumFractionDigits: 0 })
 }
 
 // Same as fmtLevel but without the '$' — the Stock Short column already
 // carries its currency in the header.
-function fmtLevelPlain(v) {
+function fmtLevelPlain(v: number | null | undefined): string {
   if (v === null || v === undefined) return '—'
   return v.toLocaleString(undefined, { maximumFractionDigits: 0 })
 }
 
 // Daily return (Total P&L / prior-day NAV) — signed, 2 decimals.
-function fmtPct(v) {
+function fmtPct(v: number | null | undefined): string {
   if (v === null || v === undefined) return '—'
   return (v >= 0 ? '+' : '') + (v * 100).toFixed(2) + '%'
 }
 
 // Sharpe ratio — a plain signed ratio, not a dollar or percentage figure.
-function fmtRatio(v) {
+function fmtRatio(v: number | null | undefined): string {
   if (v === null || v === undefined) return '—'
   return (v >= 0 ? '+' : '') + v.toFixed(2)
 }
 
 // Volatility has no sign — it's a magnitude, not a direction — so it skips
-// fmtPct's +/- prefix, same convention PositionsView.jsx's fmtVol uses.
-function fmtVol(v) {
+// fmtPct's +/- prefix, same convention PositionsView.tsx's fmtVol uses.
+function fmtVol(v: number | null | undefined): string {
   if (v === null || v === undefined) return '—'
   return (v * 100).toFixed(2) + '%'
 }
 
-function fmtDate(iso) {
+function fmtDate(iso: string | null | undefined): string {
   if (!iso) return '—'
   const d = new Date(iso + 'T00:00:00')
   return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
-}
-
-function fmtAxisDate(iso) {
-  const d = new Date(iso + 'T00:00:00')
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-}
-
-const CHART_FONT = 'ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Menlo, monospace'
-const CHART_TICK_STYLE = { fill: 'var(--muted)', fontSize: 10, fontFamily: CHART_FONT }
-
-function NavTooltip({ active, payload }) {
-  if (!active || !payload || !payload.length) return null
-  const point = payload[0].payload
-  return (
-    <div className="chart-tooltip">
-      <span className="chart-tooltip-value">{fmtLevel(point.nav)}</span>
-      <span className="chart-tooltip-date">{fmtAxisDate(point.date)}</span>
-    </div>
-  )
-}
-
-// NAV over every day the Flex Query covers — same chart anatomy as
-// Asset.jsx's PriceChart (dataviz skill: one hue, thin line, light fill,
-// a handful of deduped x-ticks) so it reads consistently with the rest of
-// the app, just plotting account NAV instead of a single stock's price.
-function NavChart({ rows }) {
-  const navs = rows.map((r) => r.nav).filter((v) => v !== null)
-  const lo = Math.min(...navs)
-  const hi = Math.max(...navs)
-  const domainPad = (hi - lo || 1) * 0.12
-  const yMin = lo - domainPad
-  const yMax = hi + domainPad
-
-  const first = rows[0]
-  const last = rows[rows.length - 1]
-  const changePct = first.nav ? last.nav / first.nav - 1 : null
-
-  const xTickCount = Math.min(5, rows.length)
-  const xTicks = [
-    ...new Set(
-      Array.from({ length: xTickCount }, (_, i) =>
-        rows[Math.round((i * (rows.length - 1)) / (xTickCount - 1 || 1))].date
-      )
-    ),
-  ]
-
-  return (
-    <div className="asset-card">
-      <h2>
-        Net Asset Value
-        <span className="chart-last-price">{fmtLevel(last.nav)}</span>
-        {changePct !== null && (
-          <span className={`chart-change ${changePct >= 0 ? 'good' : 'bad'}`}>
-            {(changePct >= 0 ? '+' : '') + (changePct * 100).toFixed(1)}%
-          </span>
-        )}
-      </h2>
-      <div className="chart-wrap">
-        <ResponsiveContainer width="100%" height={260}>
-          <AreaChart data={rows} margin={{ top: 12, right: 4, bottom: 4, left: 4 }}>
-            <CartesianGrid stroke="var(--line)" vertical={false} />
-            <XAxis
-              dataKey="date"
-              type="category"
-              ticks={xTicks}
-              tickFormatter={fmtAxisDate}
-              tick={CHART_TICK_STYLE}
-              axisLine={false}
-              tickLine={false}
-            />
-            <YAxis
-              domain={[yMin, yMax]}
-              ticks={[lo, hi]}
-              tickFormatter={fmtLevel}
-              orientation="right"
-              width={64}
-              axisLine={false}
-              tickLine={false}
-              tick={CHART_TICK_STYLE}
-            />
-            <Tooltip content={<NavTooltip />} cursor={{ stroke: 'var(--muted)', strokeOpacity: 0.5 }} />
-            <Area
-              type="monotone"
-              dataKey="nav"
-              stroke="var(--accent)"
-              strokeWidth={2}
-              fill="var(--accent)"
-              fillOpacity={0.1}
-              dot={false}
-              activeDot={{ r: 4, fill: 'var(--accent)', stroke: 'var(--surface)', strokeWidth: 2 }}
-              isAnimationActive={false}
-              connectNulls
-            />
-            <ReferenceDot x={last.date} y={last.nav} r={4} fill="var(--accent)" stroke="var(--surface)" strokeWidth={2} />
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
-    </div>
-  )
 }
 
 // The extracts of the IBKR Flex Query configured in ib_price_server.py's
@@ -158,7 +61,7 @@ function NavChart({ rows }) {
 // copy of its configured report sections per calendar day for a multi-day
 // query, joined here by date into a single row per day.
 export default function PortfolioView() {
-  const [data, setData] = useState(null)
+  const [data, setData] = useState<PortfolioPerformanceData | null>(null)
   const [error, setError] = useState(false)
 
   useEffect(() => {
@@ -168,7 +71,7 @@ export default function PortfolioView() {
       .catch(() => setError(true))
   }, [])
 
-  const rows = data?.kind === 'daily' ? data.rows : null
+  const rows: PortfolioDayRow[] | null = data?.kind === 'daily' ? (data.rows ?? null) : null
   // Running total of realized+unrealized through each day, keyed by date,
   // plus each day's own return (that day's Total P&L over the PRIOR day's
   // NAV — the base capital that P&L was actually earned on) — rows is
@@ -176,20 +79,20 @@ export default function PortfolioView() {
   // advances on a day with a real NAV (same rule the backend's own
   // _apply_unrealized_from_nav uses), so a gap in the data doesn't
   // corrupt the next real day's return.
-  const cumulativePnlByDate = {}
-  const dailyReturnByDate = {}
+  const cumulativePnlByDate: Record<string, number> = {}
+  const dailyReturnByDate: Record<string, number | null> = {}
   // Geometric compounding of every day's return through that day (the
   // product of (1 + dailyReturn), minus 1) — the track record's total
   // return to date, not a simple running sum of daily returns, which is
   // not how percentage returns actually combine over time. Same
   // compounding MonthlyReturnsTable uses, just never reset (one running
   // total across the whole window instead of restarting each month).
-  const cumulativeReturnByDate = {}
-  const dailyReturns = []
+  const cumulativeReturnByDate: Record<string, number> = {}
+  const dailyReturns: number[] = []
   if (rows) {
     let running = 0
     let compounded = 1
-    let prevNav = null
+    let prevNav: number | null = null
     for (const r of rows) {
       const dayTotalPnl = r.realized !== null && r.unrealized !== null ? r.realized + r.unrealized : null
       if (dayTotalPnl !== null) running += dayTotalPnl
@@ -208,10 +111,11 @@ export default function PortfolioView() {
   }
   // Cumulative across every day shown, not a single day's figure — "how
   // much have I actually locked in / paid / moved over this whole window."
-  const sumField = (field) => (rows ? rows.reduce((s, r) => s + (r[field] ?? 0), 0) : null)
+  const sumField = (field: keyof PortfolioDayRow): number | null =>
+    rows ? rows.reduce((s, r) => s + ((r[field] as number | null) ?? 0), 0) : null
   const totalRealized = sumField('realized')
   const totalUnrealized = sumField('unrealized')
-  const totalPnl = rows ? totalRealized + totalUnrealized : null
+  const totalPnl = rows && totalRealized !== null && totalUnrealized !== null ? totalRealized + totalUnrealized : null
   const totalCommissions = sumField('commissions')
   const totalDividends = sumField('dividends')
   const totalInterest = sumField('interest')
@@ -226,8 +130,8 @@ export default function PortfolioView() {
   const TRADING_DAYS_PER_YEAR = 252
   const RISK_FREE_RATE_ANNUAL = 0.035
   const RISK_FREE_RATE_DAILY = RISK_FREE_RATE_ANNUAL / TRADING_DAYS_PER_YEAR
-  let sharpe = null
-  let sortino = null
+  let sharpe: number | null = null
+  let sortino: number | null = null
   // Annualized volatility (std dev of daily returns × √252) — the same
   // denominator (before dividing into meanExcess) that produces Sharpe
   // below, surfaced on its own since "how volatile" and "risk-adjusted
@@ -235,13 +139,13 @@ export default function PortfolioView() {
   // Subtracting the risk-free rate from every day doesn't change the std
   // dev (variance is shift-invariant), so this is identical whether
   // computed from excess or raw daily returns.
-  let annualizedVol = null
+  let annualizedVol: number | null = null
   if (dailyReturns.length > 1) {
     const n = dailyReturns.length
     const excess = dailyReturns.map((r) => r - RISK_FREE_RATE_DAILY)
     const meanExcess = excess.reduce((a, b) => a + b, 0) / n
 
-    // Sample variance (n-1), same convention PositionsView.jsx's
+    // Sample variance (n-1), same convention PositionsView.tsx's
     // portfolioDailyVolatility uses.
     const variance = excess.reduce((a, b) => a + (b - meanExcess) ** 2, 0) / (n - 1)
     const stdDev = Math.sqrt(variance)
@@ -267,27 +171,29 @@ export default function PortfolioView() {
         {rows && rows.length > 0 && (
           <div className="stat-row">
             <div className="stat">
-              <span className={`n num${totalPnl >= 0 ? ' good' : ' bad'}`}>{fmtMoney(totalPnl)}</span>
+              <span className={`n num${(totalPnl ?? 0) >= 0 ? ' good' : ' bad'}`}>{fmtMoney(totalPnl)}</span>
               <span className="l">Total P&amp;L</span>
             </div>
             <div className="stat">
-              <span className={`n num${totalRealized >= 0 ? ' good' : ' bad'}`}>{fmtMoney(totalRealized)}</span>
+              <span className={`n num${(totalRealized ?? 0) >= 0 ? ' good' : ' bad'}`}>{fmtMoney(totalRealized)}</span>
               <span className="l">Realized</span>
             </div>
             <div className="stat">
-              <span className={`n num${totalCommissions >= 0 ? ' good' : ' bad'}`}>{fmtMoney(totalCommissions)}</span>
+              <span className={`n num${(totalCommissions ?? 0) >= 0 ? ' good' : ' bad'}`}>
+                {fmtMoney(totalCommissions)}
+              </span>
               <span className="l">Commissions</span>
             </div>
             <div className="stat">
-              <span className={`n num${totalDividends >= 0 ? ' good' : ' bad'}`}>{fmtMoney(totalDividends)}</span>
+              <span className={`n num${(totalDividends ?? 0) >= 0 ? ' good' : ' bad'}`}>{fmtMoney(totalDividends)}</span>
               <span className="l">Dividends</span>
             </div>
             <div className="stat">
-              <span className={`n num${totalInterest >= 0 ? ' good' : ' bad'}`}>{fmtMoney(totalInterest)}</span>
+              <span className={`n num${(totalInterest ?? 0) >= 0 ? ' good' : ' bad'}`}>{fmtMoney(totalInterest)}</span>
               <span className="l">Interest</span>
             </div>
             <div className="stat">
-              <span className={`n num${totalDepositsWithdrawals >= 0 ? ' good' : ' bad'}`}>
+              <span className={`n num${(totalDepositsWithdrawals ?? 0) >= 0 ? ' good' : ' bad'}`}>
                 {fmtMoney(totalDepositsWithdrawals)}
               </span>
               <span className="l">Flows</span>
@@ -325,6 +231,7 @@ export default function PortfolioView() {
       {!error && !data && <p className="status-row">Loading…</p>}
 
       {rows && rows.length > 0 && <NavChart rows={rows} />}
+      {rows && rows.length > 0 && <ExposureChart rows={rows} />}
       {rows && rows.length > 0 && <MonthlyReturnsTable rows={rows} />}
 
       {rows && (

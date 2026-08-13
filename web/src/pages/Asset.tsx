@@ -1,20 +1,11 @@
-import { useEffect, useState } from 'react'
-import {
-  AreaChart,
-  Area,
-  Bar,
-  CartesianGrid,
-  ComposedChart,
-  ReferenceDot,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts'
+import { useEffect, useState, type ReactNode } from 'react'
 import { belowOneClass, inversePctThresholdClass, rangeClass, targetClass } from '../colorRules'
 import { earningsUrgencyClass, fmtEarningsDate, useNowTick } from '../earnings'
 import { IB_NEWS_ARTICLE_URL, IB_NEWS_URL } from '../ibStream'
+import type { AssetInfo, CandlePoint, Holder, NewsArticle, PricePoint } from '../interfaces/IAsset'
 import { SENTIMENT_LABEL, fmtNewsTime, sentimentClass } from '../news'
+import CandlestickChart from '../components/CandlestickChart'
+import PriceChart from '../components/PriceChart'
 
 // Fields already surfaced in one of the curated cards above — kept out of
 // the raw field dump at the bottom so nothing shows twice.
@@ -48,6 +39,7 @@ const USED_FIELDS = new Set([
   'returnOnEquity',
   'revenueGrowth',
   'revenuePerShare',
+  'sharesOutstanding',
   'shortPercentOfFloat',
   'shortRatio',
   'targetHighPrice',
@@ -59,24 +51,24 @@ const USED_FIELDS = new Set([
   'trailingPegRatio',
 ])
 
-function fmtValue(v) {
+function fmtValue(v: unknown): string {
   if (v === null || v === undefined || v === '') return '—'
   if (typeof v === 'boolean') return v ? 'true' : 'false'
   if (typeof v === 'number') return Number.isInteger(v) ? v.toLocaleString() : v.toFixed(4)
   return String(v)
 }
 
-function fmtPrice(v) {
+function fmtPrice(v: unknown): string {
   if (typeof v !== 'number') return '—'
   return '$' + v.toFixed(2)
 }
 
-function fmtPct(v) {
+function fmtPct(v: unknown): string {
   if (typeof v !== 'number') return '—'
   return (v * 100).toFixed(1) + '%'
 }
 
-function fmtNum(v) {
+function fmtNum(v: unknown): string {
   if (typeof v !== 'number') return '—'
   return v.toFixed(2)
 }
@@ -84,12 +76,29 @@ function fmtNum(v) {
 // debtToEquity/dividendYield come from yfinance already in percentage units
 // (e.g. 29.9 means 29.9%), unlike ebitdaMargins/revenueGrowth/etc which are
 // fractions — no *100 here.
-function fmtPctRaw(v) {
+function fmtPctRaw(v: unknown): string {
   if (typeof v !== 'number') return '—'
   return v.toFixed(2) + '%'
 }
 
-function Stat({ label, value, valueClass }) {
+function fmtMoney(v: number): string {
+  return '$' + v.toLocaleString(undefined, { maximumFractionDigits: 0 })
+}
+
+function fmtShares(v: number): string {
+  return v.toLocaleString()
+}
+
+// 13F holdings are as of the prior quarter's report date, not today's
+// actual share count -- a real, if slightly lagged, ownership estimate,
+// not a live figure. sharesOutstanding comes from the same raw_data.json
+// (yfinance) this whole page already loads, not a second fetch.
+function fmtPctOwned(shares: number, sharesOutstanding: unknown): string {
+  if (typeof sharesOutstanding !== 'number' || !sharesOutstanding) return '—'
+  return ((shares / sharesOutstanding) * 100).toFixed(2) + '%'
+}
+
+function Stat({ label, value, valueClass }: { label: string; value: string; valueClass?: string }) {
   return (
     <div className="asset-stat">
       <span className={`n num${valueClass ? ` ${valueClass}` : ''}`}>{value}</span>
@@ -98,7 +107,7 @@ function Stat({ label, value, valueClass }) {
   )
 }
 
-function Section({ title, children }) {
+function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div className="asset-card">
       <h2>{title}</h2>
@@ -107,13 +116,14 @@ function Section({ title, children }) {
   )
 }
 
-// Fetches url (a {ticker: series} JSON file) and returns this ticker's
-// series, or null while loading/missing/not covering this ticker. A
-// missing file (e.g. ib_price_server.py hasn't finished its candlestick
-// fetch yet, or was never run) is treated the same as "no data for this
-// ticker" — best-effort, never blocks or errors out the rest of the page.
-function useTickerSeries(url, ticker) {
-  const [state, setState] = useState({ ticker: null, series: null })
+// Fetches url (a {ticker: T} JSON file) and returns this ticker's entry,
+// or null while loading/missing/not covering this ticker. A missing file
+// (e.g. ib_price_server.py hasn't finished its candlestick fetch yet, or
+// the 13F holders fetch hasn't been run) is treated the same as "no data
+// for this ticker" — best-effort, never blocks or errors out the rest of
+// the page.
+function useTickerSeries<T>(url: string, ticker: string): T | null {
+  const [state, setState] = useState<{ ticker: string | null; series: T | null }>({ ticker: null, series: null })
   useEffect(() => {
     let cancelled = false
     fetch(url)
@@ -135,268 +145,34 @@ function useTickerSeries(url, ticker) {
   return state.ticker === ticker ? state.series : null
 }
 
-function fmtAxisDate(iso) {
-  const d = new Date(iso + 'T00:00:00')
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-}
-
-const CHART_FONT = 'ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Menlo, monospace'
-const CHART_TICK_STYLE = { fill: 'var(--muted)', fontSize: 10, fontFamily: CHART_FONT }
-
-function ChartTooltip({ active, payload }) {
-  if (!active || !payload || !payload.length) return null
-  const point = payload[0].payload
-  return (
-    <div className="chart-tooltip">
-      <span className="chart-tooltip-value">{fmtPrice(point.close)}</span>
-      <span className="chart-tooltip-date">{fmtAxisDate(point.date)}</span>
-    </div>
-  )
-}
-
-// price_history.json (see main.py's add_momentum_and_persist_history) is
-// the trailing ~1 month of daily closes captured from the same yfinance
-// fetch that already computes the screener's momentum score — no separate
-// API, so this only ever plots what that fetch last saw.
-function PriceChart({ data }) {
-  const closes = data.map((d) => d.close)
-  const lo = Math.min(...closes)
-  const hi = Math.max(...closes)
-  const domainPad = (hi - lo || 1) * 0.12
-  const yMin = lo - domainPad
-  const yMax = hi + domainPad
-
-  const first = data[0]
-  const last = data[data.length - 1]
-  const changePct = first.close ? last.close / first.close - 1 : null
-
-  // A handful of evenly spaced date labels, not just the endpoints — up to
-  // 5, deduped (fewer than 5 data points would otherwise repeat a date).
-  const xTickCount = Math.min(5, data.length)
-  const xTicks = [
-    ...new Set(
-      Array.from({ length: xTickCount }, (_, i) =>
-        data[Math.round((i * (data.length - 1)) / (xTickCount - 1 || 1))].date
-      )
-    ),
-  ]
-
+// holders: data/sec/13f/institutional_holders.json's per-ticker array (see
+// sec_edgar.py's fetch_13f_holdings) -- top MAX_HOLDERS_PER_TICKER
+// institutions by position value, current 13F quarter only, sorted
+// descending by valueUsd already.
+function HoldersPanel({ holders, sharesOutstanding }: { holders: Holder[]; sharesOutstanding: unknown }) {
   return (
     <div className="asset-card">
-      <h2>
-        Price History
-        <span className="chart-last-price">{fmtPrice(last.close)}</span>
-        {changePct !== null && (
-          <span className={`chart-change ${changePct >= 0 ? 'good' : 'bad'}`}>
-            {(changePct >= 0 ? '+' : '') + (changePct * 100).toFixed(1)}%
-          </span>
-        )}
-      </h2>
-      <div className="chart-wrap">
-        <ResponsiveContainer width="100%" height={260}>
-          <AreaChart data={data} margin={{ top: 12, right: 4, bottom: 4, left: 4 }}>
-            <CartesianGrid stroke="var(--line)" vertical={false} />
-            <XAxis
-              dataKey="date"
-              type="category"
-              ticks={xTicks}
-              tickFormatter={fmtAxisDate}
-              tick={CHART_TICK_STYLE}
-              axisLine={false}
-              tickLine={false}
-            />
-            <YAxis
-              domain={[yMin, yMax]}
-              ticks={[lo, hi]}
-              tickFormatter={fmtPrice}
-              orientation="right"
-              width={56}
-              axisLine={false}
-              tickLine={false}
-              tick={CHART_TICK_STYLE}
-            />
-            <Tooltip content={<ChartTooltip />} cursor={{ stroke: 'var(--muted)', strokeOpacity: 0.5 }} />
-            <Area
-              type="monotone"
-              dataKey="close"
-              stroke="var(--accent)"
-              strokeWidth={2}
-              fill="var(--accent)"
-              fillOpacity={0.1}
-              dot={false}
-              activeDot={{ r: 4, fill: 'var(--accent)', stroke: 'var(--surface)', strokeWidth: 2 }}
-              isAnimationActive={false}
-            />
-            <ReferenceDot
-              x={last.date}
-              y={last.close}
-              r={4}
-              fill="var(--accent)"
-              stroke="var(--surface)"
-              strokeWidth={2}
-            />
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
-    </div>
-  )
-}
-
-// IBApp.get_ib_historical_bars formats every bar's date as
-// "%Y-%m-%d %H:%M:%S" — daily bars just carry 00:00:00 (a bare
-// datetime.date has no time component, see IBApp.py), so both series use
-// the same parseable string shape and only the display formatting differs.
-function fmtHourlyAxisDate(raw) {
-  const d = new Date(raw.replace(' ', 'T'))
-  return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric' })
-}
-
-function fmtDailyAxisDate(raw) {
-  const d = new Date(raw.replace(' ', 'T'))
-  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-}
-
-// Recharts has no built-in candlestick mark: this is the standard
-// workaround — a Bar whose dataKey resolves to [low, high] (so Recharts'
-// y-scale positions y/height to exactly span that range), with a custom
-// shape that reinterprets that same y/height as a price scale to place the
-// open/close body and the high/low wick.
-function Candle({ x, y, width, height, payload }) {
-  const { open, close, high, low } = payload
-  const isUp = close >= open
-  const color = isUp ? 'var(--good)' : 'var(--bad)'
-  const scale = height / (high - low || 1)
-  const yForPrice = (price) => y + (high - price) * scale
-  const bodyTop = yForPrice(Math.max(open, close))
-  const bodyBottom = yForPrice(Math.min(open, close))
-  const bodyHeight = Math.max(1, bodyBottom - bodyTop)
-  const cx = x + width / 2
-  return (
-    <g>
-      <line x1={cx} x2={cx} y1={y} y2={y + height} stroke={color} strokeWidth={1} />
-      <rect x={x} y={bodyTop} width={Math.max(1, width)} height={bodyHeight} fill={color} />
-    </g>
-  )
-}
-
-function CandleTooltip({ active, payload, dateFormatter }) {
-  if (!active || !payload || !payload.length) return null
-  const p = payload[0].payload
-  const isUp = p.close >= p.open
-  return (
-    <div className="chart-tooltip">
-      <span className={`chart-tooltip-value ${isUp ? 'good' : 'bad'}`}>{fmtPrice(p.close)}</span>
-      <span className="chart-tooltip-ohlc">
-        O {fmtPrice(p.open)} · H {fmtPrice(p.high)} · L {fmtPrice(p.low)}
-      </span>
-      <span className="chart-tooltip-date">{dateFormatter(p.date)}</span>
-    </div>
-  )
-}
-
-// data: [{date, open, high, low, close}, ...] from price_history_hourly.json
-// or price_history_daily_3mo.json (see ib_price_server.py's
-// fetch_candlestick_history) — IB Gateway's own historical bars for every
-// ticker that process streams a price for, not just the screener universe
-// PriceChart above is limited to.
-function fmtVolume(v) {
-  if (typeof v !== 'number') return '—'
-  if (v >= 1e6) return (v / 1e6).toFixed(1) + 'M'
-  if (v >= 1e3) return (v / 1e3).toFixed(0) + 'K'
-  return String(v)
-}
-
-function VolumeTooltip({ active, payload, dateFormatter }) {
-  if (!active || !payload || !payload.length) return null
-  const p = payload[0].payload
-  return (
-    <div className="chart-tooltip">
-      <span className="chart-tooltip-value">{fmtVolume(p.volume)}</span>
-      <span className="chart-tooltip-date">{dateFormatter(p.date)}</span>
-    </div>
-  )
-}
-
-// A separate small chart stacked under the candlesticks, not a second
-// y-axis on the same plot (see the dataviz "one axis" rule) — same data,
-// margin, and ticks/xTicks as the price chart above it so bars line up.
-function VolumeChart({ data, dateFormatter, barSize, xTicks }) {
-  return (
-    <div className="chart-wrap chart-wrap-volume">
-      <ResponsiveContainer width="100%" height={60}>
-        <ComposedChart data={data} margin={{ top: 0, right: 4, bottom: 4, left: 4 }}>
-          <XAxis dataKey="date" type="category" ticks={xTicks} tick={false} axisLine={false} tickLine={false} />
-          <YAxis
-            domain={[0, 'auto']}
-            orientation="right"
-            width={56}
-            tick={false}
-            axisLine={false}
-            tickLine={false}
-          />
-          <Tooltip
-            content={<VolumeTooltip dateFormatter={dateFormatter} />}
-            cursor={{ fill: 'var(--surface-2)' }}
-          />
-          <Bar dataKey="volume" fill="var(--muted)" isAnimationActive={false} barSize={barSize} radius={[1, 1, 0, 0]} />
-        </ComposedChart>
-      </ResponsiveContainer>
-    </div>
-  )
-}
-
-function CandlestickChart({ data, title, dateFormatter, barSize }) {
-  const highs = data.map((d) => d.high)
-  const lows = data.map((d) => d.low)
-  const lo = Math.min(...lows)
-  const hi = Math.max(...highs)
-  const domainPad = (hi - lo || 1) * 0.08
-  const yMin = lo - domainPad
-  const yMax = hi + domainPad
-
-  const xTickCount = Math.min(5, data.length)
-  const xTicks = [
-    ...new Set(
-      Array.from({ length: xTickCount }, (_, i) =>
-        data[Math.round((i * (data.length - 1)) / (xTickCount - 1 || 1))].date
-      )
-    ),
-  ]
-
-  return (
-    <div className="asset-card">
-      <h2>{title}</h2>
-      <div className="chart-wrap">
-        <ResponsiveContainer width="100%" height={290}>
-          <ComposedChart data={data} margin={{ top: 12, right: 4, bottom: 4, left: 4 }}>
-            <CartesianGrid stroke="var(--line)" vertical={false} />
-            <XAxis
-              dataKey="date"
-              type="category"
-              ticks={xTicks}
-              tickFormatter={dateFormatter}
-              tick={CHART_TICK_STYLE}
-              axisLine={false}
-              tickLine={false}
-            />
-            <YAxis
-              domain={[yMin, yMax]}
-              tickFormatter={fmtPrice}
-              orientation="right"
-              width={56}
-              axisLine={false}
-              tickLine={false}
-              tick={CHART_TICK_STYLE}
-            />
-            <Tooltip
-              content={<CandleTooltip dateFormatter={dateFormatter} />}
-              cursor={{ stroke: 'var(--muted)', strokeOpacity: 0.5 }}
-            />
-            <Bar dataKey={(d) => [d.low, d.high]} shape={<Candle />} isAnimationActive={false} barSize={barSize} />
-          </ComposedChart>
-        </ResponsiveContainer>
-      </div>
-      <VolumeChart data={data} dateFormatter={dateFormatter} barSize={barSize} xTicks={xTicks} />
+      <h2>Institutional Holders</h2>
+      <table>
+        <thead>
+          <tr>
+            <th className="col-left">Institution</th>
+            <th>Value</th>
+            <th>Shares</th>
+            <th>% Owned</th>
+          </tr>
+        </thead>
+        <tbody>
+          {holders.map((h) => (
+            <tr key={h.name}>
+              <td className="col-left col-name">{h.name}</td>
+              <td className="num">{fmtMoney(h.valueUsd)}</td>
+              <td className="num">{fmtShares(h.shares)}</td>
+              <td className="num">{fmtPctOwned(h.shares, sharesOutstanding)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }
@@ -410,8 +186,13 @@ const NEWS_PAGE_SIZE = 10
 // when a user actually clicks a headline does GET /api/news/article go
 // fetch and cache it, in state keyed by articleId so re-collapsing and
 // re-expanding the same headline doesn't refetch.
-function NewsItem({ ticker, article }) {
-  const [body, setBody] = useState({ open: false, text: null, error: null, loading: false })
+function NewsItem({ ticker, article }: { ticker: string; article: NewsArticle }) {
+  const [body, setBody] = useState<{ open: boolean; text: string | null; error: string | null; loading: boolean }>({
+    open: false,
+    text: null,
+    error: null,
+    loading: false,
+  })
 
   function toggle() {
     if (!body.open) {
@@ -438,7 +219,7 @@ function NewsItem({ ticker, article }) {
   return (
     <li className="news-item">
       <span className={`news-sentiment ${sentimentClass(article.sentiment)}`}>
-        {SENTIMENT_LABEL[article.sentiment] || '—'}
+        {(article.sentiment !== null && (SENTIMENT_LABEL as Record<number, string>)[article.sentiment]) || '—'}
       </span>
       <span className="news-headline news-headline-expandable" onClick={toggle}>
         {article.headline}
@@ -461,7 +242,7 @@ function NewsItem({ ticker, article }) {
 // GET /api/news (ib_price_server.py) — best-effort live overlay, same
 // contract as useTickerSeries' other callers (missing server/no news for
 // this ticker just means this card doesn't render, not a load error).
-function NewsPanel({ ticker, articles }) {
+function NewsPanel({ ticker, articles }: { ticker: string; articles: NewsArticle[] }) {
   const [page, setPage] = useState(0)
   const pageCount = Math.max(1, Math.ceil(articles.length / NEWS_PAGE_SIZE))
   // Clamped rather than reset-on-change: a ticker switch remounts this
@@ -496,11 +277,30 @@ function NewsPanel({ ticker, articles }) {
   )
 }
 
-export default function Asset({ ticker }) {
+// fmtHourlyAxisDate/fmtDailyAxisDate: IBApp.get_ib_historical_bars formats
+// every bar's date as "%Y-%m-%d %H:%M:%S" — daily bars just carry
+// 00:00:00 (a bare datetime.date has no time component, see IBApp.py), so
+// both series use the same parseable string shape and only the display
+// formatting differs.
+function fmtHourlyAxisDate(raw: string): string {
+  const d = new Date(raw.replace(' ', 'T'))
+  return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric' })
+}
+
+function fmtDailyAxisDate(raw: string): string {
+  const d = new Date(raw.replace(' ', 'T'))
+  return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+}
+
+export default function Asset({ ticker }: { ticker: string }) {
   // result.ticker tracks which ticker result.info/error belong to, so a
   // ticker change is treated as loading (rather than flashing the previous
   // ticker's data) without resetting state synchronously inside the effect.
-  const [result, setResult] = useState({ ticker: null, info: null, error: null })
+  const [result, setResult] = useState<{ ticker: string | null; info: AssetInfo | 'notfound' | null; error: string | null }>({
+    ticker: null,
+    info: null,
+    error: null,
+  })
   // Live current instant — see useNowTick — so the earnings stat's
   // urgency color (earningsUrgencyClass) stays accurate as real time
   // passes, not just when raw_data.json happens to be refetched.
@@ -533,15 +333,16 @@ export default function Asset({ ticker }) {
     }
   }, [ticker])
 
-  // Three distinct, best-effort series — each may not exist yet (or not
+  // Four distinct, best-effort series — each may not exist yet (or not
   // cover this ticker) without blocking or erroring out the rest of the page.
-  const priceHistory = useTickerSeries('/price_history.json', ticker)
-  const hourlyHistory = useTickerSeries('/price_history_hourly.json', ticker)
-  const dailyHistory3mo = useTickerSeries('/price_history_daily_3mo.json', ticker)
+  const priceHistory = useTickerSeries<PricePoint[]>('/price_history.json', ticker)
+  const hourlyHistory = useTickerSeries<CandlePoint[]>('/price_history_hourly.json', ticker)
+  const dailyHistory3mo = useTickerSeries<CandlePoint[]>('/price_history_daily_3mo.json', ticker)
+  const holders = useTickerSeries<Holder[]>('/sec/13f/institutional_holders.json', ticker)
   // Live from ib_price_server.py (GET /api/news), not a static build
-  // artifact — same best-effort contract as the three series above, just a
+  // artifact — same best-effort contract as the series above, just a
   // different (absolute, cross-origin) URL.
-  const news = useTickerSeries(IB_NEWS_URL, ticker)
+  const news = useTickerSeries<NewsArticle[]>(IB_NEWS_URL, ticker)
 
   const { info, error } = result.ticker === ticker ? result : { info: null, error: null }
   const loaded = !error && info && info !== 'notfound'
@@ -550,7 +351,7 @@ export default function Asset({ ticker }) {
         .filter(([k]) => !USED_FIELDS.has(k))
         .sort((a, b) => a[0].localeCompare(b[0]))
     : null
-  const lastPrice = loaded ? info.currentPrice ?? info.regularMarketPrice : null
+  const lastPrice = loaded ? (info.currentPrice ?? info.regularMarketPrice) : null
 
   return (
     <div className="app">
@@ -574,10 +375,10 @@ export default function Asset({ ticker }) {
               <span className="l">Last Price</span>
             </div>
             <div
-              className={`stat earnings-stat ${earningsUrgencyClass(info.earningsTimestampStart, now)}`}
+              className={`stat earnings-stat ${earningsUrgencyClass(info.earningsTimestampStart as number, now)}`}
             >
               <span className="n">
-                {fmtEarningsDate(info.earningsTimestampStart)}
+                {fmtEarningsDate(info.earningsTimestampStart as number)}
                 {info.isEarningsDateEstimate ? ' (est.)' : ''}
               </span>
               <span className="l">Next Earnings</span>
@@ -596,20 +397,28 @@ export default function Asset({ ticker }) {
 
       {loaded && (
         <>
-          {(info.longBusinessSummary || (news && news.length > 0)) && (
-            <div className="asset-summary-news-row">
-              {info.longBusinessSummary && (
+          {(Boolean(info.longBusinessSummary) || (priceHistory && priceHistory.length > 1)) && (
+            <div className="asset-two-col-row">
+              {Boolean(info.longBusinessSummary) && (
                 <div className="asset-card asset-summary">
                   <h2>Business Summary</h2>
-                  <p>{info.longBusinessSummary}</p>
+                  <p>{info.longBusinessSummary as string}</p>
                 </div>
+              )}
+
+              {priceHistory && priceHistory.length > 1 && <PriceChart data={priceHistory} />}
+            </div>
+          )}
+
+          {((holders && holders.length > 0) || (news && news.length > 0)) && (
+            <div className="asset-two-col-row">
+              {holders && holders.length > 0 && (
+                <HoldersPanel holders={holders} sharesOutstanding={info.sharesOutstanding} />
               )}
 
               {news && news.length > 0 && <NewsPanel ticker={ticker} articles={news} />}
             </div>
           )}
-
-          {priceHistory && priceHistory.length > 1 && <PriceChart data={priceHistory} />}
 
           {hourlyHistory && hourlyHistory.length > 1 && (
             <CandlestickChart
@@ -638,16 +447,16 @@ export default function Asset({ ticker }) {
           </Section>
 
           <Section title="PE">
-            <Stat label="Fwd PE" value={fmtNum(info.forwardPE)} valueClass={rangeClass(info.forwardPE, 10, 30)} />
+            <Stat label="Fwd PE" value={fmtNum(info.forwardPE)} valueClass={rangeClass(info.forwardPE as number, 10, 30)} />
             <Stat
               label="Trailing PE"
               value={fmtNum(info.trailingPE)}
-              valueClass={rangeClass(info.trailingPE, 10, 30)}
+              valueClass={rangeClass(info.trailingPE as number, 10, 30)}
             />
             <Stat
               label="Current Year PE"
               value={fmtNum(info.priceEpsCurrentYear)}
-              valueClass={rangeClass(info.priceEpsCurrentYear, 10, 30)}
+              valueClass={rangeClass(info.priceEpsCurrentYear as number, 10, 30)}
             />
           </Section>
 
@@ -655,12 +464,12 @@ export default function Asset({ ticker }) {
             <Stat
               label="Return on Assets"
               value={fmtPct(info.returnOnAssets)}
-              valueClass={inversePctThresholdClass(info.returnOnAssets, 5, 10)}
+              valueClass={inversePctThresholdClass(info.returnOnAssets as number, 5, 10)}
             />
             <Stat
               label="Return on Equity"
               value={fmtPct(info.returnOnEquity)}
-              valueClass={inversePctThresholdClass(info.returnOnEquity, 10, 20)}
+              valueClass={inversePctThresholdClass(info.returnOnEquity as number, 10, 20)}
             />
             <Stat label="Dividend Yield" value={fmtPctRaw(info.dividendYield)} />
           </Section>
@@ -672,16 +481,16 @@ export default function Asset({ ticker }) {
           </Section>
 
           <Section title="Growth">
-            <Stat label="PEG Ratio" value={fmtNum(info.pegRatio)} valueClass={rangeClass(info.pegRatio, 1, 1)} />
+            <Stat label="PEG Ratio" value={fmtNum(info.pegRatio)} valueClass={rangeClass(info.pegRatio as number, 1, 1)} />
             <Stat
               label="Revenue Growth"
               value={fmtPct(info.revenueGrowth)}
-              valueClass={inversePctThresholdClass(info.revenueGrowth, 0, 10)}
+              valueClass={inversePctThresholdClass(info.revenueGrowth as number, 0, 10)}
             />
             <Stat
               label="Trailing PEG Ratio"
               value={fmtNum(info.trailingPegRatio)}
-              valueClass={rangeClass(info.trailingPegRatio, 1, 1)}
+              valueClass={rangeClass(info.trailingPegRatio as number, 1, 1)}
             />
           </Section>
 
@@ -690,27 +499,27 @@ export default function Asset({ ticker }) {
             <Stat
               label="Quick Ratio"
               value={fmtNum(info.quickRatio)}
-              valueClass={belowOneClass(info.quickRatio)}
+              valueClass={belowOneClass(info.quickRatio as number)}
             />
             <Stat
               label="Current Ratio"
               value={fmtNum(info.currentRatio)}
-              valueClass={belowOneClass(info.currentRatio)}
+              valueClass={belowOneClass(info.currentRatio as number)}
             />
             <Stat
               label="Price/Book"
               value={fmtNum(info.priceToBook)}
-              valueClass={rangeClass(info.priceToBook, 1, 3)}
+              valueClass={rangeClass(info.priceToBook as number, 1, 3)}
             />
             <Stat
               label="EV/EBITDA"
               value={fmtNum(info.enterpriseToEbitda)}
-              valueClass={rangeClass(info.enterpriseToEbitda, 10, 15)}
+              valueClass={rangeClass(info.enterpriseToEbitda as number, 10, 15)}
             />
             <Stat
               label="EV/Revenue"
               value={fmtNum(info.enterpriseToRevenue)}
-              valueClass={rangeClass(info.enterpriseToRevenue, 1, 10)}
+              valueClass={rangeClass(info.enterpriseToRevenue as number, 1, 10)}
             />
           </Section>
 
@@ -718,7 +527,7 @@ export default function Asset({ ticker }) {
             <Stat
               label="Short Ratio"
               value={fmtNum(info.shortRatio)}
-              valueClass={rangeClass(info.shortRatio, 2, 10)}
+              valueClass={rangeClass(info.shortRatio as number, 2, 10)}
             />
             <Stat label="Short % of Float" value={fmtPct(info.shortPercentOfFloat)} />
           </Section>
@@ -727,25 +536,25 @@ export default function Asset({ ticker }) {
             <Stat
               label="Target Mean"
               value={fmtPrice(info.targetMeanPrice)}
-              valueClass={targetClass(info.targetMeanPrice, lastPrice)}
+              valueClass={targetClass(info.targetMeanPrice as number, lastPrice as number)}
             />
             <Stat
               label="Target Median"
               value={fmtPrice(info.targetMedianPrice)}
-              valueClass={targetClass(info.targetMedianPrice, lastPrice)}
+              valueClass={targetClass(info.targetMedianPrice as number, lastPrice as number)}
             />
             <Stat
               label="Target Low"
               value={fmtPrice(info.targetLowPrice)}
-              valueClass={targetClass(info.targetLowPrice, lastPrice)}
+              valueClass={targetClass(info.targetLowPrice as number, lastPrice as number)}
             />
             <Stat
               label="Target High"
               value={fmtPrice(info.targetHighPrice)}
-              valueClass={targetClass(info.targetHighPrice, lastPrice)}
+              valueClass={targetClass(info.targetHighPrice as number, lastPrice as number)}
             />
             <Stat label="Analyst Opinions" value={fmtValue(info.numberOfAnalystOpinions)} />
-            <Stat label="Avg Analyst Rating" value={info.averageAnalystRating || '—'} />
+            <Stat label="Avg Analyst Rating" value={(info.averageAnalystRating as string) || '—'} />
           </Section>
         </>
       )}

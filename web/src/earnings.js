@@ -32,8 +32,12 @@ function isWeekendUTC(ms) {
 // weekend measures as just its Mon-Fri portion, however many wall-clock
 // hours actually elapsed. Walks day by day (at most ~6 iterations even
 // for a 108-hour span), not hour by hour, so there's no rounding error
-// at the boundaries.
-function businessMillisBetween(from, to) {
+// at the boundaries. Exported for RecommendationsView.jsx's own earnings-
+// within-N-days close-review check — same weekend-aware distance this
+// file's own earningsUrgencyClass buckets already use, not a second,
+// calendar-day-only implementation that would treat a Friday-evening
+// earnings call as further out than it actually is in trading days.
+export function businessMillisBetween(from, to) {
   if (to <= from) return 0
   let total = 0
   let cursor = from

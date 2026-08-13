@@ -5,12 +5,26 @@ import { getSectorGroup, sectorGroupLabel } from '../sectorGroups'
 import { getSectorIcon } from '../sectorIcons'
 import { IB_STREAM_URL } from '../ibStream'
 import { avgInsiderScore, avgNewsSentiment, rankTo100, ratingClass, toNum } from '../screenerFactors'
-import { FACTOR_COLUMNS, computeFactorAverages } from './factorTable'
-import FactorCells from './FactorCells'
+import { FACTOR_COLUMNS, computeFactorAverages } from '../components/factorTable'
+import FactorCells from '../components/FactorCells'
+import type {
+  Account,
+  FactorsByTicker,
+  HistoryByTicker,
+  PortfolioBetaResult,
+  PortfolioVolResult,
+  PositionRow,
+  PositionsByTicker,
+  PricesByTicker,
+  SideGroup,
+  TickerInfoByTicker,
+  TradesByTicker,
+  WeightedSideFactor,
+} from '../interfaces/IPositionsView'
 
 // Same curated tags + order as IBApp.ACCOUNT_STATUS_TAGS; PnL fields get
 // the good/bad sign coloring the rest of the app uses.
-const ACCOUNT_FIELDS = [
+const ACCOUNT_FIELDS: { tag: string; label: string; signed?: boolean }[] = [
   { tag: 'NetLiquidation', label: 'Net Liquidation' },
   { tag: 'TotalCashValue', label: 'Total Cash' },
   { tag: 'AvailableFunds', label: 'Available Funds' },
@@ -36,7 +50,7 @@ const ACCOUNT_FIELDS = [
 // Sectors tabs have no live position value to weight it by that would
 // mean anything), so it's appended here rather than folded into
 // FACTOR_COLUMNS/FactorCells where the Sectors tab would inherit it too.
-const WEIGHTED_TABLE_COLUMNS = [
+const WEIGHTED_TABLE_COLUMNS: { key: string; label: string; className?: string }[] = [
   { key: 't', label: 'Ticker', className: 'col-left col-ticker' },
   { key: 'n', label: 'Name', className: 'col-left col-name' },
   { key: 'posval', label: 'Pos Value' },
@@ -47,7 +61,7 @@ const WEIGHTED_TABLE_COLUMNS = [
   { key: 'dollarPer1PctMove', label: '$/1% Mkt' },
 ]
 
-function fmtPrice(v) {
+function fmtPrice(v: number | null): string {
   if (v === null) return '—'
   return '$' + v.toFixed(2)
 }
@@ -58,7 +72,7 @@ function fmtPrice(v) {
 // latest price so far, not a settled close) when fetched intraday.
 // Comparing a live price against that same-day bar instead of a real
 // prior close silently understates or misreports the day's actual move.
-function previousClose(series) {
+function previousClose(series: { date: string; close: number }[] | undefined): number | null {
   if (!series || series.length === 0) return null
   const today = new Date().toISOString().slice(0, 10)
   for (let i = series.length - 1; i >= 0; i--) {
@@ -73,7 +87,7 @@ function previousClose(series) {
 // green regardless of whether $10.05 itself is "good." Own component (not
 // inline in the row) so each cell keeps its own previous-value ref/timer,
 // keyed by React to the row + column it's rendered in.
-function FlashCell({ value, format }) {
+function FlashCell({ value, format }: { value: number | null; format: (v: number | null) => string }) {
   // Deriving `flash` from a value change is React's documented "adjusting
   // state during rendering" pattern — setting state directly in the render
   // body here is safe (React re-renders with the new state before
@@ -102,19 +116,19 @@ function FlashCell({ value, format }) {
 
 // Whole numbers for the vast majority of IBKR positions; only show
 // decimals for the rare fractional-share holding.
-function fmtShares(v) {
+function fmtShares(v: number | null): string {
   if (v === null) return '—'
   return v.toLocaleString(undefined, { maximumFractionDigits: Number.isInteger(v) ? 0 : 4 })
 }
 
-function fmtMoney(v) {
+function fmtMoney(v: number | null): string {
   if (v === null) return '—'
   return '$' + v.toLocaleString(undefined, { maximumFractionDigits: 0 })
 }
 
 // Same as fmtMoney but without the '$' — the Daily $ column already carries
 // its currency in the header, so a sign on every row is redundant clutter.
-function fmtDollars(v) {
+function fmtDollars(v: number | null): string {
   if (v === null) return '—'
   return v.toLocaleString(undefined, { maximumFractionDigits: 0 })
 }
@@ -125,13 +139,12 @@ function fmtDollars(v) {
 // under 1 in magnitude) straight down to "$0", silently destroying it.
 // 2 decimals, signed, no currency symbol — same convention
 // PortfolioView.jsx's fmtRatio uses for Sharpe/Sortino.
-function fmtRatio(v) {
+function fmtRatio(v: number | null | undefined): string {
   if (v === null || v === undefined) return '—'
   return (v >= 0 ? '+' : '') + v.toFixed(2)
 }
 
-
-function fmtPct(v) {
+function fmtPct(v: number | null): string {
   if (v === null) return '—'
   return (v >= 0 ? '+' : '') + (v * 100).toFixed(2) + '%'
 }
@@ -142,7 +155,7 @@ function fmtPct(v) {
 // there is a loss and must color red, the mirror of a long position.
 // neutralBand is a magnitude threshold on the raw ratio (e.g. IB-vs-
 // yfinance noise), evaluated before the direction flip.
-function perfClass(ratio, shares, neutralBand = 0) {
+function perfClass(ratio: number | null, shares: number | null, neutralBand = 0): string {
   if (ratio === null || shares === null) return ''
   if (Math.abs(ratio) <= neutralBand) return ''
   const effective = shares >= 0 ? ratio : -ratio
@@ -151,7 +164,7 @@ function perfClass(ratio, shares, neutralBand = 0) {
 
 // Volatility has no sign — it's a magnitude, not a direction — so it skips
 // fmtPct's +/- prefix.
-function fmtVol(v) {
+function fmtVol(v: number | null): string {
   if (v === null) return '—'
   return (v * 100).toFixed(2) + '%'
 }
@@ -171,7 +184,7 @@ function fmtVol(v) {
 // CPNG had no price_history_daily_3mo.json entry at all, fell back to
 // price_history.json, and that alone took commonDates from 61 down to 0
 // across all 25 held tickers.
-function normalizedDateKey(dateStr) {
+function normalizedDateKey(dateStr: string): string {
   return typeof dateStr === 'string' ? dateStr.slice(0, 10) : dateStr
 }
 
@@ -186,10 +199,19 @@ function normalizedDateKey(dateStr) {
 // is left out of the simulation rather than treated as flat, so it
 // doesn't silently mute the real number.
 //
-// Returns both the familiar % volatility (of daily returns) AND an EXACT
-// per-position dollar decomposition that sums to volDollar to the last
-// cent — not the "vol% × current net value" approximation this used to
-// use. The trick: work in dollar P&L space, not % returns. Each day's
+// Returns the portfolio's dollar volatility (volDollar) plus an EXACT
+// per-position dollar decomposition that sums to it to the last cent —
+// not a "vol% × current net value" approximation. volDollar's own %-of-
+// account reading (shown as this stat's small subvalue) divides it by
+// NetLiquidation at render time (see PositionsView's own JSX) rather than
+// this function returning a second, independently-computed %-of-returns
+// figure the way it briefly did -- that alternative (stdev of the
+// simulated portfolio's own day-to-day % returns, denominator shifting
+// with each day's historical value) doesn't answer "how big is this next
+// to my actual account," which is what the subvalue is for; dividing the
+// exact dollar figure by today's real NetLiquidation does. The trick for
+// volDollar/cvolByTicker themselves: work in dollar P&L space, not %
+// returns. Each day's
 // portfolio dollar change is, by construction (shares_i fixed = today's
 // share count, applied to historical prices), exactly the sum of each
 // position's own dollar change that day: dPortfolio(t) = Σ_i dAsset_i(t).
@@ -202,11 +224,15 @@ function normalizedDateKey(dateStr) {
 // for" — unlike that position's OWN standalone volatility, this can be
 // negative for a position that tends to move opposite the rest of the
 // book (a genuine diversifier, reducing total portfolio risk).
-function portfolioVolatilityDecomposition(rows, dailyHistory3mo, monthlyHistory) {
+function portfolioVolatilityDecomposition(
+  rows: PositionRow[],
+  dailyHistory3mo: HistoryByTicker,
+  monthlyHistory: HistoryByTicker
+): PortfolioVolResult {
   const total = rows.filter((r) => r.shares).length
-  const empty = { volPct: null, volDollar: null, cvolByTicker: new Map(), covered: 0, total }
+  const empty: PortfolioVolResult = { volDollar: null, cvolByTicker: new Map(), covered: 0, total }
 
-  const priced = []
+  const priced: { ticker: string; shares: number; byDate: Map<string, number> }[] = []
   for (const r of rows) {
     if (!r.shares) continue
     const series = dailyHistory3mo[r.ticker] || monthlyHistory[r.ticker]
@@ -228,33 +254,26 @@ function portfolioVolatilityDecomposition(rows, dailyHistory3mo, monthlyHistory)
   if (sortedDates.length < 6) return { ...empty, covered }
 
   const portfolioValues = sortedDates.map((date) =>
-    priced.reduce((sum, p) => sum + p.shares * p.byDate.get(date), 0)
+    priced.reduce((sum, p) => sum + p.shares * (p.byDate.get(date) as number), 0)
   )
   if (portfolioValues.length < 6) return { ...empty, covered }
 
-  const dPortfolio = []
-  const returns = []
+  const dPortfolio: number[] = []
   for (let i = 1; i < portfolioValues.length; i++) {
     dPortfolio.push(portfolioValues[i] - portfolioValues[i - 1])
-    const prev = portfolioValues[i - 1]
-    if (prev) returns.push(portfolioValues[i] / prev - 1)
   }
-  if (dPortfolio.length < 5 || returns.length < 5) return { ...empty, covered }
-
-  const meanReturn = returns.reduce((a, b) => a + b, 0) / returns.length
-  const varReturn = returns.reduce((a, b) => a + (b - meanReturn) ** 2, 0) / (returns.length - 1)
-  const volPct = Math.sqrt(varReturn)
+  if (dPortfolio.length < 5) return { ...empty, covered }
 
   const meanDPortfolio = dPortfolio.reduce((a, b) => a + b, 0) / dPortfolio.length
   const varDPortfolio = dPortfolio.reduce((a, b) => a + (b - meanDPortfolio) ** 2, 0) / (dPortfolio.length - 1)
   const volDollar = Math.sqrt(varDPortfolio)
 
-  const cvolByTicker = new Map()
+  const cvolByTicker = new Map<string, number>()
   if (volDollar) {
     for (const p of priced) {
-      const dAsset = []
+      const dAsset: number[] = []
       for (let i = 1; i < sortedDates.length; i++) {
-        dAsset.push(p.shares * (p.byDate.get(sortedDates[i]) - p.byDate.get(sortedDates[i - 1])))
+        dAsset.push(p.shares * ((p.byDate.get(sortedDates[i]) as number) - (p.byDate.get(sortedDates[i - 1]) as number)))
       }
       const meanAsset = dAsset.reduce((a, b) => a + b, 0) / dAsset.length
       let cov = 0
@@ -266,7 +285,7 @@ function portfolioVolatilityDecomposition(rows, dailyHistory3mo, monthlyHistory)
     }
   }
 
-  return { volPct, volDollar, cvolByTicker, covered, total }
+  return { volDollar, cvolByTicker, covered, total }
 }
 
 // Portfolio beta exposure: each held position's value * beta, summed,
@@ -300,7 +319,7 @@ function portfolioVolatilityDecomposition(rows, dailyHistory3mo, monthlyHistory)
 // netValue comes out positive, the wrong sign, whereas weightedSum
 // itself already has the right sign built in). So this returns both,
 // rather than making callers try to reconstruct one from the other.
-function portfolioBetaExposure(rows) {
+function portfolioBetaExposure(rows: PositionRow[]): PortfolioBetaResult {
   let weightedSum = 0
   let grossWeightTotal = 0
   let covered = 0
@@ -309,7 +328,7 @@ function portfolioBetaExposure(rows) {
     if (!r.shares || r.value === null) continue
     const hasBeta = r.beta !== null && r.beta !== undefined && Number.isFinite(r.beta)
     if (hasBeta) covered += 1
-    weightedSum += r.value * (hasBeta ? r.beta : 1)
+    weightedSum += r.value * (hasBeta ? (r.beta as number) : 1)
     grossWeightTotal += Math.abs(r.value)
   }
   if (!grossWeightTotal) return { beta: null, dollarPer1PctMove: null, covered, total }
@@ -321,7 +340,7 @@ function portfolioBetaExposure(rows) {
 // value-weighted average (numeric factors), a sum (Pos Value = the side's
 // net dollar exposure; Sum of % of NAV = the sum of each position's own %
 // of NAV on this side), or descriptive text (Ticker/Name).
-function WeightedFactorRow({ side, count, netValue, sumWeightPct, dayPnl, factors, beta, dollarPer1PctMove }) {
+function WeightedFactorRow({ side, count, netValue, sumWeightPct, dayPnl, factors, beta, dollarPer1PctMove }: WeightedSideFactor) {
   return (
     <tr>
       <td className={`col-left col-ticker side-group-cell${side === 'Short' ? ' side-group-cell-short' : ''}`}>
@@ -352,15 +371,15 @@ export default function PositionsView() {
   // yfinance price sorted_screen.csv already has, as a fallback for
   // tickers ib_price_server.py hasn't (or can't) get a live quote for.
   // ern/upd feed earningsUrgencyClass, same as PeTable.jsx's Name cell.
-  const [tickerInfo, setTickerInfo] = useState({})
-  const [prices, setPrices] = useState({})
-  const [positions, setPositions] = useState({})
-  const [account, setAccount] = useState({})
+  const [tickerInfo, setTickerInfo] = useState<TickerInfoByTicker>({})
+  const [prices, setPrices] = useState<PricesByTicker>({})
+  const [positions, setPositions] = useState<PositionsByTicker>({})
+  const [account, setAccount] = useState<Account>({})
   // {ticker: {qty, value}} — today's fills only (see ib_price_server.py's
   // refresh_trades). Only present for a symbol actually traded today;
   // used below to mark those shares at their own fill price instead of
   // assuming the whole position was held since yesterday's close.
-  const [trades, setTrades] = useState({})
+  const [trades, setTrades] = useState<TradesByTicker>({})
   // Daily-close series for volatility. price_history_daily_3mo.json is IB
   // Gateway's own history and always covers every held ticker (see
   // ib_price_server.py's fetch_candlestick_history — held positions are
@@ -368,20 +387,20 @@ export default function PositionsView() {
   // primary source; price_history.json (yfinance, 1mo, broader but not
   // guaranteed to include every held ticker) is the fallback for a
   // position IB Gateway hasn't fetched history for yet.
-  const [dailyHistory3mo, setDailyHistory3mo] = useState({})
-  const [monthlyHistory, setMonthlyHistory] = useState({})
+  const [dailyHistory3mo, setDailyHistory3mo] = useState<HistoryByTicker>({})
+  const [monthlyHistory, setMonthlyHistory] = useState<HistoryByTicker>({})
   // Every screener factor column (see screenerFactors.js's COLUMNS), keyed
   // by ticker — feeds the value-weighted Long/Short portfolio-factors table
   // below. Kept separate from tickerInfo (name/sector/price/ern/upd) rather
   // than folded in, since tickerInfo already has its own established shape
   // used throughout `rows` below.
-  const [factorsByTicker, setFactorsByTicker] = useState({})
+  const [factorsByTicker, setFactorsByTicker] = useState<FactorsByTicker>({})
   // Sector's average forward P/E across the FULL screener universe (not
   // just held tickers) — same figure PeTable.jsx's Avg PE column shows,
   // computed the same way (see that file's sectorAvgPE) since a sector
   // average is only meaningful over the whole universe, not the handful of
   // names actually held in it.
-  const [sectorAvgPE, setSectorAvgPE] = useState(new Map())
+  const [sectorAvgPE, setSectorAvgPE] = useState<Map<string, number>>(new Map())
 
   useEffect(() => {
     Promise.all([
@@ -391,22 +410,22 @@ export default function PositionsView() {
       // insiders is blank, not a load error.
       fetch('/social_sentiment.json')
         .then((r) => (r.ok ? r.json() : {}))
-        .catch(() => ({})),
+        .catch(() => ({})) as Promise<Record<string, any>>,
       fetch('/news_sentiment.json')
         .then((r) => (r.ok ? r.json() : {}))
-        .catch(() => ({})),
+        .catch(() => ({})) as Promise<Record<string, any>>,
       fetch('/sec/form4/insider_transactions.json')
         .then((r) => (r.ok ? r.json() : {}))
-        .catch(() => ({})),
+        .catch(() => ({})) as Promise<Record<string, any>>,
       fetch('/sec/13f/institutional_holdings.json')
         .then((r) => (r.ok ? r.json() : {}))
-        .catch(() => ({})),
-    ])
+        .catch(() => ({})) as Promise<Record<string, any>>,
+    ] as const)
       .then(([text, sentiment, newsSentiment, insiderTransactions, institutionalHoldings]) => {
-        const info = {}
-        const factors = {}
-        const peSums = new Map()
-        const peCounts = new Map()
+        const info: TickerInfoByTicker = {}
+        const factors: FactorsByTicker = {}
+        const peSums = new Map<string, number>()
+        const peCounts = new Map<string, number>()
         for (const row of parseCSV(text)) {
           info[row.ticker] = {
             name: row.name,
@@ -428,7 +447,7 @@ export default function PositionsView() {
           // are already the same %-change-ratio scale, see
           // IBApp._eps_revision, unlike e.g. shortRatio/shortPercentOfFloat
           // which need rank-averaging instead of raw-value averaging).
-          const epsTrendParts = [toNum(row.epsRevision0y), toNum(row.epsRevision1y)].filter((v) => v !== null)
+          const epsTrendParts = [toNum(row.epsRevision0y), toNum(row.epsRevision1y)].filter((v) => v !== null) as number[]
           const epsTrend = epsTrendParts.length
             ? epsTrendParts.reduce((a, b) => a + b, 0) / epsTrendParts.length
             : null
@@ -465,14 +484,14 @@ export default function PositionsView() {
         // Momentum/MeanRev/Sentiment/News/Insiders read on one identical
         // scale across every tab, not a Positions-only ranking.
         const factorRows = Object.values(factors)
-        for (const key of ['mom', 'mr', 'sent', 'newsSent', 'instChange', 'insiders']) {
+        for (const key of ['mom', 'mr', 'sent', 'newsSent', 'instChange', 'insiders'] as const) {
           const ranked = rankTo100(factorRows.map((f) => f[key]))
           factorRows.forEach((f, i) => {
             f[key] = ranked[i]
           })
         }
-        const avgPE = new Map()
-        for (const [sector, sum] of peSums) avgPE.set(sector, sum / peCounts.get(sector))
+        const avgPE = new Map<string, number>()
+        for (const [sector, sum] of peSums) avgPE.set(sector, sum / (peCounts.get(sector) as number))
         setTickerInfo(info)
         setFactorsByTicker(factors)
         setSectorAvgPE(avgPE)
@@ -504,7 +523,7 @@ export default function PositionsView() {
     return () => source.close()
   }, [])
 
-  const rows = useMemo(() => {
+  const rows: PositionRow[] = useMemo(() => {
     return Object.entries(positions).map(([ticker, pos]) => {
       const info = tickerInfo[ticker]
       // Guard every input with Number.isFinite, not just a null check —
@@ -513,16 +532,16 @@ export default function PositionsView() {
       // (NaN ?? 0 is still NaN). A malformed or missing value anywhere in
       // this chain should fall back to "unknown" (null, rendered as "—"),
       // never a NaN that then poisons every sum built on top of it.
-      const shares = Number.isFinite(pos?.shares) ? pos.shares : null
-      const avgCost = Number.isFinite(pos?.avgCost) ? pos.avgCost : null
+      const shares = Number.isFinite(pos?.shares) ? (pos.shares as number) : null
+      const avgCost = Number.isFinite(pos?.avgCost) ? (pos.avgCost as number) : null
       // IB Gateway's live tick first; sorted_screen.csv's yfinance price
       // (same one the screener falls back to) when IB has no quote for it —
       // e.g. a held ticker outside the screener's usual universe, or the
       // price server isn't running at all.
-      const ibPrice = Number.isFinite(prices[ticker]?.last) ? prices[ticker].last : null
-      const bid = Number.isFinite(prices[ticker]?.bid) ? prices[ticker].bid : null
-      const ask = Number.isFinite(prices[ticker]?.ask) ? prices[ticker].ask : null
-      const yfPrice = Number.isFinite(info?.price) ? info.price : null
+      const ibPrice = Number.isFinite(prices[ticker]?.last) ? (prices[ticker].last as number) : null
+      const bid = Number.isFinite(prices[ticker]?.bid) ? (prices[ticker].bid as number) : null
+      const ask = Number.isFinite(prices[ticker]?.ask) ? (prices[ticker].ask as number) : null
+      const yfPrice = Number.isFinite(info?.price) ? (info?.price as number) : null
       // IB Gateway's own daily bars (price_history_daily_3mo.json), not
       // sorted_screen.csv's yfinance price — that's whatever main.py's
       // yfinance fetch last happened to see (a live quote at fetch time,
@@ -589,7 +608,7 @@ export default function PositionsView() {
         // Screener factor columns (see screenerFactors.js) — feeds the
         // value-weighted Long/Short portfolio-factors table below only;
         // nothing else in this component reads these.
-        savgpe: sectorAvgPE.get(info?.sector) ?? null,
+        savgpe: sectorAvgPE.get(info?.sector as string) ?? null,
         ...factorsByTicker[ticker],
       }
     })
@@ -601,17 +620,19 @@ export default function PositionsView() {
   // position's shares (and so its value) are negative; shares === 0
   // shouldn't occur among open positions at all, but falls into Long
   // rather than being dropped if it somehow does.
-  const sideGroups = useMemo(() => {
-    const sides = [
-      { side: 'Long', sideRows: rows.filter((r) => (r.shares ?? 0) >= 0) },
-      { side: 'Short', sideRows: rows.filter((r) => (r.shares ?? 0) < 0) },
-    ].filter((s) => s.sideRows.length > 0)
+  const sideGroups: SideGroup[] = useMemo(() => {
+    const sides = (
+      [
+        { side: 'Long', sideRows: rows.filter((r) => (r.shares ?? 0) >= 0) },
+        { side: 'Short', sideRows: rows.filter((r) => (r.shares ?? 0) < 0) },
+      ] as { side: 'Long' | 'Short'; sideRows: PositionRow[] }[]
+    ).filter((s) => s.sideRows.length > 0)
 
     return sides.map(({ side, sideRows }) => {
-      const bySector = new Map()
+      const bySector = new Map<string | null, PositionRow[]>()
       for (const r of sideRows) {
         if (!bySector.has(r.sector)) bySector.set(r.sector, [])
-        bySector.get(r.sector).push(r)
+        ;(bySector.get(r.sector) as PositionRow[]).push(r)
       }
       const sectorGroups = [...bySector.entries()].map(([sector, sectorRows]) => {
         sectorRows.sort((a, b) => (b.value ?? -1) - (a.value ?? -1))
@@ -639,11 +660,11 @@ export default function PositionsView() {
   // side (all-negative values) would make every factor's weighted average
   // work out to the position-count-weighted average with its sign
   // flipped, not a real exposure weighting.
-  const weightedSideFactors = useMemo(() => {
+  const weightedSideFactors: WeightedSideFactor[] = useMemo(() => {
     const netLiq = account.NetLiquidation
     return sideGroups.map((g) => {
       const sideRows = rows.filter((r) => (g.side === 'Long' ? (r.shares ?? 0) >= 0 : (r.shares ?? 0) < 0))
-      const { factors, count, sumWeight } = computeFactorAverages(sideRows, (r) => Math.abs(r.value ?? 0))
+      const { factors, count, sumWeight } = computeFactorAverages(sideRows, (r: PositionRow) => Math.abs(r.value ?? 0))
       // Sum of each position's own % of NAV (see the positions table's own
       // % of NAV column) — the side's gross exposure (sumWeight) expressed
       // as a share of the account, rather than a raw dollar figure.
@@ -727,6 +748,14 @@ export default function PositionsView() {
     () => portfolioVolatilityDecomposition(rows, dailyHistory3mo, monthlyHistory),
     [rows, dailyHistory3mo, monthlyHistory]
   )
+  // Portfolio Vol.'s small-font subvalue: the dollar figure as a % of the
+  // account's actual NetLiquidation, same "how big is this next to my
+  // whole account" framing netValuePct/grossValuePct above already use --
+  // not a %-of-returns figure computed from the historical simulation
+  // (that used to live here as portfolioVol.volPct; see
+  // portfolioVolatilityDecomposition's own comment on why that answers a
+  // different question).
+  const volOfNetLiqPct = netLiq && portfolioVol.volDollar !== null ? portfolioVol.volDollar / netLiq : null
 
   const portfolioBeta = useMemo(() => portfolioBetaExposure(rows), [rows])
 
@@ -798,7 +827,7 @@ export default function PositionsView() {
           >
             <span className="n num">
               {fmtMoney(portfolioVol.volDollar)}
-              {portfolioVol.volPct !== null && <span className="stat-subvalue">{fmtVol(portfolioVol.volPct)}</span>}
+              {volOfNetLiqPct !== null && <span className="stat-subvalue">{fmtVol(volOfNetLiqPct)}</span>}
             </span>
             <span className="l">Portfolio Vol.</span>
           </div>

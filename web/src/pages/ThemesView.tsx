@@ -3,8 +3,17 @@ import { ChevronDown, ChevronRight } from 'lucide-react'
 import { parseCSV } from '../csv'
 import { IB_STREAM_URL } from '../ibStream'
 import { toNum } from '../screenerFactors'
+import type {
+  LivePricesByTicker,
+  PositionRow,
+  PositionsByTicker,
+  Theme,
+  ThemeBucket,
+  TickerInfoByTicker,
+  TickerThemesByTicker,
+} from '../interfaces/IThemesView'
 
-function fmtMoney(v) {
+function fmtMoney(v: number | null | undefined): string {
   if (v === null || v === undefined) return '—'
   return (v >= 0 ? '+$' : '-$') + Math.abs(v).toLocaleString(undefined, { maximumFractionDigits: 0 })
 }
@@ -12,17 +21,17 @@ function fmtMoney(v) {
 // No +/- sign, unlike fmtMoney above — for a figure that's always
 // non-negative by construction (gross value: a sum of absolute values),
 // same convention PositionsView.jsx's own Gross Value stat uses.
-function fmtMoneyUnsigned(v) {
+function fmtMoneyUnsigned(v: number | null | undefined): string {
   if (v === null || v === undefined) return '—'
   return '$' + v.toLocaleString(undefined, { maximumFractionDigits: 0 })
 }
 
-function fmtPct(v) {
+function fmtPct(v: number | null): string {
   if (v === null) return '—'
   return (v >= 0 ? '+' : '') + (v * 100).toFixed(1) + '%'
 }
 
-const UNCLASSIFIED_THEME = {
+const UNCLASSIFIED_THEME: Theme = {
   key: '__unclassified__',
   label: 'Unclassified',
   description: 'A held ticker with no entry yet in data/ticker_themes.json — ask for it to be tagged.',
@@ -47,13 +56,13 @@ const UNCLASSIFIED_THEME = {
 // "Unclassified", rather than silently vanishing from the exposure
 // totals.
 export default function ThemesView() {
-  const [taxonomy, setTaxonomy] = useState(null)
-  const [tickerThemes, setTickerThemes] = useState({})
-  const [tickerInfo, setTickerInfo] = useState({})
-  const [positions, setPositions] = useState({})
-  const [livePrices, setLivePrices] = useState({})
-  const [expandedThemes, setExpandedThemes] = useState(new Set())
-  const [error, setError] = useState(null)
+  const [taxonomy, setTaxonomy] = useState<Theme[] | null>(null)
+  const [tickerThemes, setTickerThemes] = useState<TickerThemesByTicker>({})
+  const [tickerInfo, setTickerInfo] = useState<TickerInfoByTicker>({})
+  const [positions, setPositions] = useState<PositionsByTicker>({})
+  const [livePrices, setLivePrices] = useState<LivePricesByTicker>({})
+  const [expandedThemes, setExpandedThemes] = useState<Set<string>>(new Set())
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     const source = new EventSource(IB_STREAM_URL)
@@ -78,7 +87,7 @@ export default function ThemesView() {
       .then(([themes, themesByTicker, csvText]) => {
         setTaxonomy(themes)
         setTickerThemes(themesByTicker)
-        const info = {}
+        const info: TickerInfoByTicker = {}
         for (const row of parseCSV(csvText)) {
           info[row.ticker] = { name: row.name, price: toNum(row.price) }
         }
@@ -90,12 +99,12 @@ export default function ThemesView() {
   // One row per held position, regardless of whether it's tagged yet —
   // see the component-level comment on why an untagged ticker still
   // needs to show up (as "Unclassified") rather than disappear.
-  const rows = useMemo(() => {
+  const rows: PositionRow[] = useMemo(() => {
     return Object.entries(positions)
       .map(([ticker, p]) => {
         const shares = p.shares
         const price = livePrices[ticker]?.last ?? tickerInfo[ticker]?.price ?? null
-        const value = shares !== null && price !== null ? shares * price : null
+        const value = shares !== null && shares !== undefined && price !== null ? shares * price : null
         const themeKeys = tickerThemes[ticker]?.length ? tickerThemes[ticker] : [UNCLASSIFIED_THEME.key]
         return {
           ticker,
@@ -117,10 +126,10 @@ export default function ThemesView() {
   // themes in full, not half each) — signed, so a short position
   // correctly subtracts from a theme's net exposure rather than adding
   // to it, same convention every other $ figure in this app uses.
-  const themeRows = useMemo(() => {
+  const themeRows: ThemeBucket[] = useMemo(() => {
     if (!taxonomy) return []
     const allThemes = [...taxonomy, UNCLASSIFIED_THEME]
-    const byTheme = new Map(allThemes.map((t) => [t.key, { ...t, tickers: [], netValue: 0, grossValue: 0 }]))
+    const byTheme = new Map<string, ThemeBucket>(allThemes.map((t) => [t.key, { ...t, tickers: [], netValue: 0, grossValue: 0 }]))
     for (const r of rows) {
       // A ticker tagged with N themes has its value split evenly N ways,
       // not counted in full toward each -- unlike the earlier "gross
@@ -152,7 +161,7 @@ export default function ThemesView() {
   // not just approximately so).
   const themesNetTotal = useMemo(() => themeRows.reduce((s, t) => s + t.netValue, 0), [themeRows])
 
-  function toggleTheme(key) {
+  function toggleTheme(key: string) {
     setExpandedThemes((prev) => {
       const next = new Set(prev)
       if (next.has(key)) next.delete(key)
