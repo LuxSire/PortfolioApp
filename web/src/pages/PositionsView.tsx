@@ -474,17 +474,25 @@ export default function PositionsView() {
             sent: toNum(sentiment[row.ticker]?.score),
             newsSent: newsSent.avg !== null ? newsSent.avg - 3 : null,
             instChange: toNum(institutionalHoldings[row.ticker]?.pctShareChangeQoQ),
-            insiders: insiders.avg,
+            // ×100, NOT rank-rescaled like the loop below — see
+            // ScreenerView.tsx's identical assignment for why: insiders.avg
+            // is already a bounded, comparable ratio, and a percentile
+            // rank over an insider-buy universe this dominated by
+            // zero-buy ties lets a single stray buy vault a ticker
+            // dramatically up the scale (confirmed live: LQDA, 1 buy vs.
+            // 79 sells, ranked strongly positive under the old treatment).
+            insiders: insiders.avg !== null ? insiders.avg * 100 : null,
           }
         }
-        // Same rank-to-[-100, 100] rescale as PeTable.jsx's Screener (see
-        // rankTo100's own comment for why rank-based, not min-max), and
-        // over the same full sorted_screen.csv universe (this parses that
-        // same file before subsetting to held positions below), so
-        // Momentum/MeanRev/Sentiment/News/Insiders read on one identical
-        // scale across every tab, not a Positions-only ranking.
+        // Same rank-to-[-100, 100] rescale as ScreenerView.tsx's Screener
+        // (see rankTo100's own comment for why rank-based, not min-max),
+        // and over the same full sorted_screen.csv universe (this parses
+        // that same file before subsetting to held positions below), so
+        // Momentum/MeanRev/Sentiment/News read on one identical scale
+        // across every tab, not a Positions-only ranking. Insiders
+        // deliberately excluded -- see its own ×100 comment above.
         const factorRows = Object.values(factors)
-        for (const key of ['mom', 'mr', 'sent', 'newsSent', 'instChange', 'insiders'] as const) {
+        for (const key of ['mom', 'mr', 'sent', 'newsSent', 'instChange'] as const) {
           const ranked = rankTo100(factorRows.map((f) => f[key]))
           factorRows.forEach((f, i) => {
             f[key] = ranked[i]

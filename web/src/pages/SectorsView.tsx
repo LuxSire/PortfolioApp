@@ -129,15 +129,21 @@ export default function SectorsView() {
             sent: toNum(sentiment[r.ticker]?.score),
             newsSent: newsSent.avg !== null ? newsSent.avg - 3 : null,
             instChange: toNum(institutionalHoldings[r.ticker]?.pctShareChangeQoQ),
-            insiders: insiders.avg,
+            // ×100, NOT rank-rescaled like the loop below — see
+            // ScreenerView.tsx's identical assignment for why: a
+            // percentile rank over an insider-buy universe this dominated
+            // by zero-buy ties lets a single stray buy vault a ticker
+            // dramatically up the scale.
+            insiders: insiders.avg !== null ? insiders.avg * 100 : null,
           }
         })
-        // Same rank-to-[-100, 100] rescale as PeTable.jsx/PositionsView.jsx
+        // Same rank-to-[-100, 100] rescale as ScreenerView.tsx/PositionsView.tsx
         // (see rankTo100's own comment for why rank-based, not min-max),
         // over this same full sorted_screen.csv universe (before grouping
         // into sector/industry rows below), so the scale matches across
-        // every tab rather than being Sectors-only.
-        for (const key of ['mom', 'mr', 'sent', 'newsSent', 'instChange', 'insiders'] as const) {
+        // every tab rather than being Sectors-only. Insiders deliberately
+        // excluded — see its own ×100 comment above.
+        for (const key of ['mom', 'mr', 'sent', 'newsSent', 'instChange'] as const) {
           const ranked = rankTo100(parsed.map((r) => r[key]))
           parsed.forEach((r, i) => {
             r[key] = ranked[i]
@@ -192,9 +198,12 @@ export default function SectorsView() {
     const posValSum = (groupRows: AssetRow[]) => groupRows.reduce((s, r) => s + (r.posval ?? 0), 0)
     const sectors: SectorGroup[] = [...bySector.entries()].map(([sectorGroup, byIndustry]) => {
       const sectorRows = [...byIndustry.values()].flat()
-      const { factors, count } = computeFactorAverages(sectorRows, () => 1) as { factors: Record<string, number | null>; count: number }
+      const { factors, count } = computeFactorAverages(sectorRows, () => 1) as unknown as {
+        factors: Record<string, number | null>
+        count: number
+      }
       const industries: IndustryGroup[] = [...byIndustry.entries()].map(([industry, industryRows]) => {
-        const { factors: industryFactors, count: industryCount } = computeFactorAverages(industryRows, () => 1) as {
+        const { factors: industryFactors, count: industryCount } = computeFactorAverages(industryRows, () => 1) as unknown as {
           factors: Record<string, number | null>
           count: number
         }

@@ -600,7 +600,23 @@ export default function ScreenerView() {
             newsSentCount: newsSent.count || null,
             instChange: toNum(institutionalHoldings[r.ticker]?.pctShareChangeQoQ),
             instChangeRaw: toNum(institutionalHoldings[r.ticker]?.pctShareChangeQoQ),
-            insiders: insiders.avg,
+            // ×100 to sit on the same visual scale as Momentum/MeanRev/etc
+            // (their post-rankTo100 range), but NOT rank-rescaled the way
+            // those are (see the loop below, which deliberately excludes
+            // 'insiders') -- insiders.avg is already a bounded, comparable
+            // ratio (buys-sells)/(buys+sells) in [-1, 1], and this
+            // universe's insider-BUY activity is dominated by a huge tied
+            // block of tickers with literally zero buys (confirmed: ~78%
+            // of tickers with any Form4 P/S activity have a raw ratio of
+            // exactly -1.0) -- a percentile rank ties that whole block to
+            // the worst rank and then lets a single stray buy against
+            // dozens of sells vault a ticker dramatically up the scale
+            // just for not being tied to that block (confirmed live:
+            // LQDA, 1 buy vs. 79 sells, ranked at the 78th percentile and
+            // displayed as strongly positive despite being 98.8% sells).
+            // The raw ratio itself has no such artifact, so it's used
+            // directly instead.
+            insiders: insiders.avg !== null ? insiders.avg * 100 : null,
             insiderBuys: insiders.buys,
             insiderSells: insiders.sells,
             beta: toNum(r.beta),
@@ -639,16 +655,18 @@ export default function ScreenerView() {
             upd: r.lastDownload || null,
           }
         })
-        // Momentum/MeanRev/Sentiment/News/Insiders share one common
-        // display scale: rank-rescaled to [-100, 100] against whatever
-        // this fetch actually observed (see rankTo100), so the single
-        // worst/best-ranked reading in each is always -100/+100 —
-        // immune to one outlier crushing everything else toward one end,
-        // unlike a min-max rescale (see rankTo100's own comment for why
-        // that was tried first and replaced). Ranking (rankDescending
-        // below) is unaffected either way — a monotonic rescale never
-        // changes relative order.
-        for (const key of ['mom', 'mr', 'sent', 'newsSent', 'instChange', 'insiders'] as const) {
+        // Momentum/MeanRev/Sentiment/News share one common display scale:
+        // rank-rescaled to [-100, 100] against whatever this fetch
+        // actually observed (see rankTo100), so the single worst/best-
+        // ranked reading in each is always -100/+100 — immune to one
+        // outlier crushing everything else toward one end, unlike a
+        // min-max rescale (see rankTo100's own comment for why that was
+        // tried first and replaced). Insiders deliberately excluded from
+        // this loop — see its own ×100 comment above for why a
+        // percentile rank is the wrong treatment for that one factor.
+        // Ranking (rankDescending below) is unaffected either way — a
+        // monotonic rescale never changes relative order.
+        for (const key of ['mom', 'mr', 'sent', 'newsSent', 'instChange'] as const) {
           const ranked = rankTo100(parsed.map((r) => r[key]))
           parsed.forEach((r, i) => {
             r[key] = ranked[i]

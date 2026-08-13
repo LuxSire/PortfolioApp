@@ -229,11 +229,27 @@ def load_insider_scores(form4_file):
 
 
 def insiders_rank(rows, insider_scores):
-    """High insider open-market buying (see load_insider_scores) ranks
-    better; missing ranked worst. Same rank_ascending-over-injected-score
-    pattern as sentiment_rank."""
-    augmented = [(symbol, {**d, "_insiderScore": insider_scores.get(symbol)}) for symbol, d in rows]
-    return rank_ascending(augmented, lambda d: -d["_insiderScore"] if d.get("_insiderScore") is not None else None)
+    """[0, 1] score (0=best/all-buys, 1=worst/all-sells) directly from
+    each ticker's raw open-market buy/sell ratio (see load_insider_scores
+    -- (buys-sells)/(buys+sells), already bounded [-1, 1]), linearly
+    rescaled via (1 - score) / 2; missing ranked worst. Deliberately NOT
+    a population-relative percentile rank the way every other *_rank
+    function here uses rank_ascending: insider open-market PURCHASES are
+    rare industry-wide (confirmed on this universe's own Form4 data:
+    ~78% of tickers with any open-market P/S activity have a raw ratio of
+    exactly -1.0, i.e. literally zero buys), so a percentile rank ties
+    that entire zero-buy majority to the worst rank and then lets a
+    SINGLE stray buy against dozens of sells vault a ticker dramatically
+    up the scale just for not being tied to that block -- confirmed live:
+    LQDA (1 buy, 79 sells, raw ratio -0.976) ranked at the 78th
+    percentile under the old rank_ascending treatment, reading as
+    strongly bullish despite being 98.8% sells. The raw ratio is already
+    a bounded, comparable value -- unlike momentum or the other unbounded
+    factors rank_ascending exists to protect against one outlier
+    crushing, it needs no percentile treatment at all, just a direct
+    linear rescale into the same [0, 1] rank-space every other factor
+    here reports."""
+    return {symbol: (1 - insider_scores[symbol]) / 2 if symbol in insider_scores else 1.0 for symbol, _ in rows}
 
 
 # ---------------------------------------------------------------------- #
