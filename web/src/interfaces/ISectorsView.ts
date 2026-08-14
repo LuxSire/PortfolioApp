@@ -36,26 +36,55 @@ export interface AssetRow {
   insiders: number | null
   savgpe?: number | null
   posval?: number | null
+  // Trailing daily/weekly price return (fraction, e.g. 0.023 = +2.3%),
+  // derived from price_history.json -- see SectorsView.tsx's own
+  // computeReturns. Optional/nullable: a ticker with fewer than 2 daily
+  // closes on file (new listing, or price_history.json hasn't covered it
+  // yet) has neither.
+  dailyPct?: number | null
+  weeklyPct?: number | null
 }
 
 // One industry group (mid tier of the Sector > Industry > Asset tree) --
 // factors is a plain (equal-weight) average across its tickers, see
 // factorTable.jsx's computeFactorAverages, which this page's own
-// untyped-JS import returns as a loose numeric map.
+// untyped-JS import returns as a loose numeric map. sectorDailyPct/
+// sectorWeeklyPct are that SAME equal-weight treatment applied to
+// dailyPct/weeklyPct across every ticker in the group (held or not) --
+// posDailyPct is the opposite weighting, value-weighted by
+// Math.abs(posval) across only the tickers actually held in this group
+// (same gross-value-weighting convention PositionsView.tsx's own
+// factor table uses), null when nothing in the group is held. See
+// SectorsView.tsx's own meanOf/valueWeightedMeanOf. There's no
+// posWeeklyPct (value-weighted weekly) -- explicit instruction, dropped
+// as wrong: a week-over-week return computed from the STOCK's own price
+// history has no idea when a position was actually opened, so a
+// recently-opened position's "weekly performance" would mostly reflect
+// days before it was even held -- misleading in a way posDailyPct isn't
+// (a day-old position and today's daily return are close enough to
+// still be meaningful). sectorWeeklyPct doesn't have this problem since
+// it was never claiming to represent a position's own performance.
 export interface IndustryGroup {
   industry: string
   count: number
   posValSum: number
   factors: Record<string, number | null>
+  sectorDailyPct: number | null
+  sectorWeeklyPct: number | null
+  posDailyPct: number | null
   tickers: AssetRow[]
 }
 
-// One sector group (top tier of the tree).
+// One sector group (top tier of the tree) -- same fields as IndustryGroup,
+// just aggregated one level up.
 export interface SectorGroup {
   sectorGroup: string | null
   count: number
   posValSum: number
   factors: Record<string, number | null>
+  sectorDailyPct: number | null
+  sectorWeeklyPct: number | null
+  posDailyPct: number | null
   industries: IndustryGroup[]
 }
 

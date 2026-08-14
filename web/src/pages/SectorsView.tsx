@@ -21,6 +21,72 @@ function fmtMoney(v: number | null | undefined): string {
   return '$' + v.toLocaleString(undefined, { maximumFractionDigits: 0 })
 }
 
+// Signed, 1 decimal -- same convention every other %-return figure in
+// this app uses (e.g. PortfolioView.tsx's fmtPct).
+function fmtRet(v: number | null | undefined): string {
+  if (v === null || v === undefined) return '—'
+  return (v >= 0 ? '+' : '') + (v * 100).toFixed(1) + '%'
+}
+
+// Daily/weekly trailing price return from price_history.json's daily
+// closes (already date-ascending, see PortfolioView.jsx's own NavChart
+// for the same assumption on that file's shape elsewhere in this app).
+// Daily = last close vs. the one right before it. Weekly = last close
+// vs. ~5 trading sessions back (index length-6) -- if fewer than 6
+// closes are on file, falls back to the EARLIEST one available instead
+// of returning null outright, so a recently-listed or newly-tracked
+// ticker still gets a (shorter-window) weekly figure rather than a blank
+// -- only a ticker with a single close on file (nothing to diff against)
+// gets null for both.
+function computeReturns(history: { date: string; close: number }[] | undefined): { dailyPct: number | null; weeklyPct: number | null } {
+  if (!history || history.length < 2) return { dailyPct: null, weeklyPct: null }
+  const last = history[history.length - 1].close
+  const prev = history[history.length - 2].close
+  const dailyPct = prev ? (last - prev) / prev : null
+  const weekIdx = Math.max(0, history.length - 6)
+  const weekAgo = history[weekIdx].close
+  const weeklyPct = weekIdx < history.length - 1 && weekAgo ? (last - weekAgo) / weekAgo : null
+  return { dailyPct, weeklyPct }
+}
+
+// Equal-weight mean of `key` across every row that has it -- the "Sector"
+// Daily/Weekly columns' weighting (see this file's own header comment on
+// why group rows are plain averages here, unlike PositionsView.tsx's
+// value-weighted ones).
+function meanOf(rows: AssetRow[], key: 'dailyPct' | 'weeklyPct'): number | null {
+  let sum = 0
+  let n = 0
+  for (const r of rows) {
+    const v = r[key]
+    if (v === null || v === undefined || !Number.isFinite(v)) continue
+    sum += v
+    n += 1
+  }
+  return n ? sum / n : null
+}
+
+// Value-weighted mean of `key`, weight = Math.abs(posval) -- the
+// "Positions" Daily/Weekly columns' weighting, restricted to rows
+// actually held (posval truthy) by construction (an unheld row has
+// weight 0 and drops out). Same gross-value-weighting convention
+// PositionsView.tsx's own factor table uses (see that file's own
+// computeFactorAverages call) -- a short position's raw price return is
+// weighted by its absolute exposure, not sign-inverted into a P&L
+// figure, so this reads as "how the underlying assets moved," the same
+// metric the equal-weighted Sector columns show, just reweighted.
+function valueWeightedMeanOf(rows: AssetRow[], key: 'dailyPct' | 'weeklyPct'): number | null {
+  let sum = 0
+  let weight = 0
+  for (const r of rows) {
+    const v = r[key]
+    const w = Math.abs(r.posval ?? 0)
+    if (v === null || v === undefined || !Number.isFinite(v) || !w) continue
+    sum += v * w
+    weight += w
+  }
+  return weight ? sum / weight : null
+}
+
 // Sectors tab: the full screener universe (sorted_screen.csv — every
 // scored ticker, not just held positions; same fetch shape as
 // PositionsView.jsx's own portfolio-factors table, see that file for the
@@ -33,11 +99,28 @@ function fmtMoney(v: number | null | undefined): string {
 // the exact same FactorCells component used for the averaged rows (see
 // factorTable.js's computeFactorAverages: an "average" of one row is
 // just that row, so no separate leaf-rendering path is needed).
+//
+// Sector 1D/1W vs. Pos 1D/1W (next to Pos Value, ahead of the FactorCells
+// tail) are a deliberately DIFFERENT weighting pair, not part of
+// FACTOR_KEYS/computeFactorAverages above: Sector 1D/1W is the equal-
+// weight daily/weekly price return across EVERY ticker in the group
+// (held or not, matching this page's own equal-weight convention for
+// every other group-level column) -- Pos 1D/1W is the SAME two returns
+// but value-weighted by Math.abs(posval) across only the tickers
+// actually HELD in that group (matching PositionsView.tsx's own gross-
+// value-weighting convention), null when nothing in the group is held.
+// See meanOf/valueWeightedMeanOf and computeReturns below.
 export default function SectorsView() {
   const [rawRows, setRawRows] = useState<AssetRow[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [expandedSectors, setExpandedSectors] = useState<Set<string | null>>(new Set())
   const [expandedIndustries, setExpandedIndustries] = useState<Set<string>>(new Set())
+  // Same "Positions only" filter NewsView.tsx already offers, just
+  // placed next to the title instead of in a controls row -- restricts
+  // the whole Sector > Industry > Asset tree (and the pos-value chart
+  // below it, since that's derived from `tree`) to currently held
+  // tickers only.
+  const [positionsOnly, setPositionsOnly] = useState(false)
   // Live IB Gateway prices + account positions — same SSE stream
   // PeTable.jsx/PositionsView.jsx already subscribe to — used only to
   // compute each ticker's Pos Value (possize * live-or-CSV price), same
@@ -78,8 +161,15 @@ export default function SectorsView() {
       fetch('/sec/13f/institutional_holdings.json')
         .then((r) => (r.ok ? r.json() : {}))
         .catch(() => ({})) as Promise<Record<string, any>>,
+      // Daily closes per ticker (yfinance, see PortfolioView.jsx's own
+      // NavChart for the same file elsewhere in this app) -- the source
+      // for the Daily/Weekly return columns below (see computeReturns).
+      // Same best-effort contract as the other optional fetches here.
+      fetch('/price_history.json')
+        .then((r) => (r.ok ? r.json() : {}))
+        .catch(() => ({})) as Promise<Record<string, { date: string; close: number }[]>>,
     ] as const)
-      .then(([text, sentiment, newsSentiment, insiderTransactions, institutionalHoldings]) => {
+      .then(([text, sentiment, newsSentiment, insiderTransactions, institutionalHoldings, priceHistory]) => {
         // industry's own average forwardPE across the FULL universe (see
         // PeTable.jsx's sectorAvgPE) — computed per raw/granular industry
         // (sorted_screen.csv's "sector" column — see IBApp.get_forward_pe,
@@ -135,6 +225,7 @@ export default function SectorsView() {
             // by zero-buy ties lets a single stray buy vault a ticker
             // dramatically up the scale.
             insiders: insiders.avg !== null ? insiders.avg * 100 : null,
+            ...computeReturns(priceHistory[r.ticker]),
           }
         })
         // Same rank-to-[-100, 100] rescale as ScreenerView.tsx/PositionsView.tsx
@@ -178,8 +269,9 @@ export default function SectorsView() {
   // right now" at a glance rather than needing to be re-sorted by hand.
   const tree: SectorGroup[] = useMemo(() => {
     if (!rows) return []
+    const visibleRows = positionsOnly ? rows.filter((r) => (positions[r.t]?.shares ?? 0) !== 0) : rows
     const bySector = new Map<string | null, Map<string, AssetRow[]>>()
-    for (const r of rows) {
+    for (const r of visibleRows) {
       if (!bySector.has(r.sectorGroup)) bySector.set(r.sectorGroup, new Map())
       const byIndustry = bySector.get(r.sectorGroup) as Map<string, AssetRow[]>
       if (!byIndustry.has(r.industry)) byIndustry.set(r.industry, [])
@@ -212,15 +304,27 @@ export default function SectorsView() {
           count: industryCount,
           posValSum: posValSum(industryRows),
           factors: industryFactors,
+          sectorDailyPct: meanOf(industryRows, 'dailyPct'),
+          sectorWeeklyPct: meanOf(industryRows, 'weeklyPct'),
+          posDailyPct: valueWeightedMeanOf(industryRows, 'dailyPct'),
           tickers: [...industryRows].sort(byScore),
         }
       })
       industries.sort(byScore)
-      return { sectorGroup, count, posValSum: posValSum(sectorRows), factors, industries }
+      return {
+        sectorGroup,
+        count,
+        posValSum: posValSum(sectorRows),
+        factors,
+        sectorDailyPct: meanOf(sectorRows, 'dailyPct'),
+        sectorWeeklyPct: meanOf(sectorRows, 'weeklyPct'),
+        posDailyPct: valueWeightedMeanOf(sectorRows, 'dailyPct'),
+        industries,
+      }
     })
     sectors.sort(byScore)
     return sectors
-  }, [rows])
+  }, [rows, positions, positionsOnly])
 
   // One bar per sector (see SectorPosValueChart.tsx) — same posValSum
   // already shown in the table's Pos Value column at the sector level,
@@ -257,7 +361,13 @@ export default function SectorsView() {
     <div className="positions-page positions-unbounded">
       <header className="masthead">
         <div className="title-block">
-          <h1>Sectors</h1>
+          <div className="title-with-info">
+            <h1>Sectors</h1>
+            <label className="position-filter">
+              <input type="checkbox" checked={positionsOnly} onChange={(e) => setPositionsOnly(e.target.checked)} />
+              Positions only{Object.keys(positions).length > 0 ? ` (${Object.keys(positions).length})` : ''}
+            </label>
+          </div>
         </div>
       </header>
 
@@ -272,6 +382,9 @@ export default function SectorsView() {
                 <th className="col-left col-name">Group</th>
                 <th># Assets</th>
                 <th>Pos Value</th>
+                <th title="Every ticker in this group, equal-weighted">Sector 1D</th>
+                <th title="Every ticker in this group, equal-weighted">Sector 1W</th>
+                <th title="Held tickers in this group only, weighted by position value">Pos 1D</th>
                 {FACTOR_COLUMNS.map((col: { key: string; label: string }) => (
                   <th key={col.key}>{col.label}</th>
                 ))}
@@ -296,6 +409,15 @@ export default function SectorsView() {
                       </td>
                       <td className="num">{sector.count}</td>
                       <td className="num">{fmtMoney(sector.posValSum || null)}</td>
+                      <td className={`num ${sector.sectorDailyPct === null ? '' : sector.sectorDailyPct >= 0 ? 'good' : 'bad'}`}>
+                        {fmtRet(sector.sectorDailyPct)}
+                      </td>
+                      <td className={`num ${sector.sectorWeeklyPct === null ? '' : sector.sectorWeeklyPct >= 0 ? 'good' : 'bad'}`}>
+                        {fmtRet(sector.sectorWeeklyPct)}
+                      </td>
+                      <td className={`num ${sector.posDailyPct === null ? '' : sector.posDailyPct >= 0 ? 'good' : 'bad'}`}>
+                        {fmtRet(sector.posDailyPct)}
+                      </td>
                       <FactorCells factors={sector.factors} />
                     </tr>
                     {sectorOpen &&
@@ -316,29 +438,55 @@ export default function SectorsView() {
                               </td>
                               <td className="num">{industry.count}</td>
                               <td className="num">{fmtMoney(industry.posValSum || null)}</td>
+                              <td className={`num ${industry.sectorDailyPct === null ? '' : industry.sectorDailyPct >= 0 ? 'good' : 'bad'}`}>
+                                {fmtRet(industry.sectorDailyPct)}
+                              </td>
+                              <td className={`num ${industry.sectorWeeklyPct === null ? '' : industry.sectorWeeklyPct >= 0 ? 'good' : 'bad'}`}>
+                                {fmtRet(industry.sectorWeeklyPct)}
+                              </td>
+                              <td className={`num ${industry.posDailyPct === null ? '' : industry.posDailyPct >= 0 ? 'good' : 'bad'}`}>
+                                {fmtRet(industry.posDailyPct)}
+                              </td>
                               <FactorCells factors={industry.factors} />
                             </tr>
                             {industryOpen &&
-                              industry.tickers.map((t) => (
-                                <tr className="factor-tree-row factor-tree-level-2" key={t.t}>
-                                  <td className="col-left col-name">
-                                    <span className="factor-tree-leaf">
-                                      <a
-                                        href={`#/asset/${encodeURIComponent(t.t)}`}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="ticker-link"
-                                      >
-                                        {t.t}
-                                      </a>
-                                      <span className="factor-tree-leaf-name">{t.n}</span>
-                                    </span>
-                                  </td>
-                                  <td className="num">—</td>
-                                  <td className="num">{fmtMoney(t.posval)}</td>
-                                  <FactorCells factors={t} />
-                                </tr>
-                              ))}
+                              industry.tickers.map((t) => {
+                                // A leaf's "Sector" columns are just its own
+                                // return (equal-weight-of-one); "Pos" columns
+                                // only show that same return if this ticker
+                                // is actually held (t.posval not null) --
+                                // otherwise there's no position to weight.
+                                const held = t.posval !== null && t.posval !== undefined
+                                return (
+                                  <tr className="factor-tree-row factor-tree-level-2" key={t.t}>
+                                    <td className="col-left col-name">
+                                      <span className="factor-tree-leaf">
+                                        <a
+                                          href={`#/asset/${encodeURIComponent(t.t)}`}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="ticker-link"
+                                        >
+                                          {t.t}
+                                        </a>
+                                        <span className="factor-tree-leaf-name">{t.n}</span>
+                                      </span>
+                                    </td>
+                                    <td className="num">—</td>
+                                    <td className="num">{fmtMoney(t.posval)}</td>
+                                    <td className={`num ${t.dailyPct === null || t.dailyPct === undefined ? '' : t.dailyPct >= 0 ? 'good' : 'bad'}`}>
+                                      {fmtRet(t.dailyPct)}
+                                    </td>
+                                    <td className={`num ${t.weeklyPct === null || t.weeklyPct === undefined ? '' : t.weeklyPct >= 0 ? 'good' : 'bad'}`}>
+                                      {fmtRet(t.weeklyPct)}
+                                    </td>
+                                    <td className={`num ${!held || t.dailyPct === null || t.dailyPct === undefined ? '' : t.dailyPct >= 0 ? 'good' : 'bad'}`}>
+                                      {held ? fmtRet(t.dailyPct) : '—'}
+                                    </td>
+                                    <FactorCells factors={t} />
+                                  </tr>
+                                )
+                              })}
                           </Fragment>
                         )
                       })}

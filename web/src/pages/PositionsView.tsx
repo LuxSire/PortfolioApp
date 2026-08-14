@@ -9,8 +9,10 @@ import { FACTOR_COLUMNS, computeFactorAverages } from '../components/factorTable
 import FactorCells from '../components/FactorCells'
 import type {
   Account,
+  ClosedPositionRow,
   FactorsByTicker,
   HistoryByTicker,
+  PnlByTicker,
   PortfolioBetaResult,
   PortfolioVolResult,
   PositionRow,
@@ -66,19 +68,42 @@ function fmtPrice(v: number | null): string {
   return '$' + v.toFixed(2)
 }
 
-// The last close strictly before today from a {date, close} bar series
-// (price_history_daily_3mo.json / price_history.json) — never today's own
-// entry, which both sources can carry as a still-forming bar (close =
-// latest price so far, not a settled close) when fetched intraday.
-// Comparing a live price against that same-day bar instead of a real
-// prior close silently understates or misreports the day's actual move.
-function previousClose(series: { date: string; close: number }[] | undefined): number | null {
-  if (!series || series.length === 0) return null
-  const today = new Date().toISOString().slice(0, 10)
-  for (let i = series.length - 1; i >= 0; i--) {
-    if (series[i].date.slice(0, 10) < today) return series[i].close
+// The last close strictly before today, comparing BOTH bar series --
+// price_history_daily_3mo.json (IB Gateway's own history, fetched once
+// at ib_price_server.py STARTUP only, so it silently goes stale the
+// longer the server runs without a restart) and price_history.json
+// (yfinance, refreshed daily via main.py) — never today's own entry,
+// which both sources can carry as a still-forming bar (close = latest
+// price so far, not a settled close) when fetched intraday. Comparing a
+// live price against that same-day bar instead of a real prior close
+// silently understates or misreports the day's actual move.
+//
+// Uses whichever source's own most recent pre-today entry is actually
+// the NEWER of the two, not just "the first one that has any prior-day
+// close at all" -- explicit bug fix: a plain `previousClose(a) ??
+// previousClose(b)` fallback chain got this wrong in practice (confirmed
+// live on TSLA: price_history_daily_3mo.json hadn't been refreshed
+// since Aug 12, 2 trading days stale, while price_history.json already
+// had Aug 13's real close -- but the ?? never fell through to it
+// because the stale IB file still returned a valid, just outdated,
+// close instead of null).
+function previousClose(
+  dailyHistory3mo: { date: string; close: number }[] | undefined,
+  monthlyHistory: { date: string; close: number }[] | undefined
+): number | null {
+  const lastBarBeforeToday = (series: { date: string; close: number }[] | undefined) => {
+    if (!series || series.length === 0) return null
+    const today = new Date().toISOString().slice(0, 10)
+    for (let i = series.length - 1; i >= 0; i--) {
+      const date = series[i].date.slice(0, 10)
+      if (date < today) return { date, close: series[i].close }
+    }
+    return null
   }
-  return null
+  const fromDaily = lastBarBeforeToday(dailyHistory3mo)
+  const fromMonthly = lastBarBeforeToday(monthlyHistory)
+  if (fromDaily && fromMonthly) return fromDaily.date >= fromMonthly.date ? fromDaily.close : fromMonthly.close
+  return (fromDaily ?? fromMonthly)?.close ?? null
 }
 
 // Briefly highlights a value in green/red when it changes from the last
@@ -380,6 +405,16 @@ export default function PositionsView() {
   // used below to mark those shares at their own fill price instead of
   // assuming the whole position was held since yesterday's close.
   const [trades, setTrades] = useState<TradesByTicker>({})
+  // {ticker: {dailyPnL, unrealizedPnL, realizedPnL, position, value}} --
+  // IBKR's own reqPnLSingle figures (see ib_price_server.py's on_position/
+  // on_pnl_single), present for every symbol held at any point since the
+  // server process started, including a symbol closed out earlier TODAY
+  // (position 0, dailyPnL/realizedPnL still populated) -- see
+  // closedTodayRows below. Preferred over this file's own price-
+  // reconstruction dayPnl formula when present (explicit instruction:
+  // IBKR's own computed P&L "makes more sense" than deriving it
+  // client-side from price ticks).
+  const [pnl, setPnl] = useState<PnlByTicker>({})
   // Daily-close series for volatility. price_history_daily_3mo.json is IB
   // Gateway's own history and always covers every held ticker (see
   // ib_price_server.py's fetch_candlestick_history — held positions are
@@ -521,11 +556,12 @@ export default function PositionsView() {
   useEffect(() => {
     const source = new EventSource(IB_STREAM_URL)
     source.onmessage = (e) => {
-      const { prices: p, positions: pos, account: acc, trades: tr } = JSON.parse(e.data)
+      const { prices: p, positions: pos, account: acc, trades: tr, pnl: pn } = JSON.parse(e.data)
       setPrices(p)
       setAccount(acc || {})
       setPositions(pos)
       setTrades(tr || {})
+      setPnl(pn || {})
     }
     source.onerror = () => {} // EventSource auto-reconnects; nothing to do here.
     return () => source.close()
@@ -559,12 +595,12 @@ export default function PositionsView() {
       // history is fetched intraday, so its last entry is often today's
       // still-forming bar (close = latest price, not a settled close);
       // comparing the live price against that understates or misreports
-      // the real daily move (this is what made ARKK's P&L wrong). Falls
-      // back to price_history.json (yfinance, broader coverage but not
-      // guaranteed for every ticker) then sorted_screen.csv's price only
-      // if IB has no history for this ticker at all.
-      const referencePrice =
-        previousClose(dailyHistory3mo[ticker]) ?? previousClose(monthlyHistory[ticker]) ?? yfPrice
+      // the real daily move (this is what made ARKK's P&L wrong). Picks
+      // whichever of IB's own history or price_history.json (yfinance)
+      // is actually fresher (see previousClose's own comment), falling
+      // back to sorted_screen.csv's price only if neither has history
+      // for this ticker at all.
+      const referencePrice = previousClose(dailyHistory3mo[ticker], monthlyHistory[ticker]) ?? yfPrice
       const price = ibPrice ?? referencePrice
       const value = shares !== null && price !== null ? shares * price : null
       const pnlPct = price !== null && avgCost ? price / avgCost - 1 : null
@@ -588,10 +624,21 @@ export default function PositionsView() {
       const trade = trades[ticker]
       const todayQty = trade?.qty ?? 0
       const todayValue = trade?.value ?? 0
+      // IBKR's own reqPnLSingle figure (see ib_price_server.py's
+      // on_position/on_pnl_single) when the server's had a chance to
+      // report one for this ticker -- authoritative, computed IB-side
+      // from the account's actual fills/marks rather than reconstructed
+      // here from ticks, explicit instruction: "makes more sense" than
+      // this file doing its own price-reconstruction math. Falls back to
+      // that reconstruction (below) only when pnl has nothing yet for
+      // this ticker -- e.g. the server just (re)started and hasn't
+      // received a PnLSingle update for it yet.
+      const ibkrDailyPnl = Number.isFinite(pnl[ticker]?.dailyPnL) ? (pnl[ticker].dailyPnL as number) : null
       const dayPnl =
-        shares !== null && ibPrice !== null && referencePrice !== null
+        ibkrDailyPnl ??
+        (shares !== null && ibPrice !== null && referencePrice !== null
           ? ibPrice * shares - referencePrice * (shares - todayQty) - todayValue
-          : null
+          : null)
       return {
         ticker,
         name: info?.name || ticker,
@@ -620,7 +667,7 @@ export default function PositionsView() {
         ...factorsByTicker[ticker],
       }
     })
-  }, [positions, prices, tickerInfo, dailyHistory3mo, monthlyHistory, trades, factorsByTicker, sectorAvgPE])
+  }, [positions, prices, tickerInfo, dailyHistory3mo, monthlyHistory, trades, pnl, factorsByTicker, sectorAvgPE])
 
   // Long/short split first — the book's two fundamentally different
   // exposures, rendered as their own leftmost rowSpan column — sector
@@ -732,10 +779,17 @@ export default function PositionsView() {
   //     -trade.qty) that's now fully closed -- those pre-existing shares
   //     still need marking from yesterday's close, same "vs. previous
   //     close" convention every other daily figure on this page uses.
+  // IBKR's own reqPnLSingle dailyPnL (see rows' own ibkrDailyPnl) is
+  // preferred per-ticker here too when the server's reported one for a
+  // symbol closed out today -- same "IBKR's own figure over this file's
+  // price-reconstruction" preference as rows above, falling back to the
+  // manual reconstruction only where pnl has nothing yet for that ticker.
   const closedPositionsRealizedPnl = Object.entries(trades).reduce((sum, [ticker, trade]) => {
     if (positions[ticker]?.shares) return sum // still open — already covered by rows/dayPnl above
+    const ibkrDailyPnl = Number.isFinite(pnl[ticker]?.dailyPnL) ? (pnl[ticker].dailyPnL as number) : null
+    if (ibkrDailyPnl !== null) return sum + ibkrDailyPnl
     if (Math.abs(trade.qty) < 1e-6) return sum - trade.value
-    const prevClose = previousClose(dailyHistory3mo[ticker]) ?? previousClose(monthlyHistory[ticker])
+    const prevClose = previousClose(dailyHistory3mo[ticker], monthlyHistory[ticker])
     if (prevClose === null) return sum
     return sum + (prevClose * trade.qty - trade.value)
   }, 0)
@@ -745,6 +799,41 @@ export default function PositionsView() {
   // partially-closed position's realized slice already lives in
   // positionsDayPnl instead).
   const totalDayPnl = positionsDayPnl + closedPositionsRealizedPnl
+
+  // Every symbol traded today that's now fully closed out (0 shares) --
+  // explicit instruction: don't let a same-day round-trip just vanish
+  // from this tab the moment it's flat, show it with its day's P&L.
+  // Gated on `trades` (today's fills only, see TradesByTicker) rather
+  // than scanning `pnl` directly -- pnl_by_ticker on the server persists
+  // for the life of the PROCESS, not just today (see ib_price_server.py's
+  // own module docstring on that tradeoff), so a multi-day-old closed
+  // position could otherwise still be sitting in `pnl` if the server's
+  // been running across a day boundary without a restart; `trades` is
+  // the thing that's actually scoped to today (IBApp.
+  // get_today_executions_async's own midnight-local boundary). P&L
+  // itself still prefers IBKR's own pnl.dailyPnL when present, same
+  // preference as rows/closedPositionsRealizedPnl above, falling back to
+  // trade.realizedPnl (IB's own FIFO figure from today's fills, see
+  // refresh_trades) rather than re-deriving anything price-based here --
+  // there's no "current position" left to mark-to-market for a closed
+  // symbol, so there's nothing a price-reconstruction formula would add
+  // over IBKR's own two figures.
+  const closedTodayRows: ClosedPositionRow[] = useMemo(() => {
+    return Object.entries(trades)
+      .filter(([ticker]) => !positions[ticker]?.shares)
+      .map(([ticker, trade]) => {
+        const info = tickerInfo[ticker]
+        const ibkrDailyPnl = Number.isFinite(pnl[ticker]?.dailyPnL) ? (pnl[ticker].dailyPnL as number) : null
+        const ibPrice = Number.isFinite(prices[ticker]?.last) ? (prices[ticker].last as number) : null
+        return {
+          ticker,
+          name: info?.name || ticker,
+          price: ibPrice,
+          dayPnl: ibkrDailyPnl ?? trade.realizedPnl ?? null,
+        }
+      })
+      .sort((a, b) => Math.abs(b.dayPnl ?? 0) - Math.abs(a.dayPnl ?? 0))
+  }, [trades, positions, pnl, prices, tickerInfo])
   // Net/gross as a share of the account's actual liquidation value —
   // e.g. gross > 100% means leverage (more capital at work than the
   // account is worth).
@@ -861,6 +950,46 @@ export default function PositionsView() {
           </div>
         </div>
       </header>
+
+      {closedTodayRows.length > 0 && (
+        <div className="asset-card">
+          <h2 title="Symbols traded today that are now fully closed out (0 shares) — see the Realized (Closed) stat above for this table's own total.">
+            Closed Today
+          </h2>
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th className="col-left">Ticker</th>
+                  <th>Price</th>
+                  <th>Day P&amp;L</th>
+                </tr>
+              </thead>
+              <tbody>
+                {closedTodayRows.map((r) => (
+                  <tr key={r.ticker}>
+                    <td className="col-left col-name">
+                      <span className="pos-asset">
+                        <a
+                          href={`#/asset/${encodeURIComponent(r.ticker)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="ticker-link pos-ticker"
+                        >
+                          {r.ticker}
+                        </a>
+                        <span className="pos-name">{r.name}</span>
+                      </span>
+                    </td>
+                    <td className="num">{fmtPrice(r.price)}</td>
+                    <td className={`num ${r.dayPnl === null ? '' : r.dayPnl >= 0 ? 'good' : 'bad'}`}>{fmtDollars(r.dayPnl)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {weightedSideFactors.length > 0 && (
         <div className="asset-card asset-card-table-overflow-visible">

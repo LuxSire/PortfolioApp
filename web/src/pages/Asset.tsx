@@ -147,8 +147,13 @@ function useTickerSeries<T>(url: string, ticker: string): T | null {
 
 // holders: data/sec/13f/institutional_holders.json's per-ticker array (see
 // sec_edgar.py's fetch_13f_holdings) -- top MAX_HOLDERS_PER_TICKER
-// institutions by position value, current 13F quarter only, sorted
-// descending by valueUsd already.
+// institutions by common-stock position value, current 13F quarter only,
+// sorted descending by valueUsd already. Put/Call columns are options
+// exposure reported separately on the same 13F (never summed into Shares
+// -- see sec_edgar.py's module docstring for why a Put/Call row can't be
+// read as bullish/bearish, only "this filer disclosed exposure of this
+// type"); a filer can show a Put or Call count with 0 Shares if its only
+// position in this ticker is options.
 function HoldersPanel({ holders, sharesOutstanding }: { holders: Holder[]; sharesOutstanding: unknown }) {
   return (
     <div className="asset-card">
@@ -159,6 +164,8 @@ function HoldersPanel({ holders, sharesOutstanding }: { holders: Holder[]; share
             <th className="col-left">Institution</th>
             <th>Value</th>
             <th>Shares</th>
+            <th>Put</th>
+            <th>Call</th>
             <th>% Owned</th>
           </tr>
         </thead>
@@ -168,6 +175,8 @@ function HoldersPanel({ holders, sharesOutstanding }: { holders: Holder[]; share
               <td className="col-left col-name">{h.name}</td>
               <td className="num">{fmtMoney(h.valueUsd)}</td>
               <td className="num">{fmtShares(h.shares)}</td>
+              <td className="num">{h.putShares ? fmtShares(h.putShares) : '—'}</td>
+              <td className="num">{h.callShares ? fmtShares(h.callShares) : '—'}</td>
               <td className="num">{fmtPctOwned(h.shares, sharesOutstanding)}</td>
             </tr>
           ))}

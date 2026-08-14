@@ -41,9 +41,42 @@ Endpoints:
                             "positions": {ticker: {shares, avgCost}},
                             "account": {tag: value},
                             "trades": {ticker: {qty, value, realizedPnl,
-                            commission}}} — the full current snapshot, sent
-                           on connect and again whenever any of the four
-                           changes. Positions cover the whole account, not
+                            commission}},
+                            "pnl": {ticker: {dailyPnL, unrealizedPnL,
+                            realizedPnL, position, value}},
+                            "openOrders": [{ticker, action, orderType,
+                            quantity, limitPrice, auxPrice, status,
+                            filled, remaining}, ...]} — the full
+                           current snapshot, sent on connect and again
+                           whenever any of the six changes. `openOrders`
+                           is every currently-working order (see
+                           refresh_open_orders / IBApp.
+                           get_open_orders_async) -- a LIST, not keyed by
+                           ticker like the others, since one ticker can
+                           have more than one working order at once.
+                           Polled (IB Gateway has no "order changed" push
+                           this file subscribes to) every
+                           OPEN_ORDERS_REFRESH_SECONDS (30s -- much
+                           tighter than `trades`' own 5-minute poll,
+                           since a working order can fill or get
+                           rejected at any moment, unlike a past fill).
+                           `pnl` is
+                           IBKR's own reqPnLSingle figures (see IBApp.
+                           subscribe_position_pnl and this file's own
+                           on_position/on_pnl_single) for every symbol
+                           that's been held at any point since this
+                           process started -- authoritative, IB-computed
+                           per-position P&L, not the price-reconstruction
+                           PositionsView.jsx used to compute client-side.
+                           Deliberately never removed once a symbol
+                           appears here, even after its position goes to
+                           0 (fully closed out) -- IBKR keeps reporting
+                           dailyPnL/realizedPnL for the rest of the
+                           session, which is what lets PositionsView.jsx
+                           show a same-day-closed position's P&L instead
+                           of it just vanishing the moment shares hit 0
+                           (a ticker present in `pnl` with position 0 is
+                           exactly that case). Positions cover the whole account, not
                            just the top-ranked tickers: stream_prices_and_positions
                            asks for positions right after connecting and streams all
                            of them, uncapped, filling whatever's left of the
@@ -86,6 +119,9 @@ Endpoints:
   GET /api/trades       -> the current {ticker: {qty, value}} snapshot (see
                            `trades` above) as a one-shot JSON response.
                            Kept for manual/curl debugging.
+  GET /api/open-orders  -> the current openOrders list (see above) as a
+                           one-shot JSON response. Kept for manual/curl
+                           debugging.
   GET /api/news         -> the current {ticker: [{articleId, time,
                            provider, headline, sentiment}, ...]} snapshot
                            (news_by_ticker, newest first per ticker) as a
@@ -355,6 +391,25 @@ account_status = {}
 # fill price instead of assuming the whole position was held since
 # yesterday's close.
 trades_by_ticker = {}
+# [{ticker, action, orderType, quantity, limitPrice, auxPrice, status,
+# filled, remaining}, ...] -- every currently-working order (see
+# refresh_open_orders / IBApp.get_open_orders_async). A list, not a
+# ticker-keyed map (see refresh_open_orders' own comment on why).
+open_orders = []
+# {ticker: {dailyPnL, unrealizedPnL, realizedPnL, position, value}} -- IBKR's
+# own reqPnLSingle figures, kept for every symbol ever held this process
+# (never removed on going flat -- see on_position/on_pnl_single below and
+# this file's own module docstring). The live PnLSingle OBJECTS themselves
+# (not this serializable snapshot) live in _pnl_singles_by_conid/
+# _symbol_by_conid just below.
+pnl_by_ticker = {}
+# conId -> the live PnLSingle object ib_insync updates in place (see
+# IBApp.subscribe_position_pnl) -- held onto so on_position doesn't
+# re-subscribe a conId it's already watching. conId -> symbol is a
+# separate map since PnLSingle updates (on_pnl_single) only carry conId,
+# never the symbol itself.
+_pnl_singles_by_conid = {}
+_symbol_by_conid = {}
 lock = threading.Lock()
 # Set once by run_ib_client to the asyncio event loop it owns -- lets the
 # HTTP handler thread (GET /api/news/article) schedule a one-off coroutine
@@ -396,6 +451,8 @@ def broadcast():
             "positions": positions_by_ticker,
             "account": account_status,
             "trades": trades_by_ticker,
+            "pnl": pnl_by_ticker,
+            "openOrders": open_orders,
         })
     with subscribers_lock:
         for q in subscribers:
@@ -432,19 +489,27 @@ def on_pending_tickers(tickers):
 
 def _safe_float(v):
     """Coerces to a plain float, or None if that's not possible/meaningful.
-    Guards two real gotchas: ib_insync can hand back a Decimal (JSON-
+    Guards three real gotchas: ib_insync can hand back a Decimal (JSON-
     serializable floats only, not Decimal — a bare Decimal here would throw
     inside json.dumps and break every subsequent broadcast, not just this
-    one field), and IBKR occasionally reports NaN avgCost for positions
-    with an unknown cost basis (e.g. certain corporate actions) — a NaN
-    that reaches json.dumps gets written out as the bare token `NaN`, which
-    is not valid JSON and makes the browser's JSON.parse reject the whole
-    message."""
+    one field); IBKR occasionally reports NaN avgCost for positions with an
+    unknown cost basis (e.g. certain corporate actions) — a NaN that
+    reaches json.dumps gets written out as the bare token `NaN`, which is
+    not valid JSON and makes the browser's JSON.parse reject the whole
+    message; and PnLSingle's realizedPnL is IBKR's C++ DBL_MAX sentinel
+    (sys.float_info.max, 1.7976931348623157e+308 -- not NaN, so the
+    isnan() check alone doesn't catch it) for a conId with no realized P&L
+    yet today -- confirmed live (GOOG, a long held but not traded today).
+    That's a real (JSON-legal) float, so it would otherwise sail through
+    to the frontend as a nonsense multi-hundred-digit number instead of
+    the "nothing realized today" it actually means."""
     try:
         f = float(v)
     except (TypeError, ValueError):
         return None
-    return None if math.isnan(f) else f
+    if math.isnan(f) or abs(f) >= sys.float_info.max:
+        return None
+    return f
 
 
 def on_position(position):
@@ -456,7 +521,17 @@ def on_position(position):
     newly-held ticker outside the top-ranked set gets its price
     subscription added here, on the fly, using the contract IBKR already
     gave us (a real account position always has a resolved conId, no
-    qualifyContracts round-trip needed)."""
+    qualifyContracts round-trip needed).
+
+    Also subscribes reqPnLSingle the same reactive way, the first time a
+    given conId is seen with a nonzero position -- see IBApp.
+    subscribe_position_pnl. Deliberately NOT re-subscribed or torn down
+    when this same conId later reports shares back to 0 (a closed
+    position): the whole point is that IBKR keeps reporting that conId's
+    dailyPnL/realizedPnL for the rest of the session even after it goes
+    flat (see this file's own module docstring) -- tearing the
+    subscription down here the moment shares hit 0 would throw that
+    away right when it becomes useful."""
     symbol = position.contract.symbol
     shares = _safe_float(position.position)
     with lock:
@@ -478,6 +553,36 @@ def on_position(position):
         print(f"reqMktData (from position): {symbol} (conId={c.conId}, exchange={c.exchange})")
         app.ib.reqMktData(c, "", False, False)
 
+    con_id = position.contract.conId
+    if shares and con_id not in _pnl_singles_by_conid:
+        _symbol_by_conid[con_id] = symbol
+        print(f"reqPnLSingle (from position): {symbol} (conId={con_id})")
+        _pnl_singles_by_conid[con_id] = app.subscribe_position_pnl(con_id)
+
+    broadcast()
+
+
+def on_pnl_single(pnl_single):
+    """Fired on every reqPnLSingle update for a conId subscribed by
+    on_position above -- IBKR pushes these on its own cadence (roughly
+    once a second per subscribed conId while the market's open),
+    independent of price ticks or position changes, so this needs its
+    own broadcast() call rather than piggybacking on-position's. Keeps
+    reporting (position 0, dailyPnL/realizedPnL still populated,
+    unrealizedPnL 0) for a symbol closed out earlier today -- see this
+    file's own module docstring -- since on_position never cancels the
+    subscription just because shares went to 0."""
+    symbol = _symbol_by_conid.get(pnl_single.conId)
+    if symbol is None:
+        return
+    with lock:
+        pnl_by_ticker[symbol] = {
+            "dailyPnL": _safe_float(pnl_single.dailyPnL),
+            "unrealizedPnL": _safe_float(pnl_single.unrealizedPnL),
+            "realizedPnL": _safe_float(pnl_single.realizedPnL),
+            "position": _safe_float(pnl_single.position),
+            "value": _safe_float(pnl_single.value),
+        }
     broadcast()
 
 
@@ -652,14 +757,16 @@ async def snapshot_loop():
     the process's life as on_position picks up newly opened positions,
     and sorted_screen.csv's own ranking can change between cycles too.
 
-    Ordered Strong Buy/Strong Sell first (see _priority_tickers), then
-    every other ranked ticker -- a full sweep of ~1,600+ tickers can take
-    several SNAPSHOT_CHUNK_SIZE-chunks to complete, and the old plain-
-    file-order sweep meant Strong Sell (sorted_screen.csv's very last
-    rows) was consistently the LAST thing refreshed each cycle -- exactly
-    backwards from priority. This way the highest-conviction names get a
-    fresh price earliest in the cycle even while the rest of the sweep is
-    still in progress."""
+    Ordered by _priority_tickers -- whatever's actually rendering as a
+    card on the Recommendations tab (Long/Short first, then the
+    Strong Buy/Strong Sell "blocked" audit section, see that function's
+    own docstring) goes first, then every other ranked ticker. A full
+    sweep of ~1,600+ tickers can take several SNAPSHOT_CHUNK_SIZE-chunks
+    to complete, and the old plain-file-order sweep meant Strong Sell
+    (sorted_screen.csv's very last rows) was consistently the LAST thing
+    refreshed each cycle -- exactly backwards from priority. This way the
+    names actually on-screen right now get a fresh price earliest in the
+    cycle even while the rest of the sweep is still in progress."""
     while True:
         priority = _priority_tickers()
         ranked = load_top_tickers(SORTED_SCREEN_CSV)
@@ -710,6 +817,62 @@ async def trades_loop():
     while True:
         await refresh_trades()
         await asyncio.sleep(TRADES_REFRESH_SECONDS)
+
+
+# Same "no push event to key off, so poll" situation as trades above, but
+# a materially shorter interval -- a working order is actionable (it can
+# fill or get rejected any moment) in a way a past fill isn't, so letting
+# this run as stale as TRADES_REFRESH_SECONDS would show a stale "still
+# working" order well after it's actually filled or been cancelled.
+OPEN_ORDERS_REFRESH_SECONDS = 30
+
+
+def _serialize_open_trade(t):
+    """One ib_insync Trade (order + contract + live orderStatus) down to
+    the plain fields TradesView.tsx actually shows -- quantity/filled/
+    remaining coerced through _safe_float for the same reasons every
+    other numeric field in this file is (Decimal/NaN aren't JSON-safe).
+    limitPrice/auxPrice are None for an order type that doesn't use them
+    (e.g. a plain market order has no lmtPrice) rather than IB's own 0.0/
+    unset-sentinel reading, which would otherwise show as a real $0 price."""
+    o, st = t.order, t.orderStatus
+    return {
+        "ticker": t.contract.symbol,
+        "action": o.action,
+        "orderType": o.orderType,
+        "quantity": _safe_float(o.totalQuantity),
+        "limitPrice": _safe_float(o.lmtPrice) or None,
+        "auxPrice": _safe_float(o.auxPrice) or None,
+        "status": st.status,
+        "filled": _safe_float(st.filled),
+        "remaining": _safe_float(st.remaining),
+    }
+
+
+async def refresh_open_orders():
+    """Re-fetches every currently-working order (IBApp.
+    get_open_orders_async) and replaces open_orders wholesale -- same
+    "each call already returns the full current set, nothing to merge
+    incrementally" shape as refresh_trades. A list, not a {ticker: ...}
+    map like trades_by_ticker -- a single ticker can have more than one
+    working order at once (e.g. separate buy and sell orders), which a
+    ticker-keyed map couldn't represent."""
+    global open_orders
+    trades = await app.get_open_orders_async()
+    with lock:
+        open_orders = [_serialize_open_trade(t) for t in trades]
+    broadcast()
+    if open_orders:
+        print(f"Open orders: {len(open_orders)} working order(s): {', '.join(o['ticker'] for o in open_orders)}")
+
+
+async def open_orders_loop():
+    """Runs forever as a background asyncio task on the single shared IB
+    Gateway connection (see run_ib_client), same pattern as trades_loop --
+    refreshes immediately on startup, then every OPEN_ORDERS_REFRESH_SECONDS."""
+    while True:
+        await refresh_open_orders()
+        await asyncio.sleep(OPEN_ORDERS_REFRESH_SECONDS)
 
 
 # ---------------------------------------------------------------------- #
@@ -1409,22 +1572,107 @@ def _interleave(a, b):
     return out
 
 
+def _to_float(v):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+# Recommendations tab entry-gate thresholds -- MUST match
+# RecommendationsView.tsx's own MOMENTUM_THRESHOLD/REVENUE_GROWTH_THRESHOLD/
+# MEAN_REVERSION_THRESHOLD/MAX_SHORT_INTEREST exactly (kept in sync by hand,
+# same "duplicated, not shared" convention this project already uses for
+# previousClose across three frontend files -- see _passes_long_gates/
+# _passes_short_gates below for why this needed a Python copy at all).
+_REC_MOMENTUM_THRESHOLD = 0.5
+_REC_REVENUE_GROWTH_THRESHOLD = 0.1
+_REC_MEAN_REVERSION_THRESHOLD = 10
+_REC_MAX_SHORT_INTEREST = 0.2
+
+
+def _rec_eps_trend(row):
+    vals = [v for v in (_to_float(row.get("epsRevision0y")), _to_float(row.get("epsRevision1y"))) if v is not None]
+    return sum(vals) / len(vals) if vals else None
+
+
+def _passes_long_gates(row):
+    """Mirrors RecommendationsView.tsx's eligibleToBuy +
+    sufficientGrowthForLong + meanReversionOkForLong + epsTrendOkForLong --
+    the exact set of checks a Buy/Strong Buy candidate must clear to
+    appear in the Long list. See _priority_tickers' own docstring for why
+    this needed replicating in Python at all: without it, this file has no
+    way to tell "will actually show up on the Recommendations page" apart
+    from "is RATED_FOR_EXTRAS," and the Long/Short lists are a much
+    smaller, gated subset of that."""
+    momentum = _to_float(row.get("momentum"))
+    if momentum is None or momentum < _REC_MOMENTUM_THRESHOLD:
+        return False
+    growth = _to_float(row.get("revenueGrowth"))
+    if growth is not None and growth < _REC_REVENUE_GROWTH_THRESHOLD:
+        return False
+    mr = _to_float(row.get("meanReversion"))
+    if mr is not None and mr >= _REC_MEAN_REVERSION_THRESHOLD:
+        return False
+    eps = _rec_eps_trend(row)
+    if eps is not None and eps < 0:
+        return False
+    return True
+
+
+def _passes_short_gates(row):
+    """Mirrors RecommendationsView.tsx's eligibleToSell + notCrowded +
+    notTooMuchGrowthForShort + meanReversionOkForShort +
+    epsTrendOkForShort -- the Short list's own gate set."""
+    momentum = _to_float(row.get("momentum"))
+    if momentum is None or momentum >= 0:
+        return False
+    short_pct = _to_float(row.get("shortPercentOfFloat"))
+    if short_pct is not None and short_pct > _REC_MAX_SHORT_INTEREST:
+        return False
+    growth = _to_float(row.get("revenueGrowth"))
+    if growth is not None and growth > _REC_REVENUE_GROWTH_THRESHOLD:
+        return False
+    mr = _to_float(row.get("meanReversion"))
+    if mr is not None and mr <= -_REC_MEAN_REVERSION_THRESHOLD:
+        return False
+    eps = _rec_eps_trend(row)
+    if eps is not None and eps > 0:
+        return False
+    return True
+
+
 def _priority_tickers():
     """RATED_FOR_EXTRAS tickers (Strong Buy/Buy/Sell/Strong Sell) from
-    sorted_screen.csv, reordered so the two highest-conviction ratings --
-    Strong Buy and Strong Sell -- are interleaved at the front (alternating
-    best-first Strong Buy with worst-first Strong Sell), ahead of the much
-    larger plain Buy/Sell buckets that follow the same way. This used to
-    just be sorted_screen.csv's own best-to-worst file order, truncated to
-    MAX_STREAMED_SYMBOLS -- but Strong Buy (~84) + Buy (~249) alone already
-    exceeds that budget, so a flat top-N slice by score never reached a
-    single Sell/Strong Sell row: every short idea silently went without a
-    live price or an early snapshot, no matter how extreme its rating.
+    sorted_screen.csv, reordered so whatever would ACTUALLY appear on the
+    Recommendations tab goes first -- explicit instruction: prices/price
+    changes for every recommendation shown, as a priority, over tickers
+    that are merely RATED_FOR_EXTRAS but don't actually surface anywhere
+    on that page. Three tiers, in order:
+
+      1. page_tickers -- candidates that clear the Long/Short entry gates
+         (_passes_long_gates/_passes_short_gates) and so actually render
+         as a card in Long or Short, interleaved best/worst-score-first
+         the same way those two lists sort themselves. This used to be
+         nothing but "every Strong Buy/Strong Sell, regardless of
+         gates" -- which meant the scarce 99-line live-stream budget (and
+         the front of a 20-minute snapshot sweep) went to Strong-tier
+         names that FAILED a gate and never even render on the page,
+         while a plain Buy/Sell that cleared every gate and IS sitting on
+         the page as an actionable idea could go the entire sweep with
+         no live price at all.
+      2. Every remaining Strong Buy/Strong Sell not already in tier 1 --
+         still worth a price even though they failed a gate, since they
+         render in the "Strong Buy/Strong Sell -- blocked" audit section.
+      3. Everything else RATED_FOR_EXTRAS covers (plain Buy/Sell that
+         failed a gate) -- doesn't render on the Recommendations page at
+         all, lowest priority.
+
     Both stream_prices_and_positions' live-budget fill (see main()) and
-    snapshot_loop's periodic sweep order consult this now, so the scarce
+    snapshot_loop's periodic sweep order consult this, so the scarce
     99-line live budget, and whichever ticker gets fetched EARLIEST in a
-    20-minute snapshot cycle, both go to the names worth acting on first --
-    Strong Sell included -- not just whichever happens to sort first."""
+    20-minute snapshot cycle, both go to what the Recommendations tab is
+    actually showing right now."""
     try:
         with open(SORTED_SCREEN_CSV, newline="") as f:
             rows = list(csv.DictReader(f))
@@ -1434,12 +1682,27 @@ def _priority_tickers():
     def tickers_for(rating):
         return [r["ticker"] for r in rows if r.get("rating") == rating]
 
+    def by_score(rows_subset, worst_first):
+        return [
+            r["ticker"]
+            for r in sorted(rows_subset, key=lambda r: _to_float(r.get("score")) or 0, reverse=not worst_first)
+        ]
+
+    long_ok = by_score([r for r in rows if r.get("rating") in ("Strong Buy", "Buy") and _passes_long_gates(r)], worst_first=False)
+    short_ok = by_score([r for r in rows if r.get("rating") in ("Strong Sell", "Sell") and _passes_short_gates(r)], worst_first=True)
+    page_tickers = _interleave(long_ok, short_ok)
+
     # Sell/Strong Sell reversed (worst score first) -- the most extreme,
     # most-actionable end of each bucket goes first, same "worst first"
     # convention the Recommendations tab's own Short list already uses.
     strong = _interleave(tickers_for("Strong Buy"), list(reversed(tickers_for("Strong Sell"))))
     rest = _interleave(tickers_for("Buy"), list(reversed(tickers_for("Sell"))))
-    return strong + rest
+
+    seen = set(page_tickers)
+    remaining_strong = [t for t in strong if t not in seen]
+    seen.update(remaining_strong)
+    remaining_rest = [t for t in rest if t not in seen]
+    return page_tickers + remaining_strong + remaining_rest
 
 
 async def stream_prices_and_positions(ranked_tickers):
@@ -1461,6 +1724,7 @@ async def stream_prices_and_positions(ranked_tickers):
     app.ib.pendingTickersEvent -= app.on_pending_tickers
     app.ib.pendingTickersEvent += on_pending_tickers
     app.ib.positionEvent += on_position
+    app.ib.pnlSingleEvent += on_pnl_single
     app.ib.accountValueEvent += on_account_value
     # Alongside IBApp's own on_error (still just logs) — this one retries
     # the specific race that leaves a held position with no live price
@@ -1617,6 +1881,8 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(account_status)
         elif parsed.path == "/api/trades":
             self._send_json(trades_by_ticker)
+        elif parsed.path == "/api/open-orders":
+            self._send_json(open_orders)
         elif parsed.path == "/api/news":
             with lock:
                 snapshot = _news_snapshot()
@@ -1791,6 +2057,8 @@ class Handler(BaseHTTPRequestHandler):
                 "positions": positions_by_ticker,
                 "account": account_status,
                 "trades": trades_by_ticker,
+                "pnl": pnl_by_ticker,
+                "openOrders": open_orders,
             }))
         with subscribers_lock:
             subscribers.append(q)
@@ -1833,8 +2101,9 @@ def main():
     # SEC/social-sentiment downloads already use) rather than a flat
     # top-N-by-rank cutoff, so the scarce 99-symbol IB Gateway budget goes
     # to names worth acting on instead of Hold-rated middle-of-the-pack
-    # ones -- Strong Buy/Strong Sell interleaved first within that filtered
-    # set (see _priority_tickers), just truncated to the budget here.
+    # ones -- whatever's actually rendering as a Long/Short card on the
+    # Recommendations tab goes first within that filtered set (see
+    # _priority_tickers), just truncated to the budget here.
     tickers = _priority_tickers()[:MAX_STREAMED_SYMBOLS]
     if not tickers:
         sys.exit(f"No tickers found in {SORTED_SCREEN_CSV}; run main.py first")
@@ -1872,6 +2141,7 @@ def run_ib_client(tickers, no_news=False):
     asyncio.ensure_future(stream_prices_and_positions(tickers))
     asyncio.ensure_future(snapshot_loop())
     asyncio.ensure_future(trades_loop())
+    asyncio.ensure_future(open_orders_loop())
     asyncio.ensure_future(performance_loop())
     # Seeds news_by_ticker from news.json either way, so GET /api/news
     # still serves the existing rolling window even when no_news skips

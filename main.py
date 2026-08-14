@@ -55,12 +55,16 @@ download_themes():  classifies tickers' business descriptions
                     Themes tab. With no tickers given, classifies every
                     stock currently held in the IB Gateway account
                     instead (a fresh direct connection, not
-                    RATED_FOR_EXTRAS -- this is a portfolio-holdings
-                    tool, not a whole-screener-universe one). Run via
-                    `python main.py themes` (whole portfolio) or `python
-                    main.py themes TICKER [TICKER ...]` (specific
-                    tickers only, e.g. right after opening one new
-                    position).
+                    RATED_FOR_EXTRAS). Run via `python main.py themes`
+                    (held portfolio only), `python main.py themes TICKER
+                    [TICKER ...]` (specific tickers only, e.g. right
+                    after opening one new position), or `python main.py
+                    themes --all` (every RATED_FOR_EXTRAS ticker, same
+                    scoping as form4/xbrl/13f below, UNION every held
+                    position -- classify_themes never overwrites an
+                    already-tagged ticker, so this is a safe "catch up
+                    the unclassified ones" run, just a slow one over
+                    hundreds of tickers on a local model).
 download_recommendations(): rebuild data/recommendations.json for the Recommendations
                     tab (see recommendations.py) from sorted_screen.csv's score/
                     rating plus recent-window news/insider/13F signals already on
@@ -752,11 +756,31 @@ def download_themes(tickers=None):
     With no tickers given, classifies every stock currently held in the
     IB Gateway account instead (see _get_held_tickers) -- run via
     `python main.py themes` with no arguments to recompute for the whole
-    portfolio, or `python main.py themes TICKER [TICKER ...]` for
-    specific ones (e.g. right after opening a brand new position, when
-    you don't want to wait on a full account query for just one
-    ticker)."""
-    if tickers:
+    portfolio, `python main.py themes TICKER [TICKER ...]` for specific
+    ones (e.g. right after opening a brand new position, when you don't
+    want to wait on a full account query for just one ticker), or `python
+    main.py themes --all` for every RATED_FOR_EXTRAS ticker in the
+    ranking (same scoping as download_form4/download_xbrl/download_13f,
+    not literally every row in sorted_screen.csv -- Hold-rated names
+    aren't worth the local-model compute) UNION every currently held
+    ticker (see _get_held_tickers) -- a held position sitting at Hold (or
+    one outside the tracked screener universe entirely) would otherwise
+    fall through both scopes and never get classified. classify_themes
+    only ever fills in tickers with no existing entry (see its own
+    docstring), so --all is a safe, idempotent "catch up whatever's
+    unclassified" run, not a full reclassification -- it will NOT touch
+    or overwrite already-tagged tickers, held or otherwise. This is a
+    local model (facebook/bart-large-mnli via transformers, no network
+    call beyond the one-time model download) running once per ticker on
+    CPU -- --all over hundreds of tickers can take a long while, unlike
+    the near-instant held-positions/explicit-ticker cases above."""
+    if tickers == ["--all"]:
+        tickers = sorted(set(load_rated_tickers(SORTED_SCREEN_CSV, RATED_FOR_EXTRAS)) | set(_get_held_tickers()))
+        if not tickers:
+            print(f"No existing {SORTED_SCREEN_CSV} yet; run `python main.py all` first")
+            return
+        print(f"--all: classifying every RATED_FOR_EXTRAS ticker plus every held position ({len(tickers)} total, unclassified ones only)")
+    elif tickers:
         tickers = sorted({t.strip().upper() for t in tickers})
     else:
         tickers = _get_held_tickers()

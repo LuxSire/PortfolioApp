@@ -33,21 +33,38 @@ import type {
 
 const PAGE_SIZE = 100
 
-// The last close strictly before today from a {date, close} bar series
-// (price_history_daily_3mo.json / price_history.json) — never today's own
-// entry, which both sources can carry as a still-forming bar (close =
-// latest price so far, not a settled close) when fetched intraday.
-// Comparing a live price against that same-day bar instead of a real
-// prior close silently understates or misreports the day's actual move.
-// Same helper as PositionsView.jsx's — see there for the fuller history
-// of why this matters (it's what made ARKK's P&L wrong before).
-function previousClose(series: { date: string; close: number }[] | undefined): number | null {
-  if (!series || series.length === 0) return null
-  const today = new Date().toISOString().slice(0, 10)
-  for (let i = series.length - 1; i >= 0; i--) {
-    if (series[i].date.slice(0, 10) < today) return series[i].close
+// The last close strictly before today, comparing BOTH bar series --
+// price_history_daily_3mo.json (IB Gateway's own history, fetched once
+// at ib_price_server.py STARTUP only, so it silently goes stale the
+// longer the server runs without a restart) and price_history.json
+// (yfinance, refreshed daily via main.py) — never today's own entry,
+// which both sources can carry as a still-forming bar (close = latest
+// price so far, not a settled close) when fetched intraday. Comparing a
+// live price against that same-day bar instead of a real prior close
+// silently understates or misreports the day's actual move. Same
+// helper as PositionsView.jsx's — see there for the fuller history of
+// why this matters (it's what made ARKK's P&L wrong before) and for
+// the "pick whichever source is actually fresher" bug fix (confirmed
+// live on TSLA: price_history_daily_3mo.json sitting 2 trading days
+// stale still returned a valid, just outdated, close, so a plain ??
+// fallback chain never reached the fresher price_history.json one).
+function previousClose(
+  dailyHistory3mo: { date: string; close: number }[] | undefined,
+  monthlyHistory: { date: string; close: number }[] | undefined
+): number | null {
+  const lastBarBeforeToday = (series: { date: string; close: number }[] | undefined) => {
+    if (!series || series.length === 0) return null
+    const today = new Date().toISOString().slice(0, 10)
+    for (let i = series.length - 1; i >= 0; i--) {
+      const date = series[i].date.slice(0, 10)
+      if (date < today) return { date, close: series[i].close }
+    }
+    return null
   }
-  return null
+  const fromDaily = lastBarBeforeToday(dailyHistory3mo)
+  const fromMonthly = lastBarBeforeToday(monthlyHistory)
+  if (fromDaily && fromMonthly) return fromDaily.date >= fromMonthly.date ? fromDaily.close : fromMonthly.close
+  return (fromDaily ?? fromMonthly)?.close ?? null
 }
 
 // Share counts are whole numbers for the vast majority of IBKR positions;
@@ -393,7 +410,7 @@ function HeaderCells({
 }
 
 // CSS position: sticky on thead th should already keep the header pinned
-// on its own (see index.css) — this is a belt-and-suspenders JS fallback
+// on its own (see styles.scss) — this is a belt-and-suspenders JS fallback
 // that doesn't depend on that mechanism at all, for cases where it isn't
 // taking effect. Measures the real table's header via tableRef and, once
 // its natural position has scrolled above the viewport top, reports
@@ -1174,7 +1191,7 @@ export default function ScreenerView() {
               // green, over 200% red (rangeClass also reds out a negative
               // debtToEquity, which comes from negative shareholder
               // equity/financial distress, not "low debt"). Colors
-              // themselves stay in index.css's .good/.bad rules; this
+              // themselves stay in styles.scss's .good/.bad rules; this
               // only picks which class name applies.
               const deClass = rangeClass(r.de, 50, 200)
               const earningsClass = earningsUrgencyClass(r.ern, now)
@@ -1183,15 +1200,14 @@ export default function ScreenerView() {
               // MAX_STREAMED_SYMBOLS live and snapshot-polls everything
               // else (see snapshot_loop), so any row can have an entry.
               const live = livePrices[r.t]
-              // Genuine prior close (IB's own daily bars, yfinance
-              // fallback), not r.p — sorted_screen.csv's price is
+              // Genuine prior close (whichever of IB's own daily bars or
+              // yfinance is actually fresher — see previousClose's own
+              // comment), not r.p — sorted_screen.csv's price is
               // whatever main.py's yfinance fetch last happened to see,
               // a live quote at fetch time rather than a settled close,
               // which made this badge compare "now" against an arbitrary
-              // moment instead of a real daily change. Same fallback
-              // chain and previousClose reasoning as PositionsView.jsx.
-              const referencePrice =
-                previousClose(dailyHistory3mo[r.t]) ?? previousClose(monthlyHistory[r.t]) ?? r.p
+              // moment instead of a real daily change.
+              const referencePrice = previousClose(dailyHistory3mo[r.t], monthlyHistory[r.t]) ?? r.p
               const liveRatio = live?.last != null && referencePrice ? live.last / referencePrice - 1 : null
               const liveClass =
                 liveRatio === null

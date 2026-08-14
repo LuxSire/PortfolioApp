@@ -1,7 +1,7 @@
 // Shared red/green threshold rules for stat coloring, used by both the
 // screener table (App.jsx) and the per-asset page (Asset.jsx). Each function
 // returns 'good', 'bad', or '' (neutral) for a numeric value; callers map
-// that straight onto a CSS class (index.css defines both `.good`/`.bad` and
+// that straight onto a CSS class (styles.scss defines both `.good`/`.bad` and
 // `td.good`/`td.bad` so it works as either a <span> or <td> class).
 
 // Green below goodBelow, red above badAbove, neutral in between. For

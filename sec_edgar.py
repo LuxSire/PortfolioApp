@@ -33,28 +33,45 @@ from XBRL, not yfinance's single-point-in-time TTM snapshot (raw_data.json).
 Merged across runs, same as insider_transactions.json above.
 
 Writes data/sec/13f/institutional_holdings.json: {ticker: {totalValueUsd,
-totalShares, holderCount, pctShareChangeQoQ}} -- see fetch_13f_holdings.
-Unlike Form 4/XBRL, 13F is filed BY institutional managers ABOUT what they
-hold, not by the issuer itself, so there's no per-ticker CIK to query --
-this instead downloads SEC's own quarterly bulk dataset (every manager's
-holdings, one ~90MB file, TWO of them -- current quarter and prior, to
-compute pctShareChangeQoQ) and matches rows to tickers by normalized
-company name, the only available free join key (the bulk data has no
-ticker field, only CUSIP, and there's no free ticker->CUSIP crosswalk).
-Overwrites the file wholesale each run rather than merging, since a stale
-prior quarter's figures for a ticker outside the current run would
-otherwise linger. Both quarterly bulk .zip files are kept on disk under
-data/sec/ directly (not data/sec/13f/ -- explicit instruction) rather
-than discarded after one use, and reused as-is by a later run that asks
-for the same quarter again instead of re-downloading.
+totalShares, putShares, callShares, holderCount, pctShareChangeQoQ}} --
+see fetch_13f_holdings. Unlike Form 4/XBRL, 13F is filed BY institutional
+managers ABOUT what they hold, not by the issuer itself, so there's no
+per-ticker CIK to query -- this instead downloads SEC's own quarterly
+bulk dataset (every manager's holdings, one ~90MB file, TWO of them --
+current quarter and prior, to compute pctShareChangeQoQ) and matches rows
+to tickers by normalized company name, the only available free join key
+(the bulk data has no ticker field, only CUSIP, and there's no free
+ticker->CUSIP crosswalk). Overwrites the file wholesale each run rather
+than merging, since a stale prior quarter's figures for a ticker outside
+the current run would otherwise linger. Both quarterly bulk .zip files
+are kept on disk under data/sec/ directly (not data/sec/13f/ -- explicit
+instruction) rather than discarded after one use, and reused as-is by a
+later run that asks for the same quarter again instead of re-downloading.
+
+INFOTABLE.tsv's PUTCALL column marks a row as an options position (blank
+for plain common stock, "Put" or "Call" otherwise) -- totalValueUsd/
+totalShares/holderCount/pctShareChangeQoQ only ever count blank (common
+stock) rows, i.e. actual share ownership; Put/Call rows are aggregated
+separately into putShares/callShares and never blended into the common-
+stock totals. Note the 13F schema has no long/short indicator -- a bought
+put and a written (sold) put both file identically as PUTCALL="Put" with
+a positive SSHPRNAMT, so putShares/callShares mean "disclosed option
+exposure of this type," not "bullish" or "bearish" on their own.
 
 Also writes data/sec/13f/institutional_holders.json: {ticker: [{name,
-valueUsd, shares}, ...]}, sorted by valueUsd descending and capped to
-MAX_HOLDERS_PER_TICKER -- the actual named institutions (e.g. "BERKSHIRE
-HATHAWAY INC") holding each ticker as of the CURRENT quarter only,
-resolved from the same bulk zip's COVERPAGE.tsv (join key
-ACCESSION_NUMBER -> FILINGMANAGER_NAME) that institutional_holdings.json's
-aggregate totals already come from -- no extra download.
+valueUsd, shares, putShares, callShares}, ...]}, sorted by valueUsd
+descending and capped to MAX_HOLDERS_PER_TICKER -- the actual named
+institutions (e.g. "BERKSHIRE HATHAWAY INC") holding each ticker as of
+the CURRENT quarter only, resolved from the same bulk zip's
+COVERPAGE.tsv (join key ACCESSION_NUMBER -> FILINGMANAGER_NAME) that
+institutional_holdings.json's aggregate totals already come from -- no
+extra download. valueUsd/shares here are common-stock-only, same as the
+aggregate above; a filer with ONLY options exposure (no common stock) in
+a ticker still gets a row, with valueUsd/shares at 0 and putShares/
+callShares carrying its option position -- and since the table is
+capped to MAX_HOLDERS_PER_TICKER by valueUsd (common-stock value)
+descending, such an options-only filer can be pushed out of the top N
+even with large option exposure.
 """
 
 import csv
@@ -559,24 +576,40 @@ def _aggregate_13f_bulk(url, wanted, collect_holders=False):
     `wanted` ({normalized issuer name: ticker}, see
     _normalize_issuer_name), matched by name since the bulk data has no
     ticker/CIK-of-issuer field. Returns {ticker: {totalValueUsd,
-    totalShares, holderCount}}, where holderCount counts distinct
-    original 13F-HR filings (SUBMISSIONTYPE=="13F-HR", excluding
-    "13F-HR/A" amendments so an amended filing doesn't get double-counted
-    as a second holder) whose info table mentioned that issuer. VALUE is
+    totalShares, putShares, callShares, holderCount}}, where holderCount
+    counts distinct original 13F-HR filings (SUBMISSIONTYPE=="13F-HR",
+    excluding "13F-HR/A" amendments so an amended filing doesn't get
+    double-counted as a second holder) that reported an actual common-
+    stock (non-option) position in that issuer -- an accession whose ONLY
+    row for this issuer is a Put/Call doesn't count as a holder. VALUE is
     already whole USD, not thousands, per SEC's 2023 13F reporting-format
     update -- verified against a real Berkshire Hathaway holding: value /
     share count landed right on Ally Financial's actual per-share price,
     not 1000x off.
 
+    Options rows (INFOTABLE.tsv's PUTCALL column is "Put" or "Call" rather
+    than blank) are kept OUT of totalValueUsd/totalShares -- summing them
+    in would conflate actual ownership with option exposure (a Put's
+    SSHPRNAMT is shares the writer/holder has exposure to, not shares
+    owned; a Call's is notional shares underlying the contract, not owned
+    either) -- and instead aggregated separately into putShares/callShares.
+    See this module's own docstring for why there's no way to tell a
+    bought option from a written one in this data.
+
     If collect_holders, ALSO returns a second dict, {ticker: [{name,
-    valueUsd, shares}, ...]}, sorted by valueUsd descending and capped to
-    MAX_HOLDERS_PER_TICKER -- the actual institution names, resolved from
-    this same zip's COVERPAGE.tsv (ACCESSION_NUMBER -> FILINGMANAGER_NAME;
-    see SEC's form_13f_readme.pdf ยง5.2) rather than the CUSIP/accession
-    numbers INFOTABLE.tsv alone carries. Only worth reading COVERPAGE.tsv
-    (a second full pass' worth of parsing) when the caller actually wants
+    valueUsd, shares, putShares, callShares}, ...]}, sorted by valueUsd
+    descending and capped to MAX_HOLDERS_PER_TICKER -- the actual
+    institution names, resolved from this same zip's COVERPAGE.tsv
+    (ACCESSION_NUMBER -> FILINGMANAGER_NAME; see SEC's
+    form_13f_readme.pdf ยง5.2) rather than the CUSIP/accession numbers
+    INFOTABLE.tsv alone carries. Only worth reading COVERPAGE.tsv (a
+    second full pass' worth of parsing) when the caller actually wants
     names -- fetch_13f_holdings only asks for this on the current quarter,
-    not the prior one it only uses for a QoQ delta.
+    not the prior one it only uses for a QoQ delta. A filer with options
+    but no common-stock row in this issuer still gets a row here
+    (valueUsd/shares 0, putShares/callShares carrying the position),
+    since the cap/sort is by valueUsd -- an options-only filer can be
+    pushed out of the top N even with large option exposure.
 
     The downloaded zip is saved to SEC_DIR directly, i.e. data/sec/ (named
     after the URL's own filename, e.g. "01mar2026-31may2026_form13f.zip")
@@ -605,7 +638,7 @@ def _aggregate_13f_bulk(url, wanted, collect_holders=False):
 
     results = {}
     holder_accessions = {}
-    holder_rows = {}  # ticker -> {accession_number: {valueUsd, shares}}, collect_holders only
+    holder_rows = {}  # ticker -> {accession_number: {valueUsd, shares, putShares, callShares}}, collect_holders only
     with zipfile.ZipFile(local_zip_path) as zf:
         with zf.open("SUBMISSION.tsv") as f:
             reader = csv.DictReader(io.TextIOWrapper(f, encoding="utf-8"), delimiter="\t")
@@ -622,21 +655,35 @@ def _aggregate_13f_bulk(url, wanted, collect_holders=False):
                     continue
                 value = int(row["VALUE"] or 0)
                 shares = int(row["SSHPRNAMT"] or 0)
-                agg = results.setdefault(ticker, {"totalValueUsd": 0, "totalShares": 0})
-                agg["totalValueUsd"] += value
-                agg["totalShares"] += shares
-                holder_accessions.setdefault(ticker, set()).add(row["ACCESSION_NUMBER"])
+                put_call = row["PUTCALL"]  # "" (common stock), "Put", or "Call"
+                agg = results.setdefault(
+                    ticker, {"totalValueUsd": 0, "totalShares": 0, "putShares": 0, "callShares": 0}
+                )
+                if put_call == "Put":
+                    agg["putShares"] += shares
+                elif put_call == "Call":
+                    agg["callShares"] += shares
+                else:
+                    agg["totalValueUsd"] += value
+                    agg["totalShares"] += shares
+                    holder_accessions.setdefault(ticker, set()).add(row["ACCESSION_NUMBER"])
                 if collect_holders:
                     # A single filer can carry more than one INFOTABLE row
                     # for the same issuer (split lots, share classes that
                     # normalize to the same ticker -- see
-                    # _normalize_issuer_name), so this accumulates rather
-                    # than assumes one row per (ticker, accession).
+                    # _normalize_issuer_name, or separate common-stock and
+                    # Put/Call rows), so this accumulates rather than
+                    # assumes one row per (ticker, accession).
                     entry = holder_rows.setdefault(ticker, {}).setdefault(
-                        row["ACCESSION_NUMBER"], {"valueUsd": 0, "shares": 0}
+                        row["ACCESSION_NUMBER"], {"valueUsd": 0, "shares": 0, "putShares": 0, "callShares": 0}
                     )
-                    entry["valueUsd"] += value
-                    entry["shares"] += shares
+                    if put_call == "Put":
+                        entry["putShares"] += shares
+                    elif put_call == "Call":
+                        entry["callShares"] += shares
+                    else:
+                        entry["valueUsd"] += value
+                        entry["shares"] += shares
 
         filer_name_by_accession = {}
         if collect_holders:
@@ -648,8 +695,12 @@ def _aggregate_13f_bulk(url, wanted, collect_holders=False):
                     if row["ACCESSION_NUMBER"] in original_accessions
                 }
 
-    for ticker, accessions in holder_accessions.items():
-        results[ticker]["holderCount"] = len(accessions)
+    # holder_accessions only ever gets accessions from the common-stock
+    # (blank PUTCALL) branch above, so a ticker matched ONLY via Put/Call
+    # rows has no entry there -- .get(..., ()) covers that as 0 holders,
+    # rather than a KeyError.
+    for ticker, agg in results.items():
+        agg["holderCount"] = len(holder_accessions.get(ticker, ()))
 
     if not collect_holders:
         return results
@@ -661,6 +712,8 @@ def _aggregate_13f_bulk(url, wanted, collect_holders=False):
                 "name": filer_name_by_accession.get(accession, "Unknown filer"),
                 "valueUsd": v["valueUsd"],
                 "shares": v["shares"],
+                "putShares": v["putShares"],
+                "callShares": v["callShares"],
             }
             for accession, v in per_accession.items()
         ]
@@ -674,8 +727,9 @@ def fetch_13f_holdings(ticker_names):
     """Aggregates SEC's latest TWO quarterly bulk 13F datasets (see
     _aggregate_13f_bulk) down to just the tickers in ticker_names
     ({ticker: company name}). For each ticker matched in the latest
-    quarter: {totalValueUsd, totalShares, holderCount} (that quarter's
-    snapshot, see _aggregate_13f_bulk) plus pctShareChangeQoQ -- the
+    quarter: {totalValueUsd, totalShares, putShares, callShares,
+    holderCount} (that quarter's snapshot, see _aggregate_13f_bulk) plus
+    pctShareChangeQoQ -- the
     percent change in totalShares vs. the prior quarter, i.e. whether
     institutions net-bought or net-sold, None if the ticker wasn't
     matched in the prior quarter's dataset (e.g. no institutional holders

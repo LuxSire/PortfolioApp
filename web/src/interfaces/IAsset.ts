@@ -12,11 +12,18 @@
 export type AssetInfo = Record<string, unknown>
 
 // One row of data/sec/13f/institutional_holders.json's per-ticker array
-// (see sec_edgar.py's fetch_13f_holdings).
+// (see sec_edgar.py's fetch_13f_holdings). valueUsd/shares are common-stock
+// only; putShares/callShares are separate options exposure (SEC's 13F
+// schema has no long/short indicator, so these mean "disclosed option
+// exposure of this type," not bullish/bearish -- see sec_edgar.py's
+// module docstring) and can be nonzero even when shares is 0 (an
+// options-only filer).
 export interface Holder {
   name: string
   valueUsd: number
   shares: number
+  putShares: number
+  callShares: number
 }
 
 // One entry from GET /api/news (ib_price_server.py).

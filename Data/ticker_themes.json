@@ -1,113 +1,1248 @@
 {
-  "ARKK": [
-    "diversified_thematic_etf"
+  "AAP": [
+    "auto_industry"
   ],
-  "TPC": [
+  "ABCB": [
+    "consumer_retail"
+  ],
+  "ABG": [
+    "auto_industry"
+  ],
+  "ACA": [
     "construction_infrastructure"
   ],
-  "PLMR": [
-    "specialty_insurance"
+  "ACEL": [
+    "travel_leisure_gaming"
   ],
-  "DOW": [
+  "ACMR": [
+    "industrial_machinery",
+    "packaging_containers"
+  ],
+  "ACNB": [
+    "specialty_finance_lending",
+    "consumer_retail"
+  ],
+  "ACNT": [
     "chemicals_materials"
   ],
-  "TDS": [
-    "telecom"
+  "ACR": [
+    "real_estate_reits",
+    "mortgage_reits_finance"
   ],
-  "RELY": [
-    "fintech_payments"
-  ],
-  "NKE": [
+  "ADC": [
     "consumer_retail"
   ],
-  "TPL": [
-    "oil_gas_energy",
-    "real_estate"
+  "ADEA": [
+    "media_entertainment"
   ],
-  "SBUX": [
+  "ADSK": [
+    "business_services",
+    "software_application",
+    "software_infrastructure",
+    "construction_infrastructure"
+  ],
+  "AEHR": [
+    "semiconductors_ai"
+  ],
+  "AEIS": [
+    "semiconductors_ai"
+  ],
+  "AESI": [
+    "oil_gas_energy"
+  ],
+  "AFRM": [
     "consumer_retail"
   ],
-  "IPI": [
-    "agriculture_commodities"
+  "AGNC": [
+    "mortgage_reits_finance"
   ],
-  "PRG": [
-    "fintech_payments"
+  "AII": [
+    "insurance",
+    "household_personal_products"
+  ],
+  "AIP": [
+    "communication_equipment",
+    "business_services"
+  ],
+  "AJG": [
+    "insurance"
+  ],
+  "ALG": [
+    "industrial_machinery"
+  ],
+  "ALGT": [
+    "travel_leisure_gaming"
+  ],
+  "ALIT": [
+    "business_services"
+  ],
+  "ALNY": [
+    "biotech_pharma"
+  ],
+  "ALSN": [
+    "auto_industry",
+    "transportation_logistics"
+  ],
+  "AMBA": [
+    "semiconductors_ai"
+  ],
+  "AMD": [
+    "semiconductors_ai"
+  ],
+  "AMPH": [
+    "biotech_pharma"
+  ],
+  "ANIP": [
+    "biotech_pharma"
+  ],
+  "APD": [
+    "chemicals_materials"
+  ],
+  "APH": [
+    "communication_equipment"
+  ],
+  "ARCB": [
+    "transportation_logistics",
+    "consumer_staples"
+  ],
+  "ARKK": [
+    "diversified_thematic_etf"
   ],
   "ARLO": [
     "smart_home_iot"
   ],
-  "IBKR": [
-    "capital_markets"
-  ],
-  "HRMY": [
+  "ARQT": [
     "biotech_pharma"
   ],
-  "SSRM": [
-    "gold_precious_metals"
+  "ASIC": [
+    "insurance"
   ],
-  "CPNG": [
-    "consumer_retail"
+  "ASIX": [
+    "chemicals_materials"
   ],
-  "SLDE": [
-    "specialty_insurance"
+  "ASTE": [
+    "construction_infrastructure"
   ],
-  "MU": [
-    "semiconductors_ai"
+  "ATEN": [
+    "software_application"
+  ],
+  "AVA": [
+    "utilities"
+  ],
+  "AVB": [
+    "real_estate_reits"
+  ],
+  "AVBH": [
+    "construction_infrastructure",
+    "business_services"
   ],
   "AVGO": [
     "semiconductors_ai"
   ],
-  "WBD": [
+  "AVNS": [
+    "healthcare_providers"
+  ],
+  "AVPT": [
+    "business_services",
+    "software_infrastructure"
+  ],
+  "AXSM": [
+    "biotech_pharma"
+  ],
+  "AZO": [
+    "auto_industry",
+    "consumer_retail"
+  ],
+  "BANC": [
+    "specialty_finance_lending"
+  ],
+  "BBIO": [
+    "biotech_pharma"
+  ],
+  "BCAL": [
+    "specialty_finance_lending"
+  ],
+  "BCBP": [
+    "consumer_retail"
+  ],
+  "BCML": [
+    "specialty_finance_lending"
+  ],
+  "BCO": [
+    "consumer_retail"
+  ],
+  "BDC": [
+    "communication_equipment",
+    "telecom",
+    "construction_infrastructure",
+    "business_services"
+  ],
+  "BG": [
+    "agriculture_commodities"
+  ],
+  "BGC": [
+    "capital_markets"
+  ],
+  "BIPC": [
+    "utilities"
+  ],
+  "BKTI": [
+    "communication_equipment"
+  ],
+  "BKU": [
+    "specialty_finance_lending"
+  ],
+  "BLDR": [
+    "business_services"
+  ],
+  "BMRN": [
+    "biotech_pharma"
+  ],
+  "BRO": [
+    "insurance"
+  ],
+  "BRZE": [
+    "consumer_retail",
+    "software_infrastructure"
+  ],
+  "BSRR": [
+    "consumer_retail"
+  ],
+  "BSVN": [
+    "consumer_retail",
+    "specialty_finance_lending"
+  ],
+  "BUSE": [
+    "consumer_retail"
+  ],
+  "CABO": [
+    "telecom",
     "media_entertainment"
   ],
-  "WAY": [
+  "CAH": [
+    "healthcare_providers"
+  ],
+  "CALX": [
+    "telecom",
+    "software_infrastructure"
+  ],
+  "CARG": [
+    "auto_industry",
+    "consumer_retail"
+  ],
+  "CARS": [
+    "auto_industry",
+    "consumer_retail",
+    "marketing_advertising"
+  ],
+  "CART": [
+    "consumer_retail"
+  ],
+  "CBT": [
+    "auto_industry"
+  ],
+  "CCB": [
+    "consumer_retail"
+  ],
+  "CCI": [
+    "communication_equipment"
+  ],
+  "CCSI": [
+    "software_infrastructure",
+    "business_services",
     "healthcare_it"
   ],
-  "NVDA": [
-    "semiconductors_ai"
+  "CDNA": [
+    "medical_devices_diagnostics"
+  ],
+  "CDW": [
+    "software_infrastructure",
+    "communication_equipment"
+  ],
+  "CELC": [
+    "biotech_pharma"
+  ],
+  "CEVA": [
+    "communication_equipment",
+    "telecom"
+  ],
+  "CHCO": [
+    "specialty_finance_lending"
+  ],
+  "CHCT": [
+    "healthcare_providers"
+  ],
+  "CIFR": [
+    "crypto"
+  ],
+  "CIM": [
+    "mortgage_reits_finance"
+  ],
+  "CLBK": [
+    "specialty_finance_lending",
+    "consumer_retail"
+  ],
+  "CLFD": [
+    "telecom",
+    "communication_equipment"
+  ],
+  "CMCO": [
+    "industrial_machinery",
+    "transportation_logistics",
+    "construction_infrastructure"
+  ],
+  "CMS": [
+    "utilities"
+  ],
+  "COCO": [
+    "consumer_retail",
+    "consumer_staples"
+  ],
+  "COFS": [
+    "consumer_retail",
+    "specialty_finance_lending"
+  ],
+  "COIN": [
+    "crypto"
+  ],
+  "CORZ": [
+    "crypto"
+  ],
+  "COSO": [
+    "consumer_retail"
+  ],
+  "CPNG": [
+    "consumer_retail"
+  ],
+  "CRCL": [
+    "crypto"
+  ],
+  "CRGY": [
+    "oil_gas_energy"
+  ],
+  "CRK": [
+    "oil_gas_energy"
+  ],
+  "CRWD": [
+    "software_infrastructure",
+    "cybersecurity_software"
   ],
   "DAVE": [
     "fintech_payments"
   ],
-  "PGY": [
-    "fintech_payments"
+  "DHI": [
+    "diversified_holdings"
   ],
-  "ROCK": [
-    "construction_infrastructure"
+  "DOW": [
+    "chemicals_materials"
   ],
-  "QUAD": [
-    "marketing_print"
+  "DOX": [
+    "software_infrastructure",
+    "software_application",
+    "telecom",
+    "business_services"
+  ],
+  "DRVN": [
+    "auto_industry"
+  ],
+  "DUK": [
+    "utilities"
+  ],
+  "EFSI": [
+    "consumer_retail"
+  ],
+  "EL": [
+    "consumer_retail",
+    "household_personal_products"
+  ],
+  "ELA": [
+    "consumer_retail"
+  ],
+  "ENR": [
+    "household_personal_products",
+    "auto_industry",
+    "consumer_retail"
   ],
   "EOG": [
     "oil_gas_energy"
+  ],
+  "EQR": [
+    "real_estate_reits"
+  ],
+  "EQT": [
+    "oil_gas_energy"
+  ],
+  "ES": [
+    "utilities"
+  ],
+  "ESS": [
+    "real_estate_reits"
+  ],
+  "ETR": [
+    "utilities"
+  ],
+  "EVER": [
+    "digital_advertising",
+    "insurance"
+  ],
+  "EXC": [
+    "utilities"
+  ],
+  "EXEL": [
+    "biotech_pharma"
+  ],
+  "EXLS": [
+    "insurance"
+  ],
+  "EXTR": [
+    "software_infrastructure",
+    "communication_equipment"
+  ],
+  "FCFS": [
+    "consumer_retail"
+  ],
+  "FFIV": [
+    "software_infrastructure",
+    "software_application",
+    "business_services",
+    "it_services_consulting"
+  ],
+  "FIBK": [
+    "consumer_retail"
+  ],
+  "FLYW": [
+    "fintech_payments"
+  ],
+  "FNWD": [
+    "specialty_finance_lending",
+    "consumer_retail"
+  ],
+  "FRBA": [
+    "specialty_finance_lending"
+  ],
+  "FRPH": [
+    "real_estate_reits"
+  ],
+  "FSLR": [
+    "renewable_energy"
+  ],
+  "FSLY": [
+    "media_entertainment"
+  ],
+  "FTLF": [
+    "consumer_retail"
+  ],
+  "FTRE": [
+    "biotech_pharma"
+  ],
+  "FVR": [
+    "consumer_retail"
+  ],
+  "FWRD": [
+    "transportation_logistics"
+  ],
+  "FWRG": [
+    "restaurants"
+  ],
+  "GDOT": [
+    "consumer_retail"
+  ],
+  "GE": [
+    "aerospace_defense"
+  ],
+  "GEN": [
+    "cybersecurity_software"
+  ],
+  "GILD": [
+    "biotech_pharma"
+  ],
+  "GIS": [
+    "consumer_retail"
+  ],
+  "GKOS": [
+    "biotech_pharma"
+  ],
+  "GNW": [
+    "insurance"
+  ],
+  "GO": [
+    "consumer_staples"
+  ],
+  "GOLF": [
+    "apparel_footwear_luxury"
   ],
   "GOOG": [
     "digital_advertising",
     "semiconductors_ai"
   ],
-  "FRPH": [
-    "real_estate"
+  "GPN": [
+    "fintech_payments",
+    "consumer_retail"
+  ],
+  "GRPN": [
+    "consumer_retail",
+    "consumer_staples"
+  ],
+  "GSHD": [
+    "insurance",
+    "auto_industry",
+    "household_personal_products"
+  ],
+  "GTLB": [
+    "software_application"
+  ],
+  "GTY": [
+    "consumer_retail"
+  ],
+  "HALO": [
+    "biotech_pharma"
+  ],
+  "HBCP": [
+    "consumer_retail",
+    "specialty_finance_lending",
+    "household_personal_products"
+  ],
+  "HCI": [
+    "insurance"
+  ],
+  "HD": [
+    "consumer_retail",
+    "household_personal_products"
+  ],
+  "HIMS": [
+    "consumer_retail"
+  ],
+  "HIPO": [
+    "insurance"
+  ],
+  "HLIT": [
+    "software_infrastructure",
+    "telecom",
+    "business_services",
+    "communication_equipment",
+    "it_services_consulting"
+  ],
+  "HMN": [
+    "insurance"
+  ],
+  "HP": [
+    "oil_gas_energy"
+  ],
+  "HPE": [
+    "communication_equipment"
+  ],
+  "HQY": [
+    "business_services"
+  ],
+  "HRI": [
+    "construction_infrastructure",
+    "industrial_machinery",
+    "business_services"
+  ],
+  "HRMY": [
+    "biotech_pharma"
+  ],
+  "HRTG": [
+    "insurance",
+    "household_personal_products"
+  ],
+  "HTB": [
+    "consumer_retail"
+  ],
+  "HTLD": [
+    "transportation_logistics",
+    "consumer_retail"
+  ],
+  "HWM": [
+    "aerospace_defense"
+  ],
+  "HY": [
+    "industrial_machinery",
+    "transportation_logistics",
+    "construction_infrastructure"
+  ],
+  "IBKR": [
+    "capital_markets"
+  ],
+  "IBM": [
+    "electronics_hardware"
+  ],
+  "IDCC": [
+    "media_entertainment",
+    "communication_equipment"
+  ],
+  "IMKTA": [
+    "consumer_retail"
+  ],
+  "INCY": [
+    "biotech_pharma"
+  ],
+  "INR": [
+    "oil_gas_energy"
+  ],
+  "INTC": [
+    "semiconductors_ai"
+  ],
+  "INVA": [
+    "biotech_pharma"
+  ],
+  "IPI": [
+    "agriculture_commodities"
+  ],
+  "KE": [
+    "electronics_hardware"
+  ],
+  "KEY": [
+    "consumer_retail"
+  ],
+  "KINS": [
+    "insurance",
+    "auto_industry"
+  ],
+  "KMI": [
+    "oil_gas_energy"
+  ],
+  "KRO": [
+    "chemicals_materials"
+  ],
+  "KSS": [
+    "consumer_retail",
+    "apparel_footwear_luxury"
+  ],
+  "KWR": [
+    "chemicals_materials"
+  ],
+  "LASR": [
+    "aerospace_defense"
+  ],
+  "LBRT": [
+    "oil_gas_energy"
+  ],
+  "LEN": [
+    "construction_infrastructure"
+  ],
+  "LGND": [
+    "biotech_pharma"
+  ],
+  "LMB": [
+    "construction_infrastructure",
+    "healthcare_providers"
+  ],
+  "LMNR": [
+    "agriculture_commodities"
+  ],
+  "LOVE": [
+    "consumer_retail"
+  ],
+  "LOW": [
+    "consumer_retail",
+    "household_personal_products"
+  ],
+  "LPLA": [
+    "capital_markets",
+    "business_services"
+  ],
+  "LQDA": [
+    "biotech_pharma"
+  ],
+  "LRN": [
+    "education_training"
+  ],
+  "LSCC": [
+    "electronics_hardware",
+    "software_application"
+  ],
+  "LYFT": [
+    "transportation_logistics"
+  ],
+  "MAC": [
+    "consumer_retail"
+  ],
+  "MAGN": [
+    "household_personal_products"
+  ],
+  "MAT": [
+    "consumer_retail"
+  ],
+  "MCBS": [
+    "consumer_retail"
+  ],
+  "MCD": [
+    "restaurants",
+    "consumer_staples",
+    "consumer_retail"
+  ],
+  "MCHB": [
+    "specialty_finance_lending",
+    "consumer_retail"
+  ],
+  "MCHP": [
+    "auto_industry"
+  ],
+  "MCY": [
+    "insurance",
+    "auto_industry"
+  ],
+  "MDB": [
+    "software_infrastructure"
+  ],
+  "MDGL": [
+    "biotech_pharma"
+  ],
+  "METC": [
+    "metals_mining"
+  ],
+  "MFIN": [
+    "specialty_finance_lending"
+  ],
+  "MG": [
+    "oil_gas_energy"
+  ],
+  "MGEE": [
+    "utilities"
+  ],
+  "MGY": [
+    "oil_gas_energy"
+  ],
+  "MKTW": [
+    "business_services"
+  ],
+  "MNRO": [
+    "auto_industry",
+    "consumer_retail"
+  ],
+  "MNSB": [
+    "consumer_retail"
+  ],
+  "MOS": [
+    "agriculture_commodities"
+  ],
+  "MPWR": [
+    "semiconductors_ai"
+  ],
+  "MQ": [
+    "fintech_payments",
+    "consumer_retail"
+  ],
+  "MRTN": [
+    "consumer_staples",
+    "transportation_logistics",
+    "consumer_retail"
+  ],
+  "MU": [
+    "semiconductors_ai"
+  ],
+  "NBIX": [
+    "biotech_pharma"
+  ],
+  "NE": [
+    "oil_gas_energy"
+  ],
+  "NECB": [
+    "specialty_finance_lending",
+    "consumer_retail"
+  ],
+  "NEE": [
+    "utilities",
+    "renewable_energy"
+  ],
+  "NEO": [
+    "healthcare_providers",
+    "business_services"
+  ],
+  "NESR": [
+    "oil_gas_energy"
+  ],
+  "NET": [
+    "business_services"
+  ],
+  "NI": [
+    "utilities"
+  ],
+  "NKE": [
+    "consumer_retail"
+  ],
+  "NKSH": [
+    "consumer_retail"
+  ],
+  "NMRK": [
+    "capital_markets"
+  ],
+  "NPB": [
+    "consumer_retail"
+  ],
+  "NREF": [
+    "mortgage_reits_finance"
+  ],
+  "NTAP": [
+    "software_infrastructure",
+    "business_services",
+    "software_application",
+    "it_services_consulting"
+  ],
+  "NTCT": [
+    "business_services",
+    "telecom",
+    "communication_equipment"
+  ],
+  "NTGR": [
+    "communication_equipment",
+    "business_services"
+  ],
+  "NTST": [
+    "consumer_retail"
+  ],
+  "NUTX": [
+    "healthcare_providers"
+  ],
+  "NVDA": [
+    "semiconductors_ai"
+  ],
+  "NWE": [
+    "utilities"
+  ],
+  "NWN": [
+    "utilities"
+  ],
+  "OMC": [
+    "marketing_advertising"
+  ],
+  "OOMA": [
+    "business_services"
+  ],
+  "ORCL": [
+    "business_services",
+    "software_infrastructure",
+    "software_application"
+  ],
+  "ORLY": [
+    "auto_industry",
+    "consumer_retail"
+  ],
+  "ORRF": [
+    "consumer_retail",
+    "specialty_finance_lending"
+  ],
+  "PAR": [
+    "consumer_retail",
+    "software_infrastructure",
+    "restaurants",
+    "software_application",
+    "business_services"
+  ],
+  "PARR": [
+    "consumer_retail"
+  ],
+  "PAYS": [
+    "fintech_payments",
+    "healthcare_it"
+  ],
+  "PBH": [
+    "household_personal_products"
+  ],
+  "PCRX": [
+    "biotech_pharma"
+  ],
+  "PEG": [
+    "utilities"
+  ],
+  "PG": [
+    "household_personal_products"
+  ],
+  "PGR": [
+    "insurance",
+    "household_personal_products",
+    "auto_industry",
+    "transportation_logistics"
+  ],
+  "PGY": [
+    "fintech_payments"
+  ],
+  "PHR": [
+    "healthcare_it"
+  ],
+  "PI": [
+    "consumer_retail"
+  ],
+  "PIPR": [
+    "capital_markets",
+    "business_services"
+  ],
+  "PKE": [
+    "aerospace_defense"
+  ],
+  "PL": [
+    "communication_equipment"
+  ],
+  "PLMR": [
+    "insurance"
+  ],
+  "PMT": [
+    "mortgage_reits_finance"
+  ],
+  "PNRG": [
+    "oil_gas_energy"
+  ],
+  "PNW": [
+    "utilities"
+  ],
+  "POR": [
+    "utilities"
+  ],
+  "PRG": [
+    "fintech_payments"
+  ],
+  "PRVA": [
+    "healthcare_providers"
+  ],
+  "PSMT": [
+    "consumer_retail"
+  ],
+  "PSX": [
+    "oil_gas_energy"
+  ],
+  "PTEN": [
+    "oil_gas_energy"
+  ],
+  "PUMP": [
+    "oil_gas_energy"
+  ],
+  "PZZA": [
+    "restaurants"
+  ],
+  "QLYS": [
+    "software_infrastructure"
+  ],
+  "QNST": [
+    "marketing_advertising"
+  ],
+  "QTWO": [
+    "fintech_payments"
+  ],
+  "QUAD": [
+    "marketing_advertising"
+  ],
+  "RBB": [
+    "consumer_retail"
+  ],
+  "RBRK": [
+    "cybersecurity_software",
+    "business_services",
+    "it_services_consulting",
+    "software_infrastructure"
+  ],
+  "RDN": [
+    "insurance"
+  ],
+  "REGN": [
+    "biotech_pharma"
+  ],
+  "RELY": [
+    "fintech_payments"
+  ],
+  "REPX": [
+    "oil_gas_energy"
   ],
   "REX": [
     "agriculture_commodities"
   ],
-  "GEN": [
-    "cybersecurity_software"
+  "RIGL": [
+    "biotech_pharma"
   ],
-  "EVER": [
+  "RLGT": [
+    "consumer_staples",
+    "consumer_retail",
+    "transportation_logistics"
+  ],
+  "RMBS": [
+    "semiconductors_ai",
+    "electronics_hardware"
+  ],
+  "ROCK": [
+    "construction_infrastructure"
+  ],
+  "ROKU": [
+    "media_entertainment"
+  ],
+  "ROOT": [
+    "insurance",
+    "auto_industry"
+  ],
+  "RPD": [
+    "cybersecurity_software",
+    "software_infrastructure"
+  ],
+  "RVLV": [
+    "apparel_footwear_luxury"
+  ],
+  "RXO": [
+    "transportation_logistics"
+  ],
+  "SBSI": [
+    "specialty_finance_lending",
+    "consumer_retail"
+  ],
+  "SBUX": [
+    "consumer_retail"
+  ],
+  "SEZL": [
+    "consumer_retail"
+  ],
+  "SFNC": [
+    "specialty_finance_lending"
+  ],
+  "SHLS": [
+    "renewable_energy"
+  ],
+  "SKWD": [
+    "insurance"
+  ],
+  "SLDE": [
+    "insurance"
+  ],
+  "SM": [
+    "oil_gas_energy"
+  ],
+  "SMP": [
+    "auto_industry"
+  ],
+  "SMTI": [
+    "healthcare_providers"
+  ],
+  "SNDK": [
+    "consumer_retail"
+  ],
+  "SO": [
+    "utilities"
+  ],
+  "SPB": [
+    "household_personal_products"
+  ],
+  "SRBK": [
+    "consumer_retail"
+  ],
+  "SRPT": [
+    "biotech_pharma"
+  ],
+  "SSRM": [
+    "gold_precious_metals"
+  ],
+  "STBA": [
+    "consumer_retail"
+  ],
+  "SUPN": [
+    "biotech_pharma"
+  ],
+  "SWX": [
+    "utilities"
+  ],
+  "TCBK": [
+    "specialty_finance_lending",
+    "consumer_retail"
+  ],
+  "TDS": [
+    "telecom"
+  ],
+  "TEX": [
+    "industrial_machinery"
+  ],
+  "TFC": [
+    "consumer_retail"
+  ],
+  "TFIN": [
+    "specialty_finance_lending",
+    "transportation_logistics"
+  ],
+  "TGTX": [
+    "biotech_pharma"
+  ],
+  "TILE": [
+    "business_services"
+  ],
+  "TMUS": [
+    "consumer_retail",
+    "telecom"
+  ],
+  "TOST": [
+    "restaurants",
+    "software_infrastructure"
+  ],
+  "TPC": [
+    "construction_infrastructure"
+  ],
+  "TPL": [
+    "oil_gas_energy",
+    "real_estate_reits"
+  ],
+  "TRAK": [
+    "business_services",
+    "consumer_retail"
+  ],
+  "TREE": [
+    "household_personal_products",
+    "insurance"
+  ],
+  "TRGP": [
+    "oil_gas_energy"
+  ],
+  "TRST": [
+    "mortgage_reits_finance"
+  ],
+  "TSLA": [
+    "auto_industry"
+  ],
+  "TTD": [
     "digital_advertising",
-    "specialty_insurance"
+    "marketing_advertising"
   ],
-  "FLYW": [
+  "TTMI": [
+    "aerospace_defense"
+  ],
+  "TW": [
+    "capital_markets",
+    "business_services"
+  ],
+  "TXNM": [
+    "utilities",
+    "consumer_retail"
+  ],
+  "UBSI": [
+    "consumer_retail"
+  ],
+  "UCB": [
+    "specialty_finance_lending",
+    "consumer_retail"
+  ],
+  "ULH": [
+    "transportation_logistics"
+  ],
+  "UPBD": [
+    "household_personal_products",
+    "consumer_retail",
+    "specialty_finance_lending"
+  ],
+  "UTL": [
+    "utilities"
+  ],
+  "UVSP": [
+    "insurance"
+  ],
+  "VCEL": [
+    "biotech_pharma"
+  ],
+  "VEEV": [
+    "biotech_pharma",
+    "software_infrastructure"
+  ],
+  "VMC": [
+    "construction_infrastructure"
+  ],
+  "VRNS": [
+    "cybersecurity_software",
+    "consumer_retail"
+  ],
+  "VRSK": [
+    "insurance"
+  ],
+  "VRT": [
+    "business_services"
+  ],
+  "VRTX": [
+    "biotech_pharma"
+  ],
+  "VST": [
+    "utilities"
+  ],
+  "VYX": [
+    "consumer_retail",
+    "software_application"
+  ],
+  "WAFD": [
+    "specialty_finance_lending"
+  ],
+  "WAY": [
+    "healthcare_it"
+  ],
+  "WBD": [
+    "media_entertainment"
+  ],
+  "WD": [
+    "capital_markets"
+  ],
+  "WDAY": [
+    "software_application"
+  ],
+  "WEC": [
+    "utilities"
+  ],
+  "WERN": [
+    "transportation_logistics",
+    "consumer_retail"
+  ],
+  "WEYS": [
+    "consumer_retail"
+  ],
+  "WINA": [
+    "consumer_retail"
+  ],
+  "WMB": [
+    "oil_gas_energy"
+  ],
+  "WMT": [
+    "consumer_staples",
+    "consumer_retail"
+  ],
+  "WNEB": [
+    "specialty_finance_lending",
+    "consumer_retail"
+  ],
+  "WRB": [
+    "insurance"
+  ],
+  "WRBY": [
+    "consumer_retail"
+  ],
+  "WRLD": [
+    "specialty_finance_lending"
+  ],
+  "WS": [
+    "auto_industry"
+  ],
+  "WSBC": [
+    "consumer_retail"
+  ],
+  "WTTR": [
+    "oil_gas_energy"
+  ],
+  "XEL": [
+    "utilities"
+  ],
+  "XERS": [
+    "biotech_pharma"
+  ],
+  "XMTR": [
+    "software_infrastructure"
+  ],
+  "XYZ": [
     "fintech_payments"
   ],
-  "CIFR": [
-    "crypto"
+  "YELP": [
+    "marketing_advertising",
+    "consumer_retail",
+    "digital_advertising"
   ],
-  "COIN": [
-    "crypto"
+  "YETI": [
+    "consumer_retail"
   ],
-  "CRCL": [
-    "crypto"
+  "YSS": [
+    "aerospace_defense"
+  ],
+  "ZS": [
+    "cybersecurity_software",
+    "software_infrastructure",
+    "business_services"
+  ],
+  "ZYME": [
+    "biotech_pharma"
   ]
 }

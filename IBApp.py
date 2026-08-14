@@ -336,6 +336,27 @@ class IBApp:
         pnls = self.ib.pnl(self.account)
         return sum(p.dailyPnL for p in pnls if not math.isnan(p.dailyPnL))
 
+    def subscribe_position_pnl(self, con_id):
+        """Subscribes to reqPnLSingle for one contract -- IBKR's own
+        per-POSITION daily/unrealized/realized P&L (dailyPnL/unrealizedPnL/
+        realizedPnL/position/value), not the account-wide aggregate
+        daily_pnl()/reqPnL above already covers. Returns the live PnLSingle
+        object ib_insync updates in place as ticks arrive (same "hold onto
+        the object, read its current attributes any time" pattern
+        reqMktData's Ticker objects use) -- callers should keep the
+        returned reference rather than re-requesting it. Idempotent on
+        IBKR's own side: re-subscribing the same (account, modelCode,
+        conId) triple returns the existing subscription's object rather
+        than opening a duplicate.
+
+        Deliberately never cancelled by a position going flat (see
+        ib_price_server.py's on_position) -- IBKR keeps reporting
+        dailyPnL/realizedPnL for a conId that was fully closed out earlier
+        today, position 0 and unrealizedPnL 0, for the rest of the
+        session. That's what lets a same-day-closed position still show a
+        real P&L instead of vanishing the moment shares hit 0."""
+        return self.ib.reqPnLSingle(self.account, "", con_id)
+
     # Shared by format_account_status (a printed table for logging) and
     # get_account_status_dict (a plain {tag: value} dict for programmatic
     # use, e.g. ib_price_server.py's /api/stream) — same curated tags
@@ -408,6 +429,29 @@ class IBApp:
             return [t for t in self.ib.trades() if t.orderStatus.status not in ("Filled", "Cancelled")]
         except Exception as e:
             logging.error(f"Error fetching open trades: {e}", exc_info=True)
+            return []
+
+    async def get_open_orders_async(self):
+        """Async-safe equivalent of get_open_trades, for a caller sharing
+        this instance's IB Gateway connection with other concurrent work
+        on the same event loop (see ib_price_server.py's refresh_open_
+        orders). reqAllOpenOrdersAsync(), not the plain reqAllOpenOrders()
+        get_open_trades above uses -- that sync wrapper calls
+        loop.run_until_complete() internally, which raises "This event
+        loop is already running" when called from a coroutine already
+        executing on that same loop (confirmed live: every
+        refresh_open_orders cycle logging exactly that RuntimeError,
+        caught by this method's own try/except below and silently
+        returning [] each time -- which was also why open orders never
+        showed up in the Trades tab despite the order genuinely existing
+        on IBKR's side). reqAllOpenOrdersAsync() returns the resolved
+        list directly once IB Gateway responds, so there's no separate
+        asyncio.sleep-then-read-the-cache step needed the way the old
+        (broken) version had."""
+        try:
+            return await self.ib.reqAllOpenOrdersAsync()
+        except Exception as e:
+            logging.error(f"Error fetching open orders: {e}", exc_info=True)
             return []
 
     def get_past_trades(self, days=20):

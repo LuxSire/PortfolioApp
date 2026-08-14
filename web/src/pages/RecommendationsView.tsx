@@ -35,21 +35,41 @@ function useOutsideClick(ref: RefObject<HTMLElement | null>, onOutside: () => vo
 
 const BUY_RATINGS = new Set(['Strong Buy', 'Buy'])
 const SELL_RATINGS = new Set(['Sell', 'Strong Sell'])
-const ROWS_PER_SIDE = 30
 
-// The last close strictly before today from a {date, close} bar series
-// (price_history_daily_3mo.json / price_history.json) -- never today's own
-// entry, which both sources can carry as a still-forming bar when fetched
-// intraday. Same helper, same reasoning, as PeTable.jsx/PositionsView.jsx's
-// own previousClose (duplicated locally there too, not shared -- this
-// project's convention for this particular helper).
-function previousClose(series: { date: string; close: number }[] | undefined): number | null {
-  if (!series || series.length === 0) return null
-  const today = new Date().toISOString().slice(0, 10)
-  for (let i = series.length - 1; i >= 0; i--) {
-    if (series[i].date.slice(0, 10) < today) return series[i].close
+// The last close strictly before today, comparing BOTH bar series --
+// price_history_daily_3mo.json (IB Gateway's own history, fetched once
+// at ib_price_server.py STARTUP only, so it silently goes stale the
+// longer the server runs without a restart) and price_history.json
+// (yfinance, refreshed daily via main.py) -- and using whichever one's
+// own most recent pre-today entry is actually the NEWER of the two, not
+// just "the first one that has any prior-day close at all." Explicit
+// bug fix: a plain `previousClose(dailyHistory3mo[t]) ??
+// previousClose(monthlyHistory[t])` fallback chain got this wrong in
+// practice -- confirmed live on TSLA, price_history_daily_3mo.json
+// hadn't been refreshed since Aug 12 (2 trading days stale) while
+// price_history.json already had Aug 13's real close, but the ??  never
+// fell through to it because the stale IB file still returned a valid
+// (just outdated) close, not null. Same helper, same reasoning, as
+// PeTable.jsx/PositionsView.jsx's own previousClose (duplicated locally
+// there too, not shared -- this project's convention for this
+// particular helper).
+function previousClose(
+  dailyHistory3mo: { date: string; close: number }[] | undefined,
+  monthlyHistory: { date: string; close: number }[] | undefined
+): number | null {
+  const lastBarBeforeToday = (series: { date: string; close: number }[] | undefined) => {
+    if (!series || series.length === 0) return null
+    const today = new Date().toISOString().slice(0, 10)
+    for (let i = series.length - 1; i >= 0; i--) {
+      const date = series[i].date.slice(0, 10)
+      if (date < today) return { date, close: series[i].close }
+    }
+    return null
   }
-  return null
+  const fromDaily = lastBarBeforeToday(dailyHistory3mo)
+  const fromMonthly = lastBarBeforeToday(monthlyHistory)
+  if (fromDaily && fromMonthly) return fromDaily.date >= fromMonthly.date ? fromDaily.close : fromMonthly.close
+  return (fromDaily ?? fromMonthly)?.close ?? null
 }
 
 function fmtPctAbs(v: number): string {
@@ -112,6 +132,18 @@ function momentumLine(c: Candidate): string | null {
 function meanReversionLine(c: Candidate): string | null {
   if (c.meanReversion === null || c.meanReversion === undefined) return null
   return `Hourly momentum ${fmtSigned(c.meanReversion)} (${c.meanReversion > 0 ? 'positive' : 'negative'})`
+}
+
+// Same "always shown, not just when the gate/reason fires" treatment as
+// meanReversionLine above -- explicit instruction, EPS revision trend
+// gates entry now too (see epsTrendOkForLong/epsTrendOkForShort), so a
+// reader should see the reading on every card. Reuses epsTrendValue
+// (below) rather than a separate field -- see that function's own
+// comment for the epsRevision0y/1y averaging it does.
+function epsTrendLine(c: Candidate): string | null {
+  const epsTrend = epsTrendValue(c)
+  if (epsTrend === null) return null
+  return `Analyst EPS estimate trend (30d) ${fmtPct(epsTrend)} (${epsTrend > 0 ? 'raised' : epsTrend < 0 ? 'cut' : 'flat'})`
 }
 
 // Builds a matcher for the sector/theme hedge preference: given the
@@ -179,6 +211,9 @@ function rationaleLines(c: Candidate & { oppositeMatchLine?: string | null }): s
   const meanReversion = meanReversionLine(c)
   if (meanReversion) lines.push(meanReversion)
 
+  const epsTrend = epsTrendLine(c)
+  if (epsTrend) lines.push(epsTrend)
+
   if (c.oppositeMatchLine) lines.push(c.oppositeMatchLine)
 
   const news = c.news7d
@@ -213,10 +248,11 @@ function rationaleLines(c: Candidate & { oppositeMatchLine?: string | null }): s
 
 // Live price (ib_price_server.py's SSE stream, same as every other tab)
 // with a same-shape daily-%-change badge as PeTable.jsx's Price column --
-// current price vs. previousClose(dailyHistory3mo) falling back to
-// previousClose(monthlyHistory), falling back to recommendations.json's own
-// (scoring-time) price if neither history source covers this ticker yet.
-// `live` can be undefined (ib_price_server.py not running, or hasn't
+// current price vs. previousClose(dailyHistory3mo, monthlyHistory) (see
+// that function for how it picks the fresher of the two history
+// sources), falling back to recommendations.json's own (scoring-time)
+// price if neither history source covers this ticker yet. `live` can be
+// undefined (ib_price_server.py not running, or hasn't
 // snapshotted this ticker yet) -- price/badge both degrade gracefully to
 // the static price with no badge at all.
 function PriceStat({
@@ -232,7 +268,7 @@ function PriceStat({
   monthlyHistory: HistoryByTicker
   hideLabel?: boolean
 }) {
-  const referencePrice = previousClose(dailyHistory3mo[c.ticker]) ?? previousClose(monthlyHistory[c.ticker]) ?? c.price ?? null
+  const referencePrice = previousClose(dailyHistory3mo[c.ticker], monthlyHistory[c.ticker]) ?? c.price ?? null
   const currentPrice = live?.last ?? c.price ?? null
   const changeRatio = live?.last != null && referencePrice ? live.last / referencePrice - 1 : null
   const changeClass = changeRatio === null ? '' : Math.abs(changeRatio) <= 0.005 ? 'perf-neutral' : changeRatio >= 0 ? 'perf-pos' : 'perf-neg'
@@ -383,17 +419,21 @@ function CloseCard({
 // opening gate, so reusing "held" styling here would be the wrong signal.
 function RejectedCard({
   c,
+  held,
   live,
   dailyHistory3mo,
   monthlyHistory,
 }: {
   c: RejectedRow
+  held: boolean
   live?: LiveTick
   dailyHistory3mo: HistoryByTicker
   monthlyHistory: HistoryByTicker
 }) {
   return (
-    <div className="asset-card recommendation-card recommendation-card-blocked">
+    <div
+      className={`asset-card recommendation-card recommendation-card-blocked${held ? ' recommendation-card-held' : ''}`}
+    >
       <div className="recommendation-card-header">
         <div>
           <a
@@ -407,6 +447,7 @@ function RejectedCard({
           <span className="recommendation-name">{c.name}</span>
         </div>
         <div className="recommendation-badges">
+          {held && <span className="recommendation-held-badge">In portfolio</span>}
           <span className={`rec-badge ${ratingClass(c.rating)}`}>{c.rating}</span>
         </div>
       </div>
@@ -464,12 +505,12 @@ function RecommendationSection<T>({
 // positions/prices from ib_price_server.py's SSE stream (same pattern
 // Positions/Sectors/Themes/News already use).
 //
-// Long = top ROWS_PER_SIDE Strong Buy/Buy candidates by best score; Short =
-// top ROWS_PER_SIDE Strong Sell/Sell candidates by worst score. Neither
-// side excludes held tickers -- a current long can appear in Long, a
-// current short can appear in Short -- so positions are eligible on their
-// own side without being force-included past a real top-N cut (which would
-// break the fixed ROWS_PER_SIDE count the user asked for). Held status (side-specific --
+// Long = every Strong Buy/Buy candidate that clears the opening gates below,
+// sorted best score first; Short = every Strong Sell/Sell candidate that
+// clears them, sorted worst score first -- explicit instruction: no top-N
+// cutoff, show everything that qualifies rather than an arbitrary top 30.
+// Neither side excludes held tickers -- a current long can appear in Long, a
+// current short can appear in Short. Held status (side-specific --
 // heldLongTickers/heldShortTickers below) drives the "In portfolio" grey
 // highlight on whichever side actually holds it.
 //
@@ -512,9 +553,11 @@ function RecommendationSection<T>({
 // looser >=0/<=0 momentum-reversal check below, deliberately not raised
 // to this same bar -- that one flags an existing position early, before
 // its momentum has even fully reversed, not just before it's "strong").
-// The short side deliberately stays a plain <0 -- explicit instruction,
-// not symmetric with the long side's threshold.
-const MOMENTUM_THRESHOLD = 1
+// Originally 1, lowered to 0.5 per explicit follow-up instruction (still
+// meaningfully above a bare positive sign, just a lower bar for entry
+// conviction than before). The short side deliberately stays a plain <0
+// -- explicit instruction, not symmetric with the long side's threshold.
+const MOMENTUM_THRESHOLD = 0.5
 function eligibleToBuy(c: Candidate): boolean {
   return c.momentum !== null && c.momentum !== undefined && c.momentum >= MOMENTUM_THRESHOLD
 }
@@ -588,6 +631,25 @@ function meanReversionOkForLong(meanReversion: number | null | undefined): boole
 }
 function meanReversionOkForShort(meanReversion: number | null | undefined): boolean {
   return meanReversion === null || meanReversion === undefined || meanReversion > -MEAN_REVERSION_THRESHOLD
+}
+
+// Entry-side EPS-estimate-trend gate -- same "even at a great score"
+// reasoning already applied to revenueGrowth above (explicit instruction:
+// EPS revision trend is important enough to gate NEW ideas on, not just
+// flag on a position already held -- buildCloseReasons' own epsTrend
+// check further below predates this and only ever looked at open
+// positions). Reuses epsTrendValue's own epsRevision0y/1y averaging (see
+// its comment) and its same plain-sign check (0), not a magnitude bar
+// like REVENUE_GROWTH_THRESHOLD -- "estimates have been cut/raised at
+// all in the last 30 days" is itself the signal, no dead zone needed the
+// way mean-reversion's ordinary-noise band does. Same fail-open
+// treatment as every other idea-list gate: a candidate with no
+// epsRevision0y/1y data isn't assumed to violate either side.
+function epsTrendOkForLong(epsTrend: number | null): boolean {
+  return epsTrend === null || epsTrend >= 0
+}
+function epsTrendOkForShort(epsTrend: number | null): boolean {
+  return epsTrend === null || epsTrend <= 0
 }
 
 // To close only (not an opening gate) -- explicit instruction, "review"
@@ -782,18 +844,18 @@ function buildCloseReasons({ shares, c, now }: { shares: number; c: Candidate; n
 // though it cleared the highest ratings bar. Runs the exact same gates the
 // longs/shorts pools filter on (eligibleToBuy/eligibleToSell,
 // sufficientGrowthForLong/notTooMuchGrowthForShort, notCrowded,
-// meanReversionOkForLong/meanReversionOkForShort) rather than a second
-// copy of the thresholds, so this can never drift out of sync with what
-// actually gates the pools. Deliberately does NOT include the
-// ROWS_PER_SIDE ranking cutoff -- a Strong Buy that cleared every gate but
-// simply didn't rank in the top 30 isn't "rejected", it's just not the
-// best of a large qualifying set, a different (and far more common)
-// situation that doesn't belong in a "why was this blocked" list.
+// meanReversionOkForLong/meanReversionOkForShort,
+// epsTrendOkForLong/epsTrendOkForShort) rather than a second copy of the
+// thresholds, so this can never drift out of sync with what actually
+// gates the pools. Long/Short have no ranking cutoff of their own (every
+// qualifying candidate is shown), so a nonempty result here always means
+// a real gate failure, never "just didn't rank high enough."
 function buildRejectionReasons({ c, tickerScreener }: { c: Candidate; tickerScreener: ScreenerByTicker }): Reason[] {
   const reasons: Reason[] = []
   const screenerRow = tickerScreener[c.ticker]
   const revenueGrowth = screenerRow?.revenueGrowth
   const meanReversion = screenerRow?.meanReversion
+  const epsTrend = epsTrendValue(screenerRow)
 
   if (c.rating === 'Strong Buy') {
     if (!eligibleToBuy(c)) {
@@ -815,6 +877,12 @@ function buildRejectionReasons({ c, tickerScreener }: { c: Candidate; tickerScre
       reasons.push({
         type: 'mean-reversion',
         text: `Short-term (hourly) momentum is ${fmtSigned(meanReversion as number)}, significantly positive — already spiked on the hour.`,
+      })
+    }
+    if (!epsTrendOkForLong(epsTrend)) {
+      reasons.push({
+        type: 'eps-trend',
+        text: `Analyst EPS estimates have been cut over the last 30 days (EPS trend ${fmtPct(epsTrend as number)}).`,
       })
     }
   } else if (c.rating === 'Strong Sell') {
@@ -845,13 +913,20 @@ function buildRejectionReasons({ c, tickerScreener }: { c: Candidate; tickerScre
         text: `Short-term (hourly) momentum is ${fmtSigned(meanReversion as number)}, significantly negative — already dropped on the hour.`,
       })
     }
+    if (!epsTrendOkForShort(epsTrend)) {
+      reasons.push({
+        type: 'eps-trend',
+        text: `Analyst EPS estimates have been raised over the last 30 days (EPS trend ${fmtPct(epsTrend as number)}).`,
+      })
+    }
   }
 
   return reasons
 }
 
 // Plain-English mirrors of eligibleToBuy/eligibleToSell/notCrowded/
-// sufficientGrowthForLong/notTooMuchGrowthForShort (Long/Short) and
+// sufficientGrowthForLong/notTooMuchGrowthForShort/
+// epsTrendOkForLong/epsTrendOkForShort (Long/Short) and
 // buildCloseReasons (To close) above -- kept as their own lists (rather
 // than generated from the functions) the same way PeTable.jsx's
 // SCORE_FACTORS mirrors scoring.py's weights: there's no live endpoint
@@ -868,6 +943,10 @@ const LONG_RULES = [
   {
     label: 'Mean reversion',
     note: `Short-term (hourly-timeframe) momentum not significantly positive — excludes a stock that's already spiked and would be chased; unknown not excluded.`,
+  },
+  {
+    label: 'EPS trend',
+    note: 'Analyst consensus EPS estimates not cut over the last 30 days; unknown not excluded.',
   },
   {
     label: 'Ranking',
@@ -889,6 +968,10 @@ const SHORT_RULES = [
   {
     label: 'Mean reversion',
     note: `Short-term (hourly-timeframe) momentum not significantly negative — excludes a stock that's already dropped and would be chased; unknown not excluded.`,
+  },
+  {
+    label: 'EPS trend',
+    note: 'Analyst consensus EPS estimates not raised over the last 30 days; unknown not excluded.',
   },
   {
     label: 'Ranking',
@@ -1159,7 +1242,8 @@ export default function RecommendationsView() {
           BUY_RATINGS.has(c.rating as string) &&
           eligibleToBuy(c) &&
           sufficientGrowthForLong(tickerScreener[c.ticker]?.revenueGrowth) &&
-          meanReversionOkForLong(tickerScreener[c.ticker]?.meanReversion)
+          meanReversionOkForLong(tickerScreener[c.ticker]?.meanReversion) &&
+          epsTrendOkForLong(epsTrendValue(tickerScreener[c.ticker]))
       )
       .map((c) => {
         const held = heldLongTickers.has(c.ticker)
@@ -1168,11 +1252,13 @@ export default function RecommendationsView() {
         return {
           ...c,
           meanReversion: tickerScreener[c.ticker]?.meanReversion,
+          epsRevision0y: tickerScreener[c.ticker]?.epsRevision0y,
+          epsRevision1y: tickerScreener[c.ticker]?.epsRevision1y,
           oppositeMatchLine: oppositeMatchLine(match, 'short', themeLabels),
           _sortScore: sortScore,
         }
       })
-    return pool.sort((a, b) => a._sortScore - b._sortScore).slice(0, ROWS_PER_SIDE)
+    return pool.sort((a, b) => a._sortScore - b._sortScore)
   }, [data, heldShortTickers, heldLongTickers, tickerSector, tickerThemes, themeLabels, tickerScreener])
 
   const shorts: RankedCandidate[] = useMemo(() => {
@@ -1185,7 +1271,8 @@ export default function RecommendationsView() {
           eligibleToSell(c) &&
           notCrowded(c) &&
           notTooMuchGrowthForShort(tickerScreener[c.ticker]?.revenueGrowth) &&
-          meanReversionOkForShort(tickerScreener[c.ticker]?.meanReversion)
+          meanReversionOkForShort(tickerScreener[c.ticker]?.meanReversion) &&
+          epsTrendOkForShort(epsTrendValue(tickerScreener[c.ticker]))
       )
       .map((c) => {
         const held = heldShortTickers.has(c.ticker)
@@ -1194,11 +1281,13 @@ export default function RecommendationsView() {
         return {
           ...c,
           meanReversion: tickerScreener[c.ticker]?.meanReversion,
+          epsRevision0y: tickerScreener[c.ticker]?.epsRevision0y,
+          epsRevision1y: tickerScreener[c.ticker]?.epsRevision1y,
           oppositeMatchLine: oppositeMatchLine(match, 'long', themeLabels),
           _sortScore: sortScore,
         }
       })
-    return pool.sort((a, b) => b._sortScore - a._sortScore).slice(0, ROWS_PER_SIDE)
+    return pool.sort((a, b) => b._sortScore - a._sortScore)
   }, [data, heldLongTickers, heldShortTickers, tickerSector, tickerThemes, themeLabels, tickerScreener])
 
   // Held positions whose own rating now contradicts the side they're held
@@ -1206,10 +1295,10 @@ export default function RecommendationsView() {
   // short position that's drifted to Hold/Buy/Strong Buy -- fire
   // regardless of momentum (unlike Long/Short's eligibleToBuy/
   // eligibleToSell idea-list gate above): the rating itself is decisive
-  // for an existing position, even before momentum has caught up. Not
-  // capped to ROWS_PER_SIDE like Long/Short -- this is a flag on the
-  // actual portfolio, not a ranked idea list, so every contradiction
-  // shows, however many there are. Sorted by how far the rating leans the
+  // for an existing position, even before momentum has caught up. Like
+  // Long/Short, uncapped -- this is a flag on the actual portfolio, not a
+  // ranked idea list, so every contradiction shows, however many there
+  // are. Sorted by how far the rating leans the
   // "wrong" way for that side, not by side, so the most urgent flags
   // surface first regardless of direction.
   const closes: CloseRow[] = useMemo(() => {
@@ -1266,10 +1355,10 @@ export default function RecommendationsView() {
   }, [data, positions, tickerScreener, now])
 
   // Strong Buy/Strong Sell candidates -- the top-conviction rating on
-  // either end -- that still didn't clear a Long/Short opening gate. Not
-  // capped to ROWS_PER_SIDE (this is an audit of every top-rated candidate
-  // that got blocked, not a ranked idea list), and independent of
-  // longs/shorts above other than sharing the same gate functions -- see
+  // either end -- that still didn't clear a Long/Short opening gate.
+  // Uncapped, same as Long/Short (this is an audit of every top-rated
+  // candidate that got blocked, not a ranked idea list), and independent
+  // of longs/shorts above other than sharing the same gate functions -- see
   // buildRejectionReasons. Alphabetical by ticker (explicit instruction --
   // this is a lookup list, not a ranked one, so sorting by severity the
   // way closes does would just make a specific ticker harder to find).
@@ -1353,6 +1442,29 @@ export default function RecommendationsView() {
       {!error && data && data.candidates.length > 0 && (
         <>
           <RecommendationSection
+            title="To close"
+            titleInfo={
+              <RulesInfo
+                label="Closing rules"
+                header="Any one of these flags a held position for review"
+                rules={CLOSE_RULES}
+                footer="A position can trip more than one of these at once — the card below lists every reason that applies, ranked with rating contradictions first, then momentum, then the rest."
+              />
+            }
+            subtitle="Held positions tripping a rating/momentum/score-boundary contradiction, a fundamentals reversal, or a crowded-short flag"
+            rows={filterBySymbol(closes)}
+            renderCard={(c) => (
+              <CloseCard
+                key={c.ticker}
+                c={c}
+                live={livePrices[c.ticker]}
+                dailyHistory3mo={dailyHistory3mo}
+                monthlyHistory={monthlyHistory}
+              />
+            )}
+            emptyMessage="No held position currently has a rating/momentum contradiction or a risk flag."
+          />
+          <RecommendationSection
             title="Long"
             titleInfo={<RulesInfo label="Selection rules" header="Every candidate must clear all of these" rules={LONG_RULES} />}
             subtitle={`Strong Buy / Buy with momentum ≥ ${MOMENTUM_THRESHOLD} and revenue growth ≥ ${fmtPctAbs(REVENUE_GROWTH_THRESHOLD)}, best composite score first`}
@@ -1377,6 +1489,7 @@ export default function RecommendationsView() {
               <RejectedCard
                 key={c.ticker}
                 c={c}
+                held={heldLongTickers.has(c.ticker)}
                 live={livePrices[c.ticker]}
                 dailyHistory3mo={dailyHistory3mo}
                 monthlyHistory={monthlyHistory}
@@ -1409,35 +1522,13 @@ export default function RecommendationsView() {
               <RejectedCard
                 key={c.ticker}
                 c={c}
+                held={heldShortTickers.has(c.ticker)}
                 live={livePrices[c.ticker]}
                 dailyHistory3mo={dailyHistory3mo}
                 monthlyHistory={monthlyHistory}
               />
             )}
             emptyMessage="Every current Strong Sell candidate clears the Short opening gates."
-          />
-          <RecommendationSection
-            title="To close"
-            titleInfo={
-              <RulesInfo
-                label="Closing rules"
-                header="Any one of these flags a held position for review"
-                rules={CLOSE_RULES}
-                footer="A position can trip more than one of these at once — the card below lists every reason that applies, ranked with rating contradictions first, then momentum, then the rest."
-              />
-            }
-            subtitle="Held positions tripping a rating/momentum/score-boundary contradiction, a fundamentals reversal, or a crowded-short flag"
-            rows={filterBySymbol(closes)}
-            renderCard={(c) => (
-              <CloseCard
-                key={c.ticker}
-                c={c}
-                live={livePrices[c.ticker]}
-                dailyHistory3mo={dailyHistory3mo}
-                monthlyHistory={monthlyHistory}
-              />
-            )}
-            emptyMessage="No held position currently has a rating/momentum contradiction or a risk flag."
           />
         </>
       )}

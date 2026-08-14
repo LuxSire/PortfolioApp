@@ -19,6 +19,25 @@ export interface TickerInfo {
 }
 export type TickerInfoByTicker = Record<string, TickerInfo>
 
+// One currently-working order from the live EventSource stream (see
+// ib_price_server.py's refresh_open_orders / IBApp.
+// get_open_orders_async) -- a LIST, not keyed by ticker, since one
+// ticker can have more than one working order at once (e.g. separate
+// buy and sell orders). limitPrice/auxPrice are null for an order type
+// that doesn't use them (e.g. a plain market order has no limit price),
+// not IB's own 0.0/unset-sentinel reading.
+export interface OpenOrder {
+  ticker: string
+  action: string
+  orderType: string
+  quantity: number | null
+  limitPrice: number | null
+  auxPrice: number | null
+  status: string
+  filled: number | null
+  remaining: number | null
+}
+
 // One row of the Trades table -- a Trade merged with its tickerInfo name
 // and a derived average fill price.
 export interface TradeRow {

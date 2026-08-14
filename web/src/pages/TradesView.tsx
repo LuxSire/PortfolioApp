@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { IB_STREAM_URL } from '../ibStream'
 import { parseCSV } from '../csv'
-import type { TickerInfoByTicker, TradeRow, TradesByTicker } from '../interfaces/ITradesView'
+import type { OpenOrder, TickerInfoByTicker, TradeRow, TradesByTicker } from '../interfaces/ITradesView'
 
 // Whole numbers for the vast majority of fills; only show decimals for a
 // rare fractional-share trade.
@@ -18,6 +18,14 @@ function fmtMoney(v: number | null | undefined): string {
 function fmtPrice(v: number | null | undefined): string {
   if (v === null || v === undefined) return '—'
   return '$' + v.toFixed(2)
+}
+
+// Unsigned, whole-number share count -- an order's own totalQuantity/
+// filled/remaining are always non-negative regardless of side (unlike a
+// fill's signed qty above, side is carried separately by `action`).
+function fmtQty(v: number | null | undefined): string {
+  if (v === null || v === undefined) return '—'
+  return v.toLocaleString(undefined, { maximumFractionDigits: Number.isInteger(v) ? 0 : 4 })
 }
 
 // trades_by_ticker (see ib_price_server.py's refresh_trades /
@@ -41,8 +49,18 @@ function pnlClass(v: number | null | undefined): string {
   return v >= 0 ? 'perf-pos' : 'perf-neg'
 }
 
+// Buy/sell side gets the same good/bad-adjacent framing PeTable.jsx's
+// rating badges use elsewhere in this app -- a visual side cue at a
+// glance, not a judgment on the order itself (buying isn't "good" and
+// selling isn't "bad", it's just which direction this particular order
+// is signed).
+function actionClass(action: string): string {
+  return action === 'BUY' ? 'perf-pos' : action === 'SELL' ? 'perf-neg' : ''
+}
+
 export default function TradesView() {
   const [trades, setTrades] = useState<TradesByTicker>({})
+  const [openOrders, setOpenOrders] = useState<OpenOrder[]>([])
   const [tickerInfo, setTickerInfo] = useState<TickerInfoByTicker>({})
 
   useEffect(() => {
@@ -58,13 +76,15 @@ export default function TradesView() {
       .catch(() => {})
   }, [])
 
-  // Same live source PositionsView.jsx reads `trades` from — best-effort,
-  // no polling; a missing/unreachable server just means an empty list.
+  // Same live source PositionsView.jsx reads `trades`/`pnl` from --
+  // best-effort, no polling; a missing/unreachable server just means an
+  // empty list either side.
   useEffect(() => {
     const source = new EventSource(IB_STREAM_URL)
     source.onmessage = (e) => {
-      const { trades: tr } = JSON.parse(e.data)
+      const { trades: tr, openOrders: oo } = JSON.parse(e.data)
       setTrades(tr || {})
+      setOpenOrders(oo || [])
     }
     source.onerror = () => {} // EventSource auto-reconnects; nothing to do here.
     return () => source.close()
@@ -82,6 +102,16 @@ export default function TradesView() {
     }))
     .sort((a, b) => Math.abs(b.value ?? 0) - Math.abs(a.value ?? 0))
 
+  // Working orders first (most likely to move soon), then everything
+  // else alphabetically -- there's no dollar value to rank by the way
+  // trades' own value-descending sort has, since an order's quantity ×
+  // limit price isn't capital actually at risk yet.
+  const openOrderRows = [...openOrders].sort((a, b) => {
+    if (a.status === 'Submitted' && b.status !== 'Submitted') return -1
+    if (b.status === 'Submitted' && a.status !== 'Submitted') return 1
+    return a.ticker.localeCompare(b.ticker)
+  })
+
   return (
     <div className="positions-page trades-page">
       <header className="masthead">
@@ -90,52 +120,112 @@ export default function TradesView() {
         </div>
       </header>
 
-      {rows.length === 0 && (
-        <div className="asset-card">No trades today — or ib_price_server.py isn't running.</div>
+      {rows.length === 0 && openOrderRows.length === 0 && (
+        <div className="asset-card">No trades or working orders today — or ib_price_server.py isn't running.</div>
       )}
 
-      {rows.length > 0 && (
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th className="col-left">Ticker</th>
-                <th className="col-left col-name">Name</th>
-                <th>Qty</th>
-                <th>Avg Price</th>
-                <th>Value</th>
-                <th title="IB's own FIFO-cost-basis realized P&amp;L for today's fills — '—' means this connection wasn't alive to see the fill live, not that it was exactly $0.">
-                  Realized P&amp;L
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={r.ticker}>
-                  <td className="col-left">
-                    <a
-                      href={`#/asset/${encodeURIComponent(r.ticker)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="ticker-link"
-                    >
-                      {r.ticker}
-                    </a>
-                  </td>
-                  <td className="col-left col-name">{r.name ?? '—'}</td>
-                  <td className="num">{fmtShares(r.qty)}</td>
-                  <td className="num">{fmtPrice(r.avgPrice)}</td>
-                  <td className="num">{fmtMoney(r.value)}</td>
-                  <td
-                    className={`num tooltip-cell ${pnlClass(r.realizedPnl)}`}
-                    data-tip={r.commission !== null ? `Commission: ${fmtMoney(-r.commission)}` : undefined}
-                  >
-                    {fmtMoney(r.realizedPnl)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {(rows.length > 0 || openOrderRows.length > 0) && (
+        <div className="asset-two-col-row">
+          <div className="asset-card">
+            <h2>Open Orders</h2>
+            {openOrderRows.length === 0 && <p className="status-row">No working orders right now.</p>}
+            {openOrderRows.length > 0 && (
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th className="col-left">Ticker</th>
+                      <th>Side</th>
+                      <th>Type</th>
+                      <th>Qty</th>
+                      <th>Price</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {openOrderRows.map((o, i) => (
+                      <tr key={`${o.ticker}-${i}`}>
+                        <td className="col-left">
+                          <a
+                            href={`#/asset/${encodeURIComponent(o.ticker)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="ticker-link"
+                            title={tickerInfo[o.ticker]?.name}
+                          >
+                            {o.ticker}
+                          </a>
+                        </td>
+                        <td className={`num ${actionClass(o.action)}`}>{o.action}</td>
+                        <td className="num">{o.orderType}</td>
+                        <td
+                          className="num tooltip-cell"
+                          data-tip={
+                            o.filled !== null && o.remaining !== null
+                              ? `Filled: ${fmtQty(o.filled)} · Remaining: ${fmtQty(o.remaining)}`
+                              : undefined
+                          }
+                        >
+                          {fmtQty(o.quantity)}
+                        </td>
+                        <td className="num">{fmtPrice(o.limitPrice ?? o.auxPrice)}</td>
+                        <td className="num">{o.status}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          <div className="asset-card">
+            <h2>Trades Today</h2>
+            {rows.length === 0 && <p className="status-row">No fills today.</p>}
+            {rows.length > 0 && (
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th className="col-left">Ticker</th>
+                      <th className="col-left col-name">Name</th>
+                      <th>Qty</th>
+                      <th>Avg Price</th>
+                      <th>Value</th>
+                      <th title="IB's own FIFO-cost-basis realized P&amp;L for today's fills — '—' means this connection wasn't alive to see the fill live, not that it was exactly $0.">
+                        Realized P&amp;L
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((r) => (
+                      <tr key={r.ticker}>
+                        <td className="col-left">
+                          <a
+                            href={`#/asset/${encodeURIComponent(r.ticker)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="ticker-link"
+                          >
+                            {r.ticker}
+                          </a>
+                        </td>
+                        <td className="col-left col-name">{r.name ?? '—'}</td>
+                        <td className="num">{fmtShares(r.qty)}</td>
+                        <td className="num">{fmtPrice(r.avgPrice)}</td>
+                        <td className="num">{fmtMoney(r.value)}</td>
+                        <td
+                          className={`num tooltip-cell ${pnlClass(r.realizedPnl)}`}
+                          data-tip={r.commission !== null ? `Commission: ${fmtMoney(-r.commission)}` : undefined}
+                        >
+                          {fmtMoney(r.realizedPnl)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

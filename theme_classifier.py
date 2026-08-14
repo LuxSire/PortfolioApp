@@ -8,26 +8,39 @@ Runs entirely locally (facebook/bart-large-mnli via transformers, same
 uses) against raw_data.json's longBusinessSummary -- no network call
 beyond the one-time model download.
 
-Best-effort, not authoritative: validated against the 32 tickers this
-project's own portfolio already had hand-verified tags for (see
-data/ticker_themes.json's original curation), top-1 accuracy ~84%
-(27/32) using the "This company's core, primary business is {}."
-hypothesis template below -- a plain "{}" template scored meaningfully
-worse in the same test (58%), because vague labels like "Diversified
-Thematic Growth (ETF)" spuriously matched almost any growth-sounding
-description. That theme is EXCLUDED from classification here for a
-different, harder reason: it describes a fund, not a company, and funds
-don't carry a longBusinessSummary in the first place to classify from
-(confirmed: ARKK's raw_data.json entry has none) -- assigning it stays a
-manual-only, human judgment call.
+Best-effort, not authoritative. The original 21-entry taxonomy was
+validated against the 32 tickers this project's own portfolio already
+had hand-verified tags for (see data/ticker_themes.json's original
+curation): top-1 accuracy ~84% (27/32) using the "This company's core,
+primary business is {}." hypothesis template below -- a plain "{}"
+template scored meaningfully worse in the same test (58%), because vague
+labels like "Diversified Thematic Growth (ETF)" spuriously matched
+almost any growth-sounding description. That theme is EXCLUDED from
+classification here for a different, harder reason: it describes a
+fund, not a company, and funds don't carry a longBusinessSummary in the
+first place to classify from (confirmed: ARKK's raw_data.json entry has
+none) -- assigning it stays a manual-only, human judgment call.
 
-Because ~16% of automatic top-1 picks are simply wrong (verified, not
-hypothetical -- e.g. AVGO, a pure semiconductor company, top-scored
-"Telecom & Broadband" at 0.36 confidence in testing), classify_themes
-NEVER overwrites a ticker that already has an entry in
-ticker_themes.json. It only fills in tickers with no entry at all, so a
-bad automatic guess can never silently replace a manually-verified tag,
-and re-running this on the same tickers is always a safe no-op.
+The taxonomy was later expanded to 50 industry/factor-style entries
+(banks, utilities, REITs, transportation, etc. -- see
+data/theme_taxonomy.json) grounded in sorted_screen.csv's own yfinance
+industry breakdown, for broad screener-universe coverage rather than a
+handful of portfolio-specific niche exposures -- that 84% figure is
+therefore a datapoint about the hypothesis template's usefulness in
+general, not a re-verified number for this larger label set (more
+candidate labels gives zero-shot classification more ways to be wrong,
+and finer-grained industries like "Banks & Regional Lenders" vs.
+"Capital Markets & Brokerage" are closer together in meaning than the
+original taxonomy's niche themes were).
+
+Because automatic top-1 picks are known to sometimes be simply wrong
+(verified, not hypothetical -- e.g. AVGO, a pure semiconductor company,
+top-scored "Telecom & Broadband" at 0.36 confidence in testing with the
+original taxonomy), classify_themes NEVER overwrites a ticker that
+already has an entry in ticker_themes.json. It only fills in tickers
+with no entry at all, so a bad automatic guess can never silently
+replace a manually-verified tag, and re-running this on the same
+tickers is always a safe no-op.
 """
 
 import json
@@ -75,10 +88,16 @@ def classify_themes(tickers, threshold=CONFIDENCE_THRESHOLD):
     against the taxonomy (excluding _EXCLUDED_THEME_KEY) and keeps every
     theme scoring at or above `threshold`, multi-label -- a company can
     genuinely have more than one real theme (see ticker_themes.json's own
-    GOOG entry). A ticker with no longBusinessSummary at all (an ETF, or
-    one main.py hasn't fetched yet) is left unclassified rather than
-    guessed at from nothing -- shows up as "Unclassified" in the Themes
-    tab, same treatment as any other untagged ticker.
+    GOOG entry). If NONE clear threshold, falls back to the single
+    closest-scoring theme instead of leaving the ticker unclassified --
+    explicit instruction: every ticker with a business description to
+    classify from must land somewhere in the taxonomy, even a low-
+    confidence single tag, rather than sitting in the Themes tab's
+    "Unclassified" bucket indefinitely. Only a ticker with no
+    longBusinessSummary AT ALL (an ETF, or one main.py hasn't fetched
+    yet -- see no_summary below) is left unclassified, since there's
+    nothing to classify from in the first place, low-confidence or
+    otherwise.
 
     Merges into ticker_themes.json and returns {ticker: [theme_key, ...]}
     for just the tickers classified this call (not the full merged
@@ -126,7 +145,14 @@ def classify_themes(tickers, threshold=CONFIDENCE_THRESHOLD):
             results[ticker] = keys
             print(f"{ticker}: {', '.join(keys)}", flush=True)
         else:
-            print(f"{ticker}: no theme cleared the confidence threshold, left unclassified", flush=True)
+            # Nothing cleared threshold -- result["labels"]/["scores"] are
+            # already sorted descending by the pipeline, so [0] is the
+            # closest match regardless of how low its score is. Assigned
+            # as a single tag rather than left unclassified -- see this
+            # function's own docstring.
+            top_label, top_score = result["labels"][0], result["scores"][0]
+            results[ticker] = [label_to_key[top_label]]
+            print(f"{ticker}: no theme cleared the confidence threshold -- assigned closest match {top_label} ({top_score:.3f})", flush=True)
 
     if no_summary:
         print(

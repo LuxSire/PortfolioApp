@@ -74,11 +74,36 @@ export type Account = Record<string, number>
 
 // Today's fills only for a symbol actually traded today (see
 // ib_price_server.py's refresh_trades) -- qty/value both signed.
+// realizedPnl/commission are IB's own FIFO-cost-basis figures (see
+// IBApp.get_today_executions_async's own docstring) -- null, not 0, if
+// this connection wasn't alive to see the fill live, e.g. the server
+// restarted partway through the day. Not used for open positions
+// (rows' own dayPnl formula only reads qty/value), only as
+// closedTodayRows' fallback when pnl (reqPnLSingle) has nothing yet for
+// that ticker.
 export interface Trade {
   qty: number
   value: number
+  realizedPnl: number | null
+  commission: number | null
 }
 export type TradesByTicker = Record<string, Trade>
+
+// IBKR's own reqPnLSingle figures (see IBApp.subscribe_position_pnl and
+// ib_price_server.py's on_position/on_pnl_single) -- authoritative,
+// IB-computed per-position P&L, present for every symbol held at any
+// point since the server process started. Deliberately NOT removed when
+// `position` goes to 0 (a same-day closed-out position) -- see that
+// file's own module docstring on why, and PositionsView.tsx's
+// closedTodayRows for what reads position === 0 here as the signal.
+export interface PnlSingle {
+  dailyPnL: number | null
+  unrealizedPnL: number | null
+  realizedPnL: number | null
+  position: number | null
+  value: number | null
+}
+export type PnlByTicker = Record<string, PnlSingle>
 
 // One row of the main positions table -- tickerInfo + live prices/
 // position + computed fields (see the `rows` useMemo) plus every
@@ -103,6 +128,18 @@ export interface PositionRow extends Partial<TickerFactors> {
   upd: string | null
   rating: string | null
   savgpe: number | null
+}
+
+// A symbol traded today (see TradesByTicker) that's now fully closed out
+// (0 shares) -- see PositionsView.tsx's closedTodayRows. A much smaller
+// field set than PositionRow: no side/sector exposure to group by once a
+// position is flat, so this is rendered in its own small table rather
+// than folded into the Long/Short/sector tree.
+export interface ClosedPositionRow {
+  ticker: string
+  name: string
+  price: number | null
+  dayPnl: number | null
 }
 
 export interface SectorGroup {

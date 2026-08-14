@@ -120,7 +120,7 @@ export default function NewsView() {
   // to show as "held", same "empty state, not an error" treatment the
   // rest of this page's news fetch already uses.
   const [positions, setPositions] = useState<PositionsByTicker>({})
-  const [heldOnly, setHeldOnly] = useState(false)
+  const [positionsOnly, setPositionsOnly] = useState(false)
 
   useEffect(() => {
     const source = new EventSource(IB_STREAM_URL)
@@ -155,9 +155,9 @@ export default function NewsView() {
     if (!rows) return null
     let result = rows
     if (tickerQuery) result = result.filter((a) => a.ticker.toUpperCase().includes(tickerQuery))
-    if (heldOnly) result = result.filter((a) => positions[a.ticker]?.shares)
+    if (positionsOnly) result = result.filter((a) => positions[a.ticker]?.shares)
     return result
-  }, [rows, tickerQuery, heldOnly, positions])
+  }, [rows, tickerQuery, positionsOnly, positions])
   const neutralCount = useMemo(() => (byTicker ? byTicker.filter((a) => a.sentiment === 3).length : 0), [byTicker])
   const filtered = useMemo(
     () => (byTicker ? (showNeutral ? byTicker : byTicker.filter((a) => a.sentiment !== 3)) : null),
@@ -168,7 +168,7 @@ export default function NewsView() {
   // the result set just changed size out from under whatever page was
   // showing, same "detect the filter changed mid-render" convention as
   // PeTable.jsx's lastFilterKey.
-  const filterKey = JSON.stringify([tickerQuery, showNeutral, heldOnly])
+  const filterKey = JSON.stringify([tickerQuery, showNeutral, positionsOnly])
   const [lastFilterKey, setLastFilterKey] = useState(filterKey)
   if (filterKey !== lastFilterKey) {
     setLastFilterKey(filterKey)
@@ -211,8 +211,8 @@ export default function NewsView() {
           </label>
 
           <label className="position-filter">
-            <input type="checkbox" checked={heldOnly} onChange={(e) => setHeldOnly(e.target.checked)} />
-            Held positions only{Object.keys(positions).length > 0 ? ` (${Object.keys(positions).length})` : ''}
+            <input type="checkbox" checked={positionsOnly} onChange={(e) => setPositionsOnly(e.target.checked)} />
+            Positions only{Object.keys(positions).length > 0 ? ` (${Object.keys(positions).length})` : ''}
           </label>
         </div>
       )}
@@ -225,7 +225,7 @@ export default function NewsView() {
       {!error && rows && rows.length > 0 && byTicker && byTicker.length === 0 && (
         <div className="asset-card">
           No news for{tickerQuery ? ` "${tickerFilter.trim()}"` : ''}
-          {heldOnly ? (tickerQuery ? ' among held positions' : ' any held position') : ''}.
+          {positionsOnly ? (tickerQuery ? ' among positions' : ' any position') : ''}.
         </div>
       )}
       {!error && byTicker && byTicker.length > 0 && filtered && filtered.length === 0 && (

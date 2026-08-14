@@ -1914,7 +1914,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Real Estate Services"
   },
   {
@@ -2406,7 +2406,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Agricultural Inputs"
   },
   {
@@ -4825,7 +4825,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Security & Protection Services"
   },
   {
@@ -7280,7 +7280,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Advertising Agencies"
   },
   {
@@ -7532,7 +7532,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Tools & Accessories"
   },
   {
@@ -9002,7 +9002,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Steel"
   },
   {
@@ -9092,7 +9092,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "REIT - Office"
   },
   {
@@ -12677,7 +12677,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Banks - Regional"
   },
   {
