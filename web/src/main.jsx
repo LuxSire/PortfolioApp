@@ -2,7 +2,7 @@ import { StrictMode, useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import './styles.scss'
 import App from './App.jsx'
-import Asset from './pages/Asset.tsx'
+import AssetView from './pages/AssetView.tsx'
 import NewsPopup from './components/NewsPopup.jsx'
 
 function parseRoute(hash) {
@@ -22,7 +22,7 @@ function Router() {
     return () => window.removeEventListener('hashchange', onHashChange)
   }, [])
 
-  if (route.page === 'asset') return <Asset ticker={route.ticker} />
+  if (route.page === 'asset') return <AssetView ticker={route.ticker} />
   if (route.page === 'news') return <NewsPopup ticker={route.ticker} />
   return <App />
 }

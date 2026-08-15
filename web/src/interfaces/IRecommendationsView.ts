@@ -1,5 +1,5 @@
 // Types for RecommendationsView.tsx (the Recommendations tab).
-import type { PricePoint } from './IAsset'
+import type { PricePoint } from './IAssetView'
 
 export type HistoryByTicker = Record<string, PricePoint[]>
 

@@ -735,7 +735,17 @@ export default function ScreenerView() {
   const mrRank = useMemo(() => (rawRows ? rankDescending(rawRows, 'mr') : new Map<string, number>()), [rawRows])
   const epsTrendRank = useMemo(() => (rawRows ? rankDescending(rawRows, 'epsTrend') : new Map<string, number>()), [rawRows])
   const upsideRank = useMemo(() => (rawRows ? rankDescending(rawRows, 'upside') : new Map<string, number>()), [rawRows])
-  const revgRank = useMemo(() => (rawRows ? rankDescending(rawRows, 'revg') : new Map<string, number>()), [rawRows])
+  // Mirrors scoring.growth_rank's own GROWTH_CAP: a near-zero-revenue
+  // base-effect artifact (a raw revg in the thousands of percent)
+  // shouldn't claim the single best subrank just for being the most
+  // extreme value. Capped for this rank computation only -- the r.revg
+  // cell rendered below (fmtPct(r.revg)) stays the actual, uncapped number.
+  const revgRank = useMemo(() => {
+    if (!rawRows) return new Map<string, number>()
+    const GROWTH_RANK_CAP = 3.0 // +300%, mirrors scoring.growth_rank's GROWTH_CAP
+    const capped = rawRows.map((r) => (r.revg !== null && r.revg > GROWTH_RANK_CAP ? { ...r, revg: GROWTH_RANK_CAP } : r))
+    return rankDescending(capped, 'revg')
+  }, [rawRows])
   const liqRank = useMemo(() => (rawRows ? rankDescending(rawRows, 'liq') : new Map<string, number>()), [rawRows])
   const sentRank = useMemo(() => (rawRows ? rankDescending(rawRows, 'sent') : new Map<string, number>()), [rawRows])
   const newsSentRank = useMemo(() => (rawRows ? rankDescending(rawRows, 'newsSent') : new Map<string, number>()), [rawRows])

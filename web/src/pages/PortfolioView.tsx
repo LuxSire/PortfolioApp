@@ -22,11 +22,13 @@ function fmtLevel(v: number | null | undefined): string {
   return '$' + v.toLocaleString(undefined, { maximumFractionDigits: 0 })
 }
 
-// Same as fmtLevel but without the '$' — the Stock Short column already
-// carries its currency in the header.
-function fmtLevelPlain(v: number | null | undefined): string {
-  if (v === null || v === undefined) return '—'
-  return v.toLocaleString(undefined, { maximumFractionDigits: 0 })
+// Stock Long/Short/Net as a % of that day's NAV rather than a raw dollar
+// figure — exposure is more legible normalized against book size than as
+// an absolute amount. Same normalization ExposureChart.jsx now uses for
+// its bars.
+function fmtExposurePct(v: number | null | undefined, nav: number | null | undefined): string {
+  if (v === null || v === undefined || nav === null || nav === undefined || nav === 0) return '—'
+  return ((v / nav) * 100).toFixed(1) + '%'
 }
 
 // Daily return (Total P&L / prior-day NAV) — signed, 2 decimals.
@@ -46,6 +48,14 @@ function fmtRatio(v: number | null | undefined): string {
 function fmtVol(v: number | null | undefined): string {
   if (v === null || v === undefined) return '—'
   return (v * 100).toFixed(2) + '%'
+}
+
+// Max drawdown is stored as a positive magnitude (0 = never declined from
+// a prior peak) but always represents a decline, so — unlike fmtVol — it
+// gets a fixed leading '-' rather than a sign that could ever read as '+'.
+function fmtDrawdown(v: number | null | undefined): string {
+  if (v === null || v === undefined) return '—'
+  return '-' + (v * 100).toFixed(2) + '%'
 }
 
 function fmtDate(iso: string | null | undefined): string {
@@ -89,9 +99,18 @@ export default function PortfolioView() {
   // total across the whole window instead of restarting each month).
   const cumulativeReturnByDate: Record<string, number> = {}
   const dailyReturns: number[] = []
+  // Peak-to-trough decline of the same compounded equity curve as
+  // cumulativeReturnByDate above (running product of (1 + dailyReturn)),
+  // not of raw NAV — NAV moves on deposits/withdrawals too, which would
+  // read as a "drawdown" they aren't. Tracked as a positive magnitude (the
+  // largest fractional drop from any prior peak to a later trough), null
+  // until there's at least one real daily return to measure.
+  let maxDrawdown: number | null = null
   if (rows) {
     let running = 0
     let compounded = 1
+    let peakCompounded = 1
+    let worstDrawdown = 0
     let prevNav: number | null = null
     for (const r of rows) {
       const dayTotalPnl = r.realized !== null && r.unrealized !== null ? r.realized + r.unrealized : null
@@ -103,11 +122,15 @@ export default function PortfolioView() {
       if (dailyReturn !== null) {
         dailyReturns.push(dailyReturn)
         compounded *= 1 + dailyReturn
+        if (compounded > peakCompounded) peakCompounded = compounded
+        const drawdown = (peakCompounded - compounded) / peakCompounded
+        if (drawdown > worstDrawdown) worstDrawdown = drawdown
       }
       cumulativeReturnByDate[r.date] = compounded - 1
 
       if (r.nav !== null) prevNav = r.nav
     }
+    if (dailyReturns.length > 0) maxDrawdown = worstDrawdown
   }
   // Cumulative across every day shown, not a single day's figure — "how
   // much have I actually locked in / paid / moved over this whole window."
@@ -223,6 +246,15 @@ export default function PortfolioView() {
               </span>
               <span className="l">Sortino</span>
             </div>
+            <div
+              className="stat"
+              title="Largest peak-to-trough decline in the compounded (Total P&L / prior-day NAV) equity curve — the worst drawdown this track record has experienced, not a single day's loss."
+            >
+              <span className={`n num${maxDrawdown === null ? '' : maxDrawdown > 0 ? ' bad' : ''}`}>
+                {fmtDrawdown(maxDrawdown)}
+              </span>
+              <span className="l">Max Drawdown</span>
+            </div>
           </div>
         )}
       </header>
@@ -242,10 +274,10 @@ export default function PortfolioView() {
                 <th className="col-left">Date</th>
                 <th>Cash</th>
                 <th>NAV</th>
-                <th>Stock Long</th>
-                <th>Stock Short</th>
-                <th>Net</th>
-                <th>Gross</th>
+                <th title="Stock Long / NAV">Stock Long %</th>
+                <th title="Stock Short / NAV">Stock Short %</th>
+                <th title="Net / NAV">Net %</th>
+                <th title="Gross / NAV">Gross %</th>
                 <th>Flows</th>
                 <th>Commissions</th>
                 <th>Dividends</th>
@@ -274,10 +306,10 @@ export default function PortfolioView() {
                     <td className="col-left">{fmtDate(r.date)}</td>
                     <td className="num">{fmtLevel(r.cash)}</td>
                     <td className="num">{fmtLevel(r.nav)}</td>
-                    <td className="num">{fmtLevel(r.stockLong)}</td>
-                    <td className="num">{fmtLevelPlain(r.stockShort)}</td>
-                    <td className="num">{fmtLevel(r.stockNet)}</td>
-                    <td className="num">{fmtLevel(r.stockGross)}</td>
+                    <td className="num">{fmtExposurePct(r.stockLong, r.nav)}</td>
+                    <td className="num">{fmtExposurePct(r.stockShort, r.nav)}</td>
+                    <td className="num">{fmtExposurePct(r.stockNet, r.nav)}</td>
+                    <td className="num">{fmtExposurePct(r.stockGross, r.nav)}</td>
                     <td className="num">{fmtMoneyPlain(r.depositsWithdrawals)}</td>
                     <td className="num">{fmtMoneyPlain(r.commissions)}</td>
                     <td className="num">{fmtMoneyPlain(r.dividends)}</td>

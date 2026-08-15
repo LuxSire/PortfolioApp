@@ -1,4 +1,4 @@
-// Types for Asset.tsx (the single-ticker asset page) — kept in their own
+// Types for AssetView.tsx (the single-ticker asset page) — kept in their own
 // file per this project's convention of separating type declarations from
 // the components that use them, one file per component.
 

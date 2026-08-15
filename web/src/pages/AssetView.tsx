@@ -2,7 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { belowOneClass, inversePctThresholdClass, rangeClass, targetClass } from '../colorRules'
 import { earningsUrgencyClass, fmtEarningsDate, useNowTick } from '../earnings'
 import { IB_NEWS_ARTICLE_URL, IB_NEWS_URL } from '../ibStream'
-import type { AssetInfo, CandlePoint, Holder, NewsArticle, PricePoint } from '../interfaces/IAsset'
+import type { AssetInfo, CandlePoint, Holder, NewsArticle, PricePoint } from '../interfaces/IAssetView'
 import { SENTIMENT_LABEL, fmtNewsTime, sentimentClass } from '../news'
 import CandlestickChart from '../components/CandlestickChart'
 import PriceChart from '../components/PriceChart'
@@ -301,7 +301,7 @@ function fmtDailyAxisDate(raw: string): string {
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
-export default function Asset({ ticker }: { ticker: string }) {
+export default function AssetView({ ticker }: { ticker: string }) {
   // result.ticker tracks which ticker result.info/error belong to, so a
   // ticker change is treated as loading (rather than flashing the previous
   // ticker's data) without resetting state synchronously inside the effect.

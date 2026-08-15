@@ -1,8 +1,8 @@
 // Types for PositionsView.tsx (the Positions tab).
-import type { PricePoint } from './IAsset'
+import type { PricePoint } from './IAssetView'
 
 // Re-exported for callers that fetch price_history_daily_3mo.json /
-// price_history.json the same way Asset.tsx does -- one {date, close} bar
+// price_history.json the same way AssetView.tsx does -- one {date, close} bar
 // series per ticker, keyed by ticker.
 export type HistoryByTicker = Record<string, PricePoint[]>
 

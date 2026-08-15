@@ -11,7 +11,7 @@ export interface RawHolder {
 export type HoldersByTicker = Record<string, RawHolder[]>
 
 // The subset of raw_data.json's per-ticker yfinance payload this page
-// actually reads -- see Asset.tsx's own AssetInfo for why the full
+// actually reads -- see AssetView.tsx's own AssetInfo for why the full
 // payload stays a loose Record<string, unknown> rather than an
 // exhaustive interface; here only sharesOutstanding/name fields matter.
 export interface RawTickerInfo {

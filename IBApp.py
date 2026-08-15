@@ -149,19 +149,21 @@ def _eps_revision(current, baseline):
     return (current - baseline) / abs(baseline)
 
 
-# revenueGrowth/operatingMargins are ratios against a company's own trailing
-# revenue -- for a company whose revenue only recently went from near-zero to
+# operatingMargins is a ratio against a company's own trailing revenue --
+# for a company whose revenue only recently went from near-zero to
 # something real (e.g. an early-stage aerospace/biotech name shipping its
 # first meaningful sales), that denominator being tiny makes the ratio
 # explode to a mathematically-correct but practically-meaningless magnitude
-# (JOBY's revenueGrowth reads +257,493% -- real trailing revenue was $15K a
-# year ago -- and names like TIPT/SLDP show operatingMargins over +2900% the
-# same way). scoring.rank_ascending is ordinal so a single extreme value
-# doesn't distort *other* tickers' ranks, but it does let a pure base-effect
+# (names like TIPT/SLDP show operatingMargins over +2900% this way).
+# scoring.rank_ascending is ordinal so a single extreme value doesn't
+# distort *other* tickers' ranks, but it does let a pure base-effect
 # artifact claim the single best (or worst) rank ahead of a company with a
-# real, still-exceptional number -- clamping keeps that from happening while
-# leaving every value inside the band untouched.
-GROWTH_CAP = 3.0  # +300%; triple-digit YoY growth is already exceptional
+# real, still-exceptional number -- clamping keeps that from happening
+# while leaving every value inside the band untouched. revenueGrowth has
+# the identical base-effect problem (JOBY once read +257,493% off $15K of
+# trailing revenue) but is deliberately NOT clamped here -- see
+# scoring.growth_rank's own GROWTH_CAP, which clamps only the value it
+# ranks on, so the raw number stored here stays visible in the screener.
 MARGIN_FLOOR = -3.0  # -300%
 MARGIN_CAP = 2.0  # +200%; above this is essentially always a tiny-revenue artifact, not real margin
 
@@ -963,9 +965,12 @@ class IBApp:
         itself, which is what the retry loop below is really for), it
         just leaves both fields None.
 
-        revenueGrowth and operatingMargins are clamped (see GROWTH_CAP /
-        MARGIN_FLOOR / MARGIN_CAP above) to keep a near-zero-revenue name's
-        base-effect artifact from reading as a genuine extreme.
+        operatingMargins is clamped (see MARGIN_FLOOR / MARGIN_CAP above) to
+        keep a near-zero-revenue name's base-effect artifact from reading as
+        a genuine extreme. revenueGrowth is stored uncapped -- the raw
+        number is what the screener displays; scoring.growth_rank applies
+        GROWTH_CAP itself, only for ranking, so the actual figure stays
+        visible while the composite score still isn't distorted by it.
 
         country_overrides, if given, is a collection of tickers to keep
         regardless of what yfinance reports for `country` -- e.g. CRSP is
@@ -1044,7 +1049,7 @@ class IBApp:
                         "targetHighPrice": info.get("targetHighPrice"),
                         "targetLowPrice": info.get("targetLowPrice"),
                         "numberOfAnalystOpinions": info.get("numberOfAnalystOpinions"),
-                        "revenueGrowth": _clamp(info.get("revenueGrowth"), -math.inf, GROWTH_CAP),
+                        "revenueGrowth": info.get("revenueGrowth"),
                         "returnOnEquity": info.get("returnOnEquity"),
                         "profitMargins": info.get("profitMargins"),
                         "operatingMargins": _clamp(info.get("operatingMargins"), MARGIN_FLOOR, MARGIN_CAP),

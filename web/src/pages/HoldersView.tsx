@@ -135,7 +135,7 @@ function HolderCard({ institution, onOpen }: { institution: Institution; onOpen:
 // valueUsd, shares}], see sec_edgar.py's fetch_13f_holdings) into
 // per-institution: every tracked ticker that institution holds, each
 // position's pctOwned computed against that ticker's own sharesOutstanding
-// (raw_data.json, yfinance) -- same ownership-estimate caveat Asset.tsx's
+// (raw_data.json, yfinance) -- same ownership-estimate caveat AssetView.tsx's
 // own HoldersPanel carries: 13F filings are as of the prior quarter's
 // report date, not today's actual share count. Returns each institution's
 // FULL holdings list (not capped) -- HolderCard/HolderModal each decide

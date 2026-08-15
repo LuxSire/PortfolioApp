@@ -1,13 +1,13 @@
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 
-// Cash/NAV are magnitudes, not a day's change — no +/- sign clutter. Same
-// convention PortfolioView.jsx's own fmtLevel uses for the daily table --
-// duplicated here rather than imported, this project's convention for a
-// small formatter needed by more than one component (see
+// Net/Long/Short/Gross as a % of that day's NAV rather than a raw dollar
+// figure — same normalization and rationale as PortfolioView.tsx's own
+// fmtExposurePct, duplicated here rather than imported, this project's
+// convention for a small formatter needed by more than one component (see
 // RecommendationsView.jsx's previousClose for the fuller precedent).
-function fmtLevel(v) {
+function fmtPct(v) {
   if (v === null || v === undefined) return '—'
-  return '$' + v.toLocaleString(undefined, { maximumFractionDigits: 0 })
+  return v.toFixed(1) + '%'
 }
 
 function fmtAxisDate(iso) {
@@ -53,51 +53,62 @@ function ExposureTooltip({ active, payload }) {
         <span className="chart-tooltip-row">
           <span className="chart-tooltip-key" style={{ '--key-color': 'var(--viz-net)' }} />
           <span className="chart-tooltip-row-label">Net</span>
-          <span className="chart-tooltip-row-value">{fmtLevel(point.stockNet)}</span>
+          <span className="chart-tooltip-row-value">{fmtPct(point.stockNetPct)}</span>
         </span>
         <span className="chart-tooltip-row">
           <span className="chart-tooltip-key" style={{ '--key-color': 'var(--viz-long)' }} />
           <span className="chart-tooltip-row-label">Long</span>
-          <span className="chart-tooltip-row-value">{fmtLevel(point.stockLong)}</span>
+          <span className="chart-tooltip-row-value">{fmtPct(point.stockLongPct)}</span>
         </span>
         <span className="chart-tooltip-row">
           <span className="chart-tooltip-key" style={{ '--key-color': 'var(--viz-short)' }} />
           <span className="chart-tooltip-row-label">Short</span>
-          <span className="chart-tooltip-row-value">{fmtLevel(point.stockShort)}</span>
+          <span className="chart-tooltip-row-value">{fmtPct(point.stockShortPct)}</span>
         </span>
         <span className="chart-tooltip-row">
           <span className="chart-tooltip-key" style={{ background: 'transparent' }} />
           <span className="chart-tooltip-row-label">Gross</span>
-          <span className="chart-tooltip-row-value">{fmtLevel(point.stockGross)}</span>
+          <span className="chart-tooltip-row-value">{fmtPct(point.stockGrossPct)}</span>
         </span>
       </span>
     </div>
   )
 }
 
-// Daily net/gross market exposure -- same rows/date axis as NavChart, so
-// the two read as one timeline when stacked in PortfolioView.jsx. Net is
-// its own bar (stockNet, signed -- long-biased books run positive, but
-// the axis/domain below still makes room for a net-short day). Gross is a
-// second, stacked bar: stockLong (already ≥ 0) at the base, |stockShort|
-// on top (stockShort itself comes back negative from the Flex Query --
-// see ib_price_server.py's fetch_account_performance), summing to
-// stockGross exactly -- explicit instruction: "the gross exposure bar
-// must show long and short absolute value sum," not just the combined
-// total as a single flat color. Net and Gross group side by side per day
-// (Recharts groups distinct stackIds automatically) rather than stacking
-// all three together, since Net isn't a component OF Gross -- it's Long
-// minus |Short|, a different figure entirely.
+// Daily net/gross market exposure, each as a % of that day's NAV rather
+// than a raw dollar figure -- same normalization as PortfolioView.tsx's
+// table columns, so the chart and table read as the same numbers. Same
+// rows/date axis as NavChart, so the two read as one timeline when
+// stacked in PortfolioView.jsx. Net is its own bar (stockNetPct, signed --
+// long-biased books run positive, but the axis/domain below still makes
+// room for a net-short day). Gross is a second, stacked bar: stockLongPct
+// (already ≥ 0) at the base, |stockShortPct| on top (stockShort itself
+// comes back negative from the Flex Query -- see ib_price_server.py's
+// fetch_account_performance), summing to stockGrossPct exactly --
+// explicit instruction: "the gross exposure bar must show long and short
+// absolute value sum," not just the combined total as a single flat
+// color. Net and Gross group side by side per day (Recharts groups
+// distinct stackIds automatically) rather than stacking all three
+// together, since Net isn't a component OF Gross -- it's Long minus
+// |Short|, a different figure entirely.
 // rows: PortfolioView.jsx's own portfolio_performance.json rows
-// ({date, stockNet, stockLong, stockShort, stockGross, ...}, ascending by
-// date).
+// ({date, nav, stockNet, stockLong, stockShort, stockGross, ...},
+// ascending by date).
 export default function ExposureChart({ rows }) {
-  const data = rows.map((r) => ({
-    ...r,
-    stockShortAbs: r.stockShort === null || r.stockShort === undefined ? null : Math.abs(r.stockShort),
-  }))
+  const data = rows.map((r) => {
+    const nav = r.nav
+    const pct = (v) => (v === null || v === undefined || !nav ? null : (v / nav) * 100)
+    return {
+      ...r,
+      stockNetPct: pct(r.stockNet),
+      stockLongPct: pct(r.stockLong),
+      stockShortPct: pct(r.stockShort),
+      stockShortAbsPct: r.stockShort === null || r.stockShort === undefined || !nav ? null : Math.abs(r.stockShort / nav) * 100,
+      stockGrossPct: pct(r.stockGross),
+    }
+  })
 
-  const values = data.flatMap((r) => [r.stockNet, r.stockGross]).filter((v) => v !== null && v !== undefined)
+  const values = data.flatMap((r) => [r.stockNetPct, r.stockGrossPct]).filter((v) => v !== null && v !== undefined)
   const maxVal = Math.max(0, ...values)
   const minVal = Math.min(0, ...values)
   const domainPad = (maxVal - minVal || 1) * 0.1
@@ -135,7 +146,7 @@ export default function ExposureChart({ rows }) {
             <YAxis
               domain={[yMin, yMax]}
               ticks={[yMin, yMax]}
-              tickFormatter={fmtLevel}
+              tickFormatter={fmtPct}
               orientation="right"
               width={64}
               axisLine={false}
@@ -147,9 +158,9 @@ export default function ExposureChart({ rows }) {
               cursor={{ fill: 'var(--surface-2)' }}
               wrapperStyle={{ zIndex: 10 }}
             />
-            <Bar dataKey="stockNet" name="Net" fill="var(--viz-net)" radius={[4, 4, 0, 0]} maxBarSize={24} isAnimationActive={false} />
+            <Bar dataKey="stockNetPct" name="Net" fill="var(--viz-net)" radius={[4, 4, 0, 0]} maxBarSize={24} isAnimationActive={false} />
             <Bar
-              dataKey="stockLong"
+              dataKey="stockLongPct"
               name="Long"
               stackId="gross"
               fill="var(--viz-long)"
@@ -158,7 +169,7 @@ export default function ExposureChart({ rows }) {
               isAnimationActive={false}
             />
             <Bar
-              dataKey="stockShortAbs"
+              dataKey="stockShortAbsPct"
               name="Short"
               stackId="gross"
               fill="var(--viz-short)"

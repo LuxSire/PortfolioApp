@@ -3,6 +3,7 @@ import ScreenerView from './pages/ScreenerView'
 import PositionsView from './pages/PositionsView'
 import TradesView from './pages/TradesView'
 import PortfolioView from './pages/PortfolioView'
+import FactsheetView from './pages/FactsheetView'
 import NewsView from './pages/NewsView'
 import ThemesView from './pages/ThemesView'
 import SectorsView from './pages/SectorsView'
@@ -15,6 +16,7 @@ const TABS = [
   { key: 'positions', label: 'Positions' },
   { key: 'trades', label: 'Trades' },
   { key: 'portfolio', label: 'Portfolio' },
+  { key: 'factsheet', label: 'Factsheet' },
   { key: 'news', label: 'News' },
   { key: 'themes', label: 'Themes' },
   { key: 'sectors', label: 'Sectors' },
@@ -45,6 +47,7 @@ export default function App() {
       {tab === 'positions' && <PositionsView />}
       {tab === 'trades' && <TradesView />}
       {tab === 'portfolio' && <PortfolioView />}
+      {tab === 'factsheet' && <FactsheetView />}
       {tab === 'news' && <NewsView />}
       {tab === 'themes' && <ThemesView />}
       {tab === 'sectors' && <SectorsView />}

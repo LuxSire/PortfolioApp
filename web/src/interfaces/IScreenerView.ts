@@ -1,5 +1,5 @@
 // Types for ScreenerView.tsx (the Screener tab, formerly PeTable.jsx).
-import type { PricePoint } from './IAsset'
+import type { PricePoint } from './IAssetView'
 
 export type HistoryByTicker = Record<string, PricePoint[]>
 

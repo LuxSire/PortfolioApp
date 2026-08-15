@@ -106,8 +106,9 @@ def add_avg_liquidity_ratio(data):
 # is already an extreme, rare signal (see fetch_13f_holdings' own real
 # numbers for context: mega-caps like AAPL/MSFT/NVDA move a few percent a
 # quarter, not tens) -- beyond this shouldn't count for proportionally
-# more in the sentiment blend below, same reasoning IBApp.py's
-# GROWTH_CAP/MARGIN_CAP already use for revenueGrowth/operatingMargins.
+# more in the sentiment blend below, same reasoning growth_rank's own
+# GROWTH_CAP and IBApp.py's MARGIN_CAP already use for revenueGrowth/
+# operatingMargins.
 INST_CHANGE_CLIP = 0.5
 
 
@@ -429,10 +430,28 @@ def margin_rank(rows):
 # ---------------------------------------------------------------------- #
 #  Growth & momentum                                                      #
 # ---------------------------------------------------------------------- #
+# +300%; triple-digit YoY growth is already exceptional -- see IBApp.py's
+# comment above MARGIN_FLOOR/MARGIN_CAP for why a near-zero-revenue name's
+# growth ratio needs capping at all (same base-effect problem, JOBY-style).
+# Clamped here, for ranking only -- IBApp.py stores revenueGrowth raw and
+# uncapped, so the screener still shows the actual number; only the value
+# rank_ascending sees below is capped.
+GROWTH_CAP = 3.0
+
+
 def growth_rank(rows):
     """High revenueGrowth ranks better; negative growth ranked worst, not
-    just low."""
-    return rank_ascending(rows, neg_if_positive("revenueGrowth"))
+    just low. Capped at GROWTH_CAP before ranking so a near-zero-revenue
+    base-effect artifact (a ratio that reads in the thousands of percent)
+    can't claim the single best rank ahead of a company with a real,
+    still-exceptional growth number -- see GROWTH_CAP's own comment. The
+    raw, uncapped revenueGrowth value is untouched everywhere else (the row
+    dict, forward_pe.csv, sorted_screen.csv, the screener UI); only the
+    number fed into rank_ascending here is clamped."""
+    def key(d):
+        value = to_float(d.get("revenueGrowth"))
+        return -min(value, GROWTH_CAP) if value is not None and value > 0 else None
+    return rank_ascending(rows, key)
 
 
 def momentum_rank(rows):

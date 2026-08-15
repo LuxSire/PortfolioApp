@@ -1244,5 +1244,14 @@
   ],
   "ZYME": [
     "biotech_pharma"
+  ],
+  "HUBS": [
+    "consumer_retail"
+  ],
+  "PRGS": [
+    "software_application"
+  ],
+  "TGLS": [
+    "construction_infrastructure"
   ]
 }

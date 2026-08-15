@@ -153,6 +153,20 @@ header.masthead {
   padding-bottom: 16px;
 }
 
+// FactsheetView.tsx's logo, top right of the masthead -- align-self
+// overrides the masthead's own align-items: baseline (which would
+// otherwise line the image's bottom edge up with the h1's text baseline,
+// not what a corner logo wants) so it sits flush with the top of the
+// header instead. Height-constrained, not width -- firefly.jpeg is a
+// tall/portrait source image, and capping height keeps it from
+// dominating the header regardless of what width that implies.
+.factsheet-logo {
+  align-self: flex-start;
+  height: 56px;
+  width: auto;
+  border-radius: 6px;
+}
+
 header.masthead .title-block h1 {
   font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
   font-size: 26px;
@@ -196,6 +210,135 @@ header.masthead .title-block h1 {
 .score-formula-toggle:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 1px;
+}
+
+// Same pill-button treatment as .score-formula-toggle above, for
+// FactsheetView.tsx's "Print / Save PDF" button -- window.print() opens
+// the OS/browser print dialog, from which "Save as PDF" is a standard
+// destination, so no PDF-generation library is needed. See .no-print /
+// @media print below for what that dialog actually renders.
+.print-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.print-btn:hover {
+  color: var(--ink);
+  border-color: var(--muted);
+}
+
+.print-btn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
+// Purpose-built print-only wrapper around .factsheet-page (see that
+// class's own rule under @media print below for the full story) -- has
+// to be a real, separate element with none of .app's own padding, so its
+// print-only height can be set to exactly the scaled content height with
+// nothing else competing for that space. display: contents removes it
+// from the box tree entirely for the normal screen view, so it has zero
+// effect there -- .factsheet-page's own layout is unchanged either way.
+.factsheet-print-frame {
+  display: contents;
+}
+
+// FactsheetView.tsx's chart + Important Statistics row -- the chart takes
+// the wider left column, the stats sidebar a narrower right one. Not
+// .asset-two-col-row (that class's 3:2 split is scoped to its own
+// .asset-summary child specifically): a dedicated pair of classes instead.
+.factsheet-hero-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+// NavChart renders its NAV and Daily P&L cards as fragment siblings, not
+// wrapped in a div of their own -- normally that's fine because
+// .positions-page > * + * gives every direct child page section a 20px
+// top margin, but nested inside this column they're no longer direct
+// children of .positions-page, so the gap has to come from here instead.
+.factsheet-chart-col {
+  flex: 3 1 480px;
+  min-width: 0; // see .app's own comment above on the flex min-width:auto trap
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+// Important Statistics + Top 5 Long Positions, stacked -- so the latter
+// lands beside NavChart's Daily P&L card (the second card in
+// .factsheet-chart-col above) rather than as a separate full-width
+// section below the whole hero row. Same flex-column-with-gap treatment
+// as .factsheet-chart-col, for the same reason (each card here is its own
+// .asset-card, not one shared card).
+.factsheet-stats-col {
+  flex: 1 1 280px;
+  min-width: 0; // see .app's own comment above on the flex min-width:auto trap
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+// Two-column label/value list for FactsheetView.tsx's Important
+// Statistics -- StatRow renders its label and value as two sibling grid
+// children (not a wrapping row div), so this 2-column grid puts every
+// label in the left column and every value in the right one, auto-flowing
+// one stat per row.
+.factsheet-stat-list {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  row-gap: 12px;
+  column-gap: 16px;
+  align-items: baseline;
+}
+
+.factsheet-stat-list .l {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.factsheet-stat-list .n {
+  font-size: 14px;
+  font-weight: 600;
+  text-align: right;
+}
+
+// Legal fine print, deliberately NOT an .asset-card -- no background/
+// border/shadow, small muted text, same "de-emphasized plain block at
+// the very bottom" treatment the LuxSire reference page's own disclaimer
+// section uses (see FactsheetView.tsx's own top-of-file comment).
+.disclaimer {
+  padding: 0 4px;
+}
+
+.disclaimer h4 {
+  margin: 0 0 8px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.disclaimer p {
+  margin: 0 0 10px;
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.disclaimer p:last-child {
+  margin-bottom: 0;
 }
 
 .score-formula-panel {
@@ -423,11 +566,15 @@ header.masthead .title-block p {
 }
 
 .asset-summary p {
-  margin: 0;
+  margin: 0 0 12px;
   line-height: 1.55;
   color: var(--ink);
   overflow-wrap: break-word;
   word-break: break-word;
+}
+
+.asset-summary p:last-child {
+  margin-bottom: 0;
 }
 
 /* Generic two-card row for Asset.tsx — flex-start (not the flex default,
@@ -447,10 +594,12 @@ header.masthead .title-block p {
 
 .asset-two-col-row .asset-summary {
   flex: 3 1 360px;
+  min-width: 0; // see .app's own comment above on the flex min-width:auto trap
 }
 
 .asset-two-col-row .asset-card:not(.asset-summary) {
   flex: 2 1 360px;
+  min-width: 0; // see .app's own comment above on the flex min-width:auto trap
 }
 
 /* Price History card — see PriceChart in Asset.jsx (Recharts-based; most
@@ -2179,4 +2328,162 @@ footer.note {
   flex: 0 0 auto;
   border-top: 1px solid var(--line);
   margin: 0;
+}
+
+// Printed output for FactsheetView.tsx (and anything else opting into
+// .no-print on a chrome element that shouldn't appear on paper -- the tab
+// bar and this button are the only two today). print-color-adjust: exact
+// is the one non-obvious rule here -- without it, browsers default to
+// stripping backgrounds/colors from printed output to save ink, which
+// would flatten the good/bad green/red figures and card backgrounds this
+// factsheet's whole readability depends on.
+@media print {
+  // Print palette, independent of whatever light/dark mode the screen
+  // happens to be in: white cards throughout (a solid navy fill per card
+  // was tried first -- see git history -- and read as heavy, disconnected
+  // tiles that fought with the data itself, especially the good/bad
+  // green/red figures, for attention). Navy is pulled back to an ACCENT
+  // instead: --accent below re-colors the NAV chart's line (NavChart.jsx
+  // reads var(--accent) directly) plus, via the two rules further down,
+  // each card's own title and left edge -- restrained the way an actual
+  // printed factsheet uses a brand color, not as a fill. Explicit here
+  // (not just inherited) so a system in dark mode doesn't leak its own
+  // dark --surface-2/--ink into print; this comes BEFORE the dark-mode
+  // block earlier in this file in the cascade (later source position,
+  // equal :root specificity), so it wins regardless of the system's
+  // actual color scheme at print time.
+  :root {
+    --paper: #ffffff;
+    --surface: #ffffff;
+    --surface-2: #f4f6fb;
+    --line: #dde1e7;
+    --ink: #14171c;
+    --muted: #62697a;
+    --accent: #1e3a6e;
+    --accent-ink: #1e3a6e;
+    --accent-soft: #e8edf7;
+    --good: #1f8a5b;
+    --bad: #c0453a;
+    --warn: #a3841a;
+    --orange: #c2660f;
+    --shadow: 0 1px 2px rgba(20, 23, 28, 0.06), 0 8px 24px rgba(20, 23, 28, 0.06);
+  }
+
+  // The restrained navy-as-accent itself: a card's own title text and a
+  // thin left edge, not its fill. .asset-card h2 elsewhere in this file
+  // is already color: var(--muted) (a small uppercase label) -- var(--accent)
+  // here just swaps that one property for print, same label, brand color
+  // instead of gray.
+  .asset-card h2 {
+    color: var(--accent);
+  }
+
+  .asset-card {
+    border-left: 3px solid var(--accent);
+  }
+
+  // The masthead title picks up the same restrained treatment -- the one
+  // other place a factsheet's own brand color conventionally shows up.
+  .factsheet-page header.masthead .title-block h1 {
+    color: var(--accent);
+  }
+
+  .no-print,
+  .tab-bar {
+    display: none !important;
+  }
+
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+
+  body,
+  .app {
+    background: var(--surface-2);
+  }
+
+  * {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  // Keeps a card's header/chart/table together instead of splitting
+  // across a page boundary mid-content -- excluded on .factsheet-page
+  // itself (see that class's own rule below): FactsheetView.tsx sizes
+  // its content to land on exactly one A4 sheet, so there's normally no
+  // page boundary at all for this to matter, and on the rare page where
+  // rounding still leaves it a few px over, this rule turns that tiny
+  // overflow into a whole extra, mostly-blank page (confirmed live) by
+  // pushing the entire nearly-fitting last card onto page 2 rather than
+  // letting just its overflow spill there.
+  .asset-card:not(.factsheet-page .asset-card),
+  header.masthead:not(.factsheet-page header.masthead) {
+    break-inside: avoid;
+  }
+
+  // Exact-replica printing: FactsheetView.tsx's handlePrint measures the
+  // page's real on-screen width AND height (whatever the user has
+  // resized their browser window to -- that resize IS the control the
+  // user has over how the PDF turns out) right before calling
+  // window.print(), and sets three custom properties on documentElement
+  // -- --print-scale already accounts for both axes, whichever is more
+  // constraining, so this single page-scale is always small enough to
+  // land the whole thing on one A4 sheet. Pinning width to that exact px
+  // value (not 100%/auto) stops the page from reflowing into a
+  // print-specific narrower layout at all -- every row, table, and chart
+  // lays out identically to the screen, just as a wider-than-A4 box --
+  // and transform: scale shrinks that whole box down to fit onto the
+  // page. Because nothing reflows, Recharts' charts never need to resize
+  // either: they draw once at the on-screen size (SVG, so still
+  // perfectly crisp after the scale), and get shrunk down as pixels
+  // along with everything else.
+  //
+  // transform (and zoom, tried first -- same gap) only affects how this
+  // box PAINTS; the page-break engine computes how much page space it
+  // needs from its un-transformed scrollHeight/offsetHeight, which
+  // neither property changes -- confirmed live: a box that visually fit
+  // in under half an A4 page still spilled a second, mostly-blank sheet
+  // under both. The fix is .factsheet-print-frame (see that class's own
+  // comment, near .factsheet-hero-row): giving that dedicated wrapper an
+  // EXPLICIT, already-scaled height is what the page-break engine
+  // actually measures, regardless of what .factsheet-page's own
+  // (unscaled) scrollHeight still claims. display: contents on screen
+  // means this rule only ever takes visual effect during print.
+  .factsheet-print-frame {
+    // display: contents (its screen default -- see that class's own
+    // comment) generates no box at all, so height/overflow below would
+    // be no-ops without first giving it back a real one to apply to.
+    display: block;
+    height: var(--print-scaled-height);
+    overflow: hidden;
+    // .app's own top margin (from .app > * + * further up this file --
+    // applies regardless of a preceding sibling's display: none, since
+    // that rule matches DOM structure, not rendered visibility) sits
+    // OUTSIDE this element's own height and was pushing .app's total
+    // rendered height ~20px past the scaled budget below, on top of the
+    // ~88px from .app's padding rule right after this one -- confirmed
+    // live (.app measured 1067px against a 959px frame + a 1032px page
+    // budget, a 108px gap matching padding + this margin exactly).
+    margin-top: 0;
+  }
+
+  // Redundant with (and, additively, working against) @page's own 12mm
+  // margin above, which already provides the physical space from the
+  // paper edge -- .app's screen-only padding has no reason to also apply
+  // for print.
+  .app:has(.factsheet-print-frame) {
+    padding: 0;
+  }
+
+  // Scoped to .factsheet-page specifically (not the
+  // .positions-page/.portfolio-page classes this div also carries) so
+  // PortfolioView.tsx, which shares those two, is untouched -- it never
+  // sets these properties and has no print button of its own.
+  .factsheet-page {
+    width: var(--print-natural-width);
+    max-width: none;
+    transform: scale(var(--print-scale, 1));
+    transform-origin: top left;
+  }
 }
