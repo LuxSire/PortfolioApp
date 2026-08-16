@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-15T22:00:10.045972",
+  "generatedAt": "2026-08-16T18:00:05.877413",
   "candidates": [
     {
       "ticker": "PGY",
@@ -131,7 +131,7 @@
         "total": 6
       },
       "insiders90d": {
-        "buys": 60,
+        "buys": 59,
         "sells": 3
       },
       "instChangeQoQ": -0.006956002674883568
@@ -240,7 +240,7 @@
       },
       "insiders90d": {
         "buys": 0,
-        "sells": 29
+        "sells": 25
       },
       "instChangeQoQ": 0.5271968714393076
     },
@@ -564,7 +564,7 @@
       },
       "insiders90d": {
         "buys": 1,
-        "sells": 79
+        "sells": 78
       },
       "instChangeQoQ": 0.018750570898489204
     },
@@ -1023,7 +1023,7 @@
       },
       "insiders90d": {
         "buys": 0,
-        "sells": 25
+        "sells": 23
       },
       "instChangeQoQ": 0.006084532453068683
     },
@@ -1131,7 +1131,7 @@
       },
       "insiders90d": {
         "buys": 0,
-        "sells": 7
+        "sells": 5
       },
       "instChangeQoQ": -0.06615844607925091
     },
@@ -1239,7 +1239,7 @@
       },
       "insiders90d": {
         "buys": 0,
-        "sells": 52
+        "sells": 48
       },
       "instChangeQoQ": -0.04971041202791769
     },
@@ -1778,7 +1778,7 @@
         "total": 17
       },
       "insiders90d": {
-        "buys": 3,
+        "buys": 2,
         "sells": 4
       },
       "instChangeQoQ": -0.07164890169078042
@@ -1806,7 +1806,7 @@
       },
       "insiders90d": {
         "buys": 0,
-        "sells": 7
+        "sells": 5
       },
       "instChangeQoQ": -0.008535070281843572
     },
@@ -2265,7 +2265,7 @@
       },
       "insiders90d": {
         "buys": 0,
-        "sells": 8
+        "sells": 6
       },
       "instChangeQoQ": -0.03172225385655373
     },
@@ -2724,7 +2724,7 @@
       },
       "insiders90d": {
         "buys": 0,
-        "sells": 20
+        "sells": 17
       },
       "instChangeQoQ": -0.01206078661528504
     },
@@ -3075,7 +3075,7 @@
       },
       "insiders90d": {
         "buys": 0,
-        "sells": 12
+        "sells": 11
       },
       "instChangeQoQ": null
     },
@@ -3669,7 +3669,7 @@
       },
       "insiders90d": {
         "buys": 0,
-        "sells": 7
+        "sells": 3
       },
       "instChangeQoQ": 0.030783556728530774
     },
@@ -3961,8 +3961,8 @@
       "news7d": {
         "bullish": 20,
         "bearish": 11,
-        "neutral": 34,
-        "total": 65
+        "neutral": 33,
+        "total": 64
       },
       "insiders90d": {
         "buys": 0,
@@ -4020,7 +4020,7 @@
       },
       "insiders90d": {
         "buys": 0,
-        "sells": 74
+        "sells": 67
       },
       "instChangeQoQ": -0.09047178466269107
     },
@@ -4317,7 +4317,7 @@
       },
       "insiders90d": {
         "buys": 0,
-        "sells": 10
+        "sells": 9
       },
       "instChangeQoQ": -0.023425480488774318
     },
@@ -4641,7 +4641,7 @@
       },
       "insiders90d": {
         "buys": 0,
-        "sells": 4
+        "sells": 3
       },
       "instChangeQoQ": -0.03745202707274135
     },
@@ -4694,7 +4694,7 @@
         "total": 3
       },
       "insiders90d": {
-        "buys": 2,
+        "buys": 1,
         "sells": 1
       },
       "instChangeQoQ": 0.015188534723346478
@@ -4911,7 +4911,7 @@
       },
       "insiders90d": {
         "buys": 0,
-        "sells": 5
+        "sells": 4
       },
       "instChangeQoQ": -0.00228136968209232
     },
@@ -5261,7 +5261,7 @@
         "total": 0
       },
       "insiders90d": {
-        "buys": 4,
+        "buys": 0,
         "sells": 0
       },
       "instChangeQoQ": null
@@ -5694,7 +5694,7 @@
       },
       "insiders90d": {
         "buys": 0,
-        "sells": 11
+        "sells": 8
       },
       "instChangeQoQ": -0.039389281436452775
     },
@@ -5991,7 +5991,7 @@
       },
       "insiders90d": {
         "buys": 0,
-        "sells": 40
+        "sells": 26
       },
       "instChangeQoQ": -0.0700548506906744
     },
@@ -6126,7 +6126,7 @@
       },
       "insiders90d": {
         "buys": 0,
-        "sells": 9
+        "sells": 8
       },
       "instChangeQoQ": 0.3627723055123249
     },
@@ -6666,7 +6666,7 @@
       },
       "insiders90d": {
         "buys": 0,
-        "sells": 1
+        "sells": 0
       },
       "instChangeQoQ": 0.14531780419387122
     },
@@ -7611,7 +7611,7 @@
       },
       "insiders90d": {
         "buys": 0,
-        "sells": 11
+        "sells": 10
       },
       "instChangeQoQ": null
     },
@@ -7665,7 +7665,7 @@
       },
       "insiders90d": {
         "buys": 0,
-        "sells": 8
+        "sells": 7
       },
       "instChangeQoQ": null
     },
@@ -8691,7 +8691,7 @@
       },
       "insiders90d": {
         "buys": 0,
-        "sells": 4
+        "sells": 0
       },
       "instChangeQoQ": 0.03964973975430764
     },
@@ -9717,7 +9717,7 @@
       },
       "insiders90d": {
         "buys": 0,
-        "sells": 3
+        "sells": 2
       },
       "instChangeQoQ": -0.805370064215735
     },
@@ -10635,7 +10635,7 @@
       },
       "insiders90d": {
         "buys": 0,
-        "sells": 15
+        "sells": 14
       },
       "instChangeQoQ": -0.007394884778297844
     },
@@ -10790,10 +10790,10 @@
       "recommendationMean": 2.23077,
       "numberOfAnalystOpinions": 21.0,
       "news7d": {
-        "bullish": 4,
+        "bullish": 3,
         "bearish": 0,
         "neutral": 8,
-        "total": 12
+        "total": 11
       },
       "insiders90d": {
         "buys": 0,
@@ -11789,10 +11789,10 @@
       "recommendationMean": 2.33333,
       "numberOfAnalystOpinions": 31.0,
       "news7d": {
-        "bullish": 2,
+        "bullish": 1,
         "bearish": 0,
         "neutral": 3,
-        "total": 5
+        "total": 4
       },
       "insiders90d": {
         "buys": 0,
@@ -12011,7 +12011,7 @@
         "total": 6
       },
       "insiders90d": {
-        "buys": 13,
+        "buys": 12,
         "sells": 20
       },
       "instChangeQoQ": 0.05695397150020432
@@ -12147,7 +12147,7 @@
       },
       "insiders90d": {
         "buys": 0,
-        "sells": 2
+        "sells": 1
       },
       "instChangeQoQ": -0.33528562525841216
     },
@@ -12896,10 +12896,10 @@
       "recommendationMean": 2.12,
       "numberOfAnalystOpinions": 23.0,
       "news7d": {
-        "bullish": 18,
+        "bullish": 17,
         "bearish": 3,
         "neutral": 7,
-        "total": 28
+        "total": 27
       },
       "insiders90d": {
         "buys": 0,
@@ -13085,10 +13085,10 @@
       "recommendationMean": 2.05882,
       "numberOfAnalystOpinions": 31.0,
       "news7d": {
-        "bullish": 2,
+        "bullish": 1,
         "bearish": 0,
         "neutral": 3,
-        "total": 5
+        "total": 4
       },
       "insiders90d": {
         "buys": 0,
@@ -13497,7 +13497,7 @@
       },
       "insiders90d": {
         "buys": 0,
-        "sells": 55
+        "sells": 53
       },
       "instChangeQoQ": 0.10843299117723926
     },
@@ -13659,7 +13659,7 @@
       },
       "insiders90d": {
         "buys": 0,
-        "sells": 59
+        "sells": 57
       },
       "instChangeQoQ": 0.002679380997609561
     },
@@ -13740,7 +13740,7 @@
       },
       "insiders90d": {
         "buys": 0,
-        "sells": 4
+        "sells": 3
       },
       "instChangeQoQ": -0.23406150180699725
     },
@@ -13820,7 +13820,7 @@
         "total": 0
       },
       "insiders90d": {
-        "buys": 2,
+        "buys": 1,
         "sells": 0
       },
       "instChangeQoQ": -0.028749843141720043
@@ -14685,7 +14685,7 @@
       },
       "insiders90d": {
         "buys": 0,
-        "sells": 24
+        "sells": 23
       },
       "instChangeQoQ": 0.0112807797102785
     },
@@ -14712,7 +14712,7 @@
       },
       "insiders90d": {
         "buys": 0,
-        "sells": 1
+        "sells": 0
       },
       "instChangeQoQ": -0.16376507294420686
     },
@@ -15083,10 +15083,10 @@
       "recommendationMean": 2.13043,
       "numberOfAnalystOpinions": 41.0,
       "news7d": {
-        "bullish": 11,
-        "bearish": 17,
+        "bullish": 7,
+        "bearish": 16,
         "neutral": 29,
-        "total": 57
+        "total": 52
       },
       "insiders90d": {
         "buys": 0,
@@ -15144,7 +15144,7 @@
       },
       "insiders90d": {
         "buys": 0,
-        "sells": 3
+        "sells": 2
       },
       "instChangeQoQ": -0.02215610642542424
     },
@@ -15684,7 +15684,7 @@
       },
       "insiders90d": {
         "buys": 0,
-        "sells": 5
+        "sells": 4
       },
       "instChangeQoQ": null
     },
@@ -16030,8 +16030,8 @@
       "news7d": {
         "bullish": 6,
         "bearish": 9,
-        "neutral": 34,
-        "total": 49
+        "neutral": 33,
+        "total": 48
       },
       "insiders90d": {
         "buys": 0,
@@ -16116,7 +16116,7 @@
       },
       "insiders90d": {
         "buys": 1,
-        "sells": 9
+        "sells": 8
       },
       "instChangeQoQ": -0.1266685619700253
     },
@@ -16197,7 +16197,7 @@
       },
       "insiders90d": {
         "buys": 0,
-        "sells": 1
+        "sells": 0
       },
       "instChangeQoQ": -0.35503840439172013
     },
@@ -16305,7 +16305,7 @@
       },
       "insiders90d": {
         "buys": 0,
-        "sells": 42
+        "sells": 39
       },
       "instChangeQoQ": 0.13227756677312888
     },
@@ -16359,7 +16359,7 @@
       },
       "insiders90d": {
         "buys": 0,
-        "sells": 1104
+        "sells": 1087
       },
       "instChangeQoQ": -0.0035873533396092116
     },
@@ -16412,7 +16412,7 @@
         "total": 1
       },
       "insiders90d": {
-        "buys": 5,
+        "buys": 4,
         "sells": 9
       },
       "instChangeQoQ": -0.005276923561581981
@@ -16467,7 +16467,7 @@
       },
       "insiders90d": {
         "buys": 0,
-        "sells": 27
+        "sells": 25
       },
       "instChangeQoQ": 0.3724534619606736
     },
@@ -16683,7 +16683,7 @@
       },
       "insiders90d": {
         "buys": 0,
-        "sells": 342
+        "sells": 333
       },
       "instChangeQoQ": -0.05485549144106356
     },
@@ -16845,7 +16845,7 @@
       },
       "insiders90d": {
         "buys": 0,
-        "sells": 28
+        "sells": 24
       },
       "instChangeQoQ": -0.3242670871112096
     },
@@ -17061,7 +17061,7 @@
       },
       "insiders90d": {
         "buys": 0,
-        "sells": 2
+        "sells": 1
       },
       "instChangeQoQ": -0.025088224445190734
     },
@@ -17169,7 +17169,7 @@
       },
       "insiders90d": {
         "buys": 1,
-        "sells": 59
+        "sells": 54
       },
       "instChangeQoQ": 0.030116224001025194
     },
@@ -17303,7 +17303,7 @@
         "total": 0
       },
       "insiders90d": {
-        "buys": 4,
+        "buys": 2,
         "sells": 3
       },
       "instChangeQoQ": 0.18246038321726343
@@ -17520,7 +17520,7 @@
       },
       "insiders90d": {
         "buys": 0,
-        "sells": 31
+        "sells": 29
       },
       "instChangeQoQ": 0.19063402183370892
     },
@@ -17709,7 +17709,7 @@
       },
       "insiders90d": {
         "buys": 0,
-        "sells": 73
+        "sells": 67
       },
       "instChangeQoQ": -0.024447162904924997
     },
@@ -17763,7 +17763,7 @@
       },
       "insiders90d": {
         "buys": 0,
-        "sells": 3
+        "sells": 2
       },
       "instChangeQoQ": 0.015158168253092134
     },
@@ -17817,7 +17817,7 @@
       },
       "insiders90d": {
         "buys": 1,
-        "sells": 5
+        "sells": 3
       },
       "instChangeQoQ": -0.07718859324670257
     },
@@ -17952,7 +17952,7 @@
       },
       "insiders90d": {
         "buys": 0,
-        "sells": 1
+        "sells": 0
       },
       "instChangeQoQ": -0.08772395671057515
     },
@@ -17974,8 +17974,8 @@
       "news7d": {
         "bullish": 21,
         "bearish": 19,
-        "neutral": 20,
-        "total": 60
+        "neutral": 19,
+        "total": 59
       },
       "insiders90d": {
         "buys": 0,

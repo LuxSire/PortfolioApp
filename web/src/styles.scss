@@ -1956,6 +1956,19 @@ td.col-rec {
   gap: 20px;
 }
 
+/* RecommendationCard/RejectedCard's sector, sitting next to PriceStat's
+   own figures in the same .recommendation-card-stats row -- .stat .n's
+   generic 20px/600 (shared with e.g. CloseCard's share count, which stays
+   at that size deliberately, a headline figure worth the weight) reads as
+   too heavy for a label-like value like a sector name, so this overrides
+   it specifically. Three classes (.stat .n.sector-value) so it wins over
+   .stat .n's own (0,2,0) specificity regardless of source order. */
+.stat .n.sector-value {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
 /* One or more reasons a held position landed in To close -- a rating
    contradiction, unsupportive momentum, and/or a risk flag (concentration,
    crowded short, high beta) can all fire independently, see
@@ -2029,6 +2042,29 @@ td.col-rec {
 .price-value {
   font-size: 11px;
   color: var(--muted);
+}
+
+/* RecommendationsView.tsx's PriceStat -- today's live move working
+   against this card's own side (a Long card down, or a Short card up).
+   --warn (not --bad) deliberately: this is a "notice this" flag on an
+   idea/existing position, not itself a loss figure -- .live-price.perf-neg
+   right next to it already carries the actual red down-move. */
+.price-warn-icon {
+  color: var(--warn);
+  flex-shrink: 0;
+  align-self: center;
+}
+
+/* Mirrors .price-warn-icon above -- a held position's today's move
+   running strongly (>FAVORABLE_MOVE_THRESHOLD) in its own favor. --good,
+   the same token .live-price.perf-pos already uses for an up-move --
+   this is that same "it's working" signal, just also called out as an
+   icon since it's specifically the position (not just today's tick)
+   doing well. */
+.price-good-icon {
+  color: var(--good);
+  flex-shrink: 0;
+  align-self: center;
 }
 
 /* IB Gateway live snapshot, shown next to the sorted_screen.csv price for

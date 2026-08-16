@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
-import { Info, Search } from 'lucide-react'
+import { AlertTriangle, Info, Search, ThumbsUp } from 'lucide-react'
 import { parseCSV } from '../csv'
 import { businessMillisBetween, fmtEarningsDate, useNowTick } from '../earnings'
 import { IB_STREAM_URL } from '../ibStream'
@@ -255,26 +255,69 @@ function rationaleLines(c: Candidate & { oppositeMatchLine?: string | null }): s
 // undefined (ib_price_server.py not running, or hasn't
 // snapshotted this ticker yet) -- price/badge both degrade gracefully to
 // the static price with no badge at all.
+// How far today's move has to run in the position's own favor before
+// PriceStat's thumbs-up shows -- a directional hit, not just "not
+// adverse" (that's the warning triangle's own, much looser bar).
+const FAVORABLE_MOVE_THRESHOLD = 0.05
+
 function PriceStat({
   c,
   live,
   dailyHistory3mo,
   monthlyHistory,
   hideLabel,
+  side,
+  held,
 }: {
   c: Candidate
   live?: LiveTick
   dailyHistory3mo: HistoryByTicker
   monthlyHistory: HistoryByTicker
   hideLabel?: boolean
+  // Which direction this card actually is (Long/Short) -- not derivable
+  // from `c` itself (Candidate carries no side field; direction comes
+  // from which section/rating pool the card was rendered into, so every
+  // call site passes it in). Drives the warning triangle below: a Long
+  // card is working against the position when today's move is negative,
+  // a Short one when it's positive -- the exact opposite comparison.
+  side?: 'Long' | 'Short'
+  // Gates the thumbs-up to actual portfolio positions (CloseCard's rows,
+  // always true there since To close is exclusively held positions; or a
+  // RecommendationCard/RejectedCard already flagged `held`) -- a live
+  // candidate idea not yet opened doesn't have a "performance" of its own
+  // to celebrate yet, just a signal.
+  held?: boolean
 }) {
   const referencePrice = previousClose(dailyHistory3mo[c.ticker], monthlyHistory[c.ticker]) ?? c.price ?? null
   const currentPrice = live?.last ?? c.price ?? null
   const changeRatio = live?.last != null && referencePrice ? live.last / referencePrice - 1 : null
   const changeClass = changeRatio === null ? '' : Math.abs(changeRatio) <= 0.005 ? 'perf-neutral' : changeRatio >= 0 ? 'perf-pos' : 'perf-neg'
+  const adverse =
+    side !== undefined && changeRatio !== null && (side === 'Long' ? changeRatio < 0 : changeRatio > 0)
+  const favorable =
+    held &&
+    side !== undefined &&
+    changeRatio !== null &&
+    (side === 'Long' ? changeRatio > FAVORABLE_MOVE_THRESHOLD : changeRatio < -FAVORABLE_MOVE_THRESHOLD)
   return (
     <div className="stat">
       <span className="n num price-cell">
+        {adverse && (
+          <AlertTriangle
+            className="price-warn-icon"
+            size={13}
+            aria-label="Warning"
+            title={`Moving against this ${side === 'Long' ? 'long' : 'short'} today`}
+          />
+        )}
+        {favorable && (
+          <ThumbsUp
+            className="price-good-icon"
+            size={13}
+            aria-label="Strong move in your favor"
+            title={`${side === 'Long' ? 'Up' : 'Down'} more than ${fmtPct(FAVORABLE_MOVE_THRESHOLD)} today, working in this ${side === 'Long' ? 'long' : 'short'}'s favor`}
+          />
+        )}
         <span className="price-value">{fmtPrice(currentPrice)}</span>
         {changeRatio !== null && live && (
           <span
@@ -301,12 +344,14 @@ function RecommendationCard({
   live,
   dailyHistory3mo,
   monthlyHistory,
+  side,
 }: {
   c: RankedCandidate
   held: boolean
   live?: LiveTick
   dailyHistory3mo: HistoryByTicker
   monthlyHistory: HistoryByTicker
+  side: 'Long' | 'Short'
 }) {
   return (
     <div className={`asset-card recommendation-card${held ? ' recommendation-card-held' : ''}`}>
@@ -329,9 +374,9 @@ function RecommendationCard({
       </div>
 
       <div className="recommendation-card-stats">
-        <PriceStat c={c} live={live} dailyHistory3mo={dailyHistory3mo} monthlyHistory={monthlyHistory} hideLabel />
+        <PriceStat c={c} live={live} dailyHistory3mo={dailyHistory3mo} monthlyHistory={monthlyHistory} hideLabel side={side} held={held} />
         <div className="stat">
-          <span className="n num">{c.sector || '—'}</span>
+          <span className="n num sector-value">{c.sector || '—'}</span>
         </div>
       </div>
 
@@ -392,7 +437,7 @@ function CloseCard({
         <div className="stat">
           <span className="n num">{fmtShares(c.shares)}</span>
         </div>
-        <PriceStat c={c} live={live} dailyHistory3mo={dailyHistory3mo} monthlyHistory={monthlyHistory} hideLabel />
+        <PriceStat c={c} live={live} dailyHistory3mo={dailyHistory3mo} monthlyHistory={monthlyHistory} hideLabel side={c.closeSide} held />
       </div>
 
       <ul className="recommendation-close-reasons">
@@ -423,12 +468,14 @@ function RejectedCard({
   live,
   dailyHistory3mo,
   monthlyHistory,
+  side,
 }: {
   c: RejectedRow
   held: boolean
   live?: LiveTick
   dailyHistory3mo: HistoryByTicker
   monthlyHistory: HistoryByTicker
+  side: 'Long' | 'Short'
 }) {
   return (
     <div
@@ -453,9 +500,9 @@ function RejectedCard({
       </div>
 
       <div className="recommendation-card-stats">
-        <PriceStat c={c} live={live} dailyHistory3mo={dailyHistory3mo} monthlyHistory={monthlyHistory} hideLabel />
+        <PriceStat c={c} live={live} dailyHistory3mo={dailyHistory3mo} monthlyHistory={monthlyHistory} hideLabel side={side} held={held} />
         <div className="stat">
-          <span className="n num">{c.sector || '—'}</span>
+          <span className="n num sector-value">{c.sector || '—'}</span>
         </div>
       </div>
 
@@ -1477,6 +1524,7 @@ export default function RecommendationsView() {
                 live={livePrices[c.ticker]}
                 dailyHistory3mo={dailyHistory3mo}
                 monthlyHistory={monthlyHistory}
+                side="Long"
               />
             )}
             emptyMessage="No Strong Buy/Buy candidates with positive momentum right now."
@@ -1493,6 +1541,7 @@ export default function RecommendationsView() {
                 live={livePrices[c.ticker]}
                 dailyHistory3mo={dailyHistory3mo}
                 monthlyHistory={monthlyHistory}
+                side="Long"
               />
             )}
             emptyMessage="Every current Strong Buy candidate clears the Long opening gates."
@@ -1510,6 +1559,7 @@ export default function RecommendationsView() {
                 live={livePrices[c.ticker]}
                 dailyHistory3mo={dailyHistory3mo}
                 monthlyHistory={monthlyHistory}
+                side="Short"
               />
             )}
             emptyMessage="No Sell/Strong Sell candidates with negative momentum right now."
@@ -1526,6 +1576,7 @@ export default function RecommendationsView() {
                 live={livePrices[c.ticker]}
                 dailyHistory3mo={dailyHistory3mo}
                 monthlyHistory={monthlyHistory}
+                side="Short"
               />
             )}
             emptyMessage="Every current Strong Sell candidate clears the Short opening gates."

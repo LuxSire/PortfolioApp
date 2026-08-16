@@ -3,6 +3,7 @@ import { Printer } from 'lucide-react'
 import type { PortfolioDayRow, PortfolioPerformanceData } from '../interfaces/IPortfolioView'
 import type { PositionsByTicker, PricesByTicker } from '../interfaces/IPositionsView'
 import NavChart from '../components/NavChart'
+import ExposureChart from '../components/ExposureChart'
 import MonthlyReturnsTable from '../components/MonthlyReturnsTable'
 import { parseCSV } from '../csv'
 import { getSectorGroup, sectorGroupLabel } from '../sectorGroups'
@@ -182,7 +183,7 @@ export default function FactsheetView() {
 
   // Live positions/prices from ib_price_server.py's own stream -- the same
   // EventSource PositionsView.tsx/ScreenerView.tsx already subscribe to,
-  // just for the Top 5 Long Positions / Sector Exposure cards below rather
+  // just for the Top 6 Long Positions / Sector Exposure cards below rather
   // than a full live blotter. If that server isn't running, this just
   // never fires (EventSource auto-reconnects, same as those pages) and
   // both cards render empty rather than erroring the whole page.
@@ -278,7 +279,7 @@ export default function FactsheetView() {
   const topLongPositions = heldPositions
     .filter((r) => (r.value ?? 0) > 0)
     .sort((a, b) => (b.value ?? 0) - (a.value ?? 0))
-    .slice(0, 5)
+    .slice(0, 6)
 
   // Net exposure per sector (long positions add, short positions
   // subtract) -- same signed-sum convention PositionsView.tsx's own
@@ -389,7 +390,7 @@ export default function FactsheetView() {
               </div>
 
               <div className="asset-card">
-                <h2>Top 5 Long Positions</h2>
+                <h2>Top 6 Long Positions</h2>
                 <div className="table-wrap">
                   <table>
                     <thead>
@@ -425,6 +426,8 @@ export default function FactsheetView() {
         )}
 
         {rows && rows.length > 0 && <MonthlyReturnsTable rows={rows} />}
+
+        {rows && rows.length > 0 && <ExposureChart rows={rows} />}
 
         <div className="asset-two-col-row">
           <div className="asset-card">
