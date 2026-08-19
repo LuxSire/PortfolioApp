@@ -1,8 +1,18 @@
-import { useEffect, useState } from 'react'
-import { IB_DATASET_STATUS_URL } from '../ibStream'
-import type { DatasetFile } from '../interfaces/IDatasetView'
+import { Fragment, useEffect, useRef, useState } from 'react'
+import { AlertTriangle } from 'lucide-react'
+import { IB_DATASET_STATUS_URL, IB_RUN_DATASET_URL, IB_RUN_STATUS_URL } from '../ibStream'
+import type { DatasetFile, RunJobStatus } from '../interfaces/IDatasetView'
 
-// mtime is a full ISO 8601 timestamp (see ib_price_server.py's
+// Table has Dataset/Path/Last generated/Size/Regenerate with/Requires/
+// Action -- the log row (see below) spans all of them.
+const COLUMN_COUNT = 7
+// How often to poll GET /api/admin/run-status while a job is running --
+// a human watching ticker codes scroll by doesn't need sub-second
+// latency, and this keeps the polling loop simple (no SSE reconnect
+// logic) for what's fundamentally a local dev/ops tool.
+const RUN_POLL_MS = 1000
+
+// mtime is a full ISO 8601 timestamp (see ib_server.py's
 // _handle_dataset_status) -- shown as a compact relative reading ("2h
 // ago") for at-a-glance staleness, with the exact date/time as the title
 // tooltip for whoever wants precision. No color-coded staleness threshold
@@ -47,7 +57,7 @@ function fmtSize(bytes: number | null): string {
 
 // Every generated data file this app's Python backend produces, when it
 // was last written, and the exact command that regenerates it -- see
-// ib_price_server.py's DATASETS/_handle_dataset_status for where this all
+// ib_server.py's DATASETS/_handle_dataset_status for where this all
 // actually comes from (this component is a thin render of that endpoint,
 // no logic of its own beyond formatting). Built after a real incident:
 // RecommendationsView.tsx's Long/Short lists silently ranked candidates
@@ -70,6 +80,73 @@ export default function DatasetView() {
   }
 
   useEffect(load, [])
+
+  // Run button/log panel state -- one global job at a time, mirroring
+  // ib_server.py's own single _current_job slot (see that module's own
+  // comment on why: two dataset-refresh commands racing each other would
+  // just corrupt each other's output). `job` starts out null and ONLY
+  // ever gets set from handleRun -- deliberately not seeded from GET
+  // /api/admin/run-status on mount, even though ib_server.py keeps the
+  // last job around after it finishes: seeding it would pop the log
+  // panel open on every page load/reload for whatever was last run,
+  // possibly in a previous session, with nobody having clicked Run this
+  // time. `logDismissed` only hides the panel locally, it doesn't touch
+  // server-side job state.
+  const [job, setJob] = useState<RunJobStatus | null>(null)
+  const [runError, setRunError] = useState<string | null>(null)
+  const [logDismissed, setLogDismissed] = useState(false)
+  const pollRef = useRef<number | null>(null)
+  const logBodyRef = useRef<HTMLPreElement | null>(null)
+
+  function pollRunStatus() {
+    fetch(IB_RUN_STATUS_URL)
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((d: RunJobStatus) => {
+        setJob(d)
+        if (d.status !== 'running' && pollRef.current !== null) {
+          window.clearInterval(pollRef.current)
+          pollRef.current = null
+        }
+      })
+      .catch(() => {})
+  }
+
+  useEffect(() => {
+    return () => {
+      if (pollRef.current !== null) window.clearInterval(pollRef.current)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (job?.status === 'running' && pollRef.current === null) {
+      pollRef.current = window.setInterval(pollRunStatus, RUN_POLL_MS)
+    }
+  }, [job?.status])
+
+  useEffect(() => {
+    if (logBodyRef.current) logBodyRef.current.scrollTop = logBodyRef.current.scrollHeight
+  }, [job?.log.length])
+
+  function handleRun(id: string) {
+    setRunError(null)
+    setLogDismissed(false)
+    fetch(IB_RUN_DATASET_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    })
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((d) => {
+        if (d.error) {
+          setRunError(d.error)
+          return
+        }
+        pollRunStatus()
+      })
+      .catch(() => setRunError('Failed to reach ib_server.py to start the job'))
+  }
+
+  const jobRunning = job?.status === 'running'
 
   return (
     <div className="positions-page dataset-page">
@@ -95,11 +172,12 @@ export default function DatasetView() {
         <button type="button" className="dataset-refresh-btn" onClick={load}>
           Refresh
         </button>
+        {runError && <span className="dataset-run-error">{runError}</span>}
       </div>
 
       {error && (
         <div className="asset-card">
-          Couldn't reach ib_price_server.py's dataset-status endpoint — is ib_price_server.py running?
+          Couldn't reach ib_server.py's dataset-status endpoint — is ib_server.py running?
         </div>
       )}
       {!error && !files && <div className="asset-card">Loading…</div>}
@@ -115,33 +193,84 @@ export default function DatasetView() {
                 <th>Size</th>
                 <th className="col-left">Regenerate with</th>
                 <th className="col-left">Requires</th>
+                <th className="col-left">Action</th>
               </tr>
             </thead>
             <tbody>
               {files.map((f) => (
-                <tr key={f.path}>
-                  <td className="col-left dataset-label">{f.label}</td>
-                  <td className="col-left">
-                    <code>{f.path}</code>
-                  </td>
-                  <td className="col-left" title={f.exists ? fmtAbsoluteTime(f.mtime) : undefined}>
-                    {f.exists ? fmtRelativeTime(f.mtime) : <span className="dataset-missing">never generated</span>}
-                  </td>
-                  <td className="num">{f.exists ? fmtSize(f.sizeBytes) : '—'}</td>
-                  <td className="col-left">
-                    {f.command ? (
-                      <>
-                        <code>{f.command}</code>
-                        {f.notes && <div className="dataset-notes">{f.notes}</div>}
-                      </>
-                    ) : (
-                      <span className="dataset-missing">
-                        {f.notes || 'no command — hand-maintained'}
-                      </span>
-                    )}
-                  </td>
-                  <td className="col-left">{f.network || '—'}</td>
-                </tr>
+                <Fragment key={f.id}>
+                  <tr>
+                    <td className="col-left dataset-label">{f.label}</td>
+                    <td className="col-left">
+                      <code>{f.path}</code>
+                    </td>
+                    <td className="col-left" title={f.exists ? fmtAbsoluteTime(f.mtime) : undefined}>
+                      {f.exists ? fmtRelativeTime(f.mtime) : <span className="dataset-missing">never generated</span>}
+                      {f.stale && (
+                        <AlertTriangle
+                          className="dataset-stale-icon"
+                          size={13}
+                          aria-label="Stale"
+                          title={`Most recent price bar (excluding today's own, still-forming one) is ${f.latestBarDate} -- expected ${f.expectedBarDate} or newer. The file itself may still be getting rewritten on schedule; it's the actual price data inside it that hasn't advanced.`}
+                        />
+                      )}
+                    </td>
+                    <td className="num">{f.exists ? fmtSize(f.sizeBytes) : '—'}</td>
+                    <td className="col-left">
+                      {f.command ? (
+                        <>
+                          <code>{f.command}</code>
+                          {f.notes && <div className="dataset-notes">{f.notes}</div>}
+                        </>
+                      ) : (
+                        <span className="dataset-missing">
+                          {f.notes || 'no command — hand-maintained'}
+                        </span>
+                      )}
+                    </td>
+                    <td className="col-left">{f.network || '—'}</td>
+                    <td className="col-left">
+                      {f.canRun && (
+                        <button
+                          type="button"
+                          className="dataset-run-btn"
+                          disabled={jobRunning}
+                          title={jobRunning && job?.id !== f.id ? `Already running: ${job?.label}` : undefined}
+                          onClick={() => handleRun(f.id)}
+                        >
+                          {jobRunning && job?.id === f.id ? 'Running…' : 'Run'}
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                  {job && job.id === f.id && !logDismissed && (
+                    <tr className="dataset-log-row">
+                      <td colSpan={COLUMN_COUNT}>
+                        <div className="dataset-log">
+                          <div className="dataset-log-header">
+                            <span className={`dataset-log-status dataset-log-status-${job.status}`}>
+                              {job.status === 'running' ? 'Running…' : job.status === 'done' ? 'Done' : 'Error'}
+                            </span>
+                            {job.status !== 'running' && job.returncode !== null && (
+                              <span className="dataset-log-returncode">exit code {job.returncode}</span>
+                            )}
+                            <button
+                              type="button"
+                              className="dataset-log-close"
+                              onClick={() => setLogDismissed(true)}
+                              aria-label="Close log"
+                            >
+                              ×
+                            </button>
+                          </div>
+                          <pre className="dataset-log-body" ref={logBodyRef}>
+                            {job.log.length ? job.log.join('\n') : job.status === 'running' ? 'Starting…' : ''}
+                          </pre>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
               ))}
             </tbody>
           </table>

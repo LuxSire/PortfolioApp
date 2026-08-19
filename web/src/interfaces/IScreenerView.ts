@@ -33,6 +33,7 @@ export interface RawScreenerRow {
   pfcf: number | null
   evEbitda: number | null
   opMargin: number | null
+  epsVol: number | null
   de: number | null
   liq: number | null
   shortInt: number | null
@@ -62,6 +63,7 @@ export interface ScreenerRow extends RawScreenerRow {
   tpsRank: number | null
   pfcfRank: number | null
   evEbitdaRank: number | null
+  epsVolRank: number | null
   deRank: number | null
   momRank: number | null
   mrRank: number | null

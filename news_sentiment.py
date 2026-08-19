@@ -6,7 +6,7 @@ about, using ProsusAI/finbert (a BERT model fine-tuned on financial text for
 no API key, no per-call cost -- but model load (a few seconds, once) and
 inference (CPU-bound) mean callers on an asyncio event loop should offload
 through asyncio.to_thread rather than calling score_headlines directly (see
-ib_price_server.py's news_loop).
+ib_server.py's news_loop).
 
 Score is derived from the full 3-class probability distribution, not just
 the top-1 label+confidence: polarity = P(positive) - P(negative), in

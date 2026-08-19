@@ -1,7 +1,7 @@
 // Types for TradesView.tsx (the Trades tab).
 
 // One ticker's net today's-fills aggregate from the live EventSource
-// stream (see ib_price_server.py's refresh_trades /
+// stream (see ib_server.py's refresh_trades /
 // IBApp.get_today_executions_async) -- already netted per ticker, not a
 // list of individual executions. realizedPnl/commission null (not 0)
 // means this connection wasn't alive to see that fill live.
@@ -20,7 +20,7 @@ export interface TickerInfo {
 export type TickerInfoByTicker = Record<string, TickerInfo>
 
 // One currently-working order from the live EventSource stream (see
-// ib_price_server.py's refresh_open_orders / IBApp.
+// ib_server.py's refresh_open_orders / IBApp.
 // get_open_orders_async) -- a LIST, not keyed by ticker, since one
 // ticker can have more than one working order at once (e.g. separate
 // buy and sell orders). limitPrice/auxPrice are null for an order type

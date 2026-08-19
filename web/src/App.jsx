@@ -10,6 +10,7 @@ import SectorsView from './pages/SectorsView'
 import HoldersView from './pages/HoldersView'
 import RecommendationsView from './pages/RecommendationsView'
 import DatasetView from './pages/DatasetView'
+import ScoringView from './pages/ScoringView'
 
 const TABS = [
   { key: 'screener', label: 'Screener' },
@@ -23,6 +24,7 @@ const TABS = [
   { key: 'holders', label: 'Holders' },
   { key: 'recommendations', label: 'Recommendations' },
   { key: 'dataset', label: 'Dataset' },
+  { key: 'scoring', label: 'Scoring' },
 ]
 
 export default function App() {
@@ -54,6 +56,7 @@ export default function App() {
       {tab === 'holders' && <HoldersView />}
       {tab === 'recommendations' && <RecommendationsView />}
       {tab === 'dataset' && <DatasetView />}
+      {tab === 'scoring' && <ScoringView />}
     </div>
   )
 }

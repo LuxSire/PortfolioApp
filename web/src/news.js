@@ -1,5 +1,5 @@
 // Shared formatting for FinBERT-scored headlines (see news_sentiment.py /
-// ib_price_server.py's news_loop) -- used by both Asset.jsx's NewsPanel and
+// ib_server.py's news_loop) -- used by both Asset.jsx's NewsPanel and
 // NewsPopup.jsx's per-ticker news table, so the two views can't drift.
 
 // FinBERT's 1 (very bearish) - 5 (very bullish) score. Labeled rather than
@@ -15,7 +15,7 @@ export function sentimentClass(score) {
 }
 
 // IB Gateway's own historical-news timestamp has no timezone suffix but is
-// UTC (matches ib_price_server.py's news_by_ticker/isoparse handling) --
+// UTC (matches ib_server.py's news_by_ticker/isoparse handling) --
 // appending 'Z' before parsing keeps this consistent with that, rather than
 // letting the browser interpret it as local time.
 export function fmtNewsTime(iso) {

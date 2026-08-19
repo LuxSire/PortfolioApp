@@ -64,7 +64,7 @@ function fmtDate(iso: string | null | undefined): string {
   return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
-// The extracts of the IBKR Flex Query configured in ib_price_server.py's
+// The extracts of the IBKR Flex Query configured in ib_server.py's
 // fetch_account_performance — real, IB-computed daily cash/NAV/realized/
 // unrealized (see Results.csv for the exported reference shape), not
 // derived from the screener's own price data. IBKR concatenates one full
@@ -259,7 +259,7 @@ export default function PortfolioView() {
         )}
       </header>
 
-      {error && <p className="status-row">Couldn't load portfolio_performance.json — run: python ib_price_server.py performance</p>}
+      {error && <p className="status-row">Couldn't load portfolio_performance.json — run: python ib_server.py performance</p>}
       {!error && !data && <p className="status-row">Loading…</p>}
 
       {rows && rows.length > 0 && <NavChart rows={rows} />}

@@ -41,7 +41,7 @@ export default function NewsPopup({ ticker }) {
       </header>
 
       {error && (
-        <div className="asset-card">Couldn't load news — is ib_price_server.py running? ({error})</div>
+        <div className="asset-card">Couldn't load news — is ib_server.py running? ({error})</div>
       )}
       {!error && articles === null && <div className="asset-card">Loading…</div>}
       {!error && articles && articles.length === 0 && (

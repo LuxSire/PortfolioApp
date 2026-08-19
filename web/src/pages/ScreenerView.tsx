@@ -14,6 +14,7 @@ import {
   fmtIndex100,
   fmtNum,
   fmtPct,
+  fmtPct0,
   fmtPrice,
   fmtScore,
   rankTo100,
@@ -35,7 +36,7 @@ const PAGE_SIZE = 100
 
 // The last close strictly before today, comparing BOTH bar series --
 // price_history_daily_3mo.json (IB Gateway's own history, fetched once
-// at ib_price_server.py STARTUP only, so it silently goes stale the
+// at ib_server.py STARTUP only, so it silently goes stale the
 // longer the server runs without a restart) and price_history.json
 // (yfinance, refreshed daily via main.py) — never today's own entry,
 // which both sources can carry as a still-forming bar (close = latest
@@ -61,10 +62,14 @@ function previousClose(
     }
     return null
   }
+  // IB Gateway's own daily bars are the primary source; yfinance's
+  // monthly series is only a fallback for a ticker IB doesn't cover at
+  // all -- explicit instruction: the two stay genuinely separate series,
+  // IB always used when it has anything, never picked against just
+  // because yfinance happens to have a fresher date.
   const fromDaily = lastBarBeforeToday(dailyHistory3mo)
-  const fromMonthly = lastBarBeforeToday(monthlyHistory)
-  if (fromDaily && fromMonthly) return fromDaily.date >= fromMonthly.date ? fromDaily.close : fromMonthly.close
-  return (fromDaily ?? fromMonthly)?.close ?? null
+  if (fromDaily) return fromDaily.close
+  return lastBarBeforeToday(monthlyHistory)?.close ?? null
 }
 
 // Share counts are whole numbers for the vast majority of IBKR positions;
@@ -301,16 +306,25 @@ function FilterDropdown({
   )
 }
 
-// Mirrors main.py's score_rows exactly — weights and directions here must
-// be kept in sync by hand whenever that function's composite score
-// changes, since there's no live endpoint serving the formula itself
-// (sorted_screen.csv only carries the resulting number, not how it was
-// built).
+// Mirrors scoring.py's STANDARD_WEIGHTS (score_rows) exactly, plus each
+// factor's own direction/notes -- weights here must be kept in sync by
+// hand, same drift risk that already bit this list once (sector_pe sat
+// at a stale 10% here after scoring.py trimmed it to 5%, and this whole
+// factor was missing outright until just now). GET /api/scoring-formula
+// (the Scoring tab) reads scoring.FACTOR_WEIGHTS directly and so can't
+// drift the way this hand-copied list can -- it's the source to check
+// against, and also the only place that shows the Financials/Utilities/
+// Real Estate sector-specific formulas this list doesn't attempt to.
 const SCORE_FACTORS = [
   { label: 'Forward PE', weight: 5, note: 'low is better' },
   { label: 'Price / FCF', weight: 5, note: 'low is better; negative or missing FCF ranked worst' },
   { label: 'EV / EBITDA', weight: 5, note: 'low is better; negative EBITDA ranked worst' },
-  { label: 'Forward PE vs. sector average', weight: 10, note: 'low relative to sector is better' },
+  { label: 'Forward PE vs. sector average', weight: 5, note: 'low relative to sector is better' },
+  {
+    label: 'Yearly EPS volatility',
+    weight: 5,
+    note: 'stdev / mean(|value|) of the last (up to) 5 years’ annual Diluted EPS; low is better',
+  },
   {
     label: 'Momentum',
     weight: 5,
@@ -328,24 +342,24 @@ const SCORE_FACTORS = [
   },
   {
     label: 'Analyst conviction',
-    weight: 7.5,
+    weight: 7,
     note: 'avg of high target upside + low (strong-buy) recommendation mean + low target-price dispersion ranks',
   },
   { label: 'Forward PE vs. trailing PE', weight: 5, note: 'more negative is better; unprofitable ranked worst' },
   { label: 'PEG ratio', weight: 5, note: 'low is better; negative ranked worst, not best' },
   {
     label: 'Trailing P/S',
-    weight: 2.5,
+    weight: 2,
     note: 'low is better; a separate valuation lens from P/E/P-FCF/EV-EBITDA, stays meaningful when those break down',
   },
-  { label: 'Revenue growth', weight: 7.5, note: 'high is better; negative ranked worst, not just low' },
+  { label: 'Revenue growth', weight: 8, note: 'high is better; negative ranked worst, not just low' },
   { label: 'Debt / Equity vs. sector average', weight: 5, note: 'low relative to sector is better' },
-  { label: 'Liquidity', weight: 2.5, note: 'avg of high quick ratio + high current ratio ranks' },
-  { label: 'Return on equity', weight: 5, note: 'high is better; negative ranked worst, not just low' },
+  { label: 'Liquidity', weight: 2, note: 'avg of high quick ratio + high current ratio ranks' },
+  { label: 'Return on equity', weight: 3, note: 'high is better; negative ranked worst, not just low' },
   {
     label: 'Short interest',
-    weight: 5,
-    note: 'avg of high short ratio + high short % of float ranks — contrarian: more shorted scores better',
+    weight: 8,
+    note: 'avg of high pct-of-float + high days-to-cover + high change-percent ranks (FINRA biweekly settlement) — contrarian: more shorted, and faster-growing short interest, scores better',
   },
   {
     label: 'News + social + institutional sentiment',
@@ -485,8 +499,8 @@ function ScoreFormula() {
           </ul>
           <div className="score-formula-footer">
             The <strong>Rating</strong> column buckets this score's percentile into a
-            forced Strong Buy/Buy/Hold/Sell/Strong Sell distribution (top/bottom 5% =
-            Strong Buy/Strong Sell, next 15% each = Buy/Sell, middle 60% = Hold) — same
+            forced Strong Buy/Buy/Hold/Sell/Strong Sell distribution (top/bottom 6% =
+            Strong Buy/Strong Sell, next 14% each = Buy/Sell, middle 60% = Hold) — same
             shape as Zacks Rank, independent of the Rec column's analyst consensus.
           </div>
         </div>
@@ -516,7 +530,7 @@ export default function ScreenerView() {
   const now = useNowTick()
   // Daily-close series for the Price column's daily-% badge — see
   // previousClose. price_history_daily_3mo.json (IB Gateway's own daily
-  // bars, written by ib_price_server.py's fetch_candlestick_history) is
+  // bars, written by ib_server.py's fetch_candlestick_history) is
   // the primary source; price_history.json (yfinance, 1mo, written by
   // main.py) is the fallback for a ticker IB Gateway hasn't fetched
   // history for. Same two files, same fallback order, as
@@ -524,11 +538,11 @@ export default function ScreenerView() {
   const [dailyHistory3mo, setDailyHistory3mo] = useState<HistoryByTicker>({})
   const [monthlyHistory, setMonthlyHistory] = useState<HistoryByTicker>({})
 
-  // ib_price_server.py — a separate always-running local process (not part
+  // ib_server.py — a separate always-running local process (not part
   // of this fetch-once pipeline) that pushes IB Gateway last-price ticks
   // (every screener ticker: a live reqMktData subscription for the top
   // MAX_STREAMED_SYMBOLS, a periodic snapshot for everything else — see
-  // ib_price_server.py's snapshot_loop) and account positions (any
+  // ib_server.py's snapshot_loop) and account positions (any
   // ticker) over Server-Sent Events as they change — no polling, no
   // re-request on our end. Silently a no-op if the server isn't running;
   // EventSource retries the connection on its own, and this is a
@@ -569,7 +583,7 @@ export default function ScreenerView() {
         .then((r) => (r.ok ? r.json() : {}))
         .catch(() => ({})) as Promise<Record<string, any>>,
       // Same best-effort contract as social_sentiment.json above, but from
-      // ib_price_server.py's news_loop instead of a fetch-once script —
+      // ib_server.py's news_loop instead of a fetch-once script —
       // may not exist yet (server never run) or only cover tickers that
       // actually had news in the last NEWS_WINDOW_DAYS.
       fetch('/news_sentiment.json')
@@ -647,6 +661,7 @@ export default function ScreenerView() {
             pfcf: toNum(r.priceToFCF),
             evEbitda: toNum(r.enterpriseToEbitda),
             opMargin: toNum(r.operatingMargins),
+            epsVol: toNum(r.epsVolatility),
             de: toNum(r.debtToEquity),
             liq: toNum(r.LiqRatio),
             // shortInt is the sorted/displayed value (shortPercentOfFloat —
@@ -730,6 +745,14 @@ export default function ScreenerView() {
     () => (rawRows ? rankAscending(rawRows, 'evEbitda', (v) => v > 0) : new Map<string, number>()),
     [rawRows]
   )
+  // Low is better, same as scoring.eps_volatility_rank -- always >= 0
+  // (stdev/mean(|value|)), so 0 (perfectly flat EPS) is a real, valid
+  // best-case value, not an artifact to exclude the way tps/evEbitda's
+  // own `v > 0` filters exclude a literal zero there.
+  const epsVolRank = useMemo(
+    () => (rawRows ? rankAscending(rawRows, 'epsVol', (v) => v >= 0) : new Map<string, number>()),
+    [rawRows]
+  )
   const deRank = useMemo(() => (rawRows ? rankAscending(rawRows, 'de', (v) => v >= 0) : new Map<string, number>()), [rawRows])
   const momRank = useMemo(() => (rawRows ? rankDescending(rawRows, 'mom') : new Map<string, number>()), [rawRows])
   const mrRank = useMemo(() => (rawRows ? rankDescending(rawRows, 'mr') : new Map<string, number>()), [rawRows])
@@ -807,6 +830,7 @@ export default function ScreenerView() {
       tpsRank: tpsRank.get(r.t) ?? null,
       pfcfRank: pfcfRank.get(r.t) ?? null,
       evEbitdaRank: evEbitdaRank.get(r.t) ?? null,
+      epsVolRank: epsVolRank.get(r.t) ?? null,
       deRank: deRank.get(r.t) ?? null,
       momRank: momRank.get(r.t) ?? null,
       mrRank: mrRank.get(r.t) ?? null,
@@ -829,6 +853,7 @@ export default function ScreenerView() {
     tpsRank,
     pfcfRank,
     evEbitdaRank,
+    epsVolRank,
     deRank,
     momRank,
     mrRank,
@@ -963,18 +988,19 @@ export default function ScreenerView() {
     [sorted, currentPage]
   )
 
+  // Counts over `sorted` (the currently filtered/shown set, same scope
+  // "shown" itself uses below), not the whole universe -- these should
+  // move together with whatever filters are active, same as every other
+  // header stat on this page.
   const stats = useMemo(() => {
-    if (!sorted.length) return { avgScore: null as number | null, avgMom: null as number | null }
-    // Excludes unranked (negative-forwardPE) rows the same way avgMom
-    // already excluded a missing momentum — dividing by the full row
-    // count while treating a null score as 0 would silently dilute this
-    // toward 0 as more unranked rows show up, rather than reflecting the
-    // real ranked set's average.
-    const scoreVals = sorted.filter((r) => r.sc !== null)
-    const avgScore = scoreVals.length ? scoreVals.reduce((s, r) => s + (r.sc as number), 0) / scoreVals.length : null
-    const momVals = sorted.filter((r) => r.mom !== null)
-    const avgMom = momVals.length ? momVals.reduce((s, r) => s + (r.mom as number), 0) / momVals.length : null
-    return { avgScore, avgMom }
+    const counts = { strongBuy: 0, buy: 0, sell: 0, strongSell: 0 }
+    for (const r of sorted) {
+      if (r.rating === 'Strong Buy') counts.strongBuy++
+      else if (r.rating === 'Buy') counts.buy++
+      else if (r.rating === 'Sell') counts.sell++
+      else if (r.rating === 'Strong Sell') counts.strongSell++
+    }
+    return counts
   }, [sorted])
 
   function handleSort(key: string) {
@@ -1031,12 +1057,20 @@ export default function ScreenerView() {
             <span className="l">shown</span>
           </div>
           <div className="stat">
-            <span className="n num">{stats.avgScore === null ? '—' : stats.avgScore.toFixed(3)}</span>
-            <span className="l">avg score</span>
+            <span className="n num">{stats.strongBuy}</span>
+            <span className="l">strong buy</span>
           </div>
           <div className="stat">
-            <span className="n num">{stats.avgMom === null ? '—' : fmtIndex100(stats.avgMom)}</span>
-            <span className="l">avg momentum</span>
+            <span className="n num">{stats.buy}</span>
+            <span className="l">buy</span>
+          </div>
+          <div className="stat">
+            <span className="n num">{stats.sell}</span>
+            <span className="l">sell</span>
+          </div>
+          <div className="stat">
+            <span className="n num">{stats.strongSell}</span>
+            <span className="l">strong sell</span>
           </div>
         </div>
       </header>
@@ -1190,6 +1224,15 @@ export default function ScreenerView() {
               // (operating losses), green above 15% (a healthy operating
               // margin), neutral between.
               const opMarginClass = inversePctThresholdClass(r.opMargin, 0, 15)
+              // Low is good (see scoring.eps_volatility_rank) -- stdev/
+              // mean(|value|) of the last (up to) 5 years' annual Diluted
+              // EPS, so it's on a fairly different scale than a plain
+              // ratio; large stable names (AAPL) confirmed live around
+              // 0.1-0.2, names with a sign-flipping or loss-making year
+              // in the window (F, MRNA) confirmed well above 1. Never
+              // negative, so rangeClass's own negative-is-always-red
+              // branch never actually fires here.
+              const epsVolClass = rangeClass(r.epsVol, 0.3, 0.8)
               const tpeClass = rangeClass(r.tpe, 10, 50)
               // P/S runs on a much smaller scale than P/E/P-FCF — cheap
               // under 2x revenue, expensive above 10x (vs. those factors'
@@ -1206,7 +1249,7 @@ export default function ScreenerView() {
               const deClass = rangeClass(r.de, 50, 200)
               const earningsClass = earningsUrgencyClass(r.ern, now)
               // livePrices now covers every screener ticker, not just a
-              // top-ranked slice — ib_price_server.py streams the top
+              // top-ranked slice — ib_server.py streams the top
               // MAX_STREAMED_SYMBOLS live and snapshot-polls everything
               // else (see snapshot_loop), so any row can have an entry.
               const live = livePrices[r.t]
@@ -1227,7 +1270,7 @@ export default function ScreenerView() {
                     : liveRatio >= 0
                       ? 'perf-pos'
                       : 'perf-neg'
-              // Positions come from ib_price_server.py and can exist for any
+              // Positions come from ib_server.py and can exist for any
               // ticker — read independent of `live` — value uses the live
               // price when this row has one (same price shown in the
               // Price column), else falls back to the sorted_screen.csv
@@ -1303,6 +1346,7 @@ export default function ScreenerView() {
                   <td className={`num ${pfcfClass}`}>{fmtNum(r.pfcf)} <Subrank rank={r.pfcfRank} /></td>
                   <td className={`num ${evEbitdaClass}`}>{fmtNum(r.evEbitda)} <Subrank rank={r.evEbitdaRank} /></td>
                   <td className={`num ${opMarginClass}`}>{fmtPct(r.opMargin)}</td>
+                  <td className={`num ${epsVolClass}`}>{fmtPct0(r.epsVol)} <Subrank rank={r.epsVolRank} /></td>
                   <td className={`num ${deClass}`}>{fmtDebtToEquity(r.de)} <Subrank rank={r.deRank} /></td>
                   <td className={`num ${liqClass}`}>{fmtNum(r.liq)} <Subrank rank={r.liqRank} /></td>
                   <td

@@ -7,24 +7,43 @@ Pulled out of main.py (which still owns the download pipeline and file I/O)
 so the scoring logic has one home instead of being buried in a 230-line
 function.
 
-Weights (must sum to 1.00 — score_rows's own weighted sum is the only place
-that's enforced, there's no runtime assertion):
-   5% pe_rank                     10% sector_relative_pe_rank
-   5% fcf_rank                     5% ev_ebitda_rank
-   5% momentum_rank                5% mean_reversion_rank
-   5% eps_trend_rank             7.5% analyst_conviction_rank
-   5% pe_vs_trailing_rank          5% peg_rank
-2.5% trailing_ps_rank             7.5% growth_rank
-   5% debt_rank                  2.5% liquidity_rank
-   5% roe_rank                     5% short_interest_rank
-   5% sentiment_rank               5% insiders_rank
-   5% margin_rank
-See each function's own docstring for what "better" means for that factor,
-and score_rows's docstring for the full picture.
+Weights live in FACTOR_WEIGHTS below (each of STANDARD_WEIGHTS/
+FINANCIALS_WEIGHTS must sum to 1.00 -- score_rows's own weighted sum is
+the only place that's enforced, there's no runtime assertion) -- also
+the source GET /api/scoring-formula (ib_server.py) reads for the web
+app's Scoring tab, so the two formulas shown there can never drift from
+what score_rows actually computes. See each factor function's own
+docstring for what "better" means for it, is_financials_sector's own
+docstring for why Financials gets a second formula, and score_rows's
+docstring for the full picture.
 """
 
 import json
 import math
+from datetime import date, timedelta
+
+
+# ---------------------------------------------------------------------- #
+#  Shared date/freshness utility -- not a ranking primitive, just kept   #
+#  here since this is the one dependency-light module both main.py and  #
+#  ib_server.py already import from without risking a circular    #
+#  import (ib_server.py imports FROM main.py, so main.py can't    #
+#  import back from it).                                                #
+# ---------------------------------------------------------------------- #
+def most_recent_completed_trading_day():
+    """Yesterday, rolled back over the weekend -- a plain weekday
+    heuristic, not a real market-holiday calendar (same "good enough,
+    don't over-engineer the calendar" spirit finra.py's own settlement-
+    date probing already uses). Whatever this resolves to should have a
+    settled close available from any real data source by now -- used by
+    ib_server.py's own dataset-staleness check (is the price-
+    history data actually current, not just recently-written) and by
+    main.py's download_ib_daily_history (is a ticker's existing IB daily
+    bar recent enough to skip re-fetching it)."""
+    d = date.today() - timedelta(days=1)
+    while d.weekday() >= 5:  # Saturday=5, Sunday=6
+        d -= timedelta(days=1)
+    return d.isoformat()
 
 
 # ---------------------------------------------------------------------- #
@@ -37,14 +56,25 @@ def to_float(value):
         return None
 
 
-def rank_ascending(rows, value_fn):
-    """Percentile rank (0 = best/lowest, 1 = worst) of rows by value_fn(d); rows
-    where value_fn returns None get the worst rank."""
+def rank_ascending(rows, value_fn, missing=1.0):
+    """Percentile rank (0 = best/lowest, 1 = worst) of rows by value_fn(d);
+    rows where value_fn returns None get `missing` (default the worst
+    rank, 1.0 -- the right default almost everywhere else in this file,
+    where "no data" plausibly correlates with something real about the
+    company). mean_reversion_rank passes missing=0.5 (neutral) instead
+    -- see that function's own docstring for why "missing" means
+    something structurally different there: IB Gateway only ever fetches
+    hourly bars for ~40% of the universe (CANDLESTICK_TOP_N ranked/
+    RATED_FOR_EXTRAS/held), so most of a "missing" reading here is a
+    coverage-scope artifact, not a signal about the ticker. Confirmed
+    live with the worst-default: mean_reversion_rank's own average
+    percentile was 0.7-0.8 in EVERY sector group checked, none anywhere
+    near neutral -- not sector bias, a universal one."""
     valid = [(symbol, value_fn(d)) for symbol, d in rows if value_fn(d) is not None]
     valid.sort(key=lambda item: item[1])
     n = len(valid)
     ranks = {symbol: i / (n - 1) if n > 1 else 0 for i, (symbol, _) in enumerate(valid)}
-    return {symbol: ranks.get(symbol, 1.0) for symbol, _ in rows}
+    return {symbol: ranks.get(symbol, missing) for symbol, _ in rows}
 
 
 def neg_perf(field):
@@ -117,7 +147,7 @@ def load_sentiment_scores(social_sentiment_file, news_sentiment_file, institutio
     (social_sentiment_file, already -1..1 -- see social_sentiment.py),
     FinBERT news sentiment (news_sentiment_file, {ticker: {articleId:
     score}} with each score 1 (very bearish) - 5 (very bullish) --
-    written by ib_price_server.py's news_loop), and institutional
+    written by ib_server.py's news_loop), and institutional
     quarter-over-quarter share-count change (institutional_holdings_file,
     {ticker: {pctShareChangeQoQ, ...}} -- see
     sec_edgar.fetch_13f_holdings; institutions net-buying vs. net-selling)
@@ -427,6 +457,19 @@ def margin_rank(rows):
     return {symbol: (profit_margin_ranks[symbol] + operating_margin_ranks[symbol]) / 2 for symbol, _ in rows}
 
 
+def eps_volatility_rank(rows):
+    """Low epsVolatility ranks better; missing ranked worst. epsVolatility
+    (see IBApp._eps_volatility) is stdev/mean(|value|) of the last (up
+    to) 5 years' annual Diluted EPS -- always >= 0, so no negative-value
+    special case is needed the way margin_rank/roe_rank/growth_rank each
+    need one; same plain "low is better, never negative" shape as
+    trailing_ps_rank. A distinct quality/predictability signal from
+    eps_trend_rank (which reads consensus ESTIMATE revisions, forward-
+    looking) -- this instead reads how much a company's own REPORTED
+    earnings have actually swung year to year, backward-looking."""
+    return rank_ascending(rows, lambda d: to_float(d.get("epsVolatility")))
+
+
 # ---------------------------------------------------------------------- #
 #  Growth & momentum                                                      #
 # ---------------------------------------------------------------------- #
@@ -470,7 +513,13 @@ def momentum_rank(rows):
 
 
 def mean_reversion_rank(rows):
-    """Low mean_reversion ranks better; missing ranked worst.
+    """Low mean_reversion ranks better; missing ranked NEUTRAL (0.5), not
+    worst -- see rank_ascending's own docstring for why: unlike this
+    file's other factors, "missing" here overwhelmingly means "outside
+    IB Gateway's ~40%-of-universe hourly-bar coverage scope", not a real
+    signal about the ticker, so scoring it as if it were the worst
+    possible hourly-momentum reading was wrong for roughly 60% of the
+    universe.
     mean_reversion is the SAME regression-momentum formula as momentum_rank
     scores, just measured on the hourly IB Gateway series instead of the
     daily one (see IBApp.get_momentum) -- same sign convention as momentum
@@ -487,7 +536,7 @@ def mean_reversion_rank(rows):
     ranked/held tickers, not the whole universe) -- there's no fallback
     data source for hourly bars the way momentum_rank falls back to
     yfinance daily, so this is missing far more often."""
-    return rank_ascending(rows, lambda d: to_float(d.get("meanReversion")))
+    return rank_ascending(rows, lambda d: to_float(d.get("meanReversion")), missing=0.5)
 
 
 def eps_trend_rank(rows):
@@ -564,99 +613,367 @@ def analyst_conviction_rank(rows):
 # ---------------------------------------------------------------------- #
 #  Short interest (contrarian)                                            #
 # ---------------------------------------------------------------------- #
-def short_interest_rank(rows):
-    """Average of high shortRatio and high shortPercentOfFloat ranks;
-    missing ranked worst. Deliberately the opposite direction of every
-    other factor here -- this is a contrarian/squeeze-potential bet (the
-    more a stock is shorted, the better it scores), not a quality signal.
-    shortPercentOfFloat (short interest normalized to tradable float) is
-    the standard, cross-company-comparable short-interest metric;
-    shortRatio (days-to-cover) captures how much actual squeeze pressure
-    that short interest carries -- a stock that's heavily shorted but easy
-    to unwind in an afternoon is a weaker setup than one that'd take many
-    days of average volume to cover. Averaging their ranks (not raw
-    values, which are on incompatible scales) blends both dimensions."""
-    short_ratio_ranks = rank_ascending(rows, high_is_better_key("shortRatio"))
-    short_float_ranks = rank_ascending(rows, high_is_better_key("shortPercentOfFloat"))
-    return {symbol: (short_ratio_ranks[symbol] + short_float_ranks[symbol]) / 2 for symbol, _ in rows}
+def load_short_interest_scores(short_interest_file, raw_data_file):
+    """{ticker: {pctOfFloat, daysToCover, changePercent}}, blending
+    FINRA's own biweekly settlement file (finra.fetch_short_interest --
+    currentShortPositionQuantity/daysToCoverQuantity/changePercent) with
+    raw_data.json's own floatShares (already on disk from the normal
+    yfinance pass -- no separate fetch needed here) to turn FINRA's raw
+    share count into the same percent-of-float scale short_interest_rank
+    always ranked on. Deliberately not yfinance's own shortPercentOfFloat/
+    shortRatio pair: cross-checked against a live example (Alcoa, AA) and
+    confirmed yfinance's sharesShortPriorMonth matches FINRA's PRIOR
+    settlement exactly -- yfinance only ever reflects the month-end
+    settlement, silently skipping the mid-month one, so it's a strict
+    subset of what FINRA itself publishes twice as often. changePercent
+    -- FINRA's own period-over-period % change in short interest -- has
+    no yfinance equivalent at all; it's a genuinely new signal (whether
+    the short build is accelerating or unwinding), not a fresher version
+    of an existing one.
+
+    A ticker missing from FINRA's file (thinly-shorted enough not to be
+    reported) or missing floatShares (no raw_data.json entry at all) is
+    left out of the returned map -- short_interest_rank already ranks a
+    missing score worst, same treatment as every other factor's missing
+    data."""
+    try:
+        with open(short_interest_file) as f:
+            finra = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        finra = {}
+    try:
+        with open(raw_data_file) as f:
+            raw = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        raw = {}
+
+    scores = {}
+    for ticker, row in finra.items():
+        float_shares = to_float(raw.get(ticker, {}).get("floatShares"))
+        current = to_float(row.get("currentShortPositionQuantity"))
+        pct_of_float = current / float_shares if current is not None and float_shares else None
+        scores[ticker] = {
+            "pctOfFloat": pct_of_float,
+            "daysToCover": to_float(row.get("daysToCoverQuantity")),
+            "changePercent": to_float(row.get("changePercent")),
+        }
+    return scores
+
+
+def short_interest_rank(rows, short_interest_scores):
+    """Average of high pct-of-float, high days-to-cover, and high
+    change-percent ranks (see load_short_interest_scores for where all
+    three come from); missing ranked worst. Deliberately the opposite
+    direction of every other factor here -- this is a contrarian/squeeze-
+    potential bet (the more a stock is shorted, and the faster that
+    position is BUILDING, the better it scores), not a quality signal.
+    pctOfFloat (short interest normalized to tradable float) is the
+    standard, cross-company-comparable short-interest metric; daysToCover
+    captures how much actual squeeze pressure that short interest carries
+    -- a stock that's heavily shorted but easy to unwind in an afternoon
+    is a weaker setup than one that'd take many days of average volume to
+    cover; changePercent adds a momentum read neither of the other two
+    has on its own -- a short position still building (positive
+    changePercent) is a stronger contrarian setup than one already
+    unwinding (negative), even at the same current level. Averaging
+    ranks (not raw values, which are on incompatible scales) blends all
+    three dimensions."""
+    augmented = [(symbol, {**d, **(short_interest_scores.get(symbol) or {})}) for symbol, d in rows]
+    pct_float_ranks = rank_ascending(augmented, high_is_better_key("pctOfFloat"))
+    days_cover_ranks = rank_ascending(augmented, high_is_better_key("daysToCover"))
+    change_pct_ranks = rank_ascending(augmented, high_is_better_key("changePercent"))
+    return {
+        symbol: (pct_float_ranks[symbol] + days_cover_ranks[symbol] + change_pct_ranks[symbol]) / 3
+        for symbol, _ in rows
+    }
 
 
 # ---------------------------------------------------------------------- #
 #  Composite score                                                         #
 # ---------------------------------------------------------------------- #
-def score_rows(rows, sentiment_scores=None, insider_scores=None):
-    """Composite score per (symbol, d): 5% low forwardPE (pe_rank -- down
-    from 10%, moved to eps_trend_rank below), 10% low forwardPE
-    relative to its sector's average forwardPE (sector_relative_pe_rank),
-    5% low priceToFCF (fcf_rank; negative or missing FCF treated as a
-    fixed 200 for this factor only) + 5% low enterpriseToEbitda
-    (ev_ebitda_rank; negative EBITDA ranked worst -- two independent
-    cash-flow-valuation factors, not blended into one; see
-    ev_ebitda_rank's docstring for why), 5% high daily-timeframe momentum
-    (momentum_rank; missing ranked worst) + 5% low hourly-timeframe mean
-    reversion (mean_reversion_rank; missing ranked worst -- a stock
-    already trending up hard on the hour is being chased, not caught
-    early, so LOW/negative hourly momentum ranks best here, the mirror of
-    momentum_rank's own daily-timeframe direction; split out of
-    momentum_rank, which used to blend both timeframes into one 10%
-    factor; see that function's docstring for why they're independent
-    now), 5% earnings estimate revision trend (eps_trend_rank --
-    average of the current- and next-fiscal-year 30-day EPS-estimate
-    revision ranks; missing ranked worst; taken out of pe_rank's weight),
-    7.5% analyst conviction
-    (analyst_conviction_rank -- down from 10%, the other 2.5% moved to
-    insiders below), 5% forwardPE - trailingPE
-    (pe_vs_trailing_rank; more negative is better, negative/infinite
-    trailingPE ranked worst -- down from 10%), 5% low
-    pegRatio (peg_rank; negative PEG ranked worst, not best), 2.5% low
-    trailingPS (trailing_ps_rank; missing ranked worst -- a separate
-    valuation lens from pe_rank/fcf_rank/ev_ebitda_rank, not blended with
-    any of them, that stays meaningful for unprofitable/negative-FCF
-    names those break down for; taken out of liquidity's weight below),
-    7.5% high revenueGrowth (growth_rank; negative growth ranked worst,
-    not just low -- down from 10%, moved to margins below), 5% low
-    debtToEquity relative to its sector's average (debt_rank; negative or
-    missing debtToEquity ranked worst), 2.5% liquidity (liquidity_rank;
-    missing ranked worst -- down from 5%, moved to trailing_ps above),
-    5% high returnOnEquity (roe_rank; negative ROE ranked
-    worst, not just low), 5% short interest (short_interest_rank; missing
-    ranked worst -- deliberately contrarian, see that function's
-    docstring), 5% combined news + social + institutional-QoQ-share-change
-    sentiment (sentiment_rank; see load_sentiment_scores -- taken out of
-    forwardPE's own weight, previously 15%), 5% insider open-market
-    buy/sell activity (insiders_rank; see load_insider_scores -- missing
-    ranked worst; up from 2.5%, the other 2.5% taken out of margin_rank's
-    weight below), 5% margins (margin_rank; negative margins ranked worst
-    -- down from 7.5%, see insiders_rank above for where that 2.5% went).
-    Lower score is better. Every individual factor function above has the
-    exact ranking rule in its own docstring."""
+# Which curated `sector` values (see main.py's load_sectors/symbols.json)
+# get the Financials formula below instead of the standard one --
+# exactly the set web/src/sectorGroups.js's own EXACT map sends to
+# "Financial Services" (that file's own comment: a display/filter
+# grouping, kept separate from the granular value scoring/sector-
+# relative P/E stay keyed on) -- duplicated here rather than shared
+# since one's JS and one's Python; keep in sync by hand if that file's
+# own Financial Services entries change. _FINANCIALS_KEYWORDS mirrors
+# that same file's KEYWORD_FALLBACKS entries that resolve to Financial
+# Services, as a substring fallback for a curated industry not in the
+# set below (e.g. one symbols.json hasn't been given the exact string
+# for yet).
+FINANCIALS_SECTORS = {
+    "Asset Management",
+    "Banks - Diversified",
+    "Banks - Regional",
+    "Capital Markets",
+    "Credit Services",
+    "Financial Conglomerates",
+    "Financial Data & Stock Exchanges",
+    "Insurance - Diversified",
+    "Insurance - Life",
+    "Insurance - Property & Casualty",
+    "Insurance - Reinsurance",
+    "Insurance - Specialty",
+    "Insurance Brokers",
+    "Mortgage Finance",
+}
+_FINANCIALS_KEYWORDS = ("bank", "insurance", "financial", "asset")
+
+
+def is_financials_sector(sector):
+    """True for a curated `sector` (really an industry -- see this
+    module's own docstring) that belongs to the broad Financial Services
+    group -- what score_rows uses to pick FINANCIALS_WEIGHTS over
+    STANDARD_WEIGHTS. Exists because Yahoo Finance simply doesn't
+    populate debtToEquity/quickRatio/currentRatio/enterpriseToEbitda/
+    freeCashflow for this sector (confirmed live: even JPM/WFC show None
+    for all five) -- a bank's balance sheet doesn't map onto the
+    "current assets vs. liabilities"/EBITDA framework those fields
+    assume, it's not a data-quality gap specific to smaller/obscure
+    names. Since rank_ascending treats a missing value as the WORST
+    rank, not neutral, every Financials ticker was structurally taking
+    the worst score on debt_rank/liquidity_rank/ev_ebitda_rank/fcf_rank
+    (17% of the composite) for a reason that has nothing to do with its
+    actual fundamentals -- confirmed live via sorted_screen.csv: Banks -
+    Regional was 11.4% of the universe but 16.8% of Strong Sell."""
+    if not sector:
+        return False
+    if sector in FINANCIALS_SECTORS:
+        return True
+    lower = sector.lower()
+    return any(k in lower for k in _FINANCIALS_KEYWORDS)
+
+
+# Same idea as FINANCIALS_SECTORS above, for the broad Utilities group
+# (sectorGroups.js's own EXACT map entries that resolve to "Utilities").
+UTILITIES_SECTORS = {
+    "Utilities - Diversified",
+    "Utilities - Independent Power Producers",
+    "Utilities - Regulated Electric",
+    "Utilities - Regulated Gas",
+    "Utilities - Regulated Water",
+    "Utilities - Renewable",
+}
+_UTILITIES_KEYWORDS = ("utilit",)
+
+
+def is_utilities_sector(sector):
+    """True for a curated `sector` in the broad Utilities group -- what
+    score_rows uses to pick UTILITIES_WEIGHTS over STANDARD_WEIGHTS.
+    Unlike is_financials_sector, this isn't a missing-data problem --
+    Yahoo reports quickRatio/currentRatio for utilities fine (confirmed
+    live: 59/59 populated) -- it's that liquidity_rank compares the raw
+    ratio against the WHOLE universe, not the ticker's own sector, the
+    one thing debt_rank already does right for exactly this reason.
+    Utilities structurally run quick/current ratios well under 1 (median
+    ~0.4/0.8 vs. a ~1.2/1.8 universe median) because a regulated
+    monopoly's cash flow is about as predictable as it gets -- there's
+    no need to hoard working capital the way a business with uncertain
+    revenue would, so a low ratio here isn't the distress signal it
+    would be almost anywhere else. Confirmed live: liquidity_rank's own
+    average percentile for utilities was 0.840 (0=best, 1=worst,
+    0.5=neutral) -- the single worst-skewed factor of any checked,
+    worse even than fcf_rank's 0.861 despite fcf_rank being a much
+    murkier case (utilities' negative FCF is real heavy regulated capex,
+    not obviously mis-scored the way a flat universe-wide liquidity
+    comparison is) -- while every ticker still had real quickRatio/
+    currentRatio data, just structurally sector-low ones."""
+    if not sector:
+        return False
+    if sector in UTILITIES_SECTORS:
+        return True
+    lower = sector.lower()
+    return any(k in lower for k in _UTILITIES_KEYWORDS)
+
+
+# Same idea again, for the broad Real Estate group (sectorGroups.js's own
+# EXACT map entries that resolve to "Real Estate").
+REAL_ESTATE_SECTORS = {
+    "REIT - Diversified",
+    "REIT - Healthcare Facilities",
+    "REIT - Hotel & Motel",
+    "REIT - Industrial",
+    "REIT - Mortgage",
+    "REIT - Office",
+    "REIT - Residential",
+    "REIT - Retail",
+    "REIT - Specialty",
+    "Real Estate - Development",
+    "Real Estate - Diversified",
+    "Real Estate Services",
+}
+_REAL_ESTATE_KEYWORDS = ("reit", "real estate")
+
+
+def is_real_estate_sector(sector):
+    """True for a curated `sector` in the broad Real Estate group -- what
+    score_rows uses to pick REAL_ESTATE_WEIGHTS over STANDARD_WEIGHTS
+    (same shape as FINANCIALS_WEIGHTS -- see that column's own comment --
+    except pe/fcf are left at their standard 5% each rather than also
+    zeroing fcf out). Addresses the same missing-data problem
+    is_financials_sector does, confirmed live for mortgage REITs (18
+    tickers) specifically: 0/18 have enterpriseToEbitda or priceToFCF
+    coverage from Yahoo at all (they're financial institutions holding
+    mortgage-backed securities, not physical-property businesses), and
+    ev_ebitda_rank's average percentile across them was 1.000 -- the
+    single worst possible score, every time. Equity REITs separately run
+    heavy non-cash real-estate depreciation through GAAP net income
+    (the reason the industry itself reports FFO/AFFO instead of EPS),
+    which understates roe_rank/pe_vs_trailing_rank and inflates
+    peg_rank (confirmed live: peg_rank's own average across all of Real
+    Estate was 0.830, the worst-skewed factor checked for this sector) --
+    a real distortion, but a deliberately different one from the
+    missing-data case above, and NOT addressed by REAL_ESTATE_WEIGHTS:
+    explicit call not to build a third, more targeted formula for it."""
+    if not sector:
+        return False
+    if sector in REAL_ESTATE_SECTORS:
+        return True
+    lower = sector.lower()
+    return any(k in lower for k in _REAL_ESTATE_KEYWORDS)
+
+
+# {factor key: (label, standard weight, Financials weight, Utilities
+# weight, Real Estate weight)} -- single source of truth for score_rows'
+# weighted sums below
+# AND for ib_server.py's GET /api/scoring-formula (the Scoring tab's own
+# table), so the page displaying "what the formula is" can never drift
+# from what score_rows actually computes. Every weight column must sum
+# to 1.00 -- there's no runtime assertion, same as this module's own
+# original docstring note on the single-formula weights it replaces.
+#
+# The Financials column zeroes out debt/liquidity/ev_ebitda/fcf (17%
+# combined -- see is_financials_sector's own docstring for why) and
+# redistributes exactly that 17% onto the four factors Yahoo actually
+# does report cleanly for this sector: +5% pe, +5% sector_pe, +5%
+# eps_trend, +2% growth.
+#
+# The Utilities column zeroes out liquidity (2% -- see
+# is_utilities_sector's own docstring for why just this one, not the
+# broader growth/momentum/PEG tilt also observed for this sector, which
+# reads more like real signal than a bug) and redistributes that 2% onto
+# sector_pe alone; separately, fcf is trimmed 5% -> 3% with the other 2%
+# moved onto short_interest (a capital-intensive, heavy-regulated-capex
+# sector's negative free cash flow is a weaker price/FCF signal than
+# usual, same underlying reasoning as fcf's own reduced weight for
+# Financials above, just a trim here rather than zeroing it out
+# entirely -- short_interest doesn't share fcf's yfinance-field-coverage
+# concerns, so it's a safe place to land the freed weight).
+#
+# The Real Estate column is otherwise IDENTICAL to Financials (same
+# debt/liquidity/ev_ebitda zeroing, same sector_pe/eps_trend/growth
+# boosts) except pe and fcf are both left at their standard 5% instead
+# of Financials' 10%/0% -- explicit call: mortgage REITs share
+# Financials' missing-EBITDA/FCF-data problem (see
+# is_real_estate_sector's own docstring), but equity REITs don't share
+# its P/E-vs-market or FCF-coverage story, so neither gets pushed to a
+# Financials-specific extreme here.
+#
+# eps_volatility (see IBApp._eps_volatility/eps_volatility_rank) is a
+# flat 5% in EVERY column, sector_pe trimmed 5% to fund it in every
+# column too -- unlike the sector-specific reweights above, this one's
+# universal: explicit call that low earnings volatility is a quality
+# signal worth crediting everywhere, not just certain sectors. The
+# three special columns' own sector_pe boosts (see their own comments
+# just above, still described as relative deltas over the standard
+# column) land on top of this trim, e.g. Financials' sector_pe is
+# STANDARD_WEIGHTS["sector_pe"] (0.05) + 0.05 = 0.10, not the old 0.15.
+FACTOR_WEIGHTS = {
+    "pe": ("Forward P/E", 0.05, 0.10, 0.05, 0.05),
+    "sector_pe": ("Forward P/E vs. sector average", 0.05, 0.10, 0.07, 0.10),
+    "eps_volatility": ("Yearly EPS volatility", 0.05, 0.05, 0.05, 0.05),
+    "fcf": ("Price/FCF", 0.05, 0.0, 0.03, 0.05),
+    "ev_ebitda": ("EV/EBITDA", 0.05, 0.0, 0.05, 0.0),
+    "momentum": ("Daily-timeframe momentum", 0.05, 0.05, 0.05, 0.05),
+    "mean_reversion": ("Hourly-timeframe mean reversion", 0.05, 0.05, 0.05, 0.05),
+    "eps_trend": ("EPS-estimate revision trend", 0.05, 0.10, 0.05, 0.10),
+    "analyst": ("Analyst conviction", 0.07, 0.07, 0.07, 0.07),
+    "pe_vs_trailing": ("Forward P/E vs. Trailing P/E", 0.05, 0.05, 0.05, 0.05),
+    "peg": ("PEG ratio", 0.05, 0.05, 0.05, 0.05),
+    "trailing_ps": ("Trailing P/S", 0.02, 0.02, 0.02, 0.02),
+    "growth": ("Revenue growth", 0.08, 0.10, 0.08, 0.10),
+    "debt": ("Debt/equity vs. sector average", 0.05, 0.0, 0.05, 0.0),
+    "liquidity": ("Quick/current ratio", 0.02, 0.0, 0.0, 0.0),
+    "roe": ("Return on equity", 0.03, 0.03, 0.03, 0.03),
+    "short_interest": ("Short interest (contrarian)", 0.08, 0.08, 0.10, 0.08),
+    "sentiment": ("News/social/institutional sentiment", 0.05, 0.05, 0.05, 0.05),
+    "insiders": ("Insider open-market buy/sell activity", 0.05, 0.05, 0.05, 0.05),
+    "margin": ("Profit/operating margins", 0.05, 0.05, 0.05, 0.05),
+}
+STANDARD_WEIGHTS = {factor: v[1] for factor, v in FACTOR_WEIGHTS.items()}
+FINANCIALS_WEIGHTS = {factor: v[2] for factor, v in FACTOR_WEIGHTS.items()}
+UTILITIES_WEIGHTS = {factor: v[3] for factor, v in FACTOR_WEIGHTS.items()}
+REAL_ESTATE_WEIGHTS = {factor: v[4] for factor, v in FACTOR_WEIGHTS.items()}
+
+
+def score_rows(rows, sentiment_scores=None, insider_scores=None, short_interest_scores=None):
+    """Composite score per (symbol, d) -- lower is better. Every ticker's
+    rank on each factor is computed once, across the WHOLE universe in
+    `rows` (see each factor function's own docstring for its ranking
+    rule), then combined into one weighted sum using STANDARD_WEIGHTS.
+    STANDARD_WEIGHTS includes eps_volatility_rank (5%, funded by trimming
+    sector_relative_pe_rank 5% -- applies in every column below too, not
+    just this one, see FACTOR_WEIGHTS' own comment) -- unlike the three
+    sector-specific reweights that follow, this one's universal: low
+    earnings volatility is a quality signal everywhere, not a Financials/
+    Utilities/Real-Estate-specific concern. On top of that, a Financials-
+    sector ticker (see is_financials_sector) uses FINANCIALS_WEIGHTS
+    instead (debt_rank/liquidity_rank/
+    ev_ebitda_rank/fcf_rank zeroed out, 17% redistributed onto pe_rank/
+    sector_relative_pe_rank/eps_trend_rank/growth_rank); a Utilities-
+    sector ticker (see is_utilities_sector), which uses UTILITIES_WEIGHTS
+    instead (liquidity_rank zeroed out with that 2% redistributed onto
+    sector_relative_pe_rank, and fcf_rank trimmed 5% -> 3% with the
+    other 2% redistributed onto short_interest_rank); or a Real-Estate-
+    sector ticker (see is_real_estate_sector), which uses
+    REAL_ESTATE_WEIGHTS instead -- identical to FINANCIALS_WEIGHTS
+    except pe_rank/fcf_rank are both left at their standard 5% rather
+    than Financials' 10%/0%. See FACTOR_WEIGHTS' own comment for the
+    full reasoning on all three. The underlying rank computations
+    themselves are identical in every case -- only which weight gets
+    applied to which ticker differs, so e.g. a Real-Estate ticker's
+    sector_pe percentile still reflects the whole market, not just
+    other Real Estate names."""
     sentiment_scores = sentiment_scores or {}
     insider_scores = insider_scores or {}
+    short_interest_scores = short_interest_scores or {}
 
-    weighted_ranks = {
-        "pe": (pe_rank(rows), 0.05),
-        "sector_pe": (sector_relative_pe_rank(rows), 0.10),
-        "fcf": (fcf_rank(rows), 0.05),
-        "ev_ebitda": (ev_ebitda_rank(rows), 0.05),
-        "momentum": (momentum_rank(rows), 0.05),
-        "mean_reversion": (mean_reversion_rank(rows), 0.05),
-        "eps_trend": (eps_trend_rank(rows), 0.05),
-        "analyst": (analyst_conviction_rank(rows), 0.075),
-        "pe_vs_trailing": (pe_vs_trailing_rank(rows), 0.05),
-        "peg": (peg_rank(rows), 0.05),
-        "trailing_ps": (trailing_ps_rank(rows), 0.025),
-        "growth": (growth_rank(rows), 0.075),
-        "debt": (debt_rank(rows), 0.05),
-        "liquidity": (liquidity_rank(rows), 0.025),
-        "roe": (roe_rank(rows), 0.05),
-        "short_interest": (short_interest_rank(rows), 0.05),
-        "sentiment": (sentiment_rank(rows, sentiment_scores), 0.05),
-        "insiders": (insiders_rank(rows, insider_scores), 0.05),
-        "margin": (margin_rank(rows), 0.05),
+    ranks_by_factor = {
+        "pe": pe_rank(rows),
+        "sector_pe": sector_relative_pe_rank(rows),
+        "eps_volatility": eps_volatility_rank(rows),
+        "fcf": fcf_rank(rows),
+        "ev_ebitda": ev_ebitda_rank(rows),
+        "momentum": momentum_rank(rows),
+        "mean_reversion": mean_reversion_rank(rows),
+        "eps_trend": eps_trend_rank(rows),
+        "analyst": analyst_conviction_rank(rows),
+        "pe_vs_trailing": pe_vs_trailing_rank(rows),
+        "peg": peg_rank(rows),
+        "trailing_ps": trailing_ps_rank(rows),
+        "growth": growth_rank(rows),
+        "debt": debt_rank(rows),
+        "liquidity": liquidity_rank(rows),
+        "roe": roe_rank(rows),
+        "short_interest": short_interest_rank(rows, short_interest_scores),
+        "sentiment": sentiment_rank(rows, sentiment_scores),
+        "insiders": insiders_rank(rows, insider_scores),
+        "margin": margin_rank(rows),
     }
     scored = []
     for symbol, d in rows:
-        score = sum(ranks[symbol] * weight for ranks, weight in weighted_ranks.values())
+        sector = d.get("sector")
+        if is_financials_sector(sector):
+            weights = FINANCIALS_WEIGHTS
+        elif is_utilities_sector(sector):
+            weights = UTILITIES_WEIGHTS
+        elif is_real_estate_sector(sector):
+            weights = REAL_ESTATE_WEIGHTS
+        else:
+            weights = STANDARD_WEIGHTS
+        score = sum(ranks_by_factor[factor][symbol] * weight for factor, weight in weights.items())
         scored.append((symbol, d, score))
     return scored
 
@@ -664,17 +981,17 @@ def score_rows(rows, sentiment_scores=None, insider_scores=None):
 # ---------------------------------------------------------------------- #
 #  Rating -- what to do with the score once it's computed                 #
 # ---------------------------------------------------------------------- #
-# Zacks Rank's actual bucket shape (roughly 5/15/60/15/5), not equal
-# quintiles -- a top-5% "Strong Buy" is a meaningfully selective badge,
+# Zacks Rank's actual bucket shape (roughly 6/14/60/14/6), not equal
+# quintiles -- a top-6% "Strong Buy" is a meaningfully selective badge,
 # unlike a generic top-20% one. Thresholds are on percentile position (0 =
 # best score, approaching 1 = worst); symmetric around the middle so
 # Strong Buy and Strong Sell always come out to the same count (up to
 # rounding by however many rows don't divide evenly).
 RATING_THRESHOLDS = [
-    (0.05, "Strong Buy"),
+    (0.06, "Strong Buy"),
     (0.20, "Buy"),
     (0.80, "Hold"),
-    (0.95, "Sell"),
+    (0.94, "Sell"),
 ]
 RATING_WORST = "Strong Sell"
 # Not a percentile bucket at all -- for the negative/non-positive-forwardPE

@@ -12,6 +12,7 @@ import logging
 import math
 import os
 import re
+import statistics
 import sys
 import threading
 import time
@@ -147,6 +148,32 @@ def _eps_revision(current, baseline):
     if math.isnan(current) or math.isnan(baseline) or baseline == 0:
         return None
     return (current - baseline) / abs(baseline)
+
+
+def _eps_volatility(values):
+    """stdev(values) / mean(|values|) -- see get_forward_pe's own use
+    against yfinance's annual Diluted EPS series (scoring.py's
+    eps_volatility_rank: low is better). Divides by the mean of the
+    ABSOLUTE values rather than the plain signed mean deliberately --
+    confirmed live that a plain coefficient of variation breaks down the
+    moment annual EPS goes negative or crosses zero, which happens
+    within just 4-5 years even for large, unremarkable names (e.g. Ford:
+    -2.06, 1.46, 1.08, -0.49 across four recent annual prints) -- a
+    near-zero or negative mean would either blow the ratio up or flip
+    its sign in a way that makes "low is better" stop meaning what it
+    should. None if fewer than 3 values (yfinance's annual statement
+    endpoint caps out around 5 years of history to begin with -- its
+    quarterly equivalent caps at the same 5 periods, just each covering
+    3 months instead of 12 and picking up seasonality noise a real
+    business can have nothing wrong with, so annual is what's actually
+    used here despite not buying any more data points), or if the mean
+    absolute value is zero (nothing to normalize against)."""
+    if len(values) < 3:
+        return None
+    mean_abs = sum(abs(v) for v in values) / len(values)
+    if mean_abs == 0:
+        return None
+    return statistics.stdev(values) / mean_abs
 
 
 # operatingMargins is a ratio against a company's own trailing revenue --
@@ -352,7 +379,7 @@ class IBApp:
         than opening a duplicate.
 
         Deliberately never cancelled by a position going flat (see
-        ib_price_server.py's on_position) -- IBKR keeps reporting
+        ib_server.py's on_position) -- IBKR keeps reporting
         dailyPnL/realizedPnL for a conId that was fully closed out earlier
         today, position 0 and unrealizedPnL 0, for the rest of the
         session. That's what lets a same-day-closed position still show a
@@ -361,7 +388,7 @@ class IBApp:
 
     # Shared by format_account_status (a printed table for logging) and
     # get_account_status_dict (a plain {tag: value} dict for programmatic
-    # use, e.g. ib_price_server.py's /api/stream) — same curated tags
+    # use, e.g. ib_server.py's /api/stream) — same curated tags
     # either way.
     ACCOUNT_STATUS_TAGS = {
         "TotalCashValue", "NetLiquidation", "AvailableFunds",
@@ -436,7 +463,7 @@ class IBApp:
     async def get_open_orders_async(self):
         """Async-safe equivalent of get_open_trades, for a caller sharing
         this instance's IB Gateway connection with other concurrent work
-        on the same event loop (see ib_price_server.py's refresh_open_
+        on the same event loop (see ib_server.py's refresh_open_
         orders). reqAllOpenOrdersAsync(), not the plain reqAllOpenOrders()
         get_open_trades above uses -- that sync wrapper calls
         loop.run_until_complete() internally, which raises "This event
@@ -953,7 +980,7 @@ class IBApp:
         numberOfAnalystOpinions, revenueGrowth, returnOnEquity,
         profitMargins, operatingMargins, recommendationKey,
         recommendationMean, earningsTimestampStart, epsRevision0y,
-        epsRevision1y, lastDownload}} from
+        epsRevision1y, epsVolatility, lastDownload}} from
         Yahoo Finance. When
         usa_only=True, only US-domiciled companies are returned.
 
@@ -964,6 +991,15 @@ class IBApp:
         a failure there doesn't fail the whole ticker (unlike get_info()
         itself, which is what the retry loop below is really for), it
         just leaves both fields None.
+
+        epsVolatility (see _eps_volatility) is stdev/mean(|value|) of the
+        last (up to) 5 years' annual Diluted EPS, from yfinance's
+        income_stmt -- another separate, best-effort request alongside
+        get_info()/get_eps_trend(), same "failure just leaves it None"
+        contract. Low is better (scoring.eps_volatility_rank):
+        earnings that swing wildly quarter to quarter are a real quality/
+        predictability signal distinct from epsRevision0y/1y's own
+        forward-looking estimate-trend one.
 
         operatingMargins is clamped (see MARGIN_FLOOR / MARGIN_CAP above) to
         keep a near-zero-revenue name's base-effect artifact from reading as
@@ -988,6 +1024,7 @@ class IBApp:
         now = datetime.now().isoformat(timespec="seconds")
 
         def fetch(symbol):
+            print(f"Fetching {symbol}...")
             for attempt in range(3):
                 try:
                     yt = yf.Ticker(symbol)
@@ -1024,6 +1061,13 @@ class IBApp:
                                 )
                     except Exception as e:
                         logging.info(f"get_forward_pe: {symbol} eps trend failed: {e}")
+                    eps_volatility = None
+                    try:
+                        annual = yt.income_stmt
+                        if annual is not None and "Diluted EPS" in annual.index:
+                            eps_volatility = _eps_volatility(annual.loc["Diluted EPS"].dropna().tolist())
+                    except Exception as e:
+                        logging.info(f"get_forward_pe: {symbol} annual EPS volatility failed: {e}")
                     return symbol, {
                         "name": info.get("shortName"),
                         "forwardPE": info.get("forwardPE"),
@@ -1060,6 +1104,7 @@ class IBApp:
                         "earningsTimestampStart": info.get("earningsTimestampStart"),
                         "epsRevision0y": eps_revision_0y,
                         "epsRevision1y": eps_revision_1y,
+                        "epsVolatility": eps_volatility,
                         "lastDownload": now,
                     }
                 except Exception as e:
@@ -1081,13 +1126,43 @@ class IBApp:
 
         return results
 
+    def get_eps_volatility(self, tickers, max_workers=2):
+        """Returns {ticker: epsVolatility} (see _eps_volatility) from
+        yfinance's income_stmt alone -- a lighter fetch than
+        get_forward_pe's full get_info()+get_eps_trend()+income_stmt
+        bundle, for refreshing just this one figure (e.g. right after
+        adding/changing the factor itself, or backfilling tickers a
+        FRESH_HOURS-skipped `all`/`prices` run left without it) without
+        redoing the whole forward-PE/momentum pipeline. Same best-
+        effort-per-ticker contract as get_forward_pe's own EPS-
+        volatility fetch -- a ticker that fails still comes back with
+        None, not omitted from the returned dict, since the caller is
+        merging this into rows that already exist."""
+
+        def fetch(symbol):
+            print(f"Fetching {symbol}...")
+            try:
+                annual = yf.Ticker(symbol).income_stmt
+                if annual is not None and "Diluted EPS" in annual.index:
+                    return symbol, _eps_volatility(annual.loc["Diluted EPS"].dropna().tolist())
+            except Exception as e:
+                logging.info(f"get_eps_volatility: {symbol} failed: {e}")
+            return symbol, None
+
+        results = {}
+        with ThreadPoolExecutor(max_workers=max_workers) as ex:
+            futures = {ex.submit(fetch, s): s for s in tickers}
+            for sym, value in (f.result() for f in as_completed(futures)):
+                results[sym] = value
+        return results
+
     def get_price_history(self, tickers, max_workers=2):
         """
         Returns {ticker: [{date, close}, ...]} — the trailing ~1 month of
         daily closes from Yahoo Finance, same shape as get_momentum's
         history_out. Standalone (no momentum score computed) for callers
         that just need a recent-price fallback for tickers outside the
-        regular screener pipeline — e.g. ib_price_server.py uses this for
+        regular screener pipeline — e.g. ib_server.py uses this for
         IBKR positions on tickers the screener never fetches (not in
         symbols.json) or whose live IB quote is unavailable (missing
         market data permissions for that ticker's exchange).
@@ -1115,7 +1190,7 @@ class IBApp:
 
         return history
 
-    def get_ib_historical_bars(self, tickers, duration, bar_size, max_requests_per_10min=55):
+    def get_ib_historical_bars(self, tickers, duration, bar_size, max_requests_per_10min=200):
         """
         Returns {ticker: [{date, open, high, low, close, volume}, ...]}
         from IB Gateway's own historical data (reqHistoricalData) — unlike
@@ -1124,15 +1199,18 @@ class IBApp:
         called first. duration/bar_size are IB's own strings, e.g.
         duration="1 M" bar_size="1 hour", or duration="3 M" bar_size="1 day".
 
-        IB enforces a historical-data pacing limit (roughly 60 requests per
-        rolling 10-minute window, account-wide, not per-contract); this
-        stays under max_requests_per_10min via a sliding window (shared
-        across every call on this instance — see self._historical_request_
-        times — since the limit is account-wide, not scoped to one call),
-        sleeping as needed. For a large ticker list this can take many
-        minutes — meant to run in its own thread, not to block anything
-        else that needs this connection's event loop pumped in the
-        meantime.
+        IB's documented historical-data pacing limit is ~60 requests per
+        rolling 10-minute window, account-wide, not per-contract -- but
+        confirmed live against this account well above that (100 tickers
+        in 5 minutes with no pacing violations), so the default here is
+        200/10min rather than the conservative textbook figure. Stays
+        under max_requests_per_10min via a sliding window (shared across
+        every call on this instance — see self._historical_request_times
+        — since the limit is account-wide, not scoped to one call),
+        sleeping as needed if it's ever actually reached. For a large
+        ticker list this can still take a while — meant to run in its own
+        thread, not to block anything else that needs this connection's
+        event loop pumped in the meantime.
         """
         contracts = [self.make_contract(t) for t in tickers]
         contracts = [c for c in contracts if c is not None]
@@ -1181,7 +1259,7 @@ class IBApp:
 
         return history
 
-    async def get_ib_historical_bars_async(self, tickers, duration, bar_size, max_requests_per_10min=55):
+    async def get_ib_historical_bars_async(self, tickers, duration, bar_size, max_requests_per_10min=200, on_ticker=None):
         """Async twin of get_ib_historical_bars, same pacing/request logic,
         for callers that share this instance's IB Gateway connection with
         other concurrent work (live ticks, snapshot polling) on the same
@@ -1190,7 +1268,12 @@ class IBApp:
         self.ib.reqHistoricalData/self.ib.sleep) means the many minutes or
         hours a large ticker list takes never stalls anything else sharing
         that loop, the way calling the sync version from a coroutine would.
-        """
+
+        on_ticker, if given, is called with each symbol right before its
+        request goes out -- e.g. ib_server.py's on-demand refresh
+        endpoints thread this through to append a log line per ticker for
+        the Dataset tab's Run button, without this method needing to know
+        anything about that job-log mechanism itself."""
         contracts = [self.make_contract(t) for t in tickers]
         contracts = [c for c in contracts if c is not None]
         qualified = await self.ib.qualifyContractsAsync(*contracts)
@@ -1211,6 +1294,8 @@ class IBApp:
                 await asyncio.sleep(sleep_for)
             request_times.append(time.monotonic())
 
+            if on_ticker:
+                on_ticker(c.symbol)
             try:
                 bars = await self.ib.reqHistoricalDataAsync(
                     c,
@@ -1267,7 +1352,7 @@ class IBApp:
         article body (see reqNewsArticle for that; not used here).
 
         articleId (e.g. "DJ-N$1f1057ff") is IB's own provider-qualified,
-        per-article identifier — the caller (ib_price_server.py's
+        per-article identifier — the caller (ib_server.py's
         news_loop) uses it to dedupe when merging into a rolling-window
         news.json across repeated fetches.
 
@@ -1280,7 +1365,7 @@ class IBApp:
         defaulting to that same 55-requests-per-10-minutes assumption in
         the absence of documented guidance otherwise. At that rate, a
         full pass over a large ticker list takes multiple hours; see
-        ib_price_server.py's news_loop for how that's handled (a
+        ib_server.py's news_loop for how that's handled (a
         continuous background cycle that saves progress as it goes, not
         a one-shot that only writes at the very end)."""
         providers = await self.ib.reqNewsProvidersAsync()
@@ -1335,7 +1420,7 @@ class IBApp:
         """Fetches ONE article's full body via reqNewsArticle — the
         lazy, on-demand counterpart to get_news_headlines_async's
         headline-only bulk fetch. Never called across the whole
-        screener; ib_price_server.py's GET /api/news/article calls this
+        screener; ib_server.py's GET /api/news/article calls this
         only when a user actually expands a specific headline in the
         UI, since body text is both far larger than a headline and
         subject to the same undocumented per-account news pacing limits
@@ -1377,7 +1462,7 @@ class IBApp:
 
         momentum: regression-momentum (see _regression_momentum) on the
         3-month IB Gateway daily series (daily_3mo_by_ticker -- see
-        ib_price_server.py's price_history_daily_3mo.json) when it has at
+        ib_server.py's price_history_daily_3mo.json) when it has at
         least MIN_DAILY_BARS_FOR_BLEND bars, else the original
         single-source fallback: a Yahoo Finance daily history fetch
         (period=1mo), regression-momentum on that alone. None only if
@@ -1385,7 +1470,7 @@ class IBApp:
 
         mean_reversion: the SAME regression-momentum formula as `momentum`
         above, just measured on the hourly IB Gateway series
-        (hourly_by_ticker -- see ib_price_server.py's
+        (hourly_by_ticker -- see ib_server.py's
         price_history_hourly.json, only fetched for CANDLESTICK_TOP_N
         ranked/held tickers, not the whole universe) instead of the daily
         one, when it has at least MIN_HOURLY_BARS_FOR_BLEND bars -- a
@@ -1426,6 +1511,7 @@ class IBApp:
             return _regression_momentum([b["close"] for b in hourly_series], TRADING_HOURS_PER_YEAR)
 
         def fetch(symbol):
+            print(f"Fetching {symbol}...")
             ib_mom = ib_daily_momentum(symbol)
             reversion = hourly_mean_reversion(symbol)
             for attempt in range(3):
@@ -1459,5 +1545,58 @@ class IBApp:
             futures = {ex.submit(fetch, s): s for s in tickers}
             for sym, result in (f.result() for f in as_completed(futures)):
                 momentum[sym] = result
+
+        return momentum
+
+    def get_momentum_from_disk(self, tickers, daily_3mo_by_ticker=None, hourly_by_ticker=None, yfinance_history_by_ticker=None):
+        """Same {ticker: {"momentum": ..., "mean_reversion": ...}} shape as
+        get_momentum, but purely from files already on disk -- no live
+        yfinance fetch, and no IB Gateway connection needed either despite
+        living on this class (self.ib is never touched). For main.py's
+        rescore(): recomputing momentum after IB Gateway's own daily/
+        hourly bars (see ibprices/ibhprices) have been refreshed
+        shouldn't require a live fetch when nothing about the ticker
+        universe or its yfinance closes has actually changed since the
+        last real fetch.
+
+        momentum: IB's daily_3mo_by_ticker (see get_momentum's own
+        docstring) where it has at least MIN_DAILY_BARS_FOR_BLEND bars,
+        else regression-momentum on yfinance_history_by_ticker's already-
+        cached daily closes (price_history.json -- the same series
+        get_momentum's own yfinance fetch would otherwise capture into
+        history_out) if that has at least 5 closes, else None -- same
+        two-source precedence as get_momentum, just reading the fallback
+        from disk instead of fetching it fresh.
+
+        mean_reversion: identical to get_momentum -- IB's
+        hourly_by_ticker only, no fallback source exists for it either
+        way, fetched live or not."""
+        daily_3mo_by_ticker = daily_3mo_by_ticker or {}
+        hourly_by_ticker = hourly_by_ticker or {}
+        yfinance_history_by_ticker = yfinance_history_by_ticker or {}
+
+        def ib_daily_momentum(symbol):
+            daily_series = daily_3mo_by_ticker.get(symbol)
+            if not daily_series or len(daily_series) < MIN_DAILY_BARS_FOR_BLEND:
+                return None
+            return _regression_momentum([b["close"] for b in daily_series], TRADING_DAYS_PER_YEAR)
+
+        def hourly_mean_reversion(symbol):
+            hourly_series = hourly_by_ticker.get(symbol)
+            if not hourly_series or len(hourly_series) < MIN_HOURLY_BARS_FOR_BLEND:
+                return None
+            return _regression_momentum([b["close"] for b in hourly_series], TRADING_HOURS_PER_YEAR)
+
+        momentum = {}
+        for symbol in tickers:
+            ib_mom = ib_daily_momentum(symbol)
+            reversion = hourly_mean_reversion(symbol)
+            if ib_mom is not None:
+                momentum[symbol] = {"momentum": ib_mom, "mean_reversion": reversion}
+                continue
+            cached = yfinance_history_by_ticker.get(symbol)
+            closes = [b["close"] for b in cached] if cached else []
+            mom = _regression_momentum(closes) if len(closes) >= 5 else None
+            momentum[symbol] = {"momentum": mom, "mean_reversion": reversion}
 
         return momentum

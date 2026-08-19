@@ -47,3 +47,23 @@ export function targetClass(target, lastPrice) {
   if (target < lastPrice) return 'bad'
   return ''
 }
+
+// Daily-timeframe (LT) momentum -- positive/green, negative/red, same
+// "high is better" direction scoring.py's momentum_rank scores it by.
+export function momentumClass(v) {
+  if (typeof v !== 'number') return ''
+  if (v > 0) return 'good'
+  if (v < 0) return 'bad'
+  return ''
+}
+
+// Hourly-timeframe (ST) mean reversion -- the mirror of momentumClass:
+// negative/green, positive/red, same "low is better" direction
+// scoring.py's mean_reversion_rank scores it by (a stock already
+// trending up hard on the hour is one being chased, not caught early).
+export function meanReversionClass(v) {
+  if (typeof v !== 'number') return ''
+  if (v < 0) return 'good'
+  if (v > 0) return 'bad'
+  return ''
+}

@@ -13,9 +13,17 @@ are a separate, narrower read (days, not the sentiment blend's ~month) so a
 ticker whose news/insider activity just turned can be surfaced with a "why
 now" even if its steady-state score hasn't moved yet.
 
+Also carries shortPctOfFloatFinra (via scoring.load_short_interest_scores,
+reading finra.SHORT_INTEREST_FILE + raw_data.json's floatShares) alongside
+the older, staler yfinance shortPercentOfFloat column already on
+sorted_screen.csv -- RecommendationsView.tsx's crowded-short gate (a short
+already >20% of float shorted isn't presented as a new short idea, squeeze
+risk) prefers the FINRA figure and falls back to the yfinance one only for
+a ticker FINRA doesn't report.
+
 Deliberately does NOT decide the final 5 buys / 5 sells itself -- that needs
 to know which tickers are currently held, and (like Positions/Sectors/Themes/
-News) this app reads live positions client-side from ib_price_server.py's
+News) this app reads live positions client-side from ib_server.py's
 SSE stream, not from a file this script could read. RecommendationsView.jsx
 does that split: Buy candidates are non-held Strong Buy/Buy rows (new-idea
 scope only, per user's explicit choice); Sell candidates are held Sell/
@@ -26,6 +34,8 @@ import csv
 import json
 import os
 from datetime import datetime, timedelta
+
+from scoring import load_short_interest_scores
 
 RECENT_NEWS_DAYS = 7
 RECENT_INSIDER_DAYS = 90
@@ -97,7 +107,9 @@ def _recent_insider_counts(form4_file, tickers, now, days):
     return counts
 
 
-def build_recommendations(sorted_screen_csv, news_file, form4_file, institutional_holdings_file, ratings, now=None):
+def build_recommendations(
+    sorted_screen_csv, news_file, form4_file, institutional_holdings_file, short_interest_file, raw_data_file, ratings, now=None
+):
     """Returns the dict written to recommendations.json (see module
     docstring). `ratings` is the set of `rating` column values to include --
     pass main.RATED_FOR_EXTRAS. `now` is injectable for tests; defaults to
@@ -133,6 +145,7 @@ def build_recommendations(sorted_screen_csv, news_file, form4_file, institutiona
     news_counts = _recent_news_counts(news_file, tickers, now, RECENT_NEWS_DAYS)
     insider_counts = _recent_insider_counts(form4_file, tickers, now, RECENT_INSIDER_DAYS)
     institutional = _load_json_or_empty(institutional_holdings_file)
+    short_interest = load_short_interest_scores(short_interest_file, raw_data_file)
 
     def to_float(value):
         try:
@@ -157,6 +170,13 @@ def build_recommendations(sorted_screen_csv, news_file, form4_file, institutiona
                 "momentum": to_float(row.get("momentum")),
                 "beta": to_float(row.get("beta")),
                 "shortPercentOfFloat": to_float(row.get("shortPercentOfFloat")),
+                # FINRA's biweekly-settlement pct-of-float (see
+                # scoring.load_short_interest_scores) -- fresher than the
+                # yfinance field above, which only ever reflects the
+                # month-end settlement. Preferred by the crowded-short gate
+                # in RecommendationsView.tsx when present; shortPercentOfFloat
+                # stays as the fallback for a ticker FINRA doesn't report.
+                "shortPctOfFloatFinra": short_interest.get(ticker, {}).get("pctOfFloat"),
                 "targetMeanPrice": to_float(row.get("targetMeanPrice")),
                 "targetUpside": to_float(row.get("targetUpside")),
                 "recommendationMean": to_float(row.get("recommendationMean")),
@@ -170,8 +190,19 @@ def build_recommendations(sorted_screen_csv, news_file, form4_file, institutiona
     return {"generatedAt": now.isoformat(), "candidates": candidates}
 
 
-def write_recommendations(sorted_screen_csv, news_file, form4_file, institutional_holdings_file, ratings, out_file=OUT_FILE):
-    result = build_recommendations(sorted_screen_csv, news_file, form4_file, institutional_holdings_file, ratings)
+def write_recommendations(
+    sorted_screen_csv,
+    news_file,
+    form4_file,
+    institutional_holdings_file,
+    short_interest_file,
+    raw_data_file,
+    ratings,
+    out_file=OUT_FILE,
+):
+    result = build_recommendations(
+        sorted_screen_csv, news_file, form4_file, institutional_holdings_file, short_interest_file, raw_data_file, ratings
+    )
     with open(out_file, "w") as f:
         json.dump(result, f, indent=2)
     print(f"Wrote {len(result['candidates'])} candidate(s) to {out_file}")

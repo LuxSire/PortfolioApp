@@ -8,7 +8,7 @@
 # Zero network calls, zero IB Gateway connection -- see recommendations.py's
 # own docstring, same "just recompute from files already on disk" class of
 # operation as `main.py rescore`. Safe to run on an unattended timer: no
-# clientId collision risk with ib_price_server.py's own IB Gateway
+# clientId collision risk with ib_server.py's own IB Gateway
 # connection, unlike main.py modes that fetch fresh data (all/prices/
 # form4/13f/themes).
 #

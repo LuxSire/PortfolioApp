@@ -1,5 +1,5 @@
 // Types for PortfolioView.tsx (the Portfolio tab) — one day's row from
-// data/portfolio_performance.json (see ib_price_server.py's
+// data/portfolio_performance.json (see ib_server.py's
 // fetch_account_performance / _parse_portfolio_csv), and the file's own
 // top-level shape. Also used by NavChart.jsx/ExposureChart.jsx/
 // MonthlyReturnsTable.jsx (still plain JS, so untyped at their own

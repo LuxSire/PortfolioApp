@@ -1744,6 +1744,49 @@ td.col-rec {
   margin-bottom: 28px;
 }
 
+/* Sub-tab bar over To close/Long/Short/Long blocked/Short blocked -- see
+   RecommendationsView.tsx's activeSection. Only the active section
+   actually mounts (not just CSS-hidden), so this is what keeps the page
+   from mounting all five card grids (each potentially 50-150+ cards) at
+   once, confirmed slow before this. Visually similar to the top-level
+   .tab-bar/.tab-btn app nav but kept as its own class -- this is a
+   sub-nav within one page, not a second copy of the primary nav. */
+.recommendation-tabs {
+  display: flex;
+  gap: 18px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 20px;
+}
+
+.recommendation-tab-btn {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 0 2px 10px;
+  cursor: pointer;
+}
+
+.recommendation-tab-btn:hover {
+  color: var(--ink);
+}
+
+.recommendation-tab-btn.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.recommendation-tab-count {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted);
+}
+
 /* A thicker divider between Long/Short/To close -- the adjacent-sibling
    selector skips the first section (nothing above it to separate from),
    and applies to every section after it, so Short gets a clear break from
@@ -1895,6 +1938,16 @@ td.col-rec {
   font-weight: 700;
 }
 
+/* RecommendationsView.tsx's SignalIcon -- sits right after the ticker
+   symbol (explicit instruction: after the symbol, not in the price row
+   below it, and slightly bigger than the plain price-cell reading it used
+   to have). vertical-align lines it up against the ticker's own baseline
+   rather than the icon's native top alignment. */
+.recommendation-signal-icon {
+  margin-left: 5px;
+  vertical-align: -2px;
+}
+
 .recommendation-name {
   display: block;
   font-size: 12px;
@@ -2003,6 +2056,29 @@ td.col-rec {
   margin-bottom: 2px;
 }
 
+/* Bottom-right corner of every recommendation card -- see
+   PercentileBadge in RecommendationsView.tsx. Right-aligned regardless
+   of how much rationale/close-reason text sits above it, and pinned to
+   the card's actual bottom edge (margin-top: auto, relying on
+   .recommendation-card already being a flex column) rather than just
+   trailing whatever content happens to precede it -- so every card in a
+   grid row lines its badge up at the same height even when one card's
+   rationale/reason list is much longer than its row-mates' (the grid
+   itself stretches every card to the row's tallest one by default). */
+.recommendation-card-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: auto;
+  padding-top: 10px;
+}
+
+.recommendation-percentile-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: 0.02em;
+}
+
 .score-cell {
   display: flex;
   align-items: center;
@@ -2044,13 +2120,25 @@ td.col-rec {
   color: var(--muted);
 }
 
-/* RecommendationsView.tsx's PriceStat -- today's live move working
+/* RecommendationsView.tsx's SignalIcon -- today's live move working
    against this card's own side (a Long card down, or a Short card up).
    --warn (not --bad) deliberately: this is a "notice this" flag on an
    idea/existing position, not itself a loss figure -- .live-price.perf-neg
    right next to it already carries the actual red down-move. */
 .price-warn-icon {
   color: var(--warn);
+  flex-shrink: 0;
+  align-self: center;
+}
+
+/* Escalation of .price-warn-icon above -- same adverse move, but past
+   FAVORABLE_MOVE_THRESHOLD (5%) against the position, not merely adverse
+   at all. --orange (already used elsewhere in this app for an
+   "escalated, needs attention soon" state, e.g. the earnings-timing
+   badge) rather than --bad/red: still a "notice this" flag, not itself a
+   loss figure, just a louder one than the plain warning. */
+.price-severe-warn-icon {
+  color: var(--orange);
   flex-shrink: 0;
   align-self: center;
 }
@@ -2067,8 +2155,27 @@ td.col-rec {
   align-self: center;
 }
 
+/* RecommendationsView.tsx's PriceStat -- whether the "yesterday" close
+   the day's %-move is computed against is actually current (see
+   previousCloseInfo/mostRecentCompletedTradingDay). Explicit instruction
+   after PUMP showed a positive move while actually down that day: yfinance
+   and IB can both be missing the most recent trading day's bar, silently
+   turning "vs. yesterday" into "vs. several days ago" -- this flag makes
+   that visible on the card itself instead of only in the Dataset tab. */
+.price-fresh-flag {
+  color: var(--good);
+  flex-shrink: 0;
+  align-self: center;
+}
+
+.price-stale-flag {
+  color: var(--bad);
+  flex-shrink: 0;
+  align-self: center;
+}
+
 /* IB Gateway live snapshot, shown next to the sorted_screen.csv price for
-   the top LIVE_PRICE_TOP_N rows — see ib_price_server.py. */
+   the top LIVE_PRICE_TOP_N rows — see ib_server.py. */
 .live-price {
   font-size: 15px;
   font-weight: 700;
@@ -2259,6 +2366,17 @@ footer.note {
   font-style: italic;
 }
 
+/* DatasetView.tsx -- the file was written recently (mtime), but its most
+   recent price bar (excluding today's own, possibly-still-forming one)
+   is older than the last completed trading day. Same --orange escalation
+   token RecommendationsView.tsx's own severe-adverse-move icon uses --
+   a "needs attention" flag, not itself a loss/error figure. */
+.dataset-stale-icon {
+  color: var(--orange);
+  margin-left: 5px;
+  vertical-align: -2px;
+}
+
 .dataset-notes {
   margin-top: 2px;
   font-size: 11px;
@@ -2268,6 +2386,146 @@ footer.note {
 
 .dataset-label {
   white-space: nowrap;
+}
+
+.dataset-run-error {
+  margin-left: 10px;
+  font-size: 12px;
+  color: var(--bad);
+}
+
+/* One Run button per row -- green by default (same --good token the
+   rest of the app uses for a positive reading), turning grey/disabled
+   for every row the instant any job starts, not just its own row's --
+   a single global job (see DatasetView.tsx's jobRunning), so a click
+   anywhere disables every button everywhere until that job finishes. */
+.dataset-run-btn {
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--good);
+  background: var(--surface);
+  color: var(--good);
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.dataset-run-btn:hover:not(:disabled) {
+  background: var(--good);
+  color: var(--surface);
+}
+
+.dataset-run-btn:disabled {
+  opacity: 0.45;
+  color: var(--muted);
+  border-color: var(--line);
+  cursor: not-allowed;
+}
+
+/* Run button's log panel -- a full-width row inserted right under
+   whichever row is currently (or most recently) running, see
+   DatasetView.tsx. Dark, monospace, terminal-like regardless of the
+   app's own light/dark theme -- a log is conventionally dark, and
+   staying dark in both themes avoids a jarring flash of white text-on-
+   white background reading like an error. */
+.dataset-log-row td {
+  padding: 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.dataset-log {
+  margin: 8px 0;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  overflow: hidden;
+}
+
+.dataset-log-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--line);
+  font-size: 11px;
+}
+
+.dataset-log-status {
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.dataset-log-status-running {
+  color: var(--focus);
+}
+
+.dataset-log-status-done {
+  color: var(--good);
+}
+
+.dataset-log-status-error {
+  color: var(--bad);
+}
+
+.dataset-log-returncode {
+  color: var(--muted);
+}
+
+.dataset-log-close {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.dataset-log-close:hover {
+  color: var(--ink);
+}
+
+.dataset-log-body {
+  margin: 0;
+  padding: 10px 12px;
+  max-height: 320px;
+  overflow-y: auto;
+  background: #14171c;
+  color: #d7dbe3;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 11.5px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Scoring tab -- see ScoringView.tsx. */
+tfoot td {
+  padding: 8px 12px;
+  text-align: right;
+  font-weight: 600;
+  border-top: 2px solid var(--line);
+}
+
+tfoot td.col-left {
+  text-align: left;
+}
+
+/* A factor whose weight differs between the standard and Bank Score
+   formulas (see scoring.py's FACTOR_WEIGHTS -- pe/sector_pe/eps_trend/
+   growth go up, fcf/ev_ebitda/debt/liquidity go to zero) -- the row
+   itself gets a faint highlight and the changed cell its own accent
+   color, so the redistribution is visible at a glance rather than
+   requiring a side-by-side read of every row. */
+.scoring-row-changed td {
+  background: var(--surface-2);
+}
+
+.scoring-weight-changed {
+  color: var(--focus);
+  font-weight: 600;
 }
 
 /* Holders tab -- see HoldersView.jsx. */

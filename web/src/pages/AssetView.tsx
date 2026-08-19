@@ -1,9 +1,11 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { belowOneClass, inversePctThresholdClass, rangeClass, targetClass } from '../colorRules'
+import { belowOneClass, inversePctThresholdClass, meanReversionClass, momentumClass, rangeClass, targetClass } from '../colorRules'
+import { parseCSV } from '../csv'
 import { earningsUrgencyClass, fmtEarningsDate, useNowTick } from '../earnings'
 import { IB_NEWS_ARTICLE_URL, IB_NEWS_URL } from '../ibStream'
 import type { AssetInfo, CandlePoint, Holder, NewsArticle, PricePoint } from '../interfaces/IAssetView'
 import { SENTIMENT_LABEL, fmtNewsTime, sentimentClass } from '../news'
+import { fmtIndex100, toNum } from '../screenerFactors'
 import CandlestickChart from '../components/CandlestickChart'
 import PriceChart from '../components/PriceChart'
 
@@ -118,7 +120,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 
 // Fetches url (a {ticker: T} JSON file) and returns this ticker's entry,
 // or null while loading/missing/not covering this ticker. A missing file
-// (e.g. ib_price_server.py hasn't finished its candlestick fetch yet, or
+// (e.g. ib_server.py hasn't finished its candlestick fetch yet, or
 // the 13F holders fetch hasn't been run) is treated the same as "no data
 // for this ticker" — best-effort, never blocks or errors out the rest of
 // the page.
@@ -248,7 +250,7 @@ function NewsItem({ ticker, article }: { ticker: string; article: NewsArticle })
 }
 
 // articles: [{articleId, time, provider, headline, sentiment}, ...] from
-// GET /api/news (ib_price_server.py) — best-effort live overlay, same
+// GET /api/news (ib_server.py) — best-effort live overlay, same
 // contract as useTickerSeries' other callers (missing server/no news for
 // this ticker just means this card doesn't render, not a load error).
 function NewsPanel({ ticker, articles }: { ticker: string; articles: NewsArticle[] }) {
@@ -348,10 +350,39 @@ export default function AssetView({ ticker }: { ticker: string }) {
   const hourlyHistory = useTickerSeries<CandlePoint[]>('/price_history_hourly.json', ticker)
   const dailyHistory3mo = useTickerSeries<CandlePoint[]>('/price_history_daily_3mo.json', ticker)
   const holders = useTickerSeries<Holder[]>('/sec/13f/institutional_holders.json', ticker)
-  // Live from ib_price_server.py (GET /api/news), not a static build
+  // Live from ib_server.py (GET /api/news), not a static build
   // artifact — same best-effort contract as the series above, just a
   // different (absolute, cross-origin) URL.
   const news = useTickerSeries<NewsArticle[]>(IB_NEWS_URL, ticker)
+
+  // momentum/meanReversion (see scoring.py's momentum_rank/
+  // mean_reversion_rank) only live in sorted_screen.csv, not
+  // raw_data.json's yfinance payload -- a separate CSV fetch, same
+  // best-effort "missing just means missing" contract as the JSON
+  // series above via useTickerSeries, just not that hook since this
+  // file is CSV, not a {ticker: T} JSON map.
+  const [momentum, setMomentum] = useState<{ ticker: string | null; momentum: number | null; meanReversion: number | null }>({
+    ticker: null,
+    momentum: null,
+    meanReversion: null,
+  })
+  useEffect(() => {
+    let cancelled = false
+    fetch('/sorted_screen.csv')
+      .then((r) => (r.ok ? r.text() : ''))
+      .then((text) => {
+        if (cancelled) return
+        const row = parseCSV(text).find((r) => r.ticker === ticker)
+        setMomentum({ ticker, momentum: toNum(row?.momentum), meanReversion: toNum(row?.meanReversion) })
+      })
+      .catch(() => {
+        if (!cancelled) setMomentum({ ticker, momentum: null, meanReversion: null })
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [ticker])
+  const { momentum: ltMomentum, meanReversion: stMomentum } = momentum.ticker === ticker ? momentum : { momentum: null, meanReversion: null }
 
   const { info, error } = result.ticker === ticker ? result : { info: null, error: null }
   const loaded = !error && info && info !== 'notfound'
@@ -564,6 +595,11 @@ export default function AssetView({ ticker }: { ticker: string }) {
             />
             <Stat label="Analyst Opinions" value={fmtValue(info.numberOfAnalystOpinions)} />
             <Stat label="Avg Analyst Rating" value={(info.averageAnalystRating as string) || '—'} />
+          </Section>
+
+          <Section title="Momentum">
+            <Stat label="LT Momentum" value={fmtIndex100(ltMomentum)} valueClass={momentumClass(ltMomentum)} />
+            <Stat label="ST Momentum" value={fmtIndex100(stMomentum)} valueClass={meanReversionClass(stMomentum)} />
           </Section>
         </>
       )}

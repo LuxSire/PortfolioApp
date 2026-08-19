@@ -37,7 +37,7 @@ function ChatExchange({ exchange }) {
 // over this project's own data: screener scores/ratings, the
 // Recommendations candidate pool, news+sentiment, insider Form 4 activity,
 // 13F institutional holdings, theme tags, business descriptions, and live
-// positions/prices/account status. ib_price_server.py's /api/chat keeps no
+// positions/prices/account status. ib_server.py's /api/chat keeps no
 // server-side session -- prior exchanges are resent as `history` on every
 // new request, same "client holds the state, server is stateless per
 // request" convention this app already uses everywhere else (no session
@@ -86,7 +86,7 @@ export default function RecommendationsChatbot() {
               ? {
                   ...ex,
                   loading: false,
-                  error: `Couldn't reach the chatbot — is Ollama running and ib_price_server.py serving /api/chat? (${e.message})`,
+                  error: `Couldn't reach the chatbot — is Ollama running and ib_server.py serving /api/chat? (${e.message})`,
                 }
               : ex
           )

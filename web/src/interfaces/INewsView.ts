@@ -1,6 +1,6 @@
 // Types for NewsView.tsx (the News tab).
 
-// One headline from GET /api/news (ib_price_server.py's _news_snapshot).
+// One headline from GET /api/news (ib_server.py's _news_snapshot).
 export interface Article {
   articleId: string
   time: string

@@ -7,7 +7,7 @@ import type { Article, ArticlesByTicker, FlatArticle, PositionsByTicker } from '
 const PAGE_SIZE = 100
 
 // Flattens {ticker: [article, ...]} (GET /api/news, newest first per
-// ticker -- see ib_price_server.py's _news_snapshot) into one flat
+// ticker -- see ib_server.py's _news_snapshot) into one flat
 // [{ticker, articleId, time, provider, headline, sentiment}, ...] list
 // across every ticker, re-sorted newest first globally -- per-ticker
 // order alone doesn't give one combined chronological order across
@@ -95,7 +95,7 @@ function NewsRow({ article }: { article: FlatArticle }) {
   )
 }
 
-// Every scored headline currently cached by ib_price_server.py's news_loop
+// Every scored headline currently cached by ib_server.py's news_loop
 // (same rolling NEWS_WINDOW_DAYS window as news.json/news_sentiment.json,
 // now 1 month — see _prune_and_write_news), across the whole screener
 // universe, newest first, paginated the same way PeTable.jsx paginates the
@@ -218,7 +218,7 @@ export default function NewsView() {
       )}
 
       {error && (
-        <div className="asset-card">Couldn't load news — is ib_price_server.py running? ({error})</div>
+        <div className="asset-card">Couldn't load news — is ib_server.py running? ({error})</div>
       )}
       {!error && rows === null && <div className="asset-card">Loading…</div>}
       {!error && rows && rows.length === 0 && <div className="asset-card">No news available.</div>}

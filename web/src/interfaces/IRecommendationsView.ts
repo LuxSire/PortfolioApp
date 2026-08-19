@@ -43,6 +43,12 @@ export interface Candidate {
   price?: number | null
   beta?: number | null
   shortPercentOfFloat?: number | null
+  // FINRA's biweekly-settlement pct-of-float (see recommendations.py) --
+  // fresher than shortPercentOfFloat above, which only ever reflects
+  // yfinance's month-end settlement. The crowded-short gate prefers this
+  // and falls back to shortPercentOfFloat only when FINRA doesn't report
+  // the ticker (thinly shorted, or delisted/renamed since).
+  shortPctOfFloatFinra?: number | null
   revenueGrowth?: number | null
   epsRevision0y?: number | null
   epsRevision1y?: number | null
@@ -107,7 +113,7 @@ export interface RejectedRow extends Candidate {
 }
 
 // IB Gateway's live EventSource tick for one ticker (see
-// ib_price_server.py) -- only the two fields PriceStat actually reads.
+// ib_server.py) -- only the two fields PriceStat actually reads.
 export interface LiveTick {
   last?: number
   timestamp?: string

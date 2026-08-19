@@ -181,7 +181,7 @@ export default function FactsheetView() {
       .catch(() => {})
   }, [])
 
-  // Live positions/prices from ib_price_server.py's own stream -- the same
+  // Live positions/prices from ib_server.py's own stream -- the same
   // EventSource PositionsView.tsx/ScreenerView.tsx already subscribe to,
   // just for the Top 6 Long Positions / Sector Exposure cards below rather
   // than a full live blotter. If that server isn't running, this just
@@ -315,7 +315,7 @@ export default function FactsheetView() {
           <img src={logo} alt="Lux Asset Management" className="factsheet-logo" />
         </header>
 
-        {error && <p className="status-row">Couldn't load portfolio_performance.json — run: python ib_price_server.py performance</p>}
+        {error && <p className="status-row">Couldn't load portfolio_performance.json — run: python ib_server.py performance</p>}
         {!error && !data && <p className="status-row">Loading…</p>}
 
         {rows && rows.length > 0 && (
@@ -403,7 +403,7 @@ export default function FactsheetView() {
                     <tbody>
                       {topLongPositions.length === 0 && (
                         <tr className="status-row">
-                          <td colSpan={3}>No long positions currently held (or ib_price_server.py's stream isn't running).</td>
+                          <td colSpan={3}>No long positions currently held (or ib_server.py's stream isn't running).</td>
                         </tr>
                       )}
                       {topLongPositions.map((p) => (
@@ -443,7 +443,7 @@ export default function FactsheetView() {
                 <tbody>
                   {sectorExposure.length === 0 && (
                     <tr className="status-row">
-                      <td colSpan={2}>No positions currently held (or ib_price_server.py's stream isn't running).</td>
+                      <td colSpan={2}>No positions currently held (or ib_server.py's stream isn't running).</td>
                     </tr>
                   )}
                   {sectorExposure.map((s) => (

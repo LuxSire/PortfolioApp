@@ -27,7 +27,7 @@ model directly when asked.
 
 Standalone module, own file reads (no import from main.py/scoring.py) --
 same arm's-length convention sec_edgar.py/social_sentiment.py already use,
-so ib_price_server.py (which imports this lazily, see its /api/chat
+so ib_server.py (which imports this lazily, see its /api/chat
 handler) never risks a circular import back into itself.
 
 Known scope boundary: the Recommendations tab's own Long/Short/To-close
@@ -291,7 +291,7 @@ def get_price_history(ticker: str, days: int = 30) -> str:
 
 def _make_live_tools(live_state):
     """Builds list_positions/get_account_summary closing over a snapshot of
-    ib_price_server.py's own in-memory state (positions_by_ticker,
+    ib_server.py's own in-memory state (positions_by_ticker,
     last_price_by_ticker, account_status), taken under its lock right
     before this call -- see answer_question. Fresh tools per call (agent
     construction is cheap; the model itself is the already-running Ollama
@@ -312,7 +312,7 @@ def _make_live_tools(live_state):
         one call."""
         rows = [(t, p) for t, p in positions.items() if p.get("shares")]
         if not rows:
-            return "No open positions (or ib_price_server.py isn't connected to IB Gateway)."
+            return "No open positions (or ib_server.py isn't connected to IB Gateway)."
         lines = []
         for ticker, p in sorted(rows):
             shares = p["shares"]
@@ -330,7 +330,7 @@ def _make_live_tools(live_state):
         liquidation value, buying power, and similar account status
         tags."""
         if not account:
-            return "No account data available (ib_price_server.py isn't connected to IB Gateway)."
+            return "No account data available (ib_server.py isn't connected to IB Gateway)."
         return "\n".join(f"{k}: {v}" for k, v in account.items())
 
     @tool
@@ -361,14 +361,14 @@ def _make_live_tools(live_state):
 def answer_question(question, history=None, live_state=None):
     """Runs one turn of the chatbot. `history` is a list of
     {"role": "user" | "assistant", "content": str} from prior turns in
-    this conversation -- the caller (ib_price_server.py's /api/chat
+    this conversation -- the caller (ib_server.py's /api/chat
     handler) keeps no server-side session, the frontend resends the whole
     history each turn, same stateless-per-request convention every other
     endpoint in this app already follows. `live_state` is
     {"positions": ..., "prices": ..., "account": ...}, a snapshot of
-    ib_price_server.py's own in-memory state at call time; None/omitted
+    ib_server.py's own in-memory state at call time; None/omitted
     just means the live-data tools report no data, same as
-    ib_price_server.py not being connected to IB Gateway."""
+    ib_server.py not being connected to IB Gateway."""
     tools = [
         search_screener,
         get_recommendations,

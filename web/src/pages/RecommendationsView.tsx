@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
-import { AlertTriangle, Info, Search, ThumbsUp } from 'lucide-react'
+import { AlertTriangle, Flag, Info, Search, ThumbsUp } from 'lucide-react'
 import { parseCSV } from '../csv'
 import { businessMillisBetween, fmtEarningsDate, useNowTick } from '../earnings'
 import { IB_STREAM_URL } from '../ibStream'
@@ -38,7 +38,7 @@ const SELL_RATINGS = new Set(['Sell', 'Strong Sell'])
 
 // The last close strictly before today, comparing BOTH bar series --
 // price_history_daily_3mo.json (IB Gateway's own history, fetched once
-// at ib_price_server.py STARTUP only, so it silently goes stale the
+// at ib_server.py STARTUP only, so it silently goes stale the
 // longer the server runs without a restart) and price_history.json
 // (yfinance, refreshed daily via main.py) -- and using whichever one's
 // own most recent pre-today entry is actually the NEWER of the two, not
@@ -53,10 +53,13 @@ const SELL_RATINGS = new Set(['Sell', 'Strong Sell'])
 // PeTable.jsx/PositionsView.jsx's own previousClose (duplicated locally
 // there too, not shared -- this project's convention for this
 // particular helper).
-function previousClose(
+// {date, close} of the bar previousClose() below actually resolves to --
+// pulled out on its own so PreviousCloseFlag can check the DATE without
+// duplicating this lookup a third time in this file.
+function previousCloseInfo(
   dailyHistory3mo: { date: string; close: number }[] | undefined,
   monthlyHistory: { date: string; close: number }[] | undefined
-): number | null {
+): { date: string; close: number } | null {
   const lastBarBeforeToday = (series: { date: string; close: number }[] | undefined) => {
     if (!series || series.length === 0) return null
     const today = new Date().toISOString().slice(0, 10)
@@ -66,10 +69,32 @@ function previousClose(
     }
     return null
   }
-  const fromDaily = lastBarBeforeToday(dailyHistory3mo)
-  const fromMonthly = lastBarBeforeToday(monthlyHistory)
-  if (fromDaily && fromMonthly) return fromDaily.date >= fromMonthly.date ? fromDaily.close : fromMonthly.close
-  return (fromDaily ?? fromMonthly)?.close ?? null
+  // IB Gateway's own daily bars are the primary source; yfinance's
+  // monthly series is only a fallback for a ticker IB doesn't cover at
+  // all -- explicit instruction: the two stay genuinely separate series,
+  // IB always used when it has anything, never picked against just
+  // because yfinance happens to have a fresher date.
+  return lastBarBeforeToday(dailyHistory3mo) ?? lastBarBeforeToday(monthlyHistory)
+}
+
+function previousClose(
+  dailyHistory3mo: { date: string; close: number }[] | undefined,
+  monthlyHistory: { date: string; close: number }[] | undefined
+): number | null {
+  return previousCloseInfo(dailyHistory3mo, monthlyHistory)?.close ?? null
+}
+
+// Mirrors scoring.py's own most_recent_completed_trading_day() exactly --
+// yesterday, rolled back over the weekend. Not a real market-holiday
+// calendar, same "good enough, don't over-engineer it" spirit as that
+// function's own docstring -- see PreviousCloseFlag for what this drives.
+function mostRecentCompletedTradingDay(): string {
+  const d = new Date()
+  d.setDate(d.getDate() - 1)
+  while (d.getDay() === 0 || d.getDay() === 6) {
+    d.setDate(d.getDate() - 1)
+  }
+  return d.toISOString().slice(0, 10)
 }
 
 function fmtPctAbs(v: number): string {
@@ -80,7 +105,7 @@ function fmtShares(shares: number): string {
   return `${Math.abs(shares).toLocaleString()} sh (${shares > 0 ? 'long' : 'short'})`
 }
 
-// live.timestamp (ib_price_server.py's SSE tick, see PriceStat below) is a
+// live.timestamp (ib_server.py's SSE tick, see PriceStat below) is a
 // naive local-time ISO string (datetime.now().isoformat()) -- how long ago
 // that snapshot was taken is more useful in a hover tooltip than the raw
 // clock time, since what actually matters here is "how stale is this
@@ -109,6 +134,26 @@ function percentileLabel(c: Candidate): string | null {
   return c.scorePercentile <= 50
     ? `Top ${c.scorePercentile.toFixed(1)}% of the ranked universe`
     : `Bottom ${(100 - c.scorePercentile).toFixed(1)}% of the ranked universe`
+}
+
+// Bottom-right corner badge on every card (RecommendationCard/CloseCard/
+// RejectedCard) -- the screener percentile used to only show up buried as
+// the first line of the rationale bullet list (RecommendationCard/
+// CloseCard only, not RejectedCard at all, which has no rationale list),
+// so it took reading past the header to see where a ticker actually sits
+// in sorted_screen.csv. title carries the same full "Top/Bottom X% of the
+// ranked universe" sentence percentileLabel already writes; the badge
+// itself just shows the bare number, compact enough for a corner.
+function PercentileBadge({ c }: { c: Candidate }) {
+  if (c.scorePercentile === null || c.scorePercentile === undefined) return null
+  const label = percentileLabel(c)
+  return (
+    <div className="recommendation-card-footer">
+      <span className="recommendation-percentile-badge" title={label ?? undefined}>
+        {c.scorePercentile.toFixed(1)}%
+      </span>
+    </div>
+  )
 }
 
 // momentum is IBApp's Sharpe-style regression-slope score (trend divided by
@@ -143,7 +188,18 @@ function meanReversionLine(c: Candidate): string | null {
 function epsTrendLine(c: Candidate): string | null {
   const epsTrend = epsTrendValue(c)
   if (epsTrend === null) return null
-  return `Analyst EPS estimate trend (30d) ${fmtPct(epsTrend)} (${epsTrend > 0 ? 'raised' : epsTrend < 0 ? 'cut' : 'flat'})`
+  return `EPS est trend ${fmtPct(epsTrend)} (${epsTrend > 0 ? 'raised' : epsTrend < 0 ? 'cut' : 'flat'})`
+}
+
+// effectiveShortPctOfFloat (defined below, alongside notCrowded) prefers
+// FINRA's fresher biweekly figure over yfinance's stale month-end one --
+// shown on every card with data, not just when it crosses MAX_SHORT_INTEREST,
+// since it's a contrarian scoring input either way (see short_interest_rank),
+// not only a risk flag on the Short side.
+function shortInterestLine(c: Candidate): string | null {
+  const pct = effectiveShortPctOfFloat(c)
+  if (pct === null || pct === undefined) return null
+  return `Short interest ${fmtPctAbs(pct)} of float`
 }
 
 // Builds a matcher for the sector/theme hedge preference: given the
@@ -202,8 +258,9 @@ function oppositeMatchLine(match: OppositeMatch | null, oppositeSideLabel: strin
 // company name), so a card's rationale only ever lists real signal.
 function rationaleLines(c: Candidate & { oppositeMatchLine?: string | null }): string[] {
   const lines: string[] = []
-  const pct = percentileLabel(c)
-  if (pct) lines.push(pct)
+  // percentileLabel is shown as its own PercentileBadge in the card's
+  // bottom-right corner instead of buried as a bullet here -- see that
+  // component's own comment.
 
   const momentum = momentumLine(c)
   if (momentum) lines.push(momentum)
@@ -213,6 +270,9 @@ function rationaleLines(c: Candidate & { oppositeMatchLine?: string | null }): s
 
   const epsTrend = epsTrendLine(c)
   if (epsTrend) lines.push(epsTrend)
+
+  const shortInterest = shortInterestLine(c)
+  if (shortInterest) lines.push(shortInterest)
 
   if (c.oppositeMatchLine) lines.push(c.oppositeMatchLine)
 
@@ -240,25 +300,117 @@ function rationaleLines(c: Candidate & { oppositeMatchLine?: string | null }): s
 
   if (c.targetUpside !== null && c.targetUpside !== undefined) {
     const analysts = c.numberOfAnalystOpinions ? Math.round(c.numberOfAnalystOpinions) : null
-    lines.push(`Analyst target upside ${fmtPct(c.targetUpside)}${analysts ? ` (${analysts} analysts)` : ''}`)
+    lines.push(`Target upside ${fmtPct(c.targetUpside)}${analysts ? ` (${analysts} analysts)` : ''}`)
   }
 
   return lines
 }
 
-// Live price (ib_price_server.py's SSE stream, same as every other tab)
+// Live price (ib_server.py's SSE stream, same as every other tab)
 // with a same-shape daily-%-change badge as PeTable.jsx's Price column --
 // current price vs. previousClose(dailyHistory3mo, monthlyHistory) (see
 // that function for how it picks the fresher of the two history
 // sources), falling back to recommendations.json's own (scoring-time)
 // price if neither history source covers this ticker yet. `live` can be
-// undefined (ib_price_server.py not running, or hasn't
+// undefined (ib_server.py not running, or hasn't
 // snapshotted this ticker yet) -- price/badge both degrade gracefully to
 // the static price with no badge at all.
 // How far today's move has to run in the position's own favor before
 // PriceStat's thumbs-up shows -- a directional hit, not just "not
 // adverse" (that's the warning triangle's own, much looser bar).
 const FAVORABLE_MOVE_THRESHOLD = 0.05
+
+// Shared by PriceStat (today's price/%-change badge) and SignalIcon (the
+// warning-triangle/thumbs-up glyph next to the ticker) so both read off the
+// exact same adverse/favorable determination rather than risking the two
+// drifting apart.
+function computeMoveSignal(
+  c: Candidate,
+  live: LiveTick | undefined,
+  dailyHistory3mo: HistoryByTicker,
+  monthlyHistory: HistoryByTicker,
+  side: 'Long' | 'Short' | undefined,
+  held: boolean | undefined
+) {
+  const referencePrice = previousClose(dailyHistory3mo[c.ticker], monthlyHistory[c.ticker]) ?? c.price ?? null
+  const currentPrice = live?.last ?? c.price ?? null
+  const changeRatio = live?.last != null && referencePrice ? live.last / referencePrice - 1 : null
+  const adverse = side !== undefined && changeRatio !== null && (side === 'Long' ? changeRatio < 0 : changeRatio > 0)
+  // Same FAVORABLE_MOVE_THRESHOLD magnitude as `favorable` below, mirrored
+  // onto the adverse side -- explicit instruction: the warning icon turns
+  // --orange (a step up from the plain --warn every adverse move already
+  // gets) once today's move against the position passes 5%, not merely
+  // negative-at-all for a long / positive-at-all for a short.
+  const severelyAdverse =
+    side !== undefined &&
+    changeRatio !== null &&
+    (side === 'Long' ? changeRatio < -FAVORABLE_MOVE_THRESHOLD : changeRatio > FAVORABLE_MOVE_THRESHOLD)
+  const favorable =
+    held &&
+    side !== undefined &&
+    changeRatio !== null &&
+    (side === 'Long' ? changeRatio > FAVORABLE_MOVE_THRESHOLD : changeRatio < -FAVORABLE_MOVE_THRESHOLD)
+  return { referencePrice, currentPrice, changeRatio, adverse, severelyAdverse, favorable }
+}
+
+// Placed right after the ticker symbol in each card's header (not inline
+// with the price -- explicit instruction), sized up from the price-cell's
+// own 13px so it reads at a glance next to the bolded ticker. Reuses
+// computeMoveSignal so it's always in sync with PriceStat's own price/%
+// badge just below.
+function SignalIcon({
+  c,
+  live,
+  dailyHistory3mo,
+  monthlyHistory,
+  side,
+  held,
+}: {
+  c: Candidate
+  live?: LiveTick
+  dailyHistory3mo: HistoryByTicker
+  monthlyHistory: HistoryByTicker
+  // Which direction this card actually is (Long/Short) -- not derivable
+  // from `c` itself (Candidate carries no side field; direction comes from
+  // which section/rating pool the card was rendered into, so every call
+  // site passes it in). Drives the warning triangle: a Long card is
+  // working against the position when today's move is negative, a Short
+  // one when it's positive -- the exact opposite comparison.
+  side?: 'Long' | 'Short'
+  // Gates the thumbs-up to actual portfolio positions (CloseCard's rows,
+  // always true there since To close is exclusively held positions; or a
+  // RecommendationCard/RejectedCard already flagged `held`) -- a live
+  // candidate idea not yet opened doesn't have a "performance" of its own
+  // to celebrate yet, just a signal.
+  held?: boolean
+}) {
+  const { adverse, severelyAdverse, favorable } = computeMoveSignal(c, live, dailyHistory3mo, monthlyHistory, side, held)
+  if (adverse) {
+    return (
+      <AlertTriangle
+        className={`recommendation-signal-icon ${severelyAdverse ? 'price-severe-warn-icon' : 'price-warn-icon'}`}
+        size={17}
+        aria-label="Warning"
+        title={
+          severelyAdverse
+            ? `Moving against this ${side === 'Long' ? 'long' : 'short'} by more than ${fmtPct(FAVORABLE_MOVE_THRESHOLD)} today`
+            : `Moving against this ${side === 'Long' ? 'long' : 'short'} today`
+        }
+      />
+    )
+  }
+  if (favorable) {
+    return (
+      <ThumbsUp
+        className="recommendation-signal-icon price-good-icon"
+        size={17}
+        aria-label="Strong move in your favor"
+        title={`${side === 'Long' ? 'Up' : 'Down'} more than ${fmtPct(FAVORABLE_MOVE_THRESHOLD)} today, working in this ${side === 'Long' ? 'long' : 'short'}'s favor`}
+      />
+    )
+  }
+  return null
+}
 
 function PriceStat({
   c,
@@ -277,47 +429,29 @@ function PriceStat({
   // Which direction this card actually is (Long/Short) -- not derivable
   // from `c` itself (Candidate carries no side field; direction comes
   // from which section/rating pool the card was rendered into, so every
-  // call site passes it in). Drives the warning triangle below: a Long
-  // card is working against the position when today's move is negative,
-  // a Short one when it's positive -- the exact opposite comparison.
+  // call site passes it in). Fed straight into computeMoveSignal, same as
+  // SignalIcon's own copy of this prop -- see that component for what it
+  // drives.
   side?: 'Long' | 'Short'
-  // Gates the thumbs-up to actual portfolio positions (CloseCard's rows,
-  // always true there since To close is exclusively held positions; or a
-  // RecommendationCard/RejectedCard already flagged `held`) -- a live
-  // candidate idea not yet opened doesn't have a "performance" of its own
-  // to celebrate yet, just a signal.
+  // See SignalIcon's own `held` doc -- passed through to computeMoveSignal
+  // here for the exact same reason, so this component's %-change badge and
+  // that one's icon are always reading off one shared determination.
   held?: boolean
 }) {
-  const referencePrice = previousClose(dailyHistory3mo[c.ticker], monthlyHistory[c.ticker]) ?? c.price ?? null
-  const currentPrice = live?.last ?? c.price ?? null
-  const changeRatio = live?.last != null && referencePrice ? live.last / referencePrice - 1 : null
+  const { referencePrice, currentPrice, changeRatio } = computeMoveSignal(c, live, dailyHistory3mo, monthlyHistory, side, held)
   const changeClass = changeRatio === null ? '' : Math.abs(changeRatio) <= 0.005 ? 'perf-neutral' : changeRatio >= 0 ? 'perf-pos' : 'perf-neg'
-  const adverse =
-    side !== undefined && changeRatio !== null && (side === 'Long' ? changeRatio < 0 : changeRatio > 0)
-  const favorable =
-    held &&
-    side !== undefined &&
-    changeRatio !== null &&
-    (side === 'Long' ? changeRatio > FAVORABLE_MOVE_THRESHOLD : changeRatio < -FAVORABLE_MOVE_THRESHOLD)
+  // Flags whether referencePrice above is genuinely yesterday's close, or
+  // a fallback to something older -- explicit instruction, after PUMP
+  // showed a positive daily move while actually down: yfinance/IB can
+  // both be missing the most recent trading day's bar (confirmed live:
+  // yfinance skipped an entire Monday for every ticker checked), which
+  // silently turns "today vs. yesterday" into "today vs. several days
+  // ago" without anything on the card saying so.
+  const previousCloseDate = previousCloseInfo(dailyHistory3mo[c.ticker], monthlyHistory[c.ticker])?.date ?? null
+  const previousCloseFresh = previousCloseDate !== null && previousCloseDate >= mostRecentCompletedTradingDay()
   return (
     <div className="stat">
       <span className="n num price-cell">
-        {adverse && (
-          <AlertTriangle
-            className="price-warn-icon"
-            size={13}
-            aria-label="Warning"
-            title={`Moving against this ${side === 'Long' ? 'long' : 'short'} today`}
-          />
-        )}
-        {favorable && (
-          <ThumbsUp
-            className="price-good-icon"
-            size={13}
-            aria-label="Strong move in your favor"
-            title={`${side === 'Long' ? 'Up' : 'Down'} more than ${fmtPct(FAVORABLE_MOVE_THRESHOLD)} today, working in this ${side === 'Long' ? 'long' : 'short'}'s favor`}
-          />
-        )}
         <span className="price-value">{fmtPrice(currentPrice)}</span>
         {changeRatio !== null && live && (
           <span
@@ -327,6 +461,18 @@ function PriceStat({
             {fmtPct(changeRatio)}
           </span>
         )}
+        <Flag
+          className={`recommendation-signal-icon ${previousCloseFresh ? 'price-fresh-flag' : 'price-stale-flag'}`}
+          size={13}
+          aria-label={previousCloseFresh ? 'Previous close is current' : 'Previous close is stale'}
+          title={
+            previousCloseDate === null
+              ? "No previous close available at all for this ticker -- today's daily move can't be computed."
+              : previousCloseFresh
+                ? `Yesterday's close (${previousCloseDate}) is available -- today's daily move is computed against it.`
+                : `Most recent close on file is from ${previousCloseDate}, expected ${mostRecentCompletedTradingDay()} or newer -- today's daily move may be stale, comparing against an older close than yesterday's.`
+          }
+        />
       </span>
       {!hideLabel && <span className="l">Price</span>}
     </div>
@@ -365,6 +511,7 @@ function RecommendationCard({
           >
             {c.ticker}
           </a>
+          <SignalIcon c={c} live={live} dailyHistory3mo={dailyHistory3mo} monthlyHistory={monthlyHistory} side={side} held={held} />
           <span className="recommendation-name">{c.name}</span>
         </div>
         <div className="recommendation-badges">
@@ -385,6 +532,7 @@ function RecommendationCard({
           <li key={i}>{line}</li>
         ))}
       </ul>
+      <PercentileBadge c={c} />
     </div>
   )
 }
@@ -417,6 +565,7 @@ function CloseCard({
           >
             {c.ticker}
           </a>
+          <SignalIcon c={c} live={live} dailyHistory3mo={dailyHistory3mo} monthlyHistory={monthlyHistory} side={c.closeSide} held />
           <span className="recommendation-name">{c.name}</span>
         </div>
         <div className="recommendation-badges">
@@ -451,6 +600,7 @@ function CloseCard({
           <li key={i}>{line}</li>
         ))}
       </ul>
+      <PercentileBadge c={c} />
     </div>
   )
 }
@@ -491,6 +641,7 @@ function RejectedCard({
           >
             {c.ticker}
           </a>
+          <SignalIcon c={c} live={live} dailyHistory3mo={dailyHistory3mo} monthlyHistory={monthlyHistory} side={side} held={held} />
           <span className="recommendation-name">{c.name}</span>
         </div>
         <div className="recommendation-badges">
@@ -511,6 +662,7 @@ function RejectedCard({
           <li key={i}>{r.text}</li>
         ))}
       </ul>
+      <PercentileBadge c={c} />
     </div>
   )
 }
@@ -549,7 +701,7 @@ function RecommendationSection<T>({
 // Combines the pre-computed candidate pool in data/recommendations.json
 // (see recommendations.py -- every Strong Buy/Buy/Sell/Strong Sell ticker's
 // composite score, momentum, and recent news/insider/13F signals) with live
-// positions/prices from ib_price_server.py's SSE stream (same pattern
+// positions/prices from ib_server.py's SSE stream (same pattern
 // Positions/Sectors/Themes/News already use).
 //
 // Long = every Strong Buy/Buy candidate that clears the opening gates below,
@@ -562,11 +714,18 @@ function RecommendationSection<T>({
 // highlight on whichever side actually holds it.
 //
 // A hard momentum-direction rule (eligible() below) gates ALL THREE groups
-// before ranking, per explicit instruction: never recommend buying (Long,
-// or covering/closing a Short) an asset with non-positive momentum, and
-// never recommend selling (Short, or closing a Long) an asset with
-// non-negative momentum. A candidate with unknown momentum is excluded
-// rather than assumed compliant, since the rule is absolute.
+// before ranking, per explicit instruction: positive daily-timeframe (LT)
+// momentum is a good entry signal regardless of side -- for a Long it
+// means the stock is trending up; for a Short it means the stock is
+// rallying hard enough to be a good "short the overextension" candidate,
+// not that it's already falling. So both eligibleToBuy and eligibleToSell
+// require momentum at or above MOMENTUM_THRESHOLD; there is no separate,
+// lower bar for shorts the way there used to be. The ST (hourly)
+// mean-reversion gate right below is untouched by this and stays
+// direction-specific -- it's an entry-timing check (don't chase a move
+// that already happened), not a second momentum vote. A candidate with
+// unknown momentum is excluded rather than assumed compliant, since the
+// rule is absolute.
 //
 // Within each side, a non-held candidate that hedges an existing position
 // on the OPPOSITE side (same sector or theme -- see the longs/shorts memos'
@@ -594,22 +753,34 @@ function RecommendationSection<T>({
 // because of too high risk or other reasons"). Position-size concentration
 // used to be flagged here too; dropped per explicit instruction -- not a
 // useful closing signal on its own.
-// MOMENTUM_THRESHOLD (long side only): explicit instruction -- a bare
-// positive sign isn't enough conviction to recommend opening a long, only
+// MOMENTUM_THRESHOLD: explicit instruction -- a bare positive sign isn't
+// enough conviction to recommend opening a position (long or short), only
 // to keep holding one already open (see buildCloseReasons' own separate,
-// looser >=0/<=0 momentum-reversal check below, deliberately not raised
-// to this same bar -- that one flags an existing position early, before
-// its momentum has even fully reversed, not just before it's "strong").
+// looser <=0 momentum-reversal check below, deliberately not raised to
+// this same bar -- that one flags an existing position early, before its
+// momentum has even fully reversed, not just before it's "strong").
 // Originally 1, lowered to 0.5 per explicit follow-up instruction (still
 // meaningfully above a bare positive sign, just a lower bar for entry
-// conviction than before). The short side deliberately stays a plain <0
-// -- explicit instruction, not symmetric with the long side's threshold.
+// conviction than before). Shorts now use the exact same bar as longs --
+// explicit instruction: positive LT momentum is a good signal for
+// entering a short too, the same as it is for a long, not the mirror-image
+// negative-momentum bar this used to be.
 const MOMENTUM_THRESHOLD = 0.5
 function eligibleToBuy(c: Candidate): boolean {
   return c.momentum !== null && c.momentum !== undefined && c.momentum >= MOMENTUM_THRESHOLD
 }
 function eligibleToSell(c: Candidate): boolean {
-  return c.momentum !== null && c.momentum !== undefined && c.momentum < 0
+  return c.momentum !== null && c.momentum !== undefined && c.momentum >= MOMENTUM_THRESHOLD
+}
+
+// FINRA's biweekly-settlement pct-of-float (shortPctOfFloatFinra) is
+// fresher than yfinance's shortPercentOfFloat -- the latter only ever
+// reflects the month-end settlement, silently skipping FINRA's mid-month
+// one (see scoring.load_short_interest_scores). Preferred here; falls back
+// to shortPercentOfFloat only for a ticker FINRA doesn't report (thinly
+// shorted, or delisted/renamed since).
+function effectiveShortPctOfFloat(c: Candidate): number | null | undefined {
+  return c.shortPctOfFloatFinra ?? c.shortPercentOfFloat
 }
 
 // Short-only: a name already shorted by more than MAX_SHORT_INTEREST of its
@@ -618,11 +789,12 @@ function eligibleToSell(c: Candidate): boolean {
 // interest above 20% must not be presented" on the Short list. Unlike the
 // momentum gate above (an absolute "never" that treats unknown as
 // disqualifying), this is a risk-avoidance cap on a known-bad condition --
-// a candidate with no shortPercentOfFloat data isn't assumed crowded, so it
-// still passes.
+// a candidate with no short-interest data at all isn't assumed crowded, so
+// it still passes.
 const MAX_SHORT_INTEREST = 0.2
 function notCrowded(c: Candidate): boolean {
-  return c.shortPercentOfFloat === null || c.shortPercentOfFloat === undefined || c.shortPercentOfFloat <= MAX_SHORT_INTEREST
+  const pct = effectiveShortPctOfFloat(c)
+  return pct === null || pct === undefined || pct <= MAX_SHORT_INTEREST
 }
 
 // Revenue-growth gate on the idea lists themselves (separate from the To
@@ -782,28 +954,23 @@ function buildCloseReasons({ shares, c, now }: { shares: number; c: Candidate; n
   // both the rating reason and, correctly, no momentum reason.
   if (rating) {
     if (isLong && !BUY_RATINGS.has(rating)) {
-      reasons.push({ type: 'rating', text: `No longer rated Buy/Strong Buy (currently ${rating}) — consider closing.` })
+      reasons.push({ type: 'rating', text: `No longer Buy (${rating}) — reconsider.` })
     } else if (!isLong && !SELL_RATINGS.has(rating)) {
-      reasons.push({ type: 'rating', text: `No longer rated Sell/Strong Sell (currently ${rating}) — consider covering.` })
+      reasons.push({ type: 'rating', text: `No longer Sell (${rating}) — reconsider.` })
     }
   }
 
-  // Independent of rating -- a held Buy/Strong Buy long whose own momentum
-  // has already turned flat or negative (or a held Sell/Strong Sell short
-  // whose momentum has turned flat or positive) is worth flagging before
-  // the rating catches up, not just after.
-  if (c && c.momentum !== null && c.momentum !== undefined) {
-    if (isLong && c.momentum <= 0) {
-      reasons.push({
-        type: 'momentum',
-        text: `Momentum is no longer supportive for a long (${fmtSigned(c.momentum)}, ${c.momentum === 0 ? 'flat' : 'negative'}).`,
-      })
-    } else if (!isLong && c.momentum >= 0) {
-      reasons.push({
-        type: 'momentum',
-        text: `Momentum is no longer supportive for a short (${fmtSigned(c.momentum)}, ${c.momentum === 0 ? 'flat' : 'positive'}).`,
-      })
-    }
+  // Independent of rating -- a held position (long or short) whose own
+  // momentum has already turned flat or negative is worth flagging before
+  // the rating catches up, not just after. Same bar for both sides now:
+  // positive LT momentum is the supportive reading for a short same as a
+  // long, so it turning flat/negative undercuts either thesis the same
+  // way (see eligibleToBuy/eligibleToSell above).
+  if (c && c.momentum !== null && c.momentum !== undefined && c.momentum <= 0) {
+    reasons.push({
+      type: 'momentum',
+      text: `Momentum is no longer supportive for a ${isLong ? 'long' : 'short'} (${fmtSigned(c.momentum)}, ${c.momentum === 0 ? 'flat' : 'negative'}).`,
+    })
   }
 
   const epsTrend = epsTrendValue(c)
@@ -811,12 +978,12 @@ function buildCloseReasons({ shares, c, now }: { shares: number; c: Candidate; n
     if (isLong && epsTrend < 0) {
       reasons.push({
         type: 'eps-trend',
-        text: `Analyst EPS estimates have been cut over the last 30 days (EPS trend ${fmtPct(epsTrend)}) — consider closing.`,
+        text: `EPS est cut (trend ${fmtPct(epsTrend)}) — reconsider.`,
       })
     } else if (!isLong && epsTrend > 0) {
       reasons.push({
         type: 'eps-trend',
-        text: `Analyst EPS estimates have been raised over the last 30 days (EPS trend ${fmtPct(epsTrend)}) — consider covering.`,
+        text: `EPS est raised (trend ${fmtPct(epsTrend)}) — reconsider.`,
       })
     }
   }
@@ -840,20 +1007,21 @@ function buildCloseReasons({ shares, c, now }: { shares: number; c: Candidate; n
     if (isLong && c.meanReversion >= MEAN_REVERSION_THRESHOLD) {
       reasons.push({
         type: 'mean-reversion',
-        text: `Short-term (hourly) momentum has turned significantly positive (${fmtSigned(c.meanReversion)}) — stock has spiked on the hourly timeframe and is due for a pullback against a long.`,
+        text: `ST momentum positive (${fmtSigned(c.meanReversion)}) — ready for a pullback.`,
       })
     } else if (!isLong && c.meanReversion <= -MEAN_REVERSION_THRESHOLD) {
       reasons.push({
         type: 'mean-reversion',
-        text: `Short-term (hourly) momentum has turned significantly negative (${fmtSigned(c.meanReversion)}) — stock has dropped on the hourly timeframe and is due for a bounce against a short.`,
+        text: `ST momentum negative (${fmtSigned(c.meanReversion)}) — ready for a bounce.`,
       })
     }
   }
 
-  if (!isLong && c?.shortPercentOfFloat !== null && c?.shortPercentOfFloat !== undefined && c.shortPercentOfFloat > MAX_SHORT_INTEREST) {
+  const shortPct = c ? effectiveShortPctOfFloat(c) : null
+  if (!isLong && shortPct !== null && shortPct !== undefined && shortPct > MAX_SHORT_INTEREST) {
     reasons.push({
       type: 'crowded-short',
-      text: `${fmtPctAbs(c.shortPercentOfFloat)} of float is already short — this short has become crowded, squeeze risk.`,
+      text: `${fmtPctAbs(shortPct)} of float is already short — this short has become crowded, squeeze risk.`,
     })
   }
 
@@ -923,13 +1091,13 @@ function buildRejectionReasons({ c, tickerScreener }: { c: Candidate; tickerScre
     if (!meanReversionOkForLong(meanReversion)) {
       reasons.push({
         type: 'mean-reversion',
-        text: `Short-term (hourly) momentum is ${fmtSigned(meanReversion as number)}, significantly positive — already spiked on the hour.`,
+        text: `ST momentum positive (${fmtSigned(meanReversion as number)}) — already spiked.`,
       })
     }
     if (!epsTrendOkForLong(epsTrend)) {
       reasons.push({
         type: 'eps-trend',
-        text: `Analyst EPS estimates have been cut over the last 30 days (EPS trend ${fmtPct(epsTrend as number)}).`,
+        text: `EPS est cut (trend ${fmtPct(epsTrend as number)}).`,
       })
     }
   } else if (c.rating === 'Strong Sell') {
@@ -939,13 +1107,13 @@ function buildRejectionReasons({ c, tickerScreener }: { c: Candidate; tickerScre
         text:
           c.momentum === null || c.momentum === undefined
             ? 'Momentum data is unavailable.'
-            : `Momentum is ${fmtSigned(c.momentum)}, not negative.`,
+            : `Momentum is ${fmtSigned(c.momentum)}, below ${MOMENTUM_THRESHOLD}.`,
       })
     }
     if (!notCrowded(c)) {
       reasons.push({
         type: 'crowded-short',
-        text: `${fmtPctAbs(c.shortPercentOfFloat as number)} of float already short, over ${fmtPctAbs(MAX_SHORT_INTEREST)}.`,
+        text: `${fmtPctAbs(effectiveShortPctOfFloat(c) as number)} of float already short, over ${fmtPctAbs(MAX_SHORT_INTEREST)}.`,
       })
     }
     if (!notTooMuchGrowthForShort(revenueGrowth)) {
@@ -957,13 +1125,13 @@ function buildRejectionReasons({ c, tickerScreener }: { c: Candidate; tickerScre
     if (!meanReversionOkForShort(meanReversion)) {
       reasons.push({
         type: 'mean-reversion',
-        text: `Short-term (hourly) momentum is ${fmtSigned(meanReversion as number)}, significantly negative — already dropped on the hour.`,
+        text: `ST momentum negative (${fmtSigned(meanReversion as number)}) — already dropped.`,
       })
     }
     if (!epsTrendOkForShort(epsTrend)) {
       reasons.push({
         type: 'eps-trend',
-        text: `Analyst EPS estimates have been raised over the last 30 days (EPS trend ${fmtPct(epsTrend as number)}).`,
+        text: `EPS est raised (trend ${fmtPct(epsTrend as number)}).`,
       })
     }
   }
@@ -989,11 +1157,11 @@ const LONG_RULES = [
   },
   {
     label: 'Mean reversion',
-    note: `Short-term (hourly-timeframe) momentum not significantly positive — excludes a stock that's already spiked and would be chased; unknown not excluded.`,
+    note: `ST momentum not significantly positive — excludes a stock that's already spiked and would be chased; unknown not excluded.`,
   },
   {
     label: 'EPS trend',
-    note: 'Analyst consensus EPS estimates not cut over the last 30 days; unknown not excluded.',
+    note: 'Consensus EPS estimates not cut; unknown not excluded.',
   },
   {
     label: 'Ranking',
@@ -1003,7 +1171,10 @@ const LONG_RULES = [
 
 const SHORT_RULES = [
   { label: 'Rating', note: 'Strong Sell or Sell.' },
-  { label: 'Momentum', note: 'Negative daily-timeframe momentum; unknown momentum excluded.' },
+  {
+    label: 'Momentum',
+    note: `Daily-timeframe momentum at or above ${MOMENTUM_THRESHOLD} -- same bar as Long, positive LT momentum is a good short-the-overextension signal, not a bad one; unknown momentum excluded.`,
+  },
   {
     label: 'Not crowded',
     note: `No more than ${fmtPctAbs(MAX_SHORT_INTEREST)} of float already sold short; unknown short interest not excluded.`,
@@ -1014,11 +1185,11 @@ const SHORT_RULES = [
   },
   {
     label: 'Mean reversion',
-    note: `Short-term (hourly-timeframe) momentum not significantly negative — excludes a stock that's already dropped and would be chased; unknown not excluded.`,
+    note: `ST momentum not significantly negative — excludes a stock that's already dropped and would be chased; unknown not excluded.`,
   },
   {
     label: 'EPS trend',
-    note: 'Analyst consensus EPS estimates not raised over the last 30 days; unknown not excluded.',
+    note: 'Consensus EPS estimates not raised; unknown not excluded.',
   },
   {
     label: 'Ranking',
@@ -1033,7 +1204,7 @@ const CLOSE_RULES = [
   },
   {
     label: 'Momentum reversal',
-    note: 'Momentum has gone flat or negative for a long, or flat or positive for a short — even if the rating hasn’t caught up yet.',
+    note: 'Momentum has gone flat or negative — same bar for a long or a short — even if the rating hasn’t caught up yet.',
   },
   {
     label: 'Score near Hold boundary',
@@ -1041,7 +1212,7 @@ const CLOSE_RULES = [
   },
   {
     label: 'EPS trend reversal',
-    note: 'Long: analyst consensus EPS estimates have been cut over the last 30 days. Short: analyst consensus EPS estimates have been raised over the last 30 days.',
+    note: 'Long: consensus EPS estimates cut. Short: consensus EPS estimates raised.',
   },
   {
     label: 'Revenue growth negative',
@@ -1049,7 +1220,7 @@ const CLOSE_RULES = [
   },
   {
     label: 'Mean reversion reversal',
-    note: 'Long: short-term (hourly) momentum has turned significantly positive (recent spike, pullback due). Short: turned significantly negative (recent drop, bounce due).',
+    note: 'Long: ST momentum turned significantly positive (recent spike, pullback due). Short: turned significantly negative (recent drop, bounce due).',
   },
   {
     label: 'Crowded short',
@@ -1129,6 +1300,19 @@ export default function RecommendationsView() {
   // ranking, gates, and severity ordering are computed exactly the same
   // whether or not a filter is active; this just narrows what's *shown*.
   const [symbolFilter, setSymbolFilter] = useState('')
+  // Which of the five sections below is actually mounted -- see
+  // SECTION_TABS below. Only the active one's RecommendationSection (and
+  // its full card grid) is rendered at all; the other four are skipped
+  // entirely rather than just hidden with CSS, so switching sections
+  // actually shrinks the mounted DOM instead of all five sections' cards
+  // (Long/Short/both blocked pools/To close, each potentially 50-150+
+  // cards) sitting in the tree simultaneously -- confirmed slow to mount
+  // as one long page. The five lists themselves (longs/shorts/closes/
+  // rejectedStrongBuy/rejectedStrongSell) are still all computed
+  // regardless of which tab is active, since the stat-row/tab-bar counts
+  // below need every count up front -- this only cuts the per-card
+  // render/mount cost, not the list-building one.
+  const [activeSection, setActiveSection] = useState<'toClose' | 'long' | 'short' | 'longBlocked' | 'shortBlocked'>('toClose')
   // Live instant for the earnings-within-EARNINGS_REVIEW_HOURS close-review
   // check below -- same ticking clock PeTable.jsx/Asset.jsx already use for
   // earningsUrgencyClass, so a position due to report doesn't need a full
@@ -1488,6 +1672,45 @@ export default function RecommendationsView() {
 
       {!error && data && data.candidates.length > 0 && (
         <>
+          <div className="recommendation-tabs">
+            <button
+              type="button"
+              className={`recommendation-tab-btn${activeSection === 'toClose' ? ' active' : ''}`}
+              onClick={() => setActiveSection('toClose')}
+            >
+              To close <span className="recommendation-tab-count">{closes.length}</span>
+            </button>
+            <button
+              type="button"
+              className={`recommendation-tab-btn${activeSection === 'long' ? ' active' : ''}`}
+              onClick={() => setActiveSection('long')}
+            >
+              Long <span className="recommendation-tab-count">{longs.length}</span>
+            </button>
+            <button
+              type="button"
+              className={`recommendation-tab-btn${activeSection === 'short' ? ' active' : ''}`}
+              onClick={() => setActiveSection('short')}
+            >
+              Short <span className="recommendation-tab-count">{shorts.length}</span>
+            </button>
+            <button
+              type="button"
+              className={`recommendation-tab-btn${activeSection === 'longBlocked' ? ' active' : ''}`}
+              onClick={() => setActiveSection('longBlocked')}
+            >
+              Long blocked <span className="recommendation-tab-count">{rejectedStrongBuy.length}</span>
+            </button>
+            <button
+              type="button"
+              className={`recommendation-tab-btn${activeSection === 'shortBlocked' ? ' active' : ''}`}
+              onClick={() => setActiveSection('shortBlocked')}
+            >
+              Short blocked <span className="recommendation-tab-count">{rejectedStrongSell.length}</span>
+            </button>
+          </div>
+
+          {activeSection === 'toClose' && (
           <RecommendationSection
             title="To close"
             titleInfo={
@@ -1511,6 +1734,8 @@ export default function RecommendationsView() {
             )}
             emptyMessage="No held position currently has a rating/momentum contradiction or a risk flag."
           />
+          )}
+          {activeSection === 'long' && (
           <RecommendationSection
             title="Long"
             titleInfo={<RulesInfo label="Selection rules" header="Every candidate must clear all of these" rules={LONG_RULES} />}
@@ -1529,6 +1754,8 @@ export default function RecommendationsView() {
             )}
             emptyMessage="No Strong Buy/Buy candidates with positive momentum right now."
           />
+          )}
+          {activeSection === 'longBlocked' && (
           <RecommendationSection
             title="Strong Buy — blocked"
             subtitle="Strong Buy candidates that still failed a momentum, revenue-growth, or mean-reversion gate — see Long's Selection rules for what each gate checks"
@@ -1546,6 +1773,8 @@ export default function RecommendationsView() {
             )}
             emptyMessage="Every current Strong Buy candidate clears the Long opening gates."
           />
+          )}
+          {activeSection === 'short' && (
           <RecommendationSection
             title="Short"
             titleInfo={<RulesInfo label="Selection rules" header="Every candidate must clear all of these" rules={SHORT_RULES} />}
@@ -1564,6 +1793,8 @@ export default function RecommendationsView() {
             )}
             emptyMessage="No Sell/Strong Sell candidates with negative momentum right now."
           />
+          )}
+          {activeSection === 'shortBlocked' && (
           <RecommendationSection
             title="Strong Sell — blocked"
             subtitle="Strong Sell candidates that still failed a momentum, revenue-growth, mean-reversion, or crowded-short gate — see Short's Selection rules for what each gate checks"
@@ -1581,6 +1812,7 @@ export default function RecommendationsView() {
             )}
             emptyMessage="Every current Strong Sell candidate clears the Short opening gates."
           />
+          )}
         </>
       )}
     </div>

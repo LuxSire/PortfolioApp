@@ -26,6 +26,7 @@ export const COLUMNS = [
   { key: 'pfcf', label: 'P/FCF', fmt: 'num2' },
   { key: 'evEbitda', label: 'EV/EBITDA', fmt: 'num2' },
   { key: 'opMargin', label: 'Op Margin', fmt: 'pct' },
+  { key: 'epsVol', label: 'EPS Vol', fmt: 'pct0' },
   { key: 'de', label: 'D/E', fmt: 'num2' },
   { key: 'liq', label: 'Liq Ratio', fmt: 'num2' },
   { key: 'shortInt', label: 'Short Interest', fmt: 'pct' },
@@ -58,6 +59,14 @@ export function fmtNum(v) {
 export function fmtPct(v) {
   if (v === null || v === undefined) return '—'
   return (v >= 0 ? '+' : '') + (v * 100).toFixed(1) + '%'
+}
+
+// No sign, no decimals -- for a magnitude, not a signed change (e.g.
+// epsVol, which is never negative and doesn't need fmtPct's own "+"
+// prefix implying a direction that isn't really there).
+export function fmtPct0(v) {
+  if (v === null || v === undefined) return '—'
+  return Math.round(v * 100) + '%'
 }
 
 // Momentum is a Sharpe-style risk-adjusted ratio (trend slope divided by
@@ -195,7 +204,7 @@ export function ratingClass(rating) {
   return RATING_CLASSES[rating] || 'rec-neutral'
 }
 
-// news_sentiment.json (see ib_price_server.py's news_loop) is
+// news_sentiment.json (see ib_server.py's news_loop) is
 // {ticker: {articleId: score}} — every headline FinBERT scored 1 (very
 // bearish) to 5 (very bullish) over the same rolling news.json window.
 // Neutral (score 3) headlines are dropped before averaging — routine

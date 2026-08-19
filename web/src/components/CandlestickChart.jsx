@@ -94,7 +94,7 @@ function VolumeChart({ data, dateFormatter, barSize, xTicks }) {
 
 // data: [{date, open, high, low, close, volume}, ...] from
 // price_history_hourly.json or price_history_daily_3mo.json (see
-// ib_price_server.py's fetch_candlestick_history) — IB Gateway's own
+// ib_server.py's fetch_candlestick_history) — IB Gateway's own
 // historical bars for every ticker that process streams a price for, not
 // just the screener universe PriceChart is limited to.
 export default function CandlestickChart({ data, title, dateFormatter, barSize }) {

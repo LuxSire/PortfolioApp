@@ -28,7 +28,7 @@ function fmtQty(v: number | null | undefined): string {
   return v.toLocaleString(undefined, { maximumFractionDigits: Number.isInteger(v) ? 0 : 4 })
 }
 
-// trades_by_ticker (see ib_price_server.py's refresh_trades /
+// trades_by_ticker (see ib_server.py's refresh_trades /
 // IBApp.get_today_executions_async) is already a net-per-ticker
 // aggregate of today's fills -- {ticker: {qty, value, realizedPnl,
 // commission}} -- not a list of individual executions; that method
@@ -121,7 +121,7 @@ export default function TradesView() {
       </header>
 
       {rows.length === 0 && openOrderRows.length === 0 && (
-        <div className="asset-card">No trades or working orders today — or ib_price_server.py isn't running.</div>
+        <div className="asset-card">No trades or working orders today — or ib_server.py isn't running.</div>
       )}
 
       {(rows.length > 0 || openOrderRows.length > 0) && (

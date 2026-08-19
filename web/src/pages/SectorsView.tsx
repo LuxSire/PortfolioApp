@@ -128,6 +128,53 @@ export default function SectorsView() {
   // server running just means every Pos Value shows as held-nothing.
   const [livePrices, setLivePrices] = useState<LivePricesByTicker>({})
   const [positions, setPositions] = useState<PositionsByTicker>({})
+  // ARKK is a fund, not a company -- it carries no yfinance sector/industry
+  // of its own (confirmed: no raw_data.json entry at all -- see
+  // theme_classifier.py's own comment on the same gap), and isn't even in
+  // symbols.json, so unlike every other held ticker it doesn't show up in
+  // rawRows/rows at all on its own. `rows` below adds it back in as a
+  // synthetic row -- explicit instruction: default to the whole position
+  // bucketed under Technology / Information Technology Services (that
+  // industry string is deliberately the exact symbols.json/sorted_screen.csv
+  // taxonomy spelling -- see sectorGroups.js's EXACT map -- so
+  // getSectorGroup resolves it to "Technology" the normal way, not a
+  // special-cased sectorGroup literal), decomposed into its individual
+  // holdings only when this toggle is on.
+  const [decomposeArkk, setDecomposeArkk] = useState(false)
+  // {ticker: weight fraction}, lazily fetched (only once the toggle above
+  // is actually switched on -- explicit instruction: "only if the user
+  // asks for a breakdown", not on every page load) from
+  // data/ARKK_HOLDINGS.csv, ARK's own daily holdings export (see that
+  // file's own header row) -- not one of this project's own Python
+  // fetchers, just consumed as-is via sync-data the same way
+  // sorted_screen.csv itself is. null until loaded (or if ARKK is never
+  // held/decomposed this session, never fetched at all).
+  const [arkkHoldings, setArkkHoldings] = useState<Record<string, number> | null>(null)
+
+  useEffect(() => {
+    if (!decomposeArkk || arkkHoldings) return
+    fetch('/ARKK_HOLDINGS.csv')
+      .then((r) => (r.ok ? r.text() : Promise.reject(new Error(`${r.status} ${r.statusText}`))))
+      .then((text) => {
+        const weights: Record<string, number> = {}
+        for (const row of parseCSV(text)) {
+          // A few rows carry no real ticker at all -- a private placement
+          // (OpenAI), a money-market sweep (Goldman FS Treasury), warrants
+          // (Brera) -- nothing to attribute a sector to, so they're left
+          // out of the breakdown entirely rather than forced into
+          // "Unclassified" under a blank ticker. "RKLB UQ"-style tickers
+          // (a share-class/venue suffix ARK's own export sometimes adds)
+          // are trimmed to their first token so they match this app's
+          // plain-symbol convention elsewhere.
+          const rawTicker = (row.ticker || '').trim().split(/\s+/)[0].toUpperCase()
+          const weight = parseFloat((row['weight (%)'] || '').replace('%', ''))
+          if (!rawTicker || !Number.isFinite(weight)) continue
+          weights[rawTicker] = weight / 100
+        }
+        setArkkHoldings(weights)
+      })
+      .catch(() => setArkkHoldings({})) // best-effort -- falls back to showing ARKK undecomposed below
+  }, [decomposeArkk, arkkHoldings])
 
   useEffect(() => {
     const source = new EventSource(IB_STREAM_URL)
@@ -247,19 +294,99 @@ export default function SectorsView() {
       .catch((e) => setError(e.message))
   }, [])
 
+  // O(1) lookup into the screener universe by ticker, used only when
+  // decomposing ARKK below -- a holding that's ALSO a regular screener
+  // ticker (TSLA, AMD, NVDA, ...) gets its real sector/industry/factors
+  // via this lookup instead of falling back to Unclassified/all-null.
+  const rawRowByTicker = useMemo(() => {
+    const m = new Map<string, AssetRow>()
+    if (rawRows) for (const r of rawRows) m.set(r.t, r)
+    return m
+  }, [rawRows])
+
+  // Every screener-factor field besides the leading t/n/industry/
+  // sectorGroup/p, defaulted to null -- shared by both synthetic-row
+  // shapes below (undecomposed ARKK, and a decomposed holding with no
+  // match in the screener universe) so neither has to spell out all 19
+  // fields by hand.
+  function blankFactors() {
+    return {
+      fpe: null,
+      feps: null,
+      epsTrend: null,
+      tpe: null,
+      tps: null,
+      peg: null,
+      revg: null,
+      pfcf: null,
+      evEbitda: null,
+      opMargin: null,
+      de: null,
+      liq: null,
+      shortInt: null,
+      upside: null,
+      mom: null,
+      mr: null,
+      sc: null,
+      sent: null,
+      newsSent: null,
+      instChange: null,
+      insiders: null,
+      savgpe: null,
+      dailyPct: null,
+      weeklyPct: null,
+    }
+  }
+
   // Each ticker's Pos Value (shares held × live-or-CSV price) — same
   // formula as PeTable.jsx's own Pos Value column. null (not held, or
   // held but unpriced) for the vast majority of the screener universe;
   // only actually held tickers contribute to a group's Pos Value sum.
   const rows: AssetRow[] | null = useMemo(() => {
     if (!rawRows) return null
-    return rawRows.map((r) => {
+    const mapped = rawRows.map((r) => {
       const possize = positions[r.t]?.shares ?? null
       const posPrice = livePrices[r.t]?.last ?? r.p
       const posval = possize !== null && posPrice !== null ? possize * posPrice : null
       return { ...r, posval }
     })
-  }, [rawRows, positions, livePrices])
+
+    const arkkShares = positions.ARKK?.shares ?? null
+    if (!arkkShares) return mapped // not held -- nothing to add
+
+    const arkkPrice = livePrices.ARKK?.last ?? null
+    const arkkPosVal = arkkPrice !== null ? arkkShares * arkkPrice : null
+
+    if (decomposeArkk && arkkHoldings) {
+      // Each holding becomes its OWN row, even when it's also a ticker
+      // already held directly (e.g. RKLB) -- summing straight into that
+      // existing row's posval would quietly blend a direct conviction
+      // position with indirect fund exposure into one number; two
+      // separate, clearly-labeled rows keeps both visible (and both still
+      // correctly roll up into the same sector/industry group totals,
+      // since those are just sums over however many rows land in them).
+      const decomposed: AssetRow[] = Object.entries(arkkHoldings).map(([ticker, weight]) => {
+        const posval = arkkPosVal !== null ? arkkPosVal * weight : null
+        const match = rawRowByTicker.get(ticker)
+        if (match) return { ...match, n: `${match.n} (via ARKK)`, posval }
+        return { t: ticker, n: `${ticker} (via ARKK)`, industry: 'Unclassified', sectorGroup: null, p: null, posval, ...blankFactors() }
+      })
+      return [...mapped, ...decomposed]
+    }
+
+    return [
+      ...mapped,
+      {
+        t: 'ARKK',
+        n: 'ARK Innovation ETF',
+        industry: 'Information Technology Services',
+        sectorGroup: getSectorGroup('Information Technology Services'),
+        p: arkkPrice,
+        posval: arkkPosVal,
+        ...blankFactors(),
+      },
+    ]
+  }, [rawRows, positions, livePrices, decomposeArkk, arkkHoldings, rawRowByTicker])
 
   // Sector > Industry > Asset tree. Every group row (sector or industry)
   // averages its tickers' factors with equal weight — see
@@ -269,7 +396,12 @@ export default function SectorsView() {
   // right now" at a glance rather than needing to be re-sorted by hand.
   const tree: SectorGroup[] = useMemo(() => {
     if (!rows) return []
-    const visibleRows = positionsOnly ? rows.filter((r) => (positions[r.t]?.shares ?? 0) !== 0) : rows
+    // posval, not positions[r.t]?.shares directly -- a decomposed ARKK
+    // holding (see rows above) is "held" in the sense that matters here
+    // (it has a nonzero dollar value to show) without necessarily having
+    // its own entry in the live positions map at all (e.g. SPCX, a private
+    // company ARKK holds that isn't itself a tradeable position).
+    const visibleRows = positionsOnly ? rows.filter((r) => r.posval !== null && r.posval !== undefined && r.posval !== 0) : rows
     const bySector = new Map<string | null, Map<string, AssetRow[]>>()
     for (const r of visibleRows) {
       if (!bySector.has(r.sectorGroup)) bySector.set(r.sectorGroup, new Map())
@@ -324,7 +456,7 @@ export default function SectorsView() {
     })
     sectors.sort(byScore)
     return sectors
-  }, [rows, positions, positionsOnly])
+  }, [rows, positionsOnly])
 
   // One bar per sector (see SectorPosValueChart.tsx) — same posValSum
   // already shown in the table's Pos Value column at the sector level,
@@ -367,6 +499,15 @@ export default function SectorsView() {
               <input type="checkbox" checked={positionsOnly} onChange={(e) => setPositionsOnly(e.target.checked)} />
               Positions only{Object.keys(positions).length > 0 ? ` (${Object.keys(positions).length})` : ''}
             </label>
+            {Boolean(positions.ARKK?.shares) && (
+              <label
+                className="position-filter"
+                title="Break ARKK's position value down into its individual holdings (data/ARKK_HOLDINGS.csv), each attributed to its own sector/industry when it's also a screener ticker -- instead of the whole ETF sitting under Technology / Information Technology Services."
+              >
+                <input type="checkbox" checked={decomposeArkk} onChange={(e) => setDecomposeArkk(e.target.checked)} />
+                Decompose ARKK
+              </label>
+            )}
           </div>
         </div>
       </header>
@@ -458,7 +599,13 @@ export default function SectorsView() {
                                 // otherwise there's no position to weight.
                                 const held = t.posval !== null && t.posval !== undefined
                                 return (
-                                  <tr className="factor-tree-row factor-tree-level-2" key={t.t}>
+                                  // t.n, not just t.t -- a decomposed ARKK
+                                  // holding that's ALSO held directly (see
+                                  // rows above) puts the same ticker in
+                                  // this list twice, distinguished only by
+                                  // name ("RKLB" vs. "RKLB (via ARKK)");
+                                  // t.t alone would collide.
+                                  <tr className="factor-tree-row factor-tree-level-2" key={`${t.t}-${t.n}`}>
                                     <td className="col-left col-name">
                                       <span className="factor-tree-leaf">
                                         <a

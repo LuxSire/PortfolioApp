@@ -12,6 +12,7 @@ import type {
   ClosedPositionRow,
   FactorsByTicker,
   HistoryByTicker,
+  OpenedPositionRow,
   PnlByTicker,
   PortfolioBetaResult,
   PortfolioVolResult,
@@ -70,7 +71,7 @@ function fmtPrice(v: number | null): string {
 
 // The last close strictly before today, comparing BOTH bar series --
 // price_history_daily_3mo.json (IB Gateway's own history, fetched once
-// at ib_price_server.py STARTUP only, so it silently goes stale the
+// at ib_server.py STARTUP only, so it silently goes stale the
 // longer the server runs without a restart) and price_history.json
 // (yfinance, refreshed daily via main.py) — never today's own entry,
 // which both sources can carry as a still-forming bar (close = latest
@@ -100,10 +101,14 @@ function previousClose(
     }
     return null
   }
+  // IB Gateway's own daily bars are the primary source; yfinance's
+  // monthly series is only a fallback for a ticker IB doesn't cover at
+  // all -- explicit instruction: the two stay genuinely separate series,
+  // IB always used when it has anything, never picked against just
+  // because yfinance happens to have a fresher date.
   const fromDaily = lastBarBeforeToday(dailyHistory3mo)
-  const fromMonthly = lastBarBeforeToday(monthlyHistory)
-  if (fromDaily && fromMonthly) return fromDaily.date >= fromMonthly.date ? fromDaily.close : fromMonthly.close
-  return (fromDaily ?? fromMonthly)?.close ?? null
+  if (fromDaily) return fromDaily.close
+  return lastBarBeforeToday(monthlyHistory)?.close ?? null
 }
 
 // Briefly highlights a value in green/red when it changes from the last
@@ -389,24 +394,24 @@ function WeightedFactorRow({ side, count, netValue, sumWeightPct, dayPnl, factor
   )
 }
 
-// Stocks only — see ib_price_server.py's docstring on why an option and its
+// Stocks only — see ib_server.py's docstring on why an option and its
 // underlying can't share this ticker-symbol-keyed price stream.
 export default function PositionsView() {
   // {ticker: {name, sector, price, ern, upd}}, best-effort labeling + the
   // yfinance price sorted_screen.csv already has, as a fallback for
-  // tickers ib_price_server.py hasn't (or can't) get a live quote for.
+  // tickers ib_server.py hasn't (or can't) get a live quote for.
   // ern/upd feed earningsUrgencyClass, same as PeTable.jsx's Name cell.
   const [tickerInfo, setTickerInfo] = useState<TickerInfoByTicker>({})
   const [prices, setPrices] = useState<PricesByTicker>({})
   const [positions, setPositions] = useState<PositionsByTicker>({})
   const [account, setAccount] = useState<Account>({})
-  // {ticker: {qty, value}} — today's fills only (see ib_price_server.py's
+  // {ticker: {qty, value}} — today's fills only (see ib_server.py's
   // refresh_trades). Only present for a symbol actually traded today;
   // used below to mark those shares at their own fill price instead of
   // assuming the whole position was held since yesterday's close.
   const [trades, setTrades] = useState<TradesByTicker>({})
   // {ticker: {dailyPnL, unrealizedPnL, realizedPnL, position, value}} --
-  // IBKR's own reqPnLSingle figures (see ib_price_server.py's on_position/
+  // IBKR's own reqPnLSingle figures (see ib_server.py's on_position/
   // on_pnl_single), present for every symbol held at any point since the
   // server process started, including a symbol closed out earlier TODAY
   // (position 0, dailyPnL/realizedPnL still populated) -- see
@@ -417,7 +422,7 @@ export default function PositionsView() {
   const [pnl, setPnl] = useState<PnlByTicker>({})
   // Daily-close series for volatility. price_history_daily_3mo.json is IB
   // Gateway's own history and always covers every held ticker (see
-  // ib_price_server.py's fetch_candlestick_history — held positions are
+  // ib_server.py's fetch_candlestick_history — held positions are
   // unioned in regardless of the ranked-tickers budget), so it's the
   // primary source; price_history.json (yfinance, 1mo, broader but not
   // guaranteed to include every held ticker) is the fallback for a
@@ -619,12 +624,12 @@ export default function PositionsView() {
       // Without this split, a same-day trade (e.g. buying AU today) would
       // misprice the whole position as if it were held at yesterday's
       // close, badly overstating or understating today's P&L. See
-      // ib_price_server.py's refresh_trades for where trade.qty/value
+      // ib_server.py's refresh_trades for where trade.qty/value
       // come from.
       const trade = trades[ticker]
       const todayQty = trade?.qty ?? 0
       const todayValue = trade?.value ?? 0
-      // IBKR's own reqPnLSingle figure (see ib_price_server.py's
+      // IBKR's own reqPnLSingle figure (see ib_server.py's
       // on_position/on_pnl_single) when the server's had a chance to
       // report one for this ticker -- authoritative, computed IB-side
       // from the account's actual fills/marks rather than reconstructed
@@ -805,7 +810,7 @@ export default function PositionsView() {
   // from this tab the moment it's flat, show it with its day's P&L.
   // Gated on `trades` (today's fills only, see TradesByTicker) rather
   // than scanning `pnl` directly -- pnl_by_ticker on the server persists
-  // for the life of the PROCESS, not just today (see ib_price_server.py's
+  // for the life of the PROCESS, not just today (see ib_server.py's
   // own module docstring on that tradeoff), so a multi-day-old closed
   // position could otherwise still be sitting in `pnl` if the server's
   // been running across a day boundary without a restart; `trades` is
@@ -834,6 +839,28 @@ export default function PositionsView() {
       })
       .sort((a, b) => Math.abs(b.dayPnl ?? 0) - Math.abs(a.dayPnl ?? 0))
   }, [trades, positions, pnl, prices, tickerInfo])
+
+  // The mirror case of closedTodayRows above -- a symbol with no position
+  // at the start of today that's now open, shown alongside "Closed Today"
+  // rather than buried in the main table below (explicit instruction).
+  // sharesAtStart = shares - todayQty is the exact same identity dayPnl's
+  // own reconstruction (rows above) already relies on -- it's 0 precisely
+  // when every current share was acquired today, long or short (both
+  // shares and trade.qty carry the same sign convention). Reuses each
+  // row's own dayPnl rather than recomputing it: for a sharesAtStart=0
+  // row, that formula already collapses to ibPrice*shares - todayValue --
+  // P&L purely from today's own entry price(s), with no prior close in
+  // the math at all, which is exactly "P&L from the opening."
+  const openedTodayRows: OpenedPositionRow[] = useMemo(() => {
+    return rows
+      .filter((r) => {
+        const trade = trades[r.ticker]
+        if (!trade || Math.abs(trade.qty) < 1e-6 || r.shares === null) return false
+        return Math.abs(r.shares - trade.qty) < 1e-6
+      })
+      .map((r) => ({ ticker: r.ticker, name: r.name, price: r.price, dayPnl: r.dayPnl }))
+      .sort((a, b) => Math.abs(b.dayPnl ?? 0) - Math.abs(a.dayPnl ?? 0))
+  }, [rows, trades])
   // Net/gross as a share of the account's actual liquidation value —
   // e.g. gross > 100% means leverage (more capital at work than the
   // account is worth).
@@ -951,43 +978,87 @@ export default function PositionsView() {
         </div>
       </header>
 
-      {closedTodayRows.length > 0 && (
-        <div className="asset-card">
-          <h2 title="Symbols traded today that are now fully closed out (0 shares) — see the Realized (Closed) stat above for this table's own total.">
-            Closed Today
-          </h2>
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th className="col-left">Ticker</th>
-                  <th>Price</th>
-                  <th>Day P&amp;L</th>
-                </tr>
-              </thead>
-              <tbody>
-                {closedTodayRows.map((r) => (
-                  <tr key={r.ticker}>
-                    <td className="col-left col-name">
-                      <span className="pos-asset">
-                        <a
-                          href={`#/asset/${encodeURIComponent(r.ticker)}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="ticker-link pos-ticker"
-                        >
-                          {r.ticker}
-                        </a>
-                        <span className="pos-name">{r.name}</span>
-                      </span>
-                    </td>
-                    <td className="num">{fmtPrice(r.price)}</td>
-                    <td className={`num ${r.dayPnl === null ? '' : r.dayPnl >= 0 ? 'good' : 'bad'}`}>{fmtDollars(r.dayPnl)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+      {(closedTodayRows.length > 0 || openedTodayRows.length > 0) && (
+        <div className="asset-two-col-row">
+          {closedTodayRows.length > 0 && (
+            <div className="asset-card">
+              <h2 title="Symbols traded today that are now fully closed out (0 shares) — see the Realized (Closed) stat above for this table's own total.">
+                Closed Today
+              </h2>
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th className="col-left">Ticker</th>
+                      <th>Price</th>
+                      <th>Day P&amp;L</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {closedTodayRows.map((r) => (
+                      <tr key={r.ticker}>
+                        <td className="col-left col-name">
+                          <span className="pos-asset">
+                            <a
+                              href={`#/asset/${encodeURIComponent(r.ticker)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="ticker-link pos-ticker"
+                            >
+                              {r.ticker}
+                            </a>
+                            <span className="pos-name">{r.name}</span>
+                          </span>
+                        </td>
+                        <td className="num">{fmtPrice(r.price)}</td>
+                        <td className={`num ${r.dayPnl === null ? '' : r.dayPnl >= 0 ? 'good' : 'bad'}`}>{fmtDollars(r.dayPnl)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {openedTodayRows.length > 0 && (
+            <div className="asset-card">
+              <h2 title="Symbols with no position at the start of today that are now open — Day P&L is since today's own entry price(s), not vs. yesterday's close.">
+                Opened Today
+              </h2>
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th className="col-left">Ticker</th>
+                      <th>Price</th>
+                      <th>Day P&amp;L</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {openedTodayRows.map((r) => (
+                      <tr key={r.ticker}>
+                        <td className="col-left col-name">
+                          <span className="pos-asset">
+                            <a
+                              href={`#/asset/${encodeURIComponent(r.ticker)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="ticker-link pos-ticker"
+                            >
+                              {r.ticker}
+                            </a>
+                            <span className="pos-name">{r.name}</span>
+                          </span>
+                        </td>
+                        <td className="num">{fmtPrice(r.price)}</td>
+                        <td className={`num ${r.dayPnl === null ? '' : r.dayPnl >= 0 ? 'good' : 'bad'}`}>{fmtDollars(r.dayPnl)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1041,12 +1112,12 @@ export default function PositionsView() {
                 % of NAV
               </th>
               <th>Avg Price</th>
+              <th>Price</th>
+              <th>Daily $</th>
               <th>Bid</th>
               <th>Ask</th>
               <th>Yesterday</th>
-              <th>Price</th>
               <th>Daily %</th>
-              <th>Daily $</th>
               <th title="P&amp;L since acquisition">P&amp;L SI</th>
               <th title="Component volatility — this position's exact share of the portfolio's total dollar volatility (see Portfolio Vol.); every position's CVol sums to it precisely. Can be negative for a position that tends to move opposite the rest of the book, genuinely reducing total risk.">
                 CVol
@@ -1060,7 +1131,7 @@ export default function PositionsView() {
             {rows.length === 0 && (
               <tr className="status-row">
                 <td colSpan={17}>
-                  No open positions — or ib_price_server.py isn't running / hasn't reported positions yet.
+                  No open positions — or ib_server.py isn't running / hasn't reported positions yet.
                 </td>
               </tr>
             )}
@@ -1072,6 +1143,13 @@ export default function PositionsView() {
                   // Same +/-0.5% neutral band as PeTable.jsx's Price column —
                   // within that range, IB vs. yfinance is basically noise.
                   const dayClass = perfClass(r.dayPct, r.shares, 0.005)
+                  // Explicit instruction: a flat ±$10 band on Daily $ itself
+                  // (not perfClass's long/short-aware price-direction flip --
+                  // dayPnl already carries the correct sign for both sides,
+                  // a short's price-drop dayPnl is already positive), so a
+                  // position sitting within noise-level P&L reads neutral
+                  // regardless of side or size.
+                  const dailyPnlClass = r.dayPnl === null ? '' : r.dayPnl > 10 ? 'good' : r.dayPnl < -10 ? 'bad' : ''
                   // Same earnings-date-proximity background as PeTable.jsx's
                   // Name cell (see earnings.js) — blank for a ticker outside
                   // the screener universe, like ARKK, since it has no ern/upd.
@@ -1124,12 +1202,12 @@ export default function PositionsView() {
                         {fmtPct(netLiq && r.value !== null ? r.value / netLiq : null)}
                       </td>
                       <td className="num">{fmtPrice(r.avgCost)}</td>
+                      <td className="num"><FlashCell value={r.price} format={fmtPrice} /></td>
+                      <td className={`num ${dailyPnlClass}`}>{fmtDollars(r.dayPnl)}</td>
                       <td className="num"><FlashCell value={r.bid} format={fmtPrice} /></td>
                       <td className="num"><FlashCell value={r.ask} format={fmtPrice} /></td>
                       <td className="num">{fmtPrice(r.referencePrice)}</td>
-                      <td className="num"><FlashCell value={r.price} format={fmtPrice} /></td>
                       <td className={`num ${dayClass}`}>{fmtPct(r.dayPct)}</td>
-                      <td className={`num ${dayClass}`}>{fmtDollars(r.dayPnl)}</td>
                       <td className={`num ${pnlClass}`}>{fmtPct(r.pnlPct)}</td>
                       <td className="num">{fmtDollars(portfolioVol.cvolByTicker.get(r.ticker) ?? null)}</td>
                       <td className="num">{fmtRatio(r.beta ?? null)}</td>

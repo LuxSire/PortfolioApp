@@ -8,7 +8,7 @@ export type HistoryByTicker = Record<string, PricePoint[]>
 
 // Best-effort label/quote info parsed from sorted_screen.csv, keyed by
 // ticker -- see the CSV-parsing effect below. Only used as a fallback for
-// a ticker ib_price_server.py's live stream hasn't (or can't) quote.
+// a ticker ib_server.py's live stream hasn't (or can't) quote.
 export interface TickerInfo {
   name: string
   sector: string
@@ -54,7 +54,7 @@ export interface TickerFactors {
 
 export type FactorsByTicker = Record<string, TickerFactors>
 
-// IB Gateway's live EventSource payload shapes (see ib_price_server.py /
+// IB Gateway's live EventSource payload shapes (see ib_server.py /
 // IB_STREAM_URL) -- prices/positions/account/trades, all keyed by ticker
 // except account (a flat tag -> value map, see ACCOUNT_FIELDS).
 export interface PriceTick {
@@ -73,7 +73,7 @@ export type PositionsByTicker = Record<string, PositionData>
 export type Account = Record<string, number>
 
 // Today's fills only for a symbol actually traded today (see
-// ib_price_server.py's refresh_trades) -- qty/value both signed.
+// ib_server.py's refresh_trades) -- qty/value both signed.
 // realizedPnl/commission are IB's own FIFO-cost-basis figures (see
 // IBApp.get_today_executions_async's own docstring) -- null, not 0, if
 // this connection wasn't alive to see the fill live, e.g. the server
@@ -90,7 +90,7 @@ export interface Trade {
 export type TradesByTicker = Record<string, Trade>
 
 // IBKR's own reqPnLSingle figures (see IBApp.subscribe_position_pnl and
-// ib_price_server.py's on_position/on_pnl_single) -- authoritative,
+// ib_server.py's on_position/on_pnl_single) -- authoritative,
 // IB-computed per-position P&L, present for every symbol held at any
 // point since the server process started. Deliberately NOT removed when
 // `position` goes to 0 (a same-day closed-out position) -- see that
@@ -136,6 +136,19 @@ export interface PositionRow extends Partial<TickerFactors> {
 // position is flat, so this is rendered in its own small table rather
 // than folded into the Long/Short/sector tree.
 export interface ClosedPositionRow {
+  ticker: string
+  name: string
+  price: number | null
+  dayPnl: number | null
+}
+
+// The mirror case of ClosedPositionRow above -- a symbol with no position
+// at the start of today (see PositionsView.tsx's openedTodayRows) that's
+// now open. Same shape (a currently-flat-vs-currently-open pair doesn't
+// need different fields), but dayPnl here means P&L since today's own
+// entry price(s), not vs. yesterday's close -- there is no prior close to
+// compare against for a position that didn't exist yet.
+export interface OpenedPositionRow {
   ticker: string
   name: string
   price: number | null

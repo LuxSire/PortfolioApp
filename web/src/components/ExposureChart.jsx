@@ -83,7 +83,7 @@ function ExposureTooltip({ active, payload }) {
 // long-biased books run positive, but the axis/domain below still makes
 // room for a net-short day). Gross is a second, stacked bar: stockLongPct
 // (already ≥ 0) at the base, |stockShortPct| on top (stockShort itself
-// comes back negative from the Flex Query -- see ib_price_server.py's
+// comes back negative from the Flex Query -- see ib_server.py's
 // fetch_account_performance), summing to stockGrossPct exactly --
 // explicit instruction: "the gross exposure bar must show long and short
 // absolute value sum," not just the combined total as a single flat

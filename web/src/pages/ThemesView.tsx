@@ -195,7 +195,7 @@ export default function ThemesView() {
       {error && <div className="asset-card">Couldn't load theme data: {error}</div>}
       {!error && !taxonomy && <div className="asset-card">Loading…</div>}
       {!error && taxonomy && rows.length === 0 && (
-        <div className="asset-card">No open positions — or ib_price_server.py isn't running / hasn't reported positions yet.</div>
+        <div className="asset-card">No open positions — or ib_server.py isn't running / hasn't reported positions yet.</div>
       )}
 
       {!error && taxonomy && rows.length > 0 && (

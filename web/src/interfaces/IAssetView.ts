@@ -26,7 +26,7 @@ export interface Holder {
   callShares: number
 }
 
-// One entry from GET /api/news (ib_price_server.py).
+// One entry from GET /api/news (ib_server.py).
 export interface NewsArticle {
   articleId: string
   time: string
