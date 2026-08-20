@@ -2036,12 +2036,13 @@ td.col-rec {
   gap: 20px;
 }
 
-/* RecommendationCard/RejectedCard's sector, sitting next to PriceStat's
-   own figures in the same .recommendation-card-stats row -- .stat .n's
-   generic 20px/600 (shared with e.g. CloseCard's share count, which stays
-   at that size deliberately, a headline figure worth the weight) reads as
-   too heavy for a label-like value like a sector name, so this overrides
-   it specifically. Three classes (.stat .n.sector-value) so it wins over
+/* RecommendationCard/RejectedCard's industry (c.sector -- see CardFooter's
+   own comment on that naming), sitting next to PriceStat's own figures in
+   the same .recommendation-card-stats row -- .stat .n's generic 20px/600
+   (shared with e.g. CloseCard's share count, which stays at that size
+   deliberately, a headline figure worth the weight) reads as too heavy
+   for a label-like value like an industry name, so this overrides it
+   specifically. Three classes (.stat .n.sector-value) so it wins over
    .stat .n's own (0,2,0) specificity regardless of source order. */
 .stat .n.sector-value {
   font-size: 13px;
@@ -2083,20 +2084,44 @@ td.col-rec {
   margin-bottom: 2px;
 }
 
-/* Bottom-right corner of every recommendation card -- see
-   PercentileBadge in RecommendationsView.tsx. Right-aligned regardless
-   of how much rationale/close-reason text sits above it, and pinned to
-   the card's actual bottom edge (margin-top: auto, relying on
-   .recommendation-card already being a flex column) rather than just
-   trailing whatever content happens to precede it -- so every card in a
-   grid row lines its badge up at the same height even when one card's
-   rationale/reason list is much longer than its row-mates' (the grid
-   itself stretches every card to the row's tallest one by default). */
+/* Per-factor good/bad glyph -- see ThumbIcon in RecommendationsView.tsx.
+   Inline with the line's own text (vertical-align keeps a 13px icon
+   sitting on the same baseline as 12.5px text) rather than floated to
+   the row's edge, since these lines wrap at very different lengths. */
+.recommendation-thumb-icon {
+  margin-left: 5px;
+  vertical-align: -2px;
+}
+
+.recommendation-thumb-good {
+  color: var(--good);
+}
+
+.recommendation-thumb-bad {
+  color: var(--bad);
+}
+
+/* Bottom row of every recommendation card -- see CardFooter in
+   RecommendationsView.tsx: sector on the left, percentile badge on the
+   right. Pinned to the card's actual bottom edge (margin-top: auto,
+   relying on .recommendation-card already being a flex column) rather
+   than just trailing whatever content happens to precede it -- so every
+   card in a grid row lines its footer up at the same height even when
+   one card's rationale/reason list is much longer than its row-mates'
+   (the grid itself stretches every card to the row's tallest one by
+   default). */
 .recommendation-card-footer {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: baseline;
   margin-top: auto;
   padding-top: 10px;
+}
+
+.recommendation-sector-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
 }
 
 .recommendation-percentile-badge {

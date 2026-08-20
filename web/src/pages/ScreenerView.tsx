@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
-import { Search, ChevronDown, ExternalLink, Info, Newspaper, X } from 'lucide-react'
+import { Search, ExternalLink, Info, Newspaper, X } from 'lucide-react'
 import { inverseRangeClass, inversePctThresholdClass, rangeClass } from '../colorRules'
 import { parseCSV } from '../csv'
 import { earningsUrgencyClass, fmtEarningsDate, useNowTick } from '../earnings'
 import { getSectorIcon } from '../sectorIcons'
 import { getSectorGroup } from '../sectorGroups'
 import { IB_STREAM_URL } from '../ibStream'
+import FilterDropdown from '../components/FilterDropdown'
+import SectorFilter from '../components/SectorFilter'
 import {
   COLUMNS,
   avgInsiderScore,
@@ -228,83 +230,9 @@ function useOutsideClick(ref: RefObject<HTMLElement | null>, onOutside: () => vo
   }, [ref, onOutside])
 }
 
-function FilterDropdown({
-  noun,
-  plural,
-  items,
-  selected,
-  onToggle,
-  onClear,
-  getIcon,
-}: {
-  noun: string
-  plural?: string
-  items: [string, number][]
-  selected: Set<string>
-  onToggle: (name: string) => void
-  onClear: () => void
-  getIcon?: (name: string) => React.ComponentType<{ size?: number }>
-}) {
-  const [open, setOpen] = useState(false)
-  const [query, setQuery] = useState('')
-  const wrapRef = useRef<HTMLDivElement>(null)
-  useOutsideClick(wrapRef, () => setOpen(false))
-  const pluralNoun = plural || `${noun}s`
-
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    return items.filter(([name]) => !q || name.toLowerCase().includes(q))
-  }, [items, query])
-
-  return (
-    <div className="sector-control" ref={wrapRef}>
-      <button
-        type="button"
-        className="sector-toggle"
-        aria-haspopup="true"
-        aria-expanded={open}
-        onClick={() => setOpen((o) => !o)}
-      >
-        <span>{selected.size ? `${selected.size} ${selected.size > 1 ? pluralNoun : noun}` : `All ${pluralNoun}`}</span>
-        <ChevronDown size={12} />
-      </button>
-      {open && (
-        <div className="sector-panel open">
-          <div className="sp-search">
-            <input
-              type="text"
-              placeholder={`Filter ${pluralNoun}…`}
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              autoFocus
-            />
-          </div>
-          <div className="sp-list">
-            {filtered.map(([name, count]) => {
-              const Icon = getIcon ? getIcon(name) : null
-              return (
-                <label className="sp-item" key={name}>
-                  <input
-                    type="checkbox"
-                    checked={selected.has(name)}
-                    onChange={() => onToggle(name)}
-                  />
-                  {Icon && <Icon size={14} />}
-                  <span>{name}</span>
-                  <span className="cnt">{count}</span>
-                </label>
-              )
-            })}
-          </div>
-          <div className="sp-actions">
-            <button type="button" onClick={onClear}>Clear all</button>
-            <button type="button" onClick={() => setOpen(false)}>Done</button>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
+// FilterDropdown itself now lives in src/components/FilterDropdown.tsx
+// (extracted so SectorFilter/Recommendations could reuse it) -- imported
+// above.
 
 // Mirrors scoring.py's STANDARD_WEIGHTS (score_rows) exactly, plus each
 // factor's own direction/notes -- weights here must be kept in sync by
@@ -878,16 +806,10 @@ export default function ScreenerView() {
 
   // Broad sector groupings (Technology, Healthcare, etc.) derived from the
   // granular industry — a coarser filter dimension layered on top; every
-  // other computation (scoring, subranks, industry avg PE) stays industry-based.
-  const groupCounts: [string, number][] = useMemo(() => {
-    if (!rows) return []
-    const counts = new Map<string, number>()
-    for (const r of rows) {
-      const g = getSectorGroup(r.s)
-      counts.set(g, (counts.get(g) || 0) + 1)
-    }
-    return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-  }, [rows])
+  // other computation (scoring, subranks, industry avg PE) stays
+  // industry-based. The item-count list itself is now computed inside
+  // SectorFilter (see that component), not here -- this page only needs
+  // to feed it every row's raw industry string.
 
   // Fixed Strong Buy → Strong Sell → NA order (not sorted by count, unlike
   // industryCounts/groupCounts above) — a rating's natural rank order is
@@ -1098,15 +1020,7 @@ export default function ScreenerView() {
           />
         )}
 
-        {rows && (
-          <FilterDropdown
-            noun="sector"
-            items={groupCounts}
-            selected={selectedGroups}
-            onToggle={toggleGroup}
-            onClear={() => setSelectedGroups(new Set())}
-          />
-        )}
+        {rows && <SectorFilter industries={rows.map((r) => r.s)} selected={selectedGroups} onChange={setSelectedGroups} />}
 
         {rows && (
           <FilterDropdown

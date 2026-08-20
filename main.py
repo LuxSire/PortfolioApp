@@ -125,6 +125,21 @@ download_eps_volatility(): refresh just epsVolatility (see
                     indefinitely otherwise). Doesn't add tickers that
                     aren't already in forward_pe.csv. Run via `python
                     main.py epsvol`.
+download_revenue_growth(): refresh just revenueGrowth (see
+                    IBApp.get_revenue_per_share_growth), dilution-
+                    adjusting it in place -- same "backfill one factor"
+                    role download_eps_volatility plays for that field,
+                    for the tickers already in forward_pe.csv from before
+                    this adjustment existed. Run via `python main.py
+                    revgrowth`.
+download_gross_margins(): refresh just grossMargins (scoring.margin_rank's
+                    third component) -- same "backfill one factor" role
+                    as the two above. Run via `python main.py
+                    grossmargin`.
+download_insider_ownership(): refresh just heldPercentInsiders
+                    (scoring.insiders_rank's ownership component) --
+                    same "backfill one factor" role as the two above.
+                    Run via `python main.py insiderown`.
 download_themes():  classifies tickers' business descriptions
                     (raw_data.json's longBusinessSummary) against a fixed
                     theme taxonomy (see theme_classifier.py) for the
@@ -444,10 +459,10 @@ COUNTRY_OVERRIDE_TICKERS = {"ARM", "ASML", "BIRK", "CRSP", "NBIS", "ONON"}
 FIELDNAMES = [
     "ticker", "name", "sector", "forwardPE", "forwardEps", "trailingPE", "trailingPS", "pegRatio", "priceToFCF",
     "enterpriseToEbitda", "beta", "debtToEquity", "LiqRatio", "quickRatio", "currentRatio", "shortRatio", "shortPercentOfFloat",
-    "revenueGrowth", "returnOnEquity", "profitMargins", "operatingMargins", "price",
+    "revenueGrowth", "returnOnEquity", "profitMargins", "operatingMargins", "grossMargins", "price",
     "targetMeanPrice", "targetHighPrice", "targetLowPrice", "targetUpside", "recommendationKey",
     "recommendationMean", "numberOfAnalystOpinions", "momentum", "meanReversion", "epsRevision0y",
-    "epsRevision1y", "epsVolatility", "earningsTimestampStart", "lastDownload",
+    "epsRevision1y", "epsVolatility", "heldPercentInsiders", "earningsTimestampStart", "lastDownload",
 ]
 # sorted_screen.csv shows sector last instead of right after name.
 SCREEN_FIELDNAMES = [f for f in FIELDNAMES if f != "sector"] + ["sector"]
@@ -913,6 +928,82 @@ def download_eps_volatility():
     write_full_csv(data)
     write_sorted_screen_csv(data)
     print(f"Updated epsVolatility for {updated}/{len(data)} tickers")
+
+
+def download_revenue_growth():
+    """Refreshes just revenueGrowth (see IBApp.get_revenue_per_share_growth)
+    for every ticker already in forward_pe.csv, dilution-adjusting it in
+    place, merging into that file and re-deriving sorted_screen.csv's
+    score/rating from the result -- via `python main.py revgrowth`. Same
+    "backfill one factor without redoing the whole pipeline" role
+    download_eps_volatility plays for that field; exists specifically for
+    the ~2340 tickers already in forward_pe.csv from before this
+    adjustment existed, whose revenueGrowth is still Yahoo's raw,
+    dilution-blind ratio until backfilled. Tickers not already in
+    forward_pe.csv are left alone, same as download_eps_volatility."""
+    app = IBApp()
+    data = load_pe_data(OUTPUT_CSV)
+    print(f"Loaded {len(data)} tickers from {OUTPUT_CSV}")
+    revenue_growth = app.get_revenue_per_share_growth(list(data.keys()))
+    updated = 0
+    for ticker, value in revenue_growth.items():
+        # Unlike epsVolatility (usually already None going in),
+        # revenueGrowth already holds a real -- if unadjusted -- value for
+        # most tickers here; only overwrite it on an actual result, so a
+        # transient per-ticker fetch failure (value is None) leaves the
+        # existing reading in place instead of blanking it out.
+        if ticker in data and value is not None:
+            data[ticker]["revenueGrowth"] = value
+            updated += 1
+    write_full_csv(data)
+    write_sorted_screen_csv(data)
+    print(f"Updated revenueGrowth for {updated}/{len(data)} tickers")
+
+
+def download_gross_margins():
+    """Refreshes just grossMargins (scoring.margin_rank's third component)
+    for every ticker already in forward_pe.csv -- via `python main.py
+    grossmargin`. Same "backfill one factor without redoing the whole
+    pipeline" role download_eps_volatility/download_revenue_growth
+    already play for theirs. Kept fully separate from
+    download_insider_ownership below -- distinct factors, distinct
+    commands. Tickers not already in forward_pe.csv are left alone, same
+    as the others."""
+    app = IBApp()
+    data = load_pe_data(OUTPUT_CSV)
+    print(f"Loaded {len(data)} tickers from {OUTPUT_CSV}")
+    gross_margins = app.get_gross_margins(list(data.keys()))
+    updated = 0
+    for ticker, value in gross_margins.items():
+        if ticker in data and value is not None:
+            data[ticker]["grossMargins"] = value
+            updated += 1
+    write_full_csv(data)
+    write_sorted_screen_csv(data)
+    print(f"Updated grossMargins for {updated}/{len(data)} tickers")
+
+
+def download_insider_ownership():
+    """Refreshes just heldPercentInsiders (scoring.insiders_rank's
+    ownership component) for every ticker already in forward_pe.csv --
+    via `python main.py insiderown`. Same "backfill one factor without
+    redoing the whole pipeline" role download_eps_volatility/
+    download_revenue_growth already play for theirs. Kept fully separate
+    from download_gross_margins above -- distinct factors, distinct
+    commands. Tickers not already in forward_pe.csv are left alone, same
+    as the others."""
+    app = IBApp()
+    data = load_pe_data(OUTPUT_CSV)
+    print(f"Loaded {len(data)} tickers from {OUTPUT_CSV}")
+    ownership = app.get_insider_ownership(list(data.keys()))
+    updated = 0
+    for ticker, value in ownership.items():
+        if ticker in data and value is not None:
+            data[ticker]["heldPercentInsiders"] = value
+            updated += 1
+    write_full_csv(data)
+    write_sorted_screen_csv(data)
+    print(f"Updated heldPercentInsiders for {updated}/{len(data)} tickers")
 
 
 FRESH_HOURS = 8
@@ -1398,6 +1489,12 @@ if __name__ == "__main__":
         download_yfinance_prices()
     elif mode == "epsvol":
         download_eps_volatility()
+    elif mode == "revgrowth":
+        download_revenue_growth()
+    elif mode == "grossmargin":
+        download_gross_margins()
+    elif mode == "insiderown":
+        download_insider_ownership()
     elif mode == "themes":
         download_themes(sys.argv[2:] if len(sys.argv) > 2 else None)
     elif mode == "recommendations":
@@ -1413,5 +1510,5 @@ if __name__ == "__main__":
     else:
         sys.exit(
             f"Unknown mode {mode!r}, expected 'all', 'prices', 'rescore', 'form4', 'xbrl', '13f', 'shortinterest', "
-            "'ibprices', 'ibhprices', 'yfprices', 'epsvol', 'themes', 'recommendations', 'chat', or 'symbol'"
+            "'ibprices', 'ibhprices', 'yfprices', 'epsvol', 'revgrowth', 'grossmargin', 'insiderown', 'themes', 'recommendations', 'chat', or 'symbol'"
         )

@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
-import { AlertTriangle, Flag, Info, Search, ThumbsUp } from 'lucide-react'
+import { AlertTriangle, Flag, Info, Search, ThumbsDown, ThumbsUp } from 'lucide-react'
 import { parseCSV } from '../csv'
 import { businessMillisBetween, fmtEarningsDate, useNowTick } from '../earnings'
 import { IB_STREAM_URL } from '../ibStream'
 import { fmtPct, fmtPrice, fmtSigned, ratingClass } from '../screenerFactors'
+import { getSectorGroup, sectorGroupLabel } from '../sectorGroups'
 import RecommendationsChatbot from '../components/RecommendationsChatbot'
+import SectorFilter from '../components/SectorFilter'
 import type {
   Candidate,
   CloseRow,
@@ -136,24 +138,79 @@ function percentileLabel(c: Candidate): string | null {
     : `Bottom ${(100 - c.scorePercentile).toFixed(1)}% of the ranked universe`
 }
 
-// Bottom-right corner badge on every card (RecommendationCard/CloseCard/
-// RejectedCard) -- the screener percentile used to only show up buried as
-// the first line of the rationale bullet list (RecommendationCard/
-// CloseCard only, not RejectedCard at all, which has no rationale list),
-// so it took reading past the header to see where a ticker actually sits
-// in sorted_screen.csv. title carries the same full "Top/Bottom X% of the
-// ranked universe" sentence percentileLabel already writes; the badge
-// itself just shows the bare number, compact enough for a corner.
-function PercentileBadge({ c }: { c: Candidate }) {
-  if (c.scorePercentile === null || c.scorePercentile === undefined) return null
+// Bottom row of every card (RecommendationCard/CloseCard/RejectedCard) --
+// GICS sector on the left, percentile badge on the right, explicit
+// instruction to put them on the same line. c.sector is actually the
+// GRANULAR industry (e.g. "Banks - Regional" -- Yahoo's own "industry"
+// field, confusingly named "sector" throughout this app's data -- see
+// scoring.py's own module docstring on that naming); getSectorGroup maps
+// it up to the 11 broad GICS-style sectors (e.g. "Financial Services",
+// shown short as "Financials" via sectorGroupLabel), same mapping the
+// Rating Breakdown table's own sector rows use -- the industry itself
+// stays in .recommendation-card-stats (see RecommendationCard/
+// RejectedCard), unmoved. The screener percentile used to only show up
+// buried as the first line of the rationale bullet list
+// (RecommendationCard/CloseCard only, not RejectedCard at all, which has
+// no rationale list), so it took reading past the header to see where a
+// ticker actually sits in sorted_screen.csv. title carries the same full
+// "Top/Bottom X% of the ranked universe" sentence percentileLabel already
+// writes; the badge itself just shows the bare number, compact enough for
+// a corner. Renders nothing only when BOTH sector and percentile are
+// missing -- either alone is still worth a footer.
+function CardFooter({ c }: { c: Candidate }) {
+  const hasPercentile = c.scorePercentile !== null && c.scorePercentile !== undefined
+  if (!hasPercentile && !c.sector) return null
   const label = percentileLabel(c)
+  const sectorGroup = c.sector ? sectorGroupLabel(getSectorGroup(c.sector)) : null
   return (
     <div className="recommendation-card-footer">
-      <span className="recommendation-percentile-badge" title={label ?? undefined}>
-        {c.scorePercentile.toFixed(1)}%
-      </span>
+      <span className="recommendation-sector-label">{sectorGroup || '—'}</span>
+      {hasPercentile && (
+        <span className="recommendation-percentile-badge" title={label ?? undefined}>
+          {(c.scorePercentile as number).toFixed(1)}%
+        </span>
+      )}
     </div>
   )
+}
+
+// Good/bad highlighting for each rationale line -- explicit instruction:
+// a small green thumbs-up when a factor favors the position, red
+// thumbs-down when it works against it, no icon when the reading is
+// genuinely neutral (not just "small"). The polarity mirrors by side for
+// every factor here: a reading that's bullish for the stock is good news
+// for a Long and bad news for a Short, and vice versa -- same mirroring
+// RecommendationsView's own eligibleToBuy/eligibleToSell,
+// meanReversionOkForLong/OkForShort, and epsTrendOkForLong/OkForShort
+// gates already use, just turned into a per-line signal instead of a
+// pass/fail gate.
+type Signal = 'good' | 'bad' | null
+
+// Generic sign mirror for a factor with no dead zone of its own (momentum,
+// EPS trend, institutional change, target upside): positive is good for a
+// Long/bad for a Short, negative is the reverse, exactly zero is neutral.
+function sidedSignal(value: number, side: 'Long' | 'Short'): Signal {
+  if (value > 0) return side === 'Long' ? 'good' : 'bad'
+  if (value < 0) return side === 'Long' ? 'bad' : 'good'
+  return null
+}
+
+// Same idea-list entry gate as momentum (sufficientGrowthForLong/
+// notTooMuchGrowthForShort below), same "show the reader the gate it
+// already cleared" reasoning as that comment -- explicit instruction:
+// added on top of the other rationale lines. revenueGrowth lives on
+// tickerScreener, not the recommendations.json candidate itself (see
+// sufficientGrowthForLong's own comment) -- the longs/shorts pool
+// builders copy it onto each RankedCandidate for exactly this line;
+// CloseRow already gets it from the same tickerScreener merge its own
+// close-reasons check uses. Plain sign, same as momentum/EPS trend --
+// positive growth good for a Long/bad for a Short, negative the mirror.
+function revenueGrowthLine(c: Candidate, side: 'Long' | 'Short'): { text: string; signal: Signal } | null {
+  if (c.revenueGrowth === null || c.revenueGrowth === undefined) return null
+  return {
+    text: `Revenue growth ${fmtPct(c.revenueGrowth)}`,
+    signal: sidedSignal(c.revenueGrowth, side),
+  }
 }
 
 // momentum is IBApp's Sharpe-style regression-slope score (trend divided by
@@ -162,9 +219,12 @@ function PercentileBadge({ c }: { c: Candidate }) {
 // card that reaches the page has already passed the hard momentum-direction
 // rule (see RecommendationsView's eligible() below), so this line is
 // showing the reader the gate it already cleared, not a new judgment call.
-function momentumLine(c: Candidate): string | null {
+function momentumLine(c: Candidate, side: 'Long' | 'Short'): { text: string; signal: Signal } | null {
   if (c.momentum === null || c.momentum === undefined) return null
-  return `Momentum ${fmtSigned(c.momentum)} (${c.momentum > 0 ? 'positive' : 'negative'})`
+  return {
+    text: `Momentum ${fmtSigned(c.momentum)} (${c.momentum > 0 ? 'positive' : 'negative'})`,
+    signal: sidedSignal(c.momentum, side),
+  }
 }
 
 // Shown right next to momentum -- explicit instruction, always alongside
@@ -172,11 +232,26 @@ function momentumLine(c: Candidate): string | null {
 // fires (see meanReversionOkForLong/meanReversionOkForShort and
 // buildCloseReasons' own mean-reversion check), so the reader can see the
 // reading even on a card where it's nowhere near the ±MEAN_REVERSION_THRESHOLD
-// significance bar. Same "only computed for CANDLESTICK_TOP_N ranked/held
-// tickers" gap as those checks -- omitted, not shown as 0, when absent.
-function meanReversionLine(c: Candidate): string | null {
+// significance bar (that bar still gates the idea-list/close-reason logic
+// elsewhere in this file -- it just doesn't gate this icon). Same "only
+// computed for CANDLESTICK_TOP_N ranked/held tickers" gap as those checks
+// -- omitted, not shown as 0, when absent.
+// Signal is a plain sign check, deliberately WITHOUT the significance bar
+// meanReversionOkForLong/OkForShort use for the entry gate -- explicit
+// instruction: what matters for this icon is direction, not magnitude. A
+// pullback (however small) is still a favorable entry read for a Long, a
+// bounce (however small) still favorable for a Short; only the opposite
+// direction is unfavorable. Polarity is the mirror of sidedSignal's own
+// (positive is BAD for a Long here, not good -- a stock already trending
+// up on the hour is one you'd be chasing), hence calling it with side
+// flipped rather than duplicating sidedSignal's body with reversed
+// branches.
+function meanReversionLine(c: Candidate, side: 'Long' | 'Short'): { text: string; signal: Signal } | null {
   if (c.meanReversion === null || c.meanReversion === undefined) return null
-  return `Hourly momentum ${fmtSigned(c.meanReversion)} (${c.meanReversion > 0 ? 'positive' : 'negative'})`
+  return {
+    text: `Hourly momentum ${fmtSigned(c.meanReversion)} (${c.meanReversion > 0 ? 'positive' : 'negative'})`,
+    signal: sidedSignal(c.meanReversion, side === 'Long' ? 'Short' : 'Long'),
+  }
 }
 
 // Same "always shown, not just when the gate/reason fires" treatment as
@@ -185,21 +260,47 @@ function meanReversionLine(c: Candidate): string | null {
 // reader should see the reading on every card. Reuses epsTrendValue
 // (below) rather than a separate field -- see that function's own
 // comment for the epsRevision0y/1y averaging it does.
-function epsTrendLine(c: Candidate): string | null {
+function epsTrendLine(c: Candidate, side: 'Long' | 'Short'): { text: string; signal: Signal } | null {
   const epsTrend = epsTrendValue(c)
   if (epsTrend === null) return null
-  return `EPS est trend ${fmtPct(epsTrend)} (${epsTrend > 0 ? 'raised' : epsTrend < 0 ? 'cut' : 'flat'})`
+  return {
+    text: `EPS est trend ${fmtPct(epsTrend)} (${epsTrend > 0 ? 'raised' : epsTrend < 0 ? 'cut' : 'flat'})`,
+    signal: sidedSignal(epsTrend, side),
+  }
 }
 
 // effectiveShortPctOfFloat (defined below, alongside notCrowded) prefers
 // FINRA's fresher biweekly figure over yfinance's stale month-end one --
 // shown on every card with data, not just when it crosses MAX_SHORT_INTEREST,
 // since it's a contrarian scoring input either way (see short_interest_rank),
-// not only a risk flag on the Short side.
-function shortInterestLine(c: Candidate): string | null {
+// not only a risk flag on the Short side. Signal: explicit instruction --
+// more than MAX_SHORT_INTEREST of float already short is a GOOD sign for a
+// Long (squeeze potential, upside risk) and a BAD one for a Short (squeeze
+// risk against the position, the same crowded-short reasoning notCrowded's
+// own gate already uses) -- at or under that bar, short interest isn't a
+// discriminating signal either way, no icon.
+function shortInterestLine(c: Candidate, side: 'Long' | 'Short'): { text: string; signal: Signal } | null {
   const pct = effectiveShortPctOfFloat(c)
   if (pct === null || pct === undefined) return null
-  return `Short interest ${fmtPctAbs(pct)} of float`
+  const signal: Signal = pct > MAX_SHORT_INTEREST ? (side === 'Long' ? 'good' : 'bad') : null
+  return { text: `Short interest ${fmtPctAbs(pct)} of float`, signal }
+}
+
+// What fraction of shares insiders currently hold -- distinct from
+// insiders90d's recent TRANSACTION activity (see the rationaleLines call
+// site: this line is placed directly below that one, explicit
+// instruction). High insider ownership reads as skin-in-the-game
+// alignment, bullish for the company -- good for a Long, bad for a
+// Short, same as any other bullish-for-the-company reading on this card.
+// Gated on MIN_INSIDER_OWNERSHIP -- explicit follow-up instruction:
+// nearly every widely-held company shows SOME nonzero insider stake
+// (confirmed live: 0.2% was firing "good"), which isn't a real
+// skin-in-the-game signal, just noise -- same "only the tail counts"
+// treatment MAX_SHORT_INTEREST already gives the short-interest line.
+function insiderOwnershipLine(c: Candidate, side: 'Long' | 'Short'): { text: string; signal: Signal } | null {
+  if (c.heldPercentInsiders === null || c.heldPercentInsiders === undefined) return null
+  const signal: Signal = c.heldPercentInsiders > MIN_INSIDER_OWNERSHIP ? (side === 'Long' ? 'good' : 'bad') : null
+  return { text: `Insider ownership ${fmtPctAbs(c.heldPercentInsiders)}`, signal }
 }
 
 // Builds a matcher for the sector/theme hedge preference: given the
@@ -255,55 +356,99 @@ function oppositeMatchLine(match: OppositeMatch | null, oppositeSideLabel: strin
 // candidate (see recommendations.py) -- no extra computation, just turning
 // numbers into a sentence. A line is omitted rather than shown as "—" when
 // its underlying data source has nothing to say (e.g. no 13F match for that
-// company name), so a card's rationale only ever lists real signal.
-function rationaleLines(c: Candidate & { oppositeMatchLine?: string | null }): string[] {
-  const lines: string[] = []
-  // percentileLabel is shown as its own PercentileBadge in the card's
-  // bottom-right corner instead of buried as a bullet here -- see that
+// company name), so a card's rationale only ever lists real signal. Each
+// line also carries a good/bad/neutral `signal` -- see the Signal type's
+// own comment -- rendered as a small thumbs-up/down by ThumbIcon at each
+// call site.
+function rationaleLines(
+  c: Candidate & { oppositeMatchLine?: string | null },
+  side: 'Long' | 'Short'
+): { text: string; signal: Signal }[] {
+  const lines: { text: string; signal: Signal }[] = []
+  // percentileLabel is shown in the card's own CardFooter (bottom-right)
+  // instead of buried as a bullet here -- see that
   // component's own comment.
 
-  const momentum = momentumLine(c)
+  const revenueGrowth = revenueGrowthLine(c, side)
+  if (revenueGrowth) lines.push(revenueGrowth)
+
+  const momentum = momentumLine(c, side)
   if (momentum) lines.push(momentum)
 
-  const meanReversion = meanReversionLine(c)
+  const meanReversion = meanReversionLine(c, side)
   if (meanReversion) lines.push(meanReversion)
 
-  const epsTrend = epsTrendLine(c)
+  const epsTrend = epsTrendLine(c, side)
   if (epsTrend) lines.push(epsTrend)
 
-  const shortInterest = shortInterestLine(c)
+  const shortInterest = shortInterestLine(c, side)
   if (shortInterest) lines.push(shortInterest)
 
-  if (c.oppositeMatchLine) lines.push(c.oppositeMatchLine)
+  if (c.oppositeMatchLine) lines.push({ text: c.oppositeMatchLine, signal: null })
 
   const news = c.news7d
   if (news && news.total > 0) {
-    lines.push(
-      `${news.bullish} bullish / ${news.bearish} bearish headline${news.total === 1 ? '' : 's'} in the last 7 days`
-    )
+    lines.push({
+      text: `News: ${news.bullish} bulls/${news.bearish} bears last 7d`,
+      signal: news.bullish > news.bearish ? (side === 'Long' ? 'good' : 'bad') : news.bearish > news.bullish ? (side === 'Long' ? 'bad' : 'good') : null,
+    })
   } else {
-    lines.push('No news coverage in the last 7 days')
+    lines.push({ text: 'No news coverage in the last 7 days', signal: null })
   }
 
   const insiders = c.insiders90d
   if (insiders && insiders.buys + insiders.sells > 0) {
-    lines.push(
-      `${insiders.buys} insider buy${insiders.buys === 1 ? '' : 's'}, ${insiders.sells} sell${insiders.sells === 1 ? '' : 's'} in the last 90 days`
-    )
+    lines.push({
+      text: `Insiders: ${insiders.buys} buys, ${insiders.sells} sells in last 90d`,
+      signal:
+        insiders.buys > insiders.sells
+          ? side === 'Long'
+            ? 'good'
+            : 'bad'
+          : insiders.sells > insiders.buys
+            ? side === 'Long'
+              ? 'bad'
+              : 'good'
+            : null,
+    })
   }
 
+  const insiderOwnership = insiderOwnershipLine(c, side)
+  if (insiderOwnership) lines.push(insiderOwnership)
+
   if (c.instChangeQoQ !== null && c.instChangeQoQ !== undefined) {
-    lines.push(
-      `Institutions ${c.instChangeQoQ >= 0 ? 'added' : 'trimmed'} ${fmtPctAbs(c.instChangeQoQ)} (13F)`
-    )
+    lines.push({
+      text: `Institutions ${c.instChangeQoQ >= 0 ? 'added' : 'trimmed'} ${fmtPctAbs(c.instChangeQoQ)} (13F)`,
+      signal: sidedSignal(c.instChangeQoQ, side),
+    })
   }
 
   if (c.targetUpside !== null && c.targetUpside !== undefined) {
     const analysts = c.numberOfAnalystOpinions ? Math.round(c.numberOfAnalystOpinions) : null
-    lines.push(`Target upside ${fmtPct(c.targetUpside)}${analysts ? ` (${analysts} analysts)` : ''}`)
+    lines.push({
+      text: `Target upside ${fmtPct(c.targetUpside)}${analysts ? ` (${analysts} analysts)` : ''}`,
+      signal: sidedSignal(c.targetUpside, side),
+    })
   }
 
   return lines
+}
+
+// Small thumbs-up/down next to a rationale line -- see rationaleLines'
+// own Signal-typed lines above. Deliberately tiny (13px, vs. SignalIcon's
+// 17px header glyph) and inline with the text rather than the card
+// header, since this is a per-factor read, not an overall
+// portfolio-impact one the way SignalIcon's price-move glyph is. Renders
+// nothing for a neutral/null signal -- explicit instruction: no icon
+// clutter on a line that isn't actually discriminating.
+function ThumbIcon({ signal }: { signal: Signal }) {
+  if (signal === 'good') {
+    return <ThumbsUp className="recommendation-thumb-icon recommendation-thumb-good" size={13} aria-label="Favorable" />
+  }
+  if (signal === 'bad') {
+    return <ThumbsDown className="recommendation-thumb-icon recommendation-thumb-bad" size={13} aria-label="Unfavorable" />
+  }
+  return null
 }
 
 // Live price (ib_server.py's SSE stream, same as every other tab)
@@ -528,11 +673,14 @@ function RecommendationCard({
       </div>
 
       <ul className="recommendation-rationale">
-        {rationaleLines(c).map((line, i) => (
-          <li key={i}>{line}</li>
+        {rationaleLines(c, side).map((line, i) => (
+          <li key={i}>
+            {line.text}
+            <ThumbIcon signal={line.signal} />
+          </li>
         ))}
       </ul>
-      <PercentileBadge c={c} />
+      <CardFooter c={c} />
     </div>
   )
 }
@@ -596,11 +744,14 @@ function CloseCard({
       </ul>
 
       <ul className="recommendation-rationale">
-        {rationaleLines(c).map((line, i) => (
-          <li key={i}>{line}</li>
+        {rationaleLines(c, c.closeSide).map((line, i) => (
+          <li key={i}>
+            {line.text}
+            <ThumbIcon signal={line.signal} />
+          </li>
         ))}
       </ul>
-      <PercentileBadge c={c} />
+      <CardFooter c={c} />
     </div>
   )
 }
@@ -662,7 +813,7 @@ function RejectedCard({
           <li key={i}>{r.text}</li>
         ))}
       </ul>
-      <PercentileBadge c={c} />
+      <CardFooter c={c} />
     </div>
   )
 }
@@ -798,6 +949,12 @@ function notCrowded(c: Candidate): boolean {
   const pct = effectiveShortPctOfFloat(c)
   return pct === null || pct === undefined || pct <= MAX_SHORT_INTEREST
 }
+
+// insiderOwnershipLine's own materiality bar -- explicit instruction: 5%.
+// Below this, ownership isn't treated as a real skin-in-the-game signal
+// either way (no icon), same "only the tail counts" idea MAX_SHORT_INTEREST
+// applies to the short-interest line above.
+const MIN_INSIDER_OWNERSHIP = 0.05
 
 // Revenue-growth gate on the idea lists themselves (separate from the To
 // close fundamentals check above, which flags a HELD position after the
@@ -1298,12 +1455,16 @@ export default function RecommendationsView() {
   const [tickerThemes, setTickerThemes] = useState<Record<string, string[]>>({})
   const [themeLabels, setThemeLabels] = useState<Record<string, string>>({})
   const [tickerScreener, setTickerScreener] = useState<ScreenerByTicker>({})
-  // Display-only filter, applied at render time to every section below
-  // (Long, Short, both "blocked" lists, To close) via filterBySymbol --
-  // doesn't touch longs/shorts/rejectedStrong*/closes themselves, so
-  // ranking, gates, and severity ordering are computed exactly the same
-  // whether or not a filter is active; this just narrows what's *shown*.
+  // Display-only filters, applied at render time to every section below
+  // (Long, Short, both "blocked" lists, To close) via filterBySymbol/
+  // filterBySector -- doesn't touch longs/shorts/rejectedStrong*/closes
+  // themselves, so ranking, gates, and severity ordering are computed
+  // exactly the same whether or not a filter is active; this just
+  // narrows what's *shown*. selectedSectorGroups drives the same
+  // SectorFilter component Screener uses (explicit instruction: one
+  // shared component, not two separate implementations).
   const [symbolFilter, setSymbolFilter] = useState('')
+  const [selectedSectorGroups, setSelectedSectorGroups] = useState<Set<string>>(new Set())
   // Which of the five sections below is actually mounted -- see
   // SECTION_TABS below. Only the active one's RecommendationSection (and
   // its full card grid) is rendered at all; the other four are skipped
@@ -1414,6 +1575,7 @@ export default function RecommendationsView() {
             beta: row.beta ? Number(row.beta) : null,
             shortPercentOfFloat: row.shortPercentOfFloat ? Number(row.shortPercentOfFloat) : null,
             revenueGrowth: row.revenueGrowth ? Number(row.revenueGrowth) : null,
+            heldPercentInsiders: row.heldPercentInsiders ? Number(row.heldPercentInsiders) : null,
             epsRevision0y: row.epsRevision0y ? Number(row.epsRevision0y) : null,
             epsRevision1y: row.epsRevision1y ? Number(row.epsRevision1y) : null,
             meanReversion: row.meanReversion ? Number(row.meanReversion) : null,
@@ -1489,6 +1651,8 @@ export default function RecommendationsView() {
           meanReversion: tickerScreener[c.ticker]?.meanReversion,
           epsRevision0y: tickerScreener[c.ticker]?.epsRevision0y,
           epsRevision1y: tickerScreener[c.ticker]?.epsRevision1y,
+          revenueGrowth: tickerScreener[c.ticker]?.revenueGrowth,
+          heldPercentInsiders: tickerScreener[c.ticker]?.heldPercentInsiders,
           oppositeMatchLine: oppositeMatchLine(match, 'short', themeLabels),
           _sortScore: sortScore,
         }
@@ -1518,6 +1682,8 @@ export default function RecommendationsView() {
           meanReversion: tickerScreener[c.ticker]?.meanReversion,
           epsRevision0y: tickerScreener[c.ticker]?.epsRevision0y,
           epsRevision1y: tickerScreener[c.ticker]?.epsRevision1y,
+          revenueGrowth: tickerScreener[c.ticker]?.revenueGrowth,
+          heldPercentInsiders: tickerScreener[c.ticker]?.heldPercentInsiders,
           oppositeMatchLine: oppositeMatchLine(match, 'long', themeLabels),
           _sortScore: sortScore,
         }
@@ -1621,6 +1787,13 @@ export default function RecommendationsView() {
     return symbolFilterQuery ? rows.filter((c) => c.ticker.toUpperCase().includes(symbolFilterQuery)) : rows
   }
 
+  // c.sector here is the granular industry (see CardFooter's own comment
+  // on that naming) -- getSectorGroup maps it up to the same broad
+  // GICS-style group SectorFilter's own item list is built from.
+  function filterBySector<T extends { sector?: string | null }>(rows: T[]): T[] {
+    return selectedSectorGroups.size ? rows.filter((c) => selectedSectorGroups.has(getSectorGroup(c.sector))) : rows
+  }
+
   return (
     <div className="positions-page positions-unbounded">
       <header className="masthead">
@@ -1661,6 +1834,13 @@ export default function RecommendationsView() {
             onChange={(e) => setSymbolFilter(e.target.value)}
           />
         </div>
+        {data && (
+          <SectorFilter
+            industries={data.candidates.map((c) => c.sector)}
+            selected={selectedSectorGroups}
+            onChange={setSelectedSectorGroups}
+          />
+        )}
       </div>
 
       <RecommendationsChatbot />
@@ -1726,7 +1906,7 @@ export default function RecommendationsView() {
               />
             }
             subtitle="Held positions tripping a rating/momentum/score-boundary contradiction, a fundamentals reversal, or a crowded-short flag"
-            rows={filterBySymbol(closes)}
+            rows={filterBySector(filterBySymbol(closes))}
             renderCard={(c) => (
               <CloseCard
                 key={c.ticker}
@@ -1744,7 +1924,7 @@ export default function RecommendationsView() {
             title="Long"
             titleInfo={<RulesInfo label="Selection rules" header="Every candidate must clear all of these" rules={LONG_RULES} />}
             subtitle={`Strong Buy / Buy with momentum ≥ ${MOMENTUM_THRESHOLD} and revenue growth ≥ ${fmtPctAbs(REVENUE_GROWTH_THRESHOLD)}, best composite score first`}
-            rows={filterBySymbol(longs)}
+            rows={filterBySector(filterBySymbol(longs))}
             renderCard={(c) => (
               <RecommendationCard
                 key={c.ticker}
@@ -1763,7 +1943,7 @@ export default function RecommendationsView() {
           <RecommendationSection
             title="Strong Buy — blocked"
             subtitle="Strong Buy candidates that still failed a momentum, revenue-growth, or mean-reversion gate — see Long's Selection rules for what each gate checks"
-            rows={filterBySymbol(rejectedStrongBuy)}
+            rows={filterBySector(filterBySymbol(rejectedStrongBuy))}
             renderCard={(c) => (
               <RejectedCard
                 key={c.ticker}
@@ -1783,7 +1963,7 @@ export default function RecommendationsView() {
             title="Short"
             titleInfo={<RulesInfo label="Selection rules" header="Every candidate must clear all of these" rules={SHORT_RULES} />}
             subtitle={`Strong Sell / Sell with negative momentum and revenue growth ≤ ${fmtPctAbs(REVENUE_GROWTH_THRESHOLD)}, worst composite score first — excludes crowded shorts (>${fmtPctAbs(MAX_SHORT_INTEREST)} of float already short)`}
-            rows={filterBySymbol(shorts)}
+            rows={filterBySector(filterBySymbol(shorts))}
             renderCard={(c) => (
               <RecommendationCard
                 key={c.ticker}
@@ -1802,7 +1982,7 @@ export default function RecommendationsView() {
           <RecommendationSection
             title="Strong Sell — blocked"
             subtitle="Strong Sell candidates that still failed a momentum, revenue-growth, mean-reversion, or crowded-short gate — see Short's Selection rules for what each gate checks"
-            rows={filterBySymbol(rejectedStrongSell)}
+            rows={filterBySector(filterBySymbol(rejectedStrongSell))}
             renderCard={(c) => (
               <RejectedCard
                 key={c.ticker}

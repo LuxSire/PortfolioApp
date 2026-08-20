@@ -59,6 +59,12 @@ export interface Candidate {
   instChangeQoQ?: number | null
   targetUpside?: number | null
   numberOfAnalystOpinions?: number | null
+  // What fraction of shares insiders currently hold -- distinct from
+  // insiders90d's recent TRANSACTION activity (buys/sells). Lives on
+  // tickerScreener like revenueGrowth/meanReversion, not on the
+  // recommendations.json candidate itself -- see the longs/shorts pool
+  // builders' own revenueGrowth comment for why.
+  heldPercentInsiders?: number | null
 }
 
 export interface RecommendationsData {

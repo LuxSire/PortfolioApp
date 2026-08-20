@@ -176,6 +176,79 @@ def _eps_volatility(values):
     return statistics.stdev(values) / mean_abs
 
 
+def _nearest_shares_before(series, days_ago=365):
+    """(as_of_date, share count) at or before `days_ago` days before the
+    series' own latest entry, from a get_shares_full() Series (sparse,
+    one entry per SEC-filing-driven change, not a daily series) -- falls
+    back to the series' own earliest entry if it doesn't reach back that
+    far (a young/recently-listed company), rather than None, since some
+    baseline is still better than no dilution adjustment at all. Anchored
+    to the series' OWN latest timestamp rather than datetime.now() so the
+    lookback is exactly "1 year before the most recent share count we
+    actually have," not skewed by how stale that latest entry happens to
+    be. Timestamp subtraction with a plain datetime.timedelta works
+    directly on pandas' tz-aware Timestamp index, no pandas import
+    needed here. Returns the date alongside the count so the caller can
+    split-adjust it (see _split_adjust_shares) -- this series is NOT
+    retroactively split-adjusted the way price history is, so the date
+    matters, not just the value."""
+    if series is None or series.empty:
+        return None
+    target = series.index.max() - timedelta(days=days_ago)
+    before = series[series.index <= target]
+    if not before.empty:
+        return before.index[-1], int(before.iloc[-1])
+    return series.index[0], int(series.iloc[0])
+
+
+def _split_adjust_shares(shares, as_of_date, splits):
+    """Restates a historical share count in TODAY's terms by applying
+    every stock split that happened AFTER as_of_date -- yfinance's
+    get_shares_full() reports the actual share count as of each date, NOT
+    retroactively split-adjusted the way price history is, so a share
+    count from before a split reads as a small fraction of today's count
+    purely mechanically. Confirmed live: TPL's 3-for-1 split on
+    2025-12-23 alone made the dilution adjustment below read -56%
+    "growth" on a ticker whose real revenueGrowth was +31% and whose
+    share count barely moved once the split itself is accounted for --
+    zero shareholder was actually diluted. splits is Ticker.splits (a
+    Series of ratios indexed by split ex-date, e.g. 3.0 for a 3-for-1,
+    0.5 for a 1-for-2 reverse split); missing/empty splits (the
+    overwhelmingly common case -- most tickers never split) leaves
+    shares untouched."""
+    if splits is None or splits.empty:
+        return shares
+    later = splits[splits.index > as_of_date]
+    for ratio in later:
+        shares *= ratio
+    return shares
+
+
+def _revenue_per_share_growth(revenue_growth, shares_now, shares_1y_ago):
+    """Dilution-adjusted revenue growth -- (1 + revenueGrowth) *
+    (shares_1y_ago / shares_now) - 1, i.e. revenue growth restated on a
+    PER-SHARE basis instead of a total-company basis. yfinance's plain
+    revenueGrowth doesn't distinguish organic growth from growth bought
+    with newly issued shares (the textbook case: an all-stock
+    acquisition) -- confirmed live on CZNC (Citizens & Northern), whose
+    reported 53% revenueGrowth turned out to be its October 2025 merger
+    with Susquehanna Community Financial, not the underlying business
+    accelerating: shares outstanding grew right alongside it (~15.5M ->
+    ~17.9M over the same year, matching the all-stock deal's share
+    issuance), and restating growth on a per-share basis brings the
+    figure down to ~33% -- still real growth, but not the headline
+    number. A shareholder's actual claim on revenue barely moves from
+    newly issued shares even when total company revenue jumps, so this
+    dilutes away exactly the part of growth that was bought rather than
+    earned. None if any input is missing or shares_now is 0 (nothing to
+    divide by) -- callers fall back to the unadjusted revenueGrowth in
+    that case rather than losing the reading entirely, same "fail open"
+    convention this module's other best-effort fields already use."""
+    if revenue_growth is None or not shares_now or not shares_1y_ago:
+        return None
+    return (1 + revenue_growth) * (shares_1y_ago / shares_now) - 1
+
+
 # operatingMargins is a ratio against a company's own trailing revenue --
 # for a company whose revenue only recently went from near-zero to
 # something real (e.g. an early-stage aerospace/biotech name shipping its
@@ -1003,10 +1076,16 @@ class IBApp:
 
         operatingMargins is clamped (see MARGIN_FLOOR / MARGIN_CAP above) to
         keep a near-zero-revenue name's base-effect artifact from reading as
-        a genuine extreme. revenueGrowth is stored uncapped -- the raw
-        number is what the screener displays; scoring.growth_rank applies
-        GROWTH_CAP itself, only for ranking, so the actual figure stays
-        visible while the composite score still isn't distorted by it.
+        a genuine extreme. revenueGrowth is dilution-adjusted (see
+        _revenue_per_share_growth) rather than Yahoo's raw ratio -- restated
+        on a per-share basis using yfinance's get_shares_full() history, so
+        growth bought with newly issued shares (an all-stock acquisition,
+        the case that prompted this) doesn't read the same as organic
+        growth; falls back to the raw ratio when the adjustment itself
+        isn't computable. Still uncapped either way -- scoring.growth_rank
+        applies GROWTH_CAP itself, only for ranking, so the actual
+        (adjusted) figure stays visible while the composite score isn't
+        distorted by an extreme reading.
 
         country_overrides, if given, is a collection of tickers to keep
         regardless of what yfinance reports for `country` -- e.g. CRSP is
@@ -1068,6 +1147,28 @@ class IBApp:
                             eps_volatility = _eps_volatility(annual.loc["Diluted EPS"].dropna().tolist())
                     except Exception as e:
                         logging.info(f"get_forward_pe: {symbol} annual EPS volatility failed: {e}")
+                    # Dilution-adjusted in place of Yahoo's raw revenueGrowth
+                    # -- see _revenue_per_share_growth's own docstring for
+                    # why (CZNC/Susquehanna). Falls back to the raw ratio,
+                    # not None, whenever the adjustment itself isn't
+                    # computable (share history unavailable, a young
+                    # listing, etc.) -- same "still show SOMETHING rather
+                    # than a newly-blank field" reasoning every other
+                    # best-effort field here already follows.
+                    revenue_growth_raw = info.get("revenueGrowth")
+                    revenue_growth = revenue_growth_raw
+                    try:
+                        shares_now = info.get("sharesOutstanding")
+                        shares_lookup = _nearest_shares_before(yt.get_shares_full())
+                        shares_1y_ago = None
+                        if shares_lookup is not None:
+                            as_of_date, shares_1y_ago = shares_lookup
+                            shares_1y_ago = _split_adjust_shares(shares_1y_ago, as_of_date, yt.splits)
+                        adjusted = _revenue_per_share_growth(revenue_growth_raw, shares_now, shares_1y_ago)
+                        if adjusted is not None:
+                            revenue_growth = adjusted
+                    except Exception as e:
+                        logging.info(f"get_forward_pe: {symbol} share-dilution adjustment failed: {e}")
                     return symbol, {
                         "name": info.get("shortName"),
                         "forwardPE": info.get("forwardPE"),
@@ -1093,10 +1194,17 @@ class IBApp:
                         "targetHighPrice": info.get("targetHighPrice"),
                         "targetLowPrice": info.get("targetLowPrice"),
                         "numberOfAnalystOpinions": info.get("numberOfAnalystOpinions"),
-                        "revenueGrowth": info.get("revenueGrowth"),
+                        "revenueGrowth": revenue_growth,
                         "returnOnEquity": info.get("returnOnEquity"),
                         "profitMargins": info.get("profitMargins"),
                         "operatingMargins": _clamp(info.get("operatingMargins"), MARGIN_FLOOR, MARGIN_CAP),
+                        # Clamped same as operatingMargins, same reasoning
+                        # (a near-zero-revenue name's ratio can explode to a
+                        # mathematically-correct but meaningless magnitude) --
+                        # gross margin is the same revenue-denominated shape
+                        # of ratio, so it's exposed to the identical
+                        # base-effect artifact.
+                        "grossMargins": _clamp(info.get("grossMargins"), MARGIN_FLOOR, MARGIN_CAP),
                         "enterpriseToEbitda": info.get("enterpriseToEbitda"),
                         "beta": info.get("beta"),
                         "recommendationKey": info.get("recommendationKey"),
@@ -1105,6 +1213,13 @@ class IBApp:
                         "epsRevision0y": eps_revision_0y,
                         "epsRevision1y": eps_revision_1y,
                         "epsVolatility": eps_volatility,
+                        # Insider OWNERSHIP -- what fraction of shares
+                        # insiders currently hold -- distinct from
+                        # scoring.load_insider_scores' insider TRANSACTION
+                        # activity (Form 4 buys/sells): one is a snapshot of
+                        # skin in the game, the other is recent discretionary
+                        # buying/selling. scoring.insiders_rank blends both.
+                        "heldPercentInsiders": info.get("heldPercentInsiders"),
                         "lastDownload": now,
                     }
                 except Exception as e:
@@ -1147,6 +1262,99 @@ class IBApp:
                     return symbol, _eps_volatility(annual.loc["Diluted EPS"].dropna().tolist())
             except Exception as e:
                 logging.info(f"get_eps_volatility: {symbol} failed: {e}")
+            return symbol, None
+
+        results = {}
+        with ThreadPoolExecutor(max_workers=max_workers) as ex:
+            futures = {ex.submit(fetch, s): s for s in tickers}
+            for sym, value in (f.result() for f in as_completed(futures)):
+                results[sym] = value
+        return results
+
+    def get_revenue_per_share_growth(self, tickers, max_workers=2):
+        """Returns {ticker: revenueGrowth} dilution-adjusted (see
+        _revenue_per_share_growth) -- a lighter fetch than get_forward_pe's
+        full bundle (get_info() + get_shares_full() only, no
+        get_eps_trend()/income_stmt), for backfilling this one figure onto
+        tickers whose forward_pe.csv row predates this adjustment, same
+        "refresh one factor without redoing the whole pipeline" role
+        get_eps_volatility already plays for that figure. Falls back to
+        Yahoo's raw revenueGrowth when the adjustment itself isn't
+        computable, same as get_forward_pe's own copy of this fallback --
+        never None just because the adjustment failed, only when Yahoo
+        has no revenueGrowth for this ticker at all."""
+
+        def fetch(symbol):
+            print(f"Fetching {symbol}...")
+            try:
+                yt = yf.Ticker(symbol)
+                info = yt.get_info()
+                revenue_growth_raw = info.get("revenueGrowth")
+                shares_1y_ago = None
+                shares_lookup = _nearest_shares_before(yt.get_shares_full())
+                if shares_lookup is not None:
+                    as_of_date, shares_1y_ago = shares_lookup
+                    shares_1y_ago = _split_adjust_shares(shares_1y_ago, as_of_date, yt.splits)
+                adjusted = _revenue_per_share_growth(revenue_growth_raw, info.get("sharesOutstanding"), shares_1y_ago)
+                return symbol, adjusted if adjusted is not None else revenue_growth_raw
+            except Exception as e:
+                logging.info(f"get_revenue_per_share_growth: {symbol} failed: {e}")
+            return symbol, None
+
+        results = {}
+        with ThreadPoolExecutor(max_workers=max_workers) as ex:
+            futures = {ex.submit(fetch, s): s for s in tickers}
+            for sym, value in (f.result() for f in as_completed(futures)):
+                results[sym] = value
+        return results
+
+    def get_gross_margins(self, tickers, max_workers=2):
+        """Returns {ticker: grossMargins} (see scoring.margin_rank's third
+        component) -- a lighter fetch than get_forward_pe's full bundle,
+        for backfilling just this figure onto tickers whose forward_pe.csv
+        row predates it, same "refresh one factor without redoing the
+        whole pipeline" role get_eps_volatility/get_revenue_per_share_growth
+        already play for theirs. Kept fully separate from
+        get_insider_ownership below rather than one combined fetch --
+        distinct factors, distinct backfill commands, even though both
+        happen to read off the same yfinance get_info() call under the
+        hood; same clamping (MARGIN_FLOOR/MARGIN_CAP) as get_forward_pe's
+        own copy of this field."""
+
+        def fetch(symbol):
+            print(f"Fetching {symbol}...")
+            try:
+                info = yf.Ticker(symbol).get_info()
+                return symbol, _clamp(info.get("grossMargins"), MARGIN_FLOOR, MARGIN_CAP)
+            except Exception as e:
+                logging.info(f"get_gross_margins: {symbol} failed: {e}")
+            return symbol, None
+
+        results = {}
+        with ThreadPoolExecutor(max_workers=max_workers) as ex:
+            futures = {ex.submit(fetch, s): s for s in tickers}
+            for sym, value in (f.result() for f in as_completed(futures)):
+                results[sym] = value
+        return results
+
+    def get_insider_ownership(self, tickers, max_workers=2):
+        """Returns {ticker: heldPercentInsiders} (see scoring.insiders_rank's
+        ownership component) -- a lighter fetch than get_forward_pe's full
+        bundle, for backfilling just this figure onto tickers whose
+        forward_pe.csv row predates it, same "refresh one factor without
+        redoing the whole pipeline" role get_eps_volatility/
+        get_revenue_per_share_growth already play for theirs. Kept fully
+        separate from get_gross_margins above -- distinct factors,
+        distinct backfill commands, even though both happen to read off
+        the same yfinance get_info() call under the hood."""
+
+        def fetch(symbol):
+            print(f"Fetching {symbol}...")
+            try:
+                info = yf.Ticker(symbol).get_info()
+                return symbol, info.get("heldPercentInsiders")
+            except Exception as e:
+                logging.info(f"get_insider_ownership: {symbol} failed: {e}")
             return symbol, None
 
         results = {}

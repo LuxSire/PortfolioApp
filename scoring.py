@@ -261,27 +261,47 @@ def load_insider_scores(form4_file):
 
 
 def insiders_rank(rows, insider_scores):
-    """[0, 1] score (0=best/all-buys, 1=worst/all-sells) directly from
-    each ticker's raw open-market buy/sell ratio (see load_insider_scores
-    -- (buys-sells)/(buys+sells), already bounded [-1, 1]), linearly
-    rescaled via (1 - score) / 2; missing ranked worst. Deliberately NOT
-    a population-relative percentile rank the way every other *_rank
-    function here uses rank_ascending: insider open-market PURCHASES are
-    rare industry-wide (confirmed on this universe's own Form4 data:
-    ~78% of tickers with any open-market P/S activity have a raw ratio of
-    exactly -1.0, i.e. literally zero buys), so a percentile rank ties
-    that entire zero-buy majority to the worst rank and then lets a
-    SINGLE stray buy against dozens of sells vault a ticker dramatically
-    up the scale just for not being tied to that block -- confirmed live:
-    LQDA (1 buy, 79 sells, raw ratio -0.976) ranked at the 78th
-    percentile under the old rank_ascending treatment, reading as
-    strongly bullish despite being 98.8% sells. The raw ratio is already
-    a bounded, comparable value -- unlike momentum or the other unbounded
-    factors rank_ascending exists to protect against one outlier
-    crushing, it needs no percentile treatment at all, just a direct
-    linear rescale into the same [0, 1] rank-space every other factor
-    here reports."""
-    return {symbol: (1 - insider_scores[symbol]) / 2 if symbol in insider_scores else 1.0 for symbol, _ in rows}
+    """Equally-weighted average of two DIFFERENT insider signals: recent
+    open-market TRANSACTION activity (buys vs. sells) and current
+    OWNERSHIP level (heldPercentInsiders, what fraction of shares
+    insiders hold right now) -- one is "what have insiders been doing
+    lately," the other is "how much skin do they have in the game,"
+    distinct enough that a name can score well on one and poorly on the
+    other (e.g. a founder-heavy small-cap with high ownership but no
+    recent trading either way).
+
+    Transaction-activity component: [0, 1] score (0=best/all-buys,
+    1=worst/all-sells) directly from each ticker's raw open-market
+    buy/sell ratio (see load_insider_scores -- (buys-sells)/(buys+sells),
+    already bounded [-1, 1]), linearly rescaled via (1 - score) / 2;
+    missing ranked worst. Deliberately NOT a population-relative
+    percentile rank the way every other *_rank function here uses
+    rank_ascending: insider open-market PURCHASES are rare industry-wide
+    (confirmed on this universe's own Form4 data: ~78% of tickers with
+    any open-market P/S activity have a raw ratio of exactly -1.0, i.e.
+    literally zero buys), so a percentile rank ties that entire zero-buy
+    majority to the worst rank and then lets a SINGLE stray buy against
+    dozens of sells vault a ticker dramatically up the scale just for not
+    being tied to that block -- confirmed live: LQDA (1 buy, 79 sells,
+    raw ratio -0.976) ranked at the 78th percentile under the old
+    rank_ascending treatment, reading as strongly bullish despite being
+    98.8% sells. The raw ratio is already a bounded, comparable value --
+    unlike momentum or the other unbounded factors rank_ascending exists
+    to protect against one outlier crushing, it needs no percentile
+    treatment at all, just a direct linear rescale into the same [0, 1]
+    rank-space every other factor here reports.
+
+    Ownership component: high heldPercentInsiders ranks better via the
+    ordinary rank_ascending/high_is_better_key treatment every other
+    percentage-shaped factor here uses -- unlike the transaction ratio,
+    ownership levels ARE smoothly distributed across the universe (no
+    single dominant value most tickers pile onto), so the population-
+    relative percentile this file's other factors already lean on is the
+    right tool here, not the transaction score's own special-cased linear
+    rescale."""
+    transaction_ranks = {symbol: (1 - insider_scores[symbol]) / 2 if symbol in insider_scores else 1.0 for symbol, _ in rows}
+    ownership_ranks = rank_ascending(rows, high_is_better_key("heldPercentInsiders"))
+    return {symbol: (transaction_ranks[symbol] + ownership_ranks[symbol]) / 2 for symbol, _ in rows}
 
 
 # ---------------------------------------------------------------------- #
@@ -459,16 +479,24 @@ def roe_rank(rows):
 
 
 def margin_rank(rows):
-    """Average of high profitMargins and high operatingMargins ranks.
-    Negative margins mean the company is losing money on an operating or
-    net basis -- a qualitatively worse signal than "low positive" margins,
-    same neg_if_positive treatment as revenueGrowth/ROE. profitMargins is
-    the all-costs-in bottom line; operatingMargins isolates the core
-    business from financing/tax noise, so a name can look fine on one and
-    weak on the other."""
+    """Equally-weighted average of high profitMargins, high
+    operatingMargins, and high grossMargins ranks. Negative margins mean
+    the company is losing money on an operating or net basis -- a
+    qualitatively worse signal than "low positive" margins, same
+    neg_if_positive treatment as revenueGrowth/ROE. profitMargins is the
+    all-costs-in bottom line; operatingMargins isolates the core business
+    from financing/tax noise; grossMargins isolates it further still,
+    before operating expenses (SG&A, R&D) -- three different points along
+    the income statement, so a name can look fine on one and weak on
+    another (e.g. strong gross margin eaten up by heavy opex spend shows
+    up as a gap between grossMargins and operatingMargins specifically)."""
     profit_margin_ranks = rank_ascending(rows, neg_if_positive("profitMargins"))
     operating_margin_ranks = rank_ascending(rows, neg_if_positive("operatingMargins"))
-    return {symbol: (profit_margin_ranks[symbol] + operating_margin_ranks[symbol]) / 2 for symbol, _ in rows}
+    gross_margin_ranks = rank_ascending(rows, neg_if_positive("grossMargins"))
+    return {
+        symbol: (profit_margin_ranks[symbol] + operating_margin_ranks[symbol] + gross_margin_ranks[symbol]) / 3
+        for symbol, _ in rows
+    }
 
 
 def eps_volatility_rank(rows):
@@ -501,8 +529,12 @@ def growth_rank(rows):
     just low. Capped at GROWTH_CAP before ranking so a near-zero-revenue
     base-effect artifact (a ratio that reads in the thousands of percent)
     can't claim the single best rank ahead of a company with a real,
-    still-exceptional growth number -- see GROWTH_CAP's own comment. The
-    raw, uncapped revenueGrowth value is untouched everywhere else (the row
+    still-exceptional growth number -- see GROWTH_CAP's own comment.
+    revenueGrowth itself is dilution-adjusted at the source (see
+    IBApp._revenue_per_share_growth) rather than Yahoo's raw total-company
+    ratio -- restated per-share so growth bought with newly issued shares
+    (an all-stock acquisition) doesn't count the same as organic growth.
+    That adjusted-but-uncapped value is untouched everywhere else (the row
     dict, forward_pe.csv, sorted_screen.csv, the screener UI); only the
     number fed into rank_ascending here is clamped."""
     def key(d):
