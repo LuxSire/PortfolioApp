@@ -714,18 +714,18 @@ function RecommendationSection<T>({
 // highlight on whichever side actually holds it.
 //
 // A hard momentum-direction rule (eligible() below) gates ALL THREE groups
-// before ranking, per explicit instruction: positive daily-timeframe (LT)
-// momentum is a good entry signal regardless of side -- for a Long it
-// means the stock is trending up; for a Short it means the stock is
-// rallying hard enough to be a good "short the overextension" candidate,
-// not that it's already falling. So both eligibleToBuy and eligibleToSell
-// require momentum at or above MOMENTUM_THRESHOLD; there is no separate,
-// lower bar for shorts the way there used to be. The ST (hourly)
-// mean-reversion gate right below is untouched by this and stays
-// direction-specific -- it's an entry-timing check (don't chase a move
-// that already happened), not a second momentum vote. A candidate with
-// unknown momentum is excluded rather than assumed compliant, since the
-// rule is absolute.
+// before ranking, per explicit instruction: never recommend buying (Long,
+// or covering/closing a Short) an asset with non-positive momentum, and
+// never recommend selling (Short, or closing a Long) an asset with
+// non-negative momentum. A candidate with unknown momentum is excluded
+// rather than assumed compliant, since the rule is absolute. Confirmed by
+// an actual backtest against 2 years of daily bars (regression-momentum,
+// same formula/window as production, Fama-MacBeth cross-sectional test):
+// momentum is a CONTINUATION signal at every horizon tested (5 to 63
+// trading days) -- high momentum predicts higher forward returns, not a
+// reversal -- so the short side stays keyed off NEGATIVE momentum
+// (shorting the weaker performer), the mirror of the long side, not an
+// inverted "short the overextension" rule.
 //
 // Within each side, a non-held candidate that hedges an existing position
 // on the OPPOSITE side (same sector or theme -- see the longs/shorts memos'
@@ -753,24 +753,25 @@ function RecommendationSection<T>({
 // because of too high risk or other reasons"). Position-size concentration
 // used to be flagged here too; dropped per explicit instruction -- not a
 // useful closing signal on its own.
-// MOMENTUM_THRESHOLD: explicit instruction -- a bare positive sign isn't
-// enough conviction to recommend opening a position (long or short), only
+// MOMENTUM_THRESHOLD (long side only): explicit instruction -- a bare
+// positive sign isn't enough conviction to recommend opening a long, only
 // to keep holding one already open (see buildCloseReasons' own separate,
-// looser <=0 momentum-reversal check below, deliberately not raised to
-// this same bar -- that one flags an existing position early, before its
-// momentum has even fully reversed, not just before it's "strong").
+// looser >=0/<=0 momentum-reversal check below, deliberately not raised
+// to this same bar -- that one flags an existing position early, before
+// its momentum has even fully reversed, not just before it's "strong").
 // Originally 1, lowered to 0.5 per explicit follow-up instruction (still
 // meaningfully above a bare positive sign, just a lower bar for entry
-// conviction than before). Shorts now use the exact same bar as longs --
-// explicit instruction: positive LT momentum is a good signal for
-// entering a short too, the same as it is for a long, not the mirror-image
-// negative-momentum bar this used to be.
+// conviction than before). The short side deliberately stays a plain <0
+// -- explicit instruction, not symmetric with the long side's threshold;
+// confirmed by backtest (see the doc comment above) that momentum is a
+// continuation signal, so a short should be keyed off negative momentum,
+// not an inverted positive-momentum bar.
 const MOMENTUM_THRESHOLD = 0.5
 function eligibleToBuy(c: Candidate): boolean {
   return c.momentum !== null && c.momentum !== undefined && c.momentum >= MOMENTUM_THRESHOLD
 }
 function eligibleToSell(c: Candidate): boolean {
-  return c.momentum !== null && c.momentum !== undefined && c.momentum >= MOMENTUM_THRESHOLD
+  return c.momentum !== null && c.momentum !== undefined && c.momentum < 0
 }
 
 // FINRA's biweekly-settlement pct-of-float (shortPctOfFloatFinra) is
@@ -785,13 +786,14 @@ function effectiveShortPctOfFloat(c: Candidate): number | null | undefined {
 
 // Short-only: a name already shorted by more than MAX_SHORT_INTEREST of its
 // float is a crowded short -- squeeze risk that makes it a worse short idea
-// regardless of how it scores otherwise. Explicit instruction: "any short
-// interest above 20% must not be presented" on the Short list. Unlike the
-// momentum gate above (an absolute "never" that treats unknown as
-// disqualifying), this is a risk-avoidance cap on a known-bad condition --
-// a candidate with no short-interest data at all isn't assumed crowded, so
-// it still passes.
-const MAX_SHORT_INTEREST = 0.2
+// regardless of how it scores otherwise. Explicit instruction: "any company
+// with more than 10% of short interest should be blocked and not presented
+// as a short opportunity" on the Short list -- originally 0.2, lowered to
+// 0.1 per that follow-up instruction. Unlike the momentum gate above (an
+// absolute "never" that treats unknown as disqualifying), this is a
+// risk-avoidance cap on a known-bad condition -- a candidate with no
+// short-interest data at all isn't assumed crowded, so it still passes.
+const MAX_SHORT_INTEREST = 0.1
 function notCrowded(c: Candidate): boolean {
   const pct = effectiveShortPctOfFloat(c)
   return pct === null || pct === undefined || pct <= MAX_SHORT_INTEREST
@@ -960,17 +962,22 @@ function buildCloseReasons({ shares, c, now }: { shares: number; c: Candidate; n
     }
   }
 
-  // Independent of rating -- a held position (long or short) whose own
-  // momentum has already turned flat or negative is worth flagging before
-  // the rating catches up, not just after. Same bar for both sides now:
-  // positive LT momentum is the supportive reading for a short same as a
-  // long, so it turning flat/negative undercuts either thesis the same
-  // way (see eligibleToBuy/eligibleToSell above).
-  if (c && c.momentum !== null && c.momentum !== undefined && c.momentum <= 0) {
-    reasons.push({
-      type: 'momentum',
-      text: `Momentum is no longer supportive for a ${isLong ? 'long' : 'short'} (${fmtSigned(c.momentum)}, ${c.momentum === 0 ? 'flat' : 'negative'}).`,
-    })
+  // Independent of rating -- a held Buy/Strong Buy long whose own momentum
+  // has already turned flat or negative (or a held Sell/Strong Sell short
+  // whose momentum has turned flat or positive) is worth flagging before
+  // the rating catches up, not just after.
+  if (c && c.momentum !== null && c.momentum !== undefined) {
+    if (isLong && c.momentum <= 0) {
+      reasons.push({
+        type: 'momentum',
+        text: `Momentum is no longer supportive for a long (${fmtSigned(c.momentum)}, ${c.momentum === 0 ? 'flat' : 'negative'}).`,
+      })
+    } else if (!isLong && c.momentum >= 0) {
+      reasons.push({
+        type: 'momentum',
+        text: `Momentum is no longer supportive for a short (${fmtSigned(c.momentum)}, ${c.momentum === 0 ? 'flat' : 'positive'}).`,
+      })
+    }
   }
 
   const epsTrend = epsTrendValue(c)
@@ -1107,7 +1114,7 @@ function buildRejectionReasons({ c, tickerScreener }: { c: Candidate; tickerScre
         text:
           c.momentum === null || c.momentum === undefined
             ? 'Momentum data is unavailable.'
-            : `Momentum is ${fmtSigned(c.momentum)}, below ${MOMENTUM_THRESHOLD}.`,
+            : `Momentum is ${fmtSigned(c.momentum)}, not negative.`,
       })
     }
     if (!notCrowded(c)) {
@@ -1171,10 +1178,7 @@ const LONG_RULES = [
 
 const SHORT_RULES = [
   { label: 'Rating', note: 'Strong Sell or Sell.' },
-  {
-    label: 'Momentum',
-    note: `Daily-timeframe momentum at or above ${MOMENTUM_THRESHOLD} -- same bar as Long, positive LT momentum is a good short-the-overextension signal, not a bad one; unknown momentum excluded.`,
-  },
+  { label: 'Momentum', note: 'Negative daily-timeframe momentum; unknown momentum excluded.' },
   {
     label: 'Not crowded',
     note: `No more than ${fmtPctAbs(MAX_SHORT_INTEREST)} of float already sold short; unknown short interest not excluded.`,
@@ -1204,7 +1208,7 @@ const CLOSE_RULES = [
   },
   {
     label: 'Momentum reversal',
-    note: 'Momentum has gone flat or negative — same bar for a long or a short — even if the rating hasn’t caught up yet.',
+    note: 'Momentum has gone flat or negative for a long, or flat or positive for a short — even if the rating hasn’t caught up yet.',
   },
   {
     label: 'Score near Hold boundary',

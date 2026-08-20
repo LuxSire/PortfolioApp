@@ -49,3 +49,28 @@ export interface TradeRow {
   realizedPnl: number | null
   commission: number | null
 }
+
+// One row of /trades.json (see ib_server.py's fetch_trades_report /
+// _normalize_trade_fields) -- an individual historical fill from the
+// IBKR Flex Query, one row per tradeID, NOT netted per ticker the way the
+// live "Trades Today" section's TradesByTicker is. quantity is already
+// signed (negative = sell), matching buySell's own direction. Any field
+// the account's specific Flex Query configuration didn't populate comes
+// back null rather than omitted, so every row has every key.
+export interface HistoricalTrade {
+  tradeID: string | null
+  symbol: string | null
+  assetCategory: string | null
+  currency: string | null
+  date: string | null
+  buySell: string | null
+  quantity: number | null
+  price: number | null
+  proceeds: number | null
+  commission: number | null
+  netCash: number | null
+  realizedPnl: number | null
+  openClose: string | null
+  orderType: string | null
+  exchange: string | null
+}

@@ -26,6 +26,7 @@ const STATIC_DATA_PATHS = [
   '/price_history_hourly.json',
   '/price_history_daily_3mo.json',
   '/portfolio_performance.json',
+  '/trades.json',
   '/theme_taxonomy.json',
   '/ticker_themes.json',
   '/sec/form4/insider_transactions.json',

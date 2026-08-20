@@ -2442,7 +2442,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Medical Devices"
   },
   {
@@ -4423,7 +4423,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Medical Care Facilities"
   },
   {
@@ -7786,7 +7786,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "REIT - Residential"
   },
   {
@@ -9825,7 +9825,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Insurance Brokers"
   },
   {
@@ -10121,7 +10121,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Specialty Industrial Machinery"
   },
   {
@@ -13800,7 +13800,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "REIT - Industrial"
   },
   {
@@ -20903,7 +20903,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Software - Infrastructure"
   },
   {
@@ -21270,7 +21270,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Residential Construction"
   },
   {
@@ -23542,7 +23542,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "REIT - Retail"
   },
   {
@@ -23812,7 +23812,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Biotechnology"
   },
   {

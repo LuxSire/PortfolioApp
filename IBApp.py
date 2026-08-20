@@ -1219,40 +1219,56 @@ class IBApp:
 
         history = {}
         request_times = self._historical_request_times
-        for i, c in enumerate(qualified):
+
+        def paced_request():
             now = time.monotonic()
             while request_times and now - request_times[0] > 600:
                 request_times.popleft()
             if len(request_times) >= max_requests_per_10min:
                 sleep_for = 600 - (now - request_times[0]) + 1
-                logging.info(
-                    f"get_ib_historical_bars: pacing limit reached ({i}/{len(qualified)} done), "
-                    f"sleeping {sleep_for:.0f}s"
-                )
+                logging.info(f"get_ib_historical_bars: pacing limit reached, sleeping {sleep_for:.0f}s")
                 self.ib.sleep(sleep_for)
             request_times.append(time.monotonic())
+            bars = self.ib.reqHistoricalData(
+                c,
+                endDateTime="",
+                durationStr=duration,
+                barSizeSetting=bar_size,
+                whatToShow="TRADES",
+                useRTH=True,
+                formatDate=1,
+            )
+            return [
+                {
+                    "date": (b.date.strftime("%Y-%m-%d %H:%M:%S") if hasattr(b.date, "strftime") else str(b.date)),
+                    "open": b.open,
+                    "high": b.high,
+                    "low": b.low,
+                    "close": b.close,
+                    "volume": b.volume,
+                }
+                for b in bars
+            ]
 
+        for c in qualified:
             try:
-                bars = self.ib.reqHistoricalData(
-                    c,
-                    endDateTime="",
-                    durationStr=duration,
-                    barSizeSetting=bar_size,
-                    whatToShow="TRADES",
-                    useRTH=True,
-                    formatDate=1,
-                )
-                history[c.symbol] = [
-                    {
-                        "date": (b.date.strftime("%Y-%m-%d %H:%M:%S") if hasattr(b.date, "strftime") else str(b.date)),
-                        "open": b.open,
-                        "high": b.high,
-                        "low": b.low,
-                        "close": b.close,
-                        "volume": b.volume,
-                    }
-                    for b in bars
-                ]
+                bars = paced_request()
+                # reqHistoricalData's own 60s timeout doesn't raise -- it
+                # cancels the request, logs its own warning, and returns an
+                # empty BarDataList (see reqHistoricalDataAsync's source,
+                # which this blocks on under the hood), so `except
+                # Exception` below never fires for this case. An empty
+                # result for an actively-traded ticker is virtually always
+                # that timeout/cancellation, not "genuinely no trades" --
+                # worth one cheap same-run retry (paced the same as any
+                # other request) rather than leaving this ticker stale
+                # until whatever run happens to retry it next -- see
+                # get_ib_historical_bars_async's own copy of this comment
+                # for the live incident that prompted it.
+                if not bars:
+                    logging.info(f"get_ib_historical_bars: {c.symbol} came back empty, retrying once")
+                    bars = paced_request()
+                history[c.symbol] = bars
             except Exception as e:
                 logging.error(f"get_ib_historical_bars: {c.symbol} failed: {e}")
                 history[c.symbol] = []
@@ -1281,42 +1297,61 @@ class IBApp:
 
         history = {}
         request_times = self._historical_request_times
-        for i, c in enumerate(qualified):
+
+        async def paced_request():
             now = time.monotonic()
             while request_times and now - request_times[0] > 600:
                 request_times.popleft()
             if len(request_times) >= max_requests_per_10min:
                 sleep_for = 600 - (now - request_times[0]) + 1
                 logging.info(
-                    f"get_ib_historical_bars_async: pacing limit reached ({i}/{len(qualified)} done), "
-                    f"sleeping {sleep_for:.0f}s"
+                    f"get_ib_historical_bars_async: pacing limit reached, sleeping {sleep_for:.0f}s"
                 )
                 await asyncio.sleep(sleep_for)
             request_times.append(time.monotonic())
+            bars = await self.ib.reqHistoricalDataAsync(
+                c,
+                endDateTime="",
+                durationStr=duration,
+                barSizeSetting=bar_size,
+                whatToShow="TRADES",
+                useRTH=True,
+                formatDate=1,
+            )
+            return [
+                {
+                    "date": (b.date.strftime("%Y-%m-%d %H:%M:%S") if hasattr(b.date, "strftime") else str(b.date)),
+                    "open": b.open,
+                    "high": b.high,
+                    "low": b.low,
+                    "close": b.close,
+                    "volume": b.volume,
+                }
+                for b in bars
+            ]
 
+        for c in qualified:
             if on_ticker:
                 on_ticker(c.symbol)
             try:
-                bars = await self.ib.reqHistoricalDataAsync(
-                    c,
-                    endDateTime="",
-                    durationStr=duration,
-                    barSizeSetting=bar_size,
-                    whatToShow="TRADES",
-                    useRTH=True,
-                    formatDate=1,
-                )
-                history[c.symbol] = [
-                    {
-                        "date": (b.date.strftime("%Y-%m-%d %H:%M:%S") if hasattr(b.date, "strftime") else str(b.date)),
-                        "open": b.open,
-                        "high": b.high,
-                        "low": b.low,
-                        "close": b.close,
-                        "volume": b.volume,
-                    }
-                    for b in bars
-                ]
+                bars = await paced_request()
+                # reqHistoricalDataAsync's own 60s timeout doesn't raise --
+                # it cancels the request, logs its own warning, and returns
+                # an empty BarDataList (see that method's source), so
+                # `except Exception` below never fires for this case. An
+                # empty result for an actively-traded ticker is virtually
+                # always that timeout/cancellation, not "genuinely no
+                # trades" -- worth one cheap same-run retry (paced the same
+                # as any other request) rather than leaving this ticker
+                # stale until whatever run happens to retry it next,
+                # confirmed live: three consecutive IB Gateway timeouts
+                # (AAT/ACHC/ACMR) during one 145-ticker batch, congestion
+                # on IB's end that a second attempt moments later can often
+                # just sail through.
+                if not bars:
+                    logging.info(f"get_ib_historical_bars_async: {c.symbol} came back empty, retrying once")
+                    bars = await paced_request()
+                history[c.symbol] = bars
             except Exception as e:
                 logging.error(f"get_ib_historical_bars_async: {c.symbol} failed: {e}")
                 history[c.symbol] = []

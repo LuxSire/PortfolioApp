@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { IB_STREAM_URL } from '../ibStream'
 import { parseCSV } from '../csv'
-import type { OpenOrder, TickerInfoByTicker, TradeRow, TradesByTicker } from '../interfaces/ITradesView'
+import type { HistoricalTrade, OpenOrder, TickerInfoByTicker, TradeRow, TradesByTicker } from '../interfaces/ITradesView'
 
 // Whole numbers for the vast majority of fills; only show decimals for a
 // rare fractional-share trade.
@@ -62,6 +62,8 @@ export default function TradesView() {
   const [trades, setTrades] = useState<TradesByTicker>({})
   const [openOrders, setOpenOrders] = useState<OpenOrder[]>([])
   const [tickerInfo, setTickerInfo] = useState<TickerInfoByTicker>({})
+  const [history, setHistory] = useState<HistoricalTrade[]>([])
+  const [historySymbolFilter, setHistorySymbolFilter] = useState('')
 
   useEffect(() => {
     fetch('/sorted_screen.csv')
@@ -73,6 +75,19 @@ export default function TradesView() {
         }
         setTickerInfo(info)
       })
+      .catch(() => {})
+  }, [])
+
+  // /trades.json (see ib_server.py's fetch_trades_report) -- the
+  // downloaded IBKR Flex Query trade history, separate from "Trades
+  // Today"'s live per-ticker aggregate above. Fetched once on mount, not
+  // polled -- this file only changes when someone re-runs the Dataset
+  // tab's "Past trades" Run button or the CLI form, not continuously the
+  // way the live SSE stream does.
+  useEffect(() => {
+    fetch('/trades.json')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => setHistory(data?.rows ?? []))
       .catch(() => {})
   }, [])
 
@@ -111,6 +126,17 @@ export default function TradesView() {
     if (b.status === 'Submitted' && a.status !== 'Submitted') return 1
     return a.ticker.localeCompare(b.ticker)
   })
+
+  // Most recent first (tradeID as the tiebreaker within a date, so same-
+  // day fills stay in a stable, deterministic order across re-renders
+  // instead of shuffling on every fetch).
+  const historyRows = useMemo(
+    () =>
+      [...history]
+        .filter((t) => !historySymbolFilter || (t.symbol ?? '').toUpperCase().includes(historySymbolFilter.toUpperCase()))
+        .sort((a, b) => (b.date ?? '').localeCompare(a.date ?? '') || (b.tradeID ?? '').localeCompare(a.tradeID ?? '')),
+    [history, historySymbolFilter]
+  )
 
   return (
     <div className="positions-page trades-page">
@@ -228,6 +254,72 @@ export default function TradesView() {
           </div>
         </div>
       )}
+
+      <div className="asset-card">
+        <div className="trades-history-header">
+          <h2>Trade History</h2>
+          <input
+            type="text"
+            className="trades-symbol-filter"
+            placeholder="Filter by symbol…"
+            value={historySymbolFilter}
+            onChange={(e) => setHistorySymbolFilter(e.target.value)}
+          />
+        </div>
+        {history.length === 0 && (
+          <p className="status-row">
+            No downloaded trade history yet — run the "Past trades (Flex Query)" job on the Dataset tab.
+          </p>
+        )}
+        {history.length > 0 && historyRows.length === 0 && <p className="status-row">No trades match "{historySymbolFilter}".</p>}
+        {historyRows.length > 0 && (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th className="col-left">Date</th>
+                  <th className="col-left">Ticker</th>
+                  <th className="col-left col-name">Name</th>
+                  <th>Side</th>
+                  <th>Qty</th>
+                  <th>Price</th>
+                  <th>Proceeds</th>
+                  <th>Commission</th>
+                  <th>Realized P&amp;L</th>
+                </tr>
+              </thead>
+              <tbody>
+                {historyRows.map((t) => (
+                  <tr key={t.tradeID ?? `${t.symbol}-${t.date}-${t.quantity}`}>
+                    <td className="col-left">{t.date ?? '—'}</td>
+                    <td className="col-left">
+                      {t.symbol ? (
+                        <a
+                          href={`#/asset/${encodeURIComponent(t.symbol)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="ticker-link"
+                        >
+                          {t.symbol}
+                        </a>
+                      ) : (
+                        '—'
+                      )}
+                    </td>
+                    <td className="col-left col-name">{(t.symbol && tickerInfo[t.symbol]?.name) ?? '—'}</td>
+                    <td className={`num ${actionClass(t.buySell ?? '')}`}>{t.buySell ?? '—'}</td>
+                    <td className="num">{fmtShares(t.quantity)}</td>
+                    <td className="num">{fmtPrice(t.price)}</td>
+                    <td className="num">{fmtMoney(t.proceeds)}</td>
+                    <td className="num">{fmtMoney(t.commission)}</td>
+                    <td className={`num ${pnlClass(t.realizedPnl)}`}>{fmtMoney(t.realizedPnl)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

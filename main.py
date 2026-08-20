@@ -1073,15 +1073,15 @@ def write_sorted_screen_csv(data):
 
 def download_all():
     """Full pipeline: fetch forward P/E data from Yahoo Finance, then the
-    momentum score. Also refreshes IB Gateway's own daily and hourly bars
-    (see refresh_ib_daily_history/refresh_ib_hourly_history) -- both
-    best-effort, skipped entirely if IB Gateway isn't reachable, and
-    routed through ib_server.py's own connection instead of opening a
-    second one if that process is already running (see those functions'
-    docstrings). Each is also available on its own, via `python main.py
-    ibprices`/`ibhprices` respectively, for a standalone refresh. Tickers
-    downloaded within the last FRESH_HOURS hours are skipped and their
-    previous forward_pe.csv row is reused as-is, rather than re-fetched."""
+    momentum score. Does NOT refresh IB Gateway's own daily/hourly bars
+    (see refresh_ib_daily_history/refresh_ib_hourly_history) -- those are
+    a separate, on-demand step, `python main.py ibprices`/`ibhprices`
+    respectively (or their own Dataset-tab Run buttons), same as
+    download_prices() below; kept out of `all` so a routine rescan
+    doesn't also pull in a long-running, IB-Gateway-timeout-prone batch
+    job every time. Tickers downloaded within the last FRESH_HOURS hours
+    are skipped and their previous forward_pe.csv row is reused as-is,
+    rather than re-fetched."""
     app = IBApp()
     tickers = load_tickers(SYMBOLS_FILE)
     print(f"Loaded {len(tickers)} active tickers from {SYMBOLS_FILE}")
@@ -1118,9 +1118,6 @@ def download_all():
         fetch_social_sentiment(rated_tickers)
     else:
         print(f"No existing {SORTED_SCREEN_CSV} yet; skipping social sentiment download")
-
-    refresh_ib_daily_history(app)
-    refresh_ib_hourly_history(app)
 
     apply_sector_overrides(data, load_sectors(SYMBOLS_FILE))
     add_momentum_and_persist_history(app, data)

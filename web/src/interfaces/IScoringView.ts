@@ -15,3 +15,26 @@ export interface ScoringFactor {
   utilitiesWeight: number
   realEstateWeight: number
 }
+
+// One row of the Rating Breakdown table -- sorted_screen.csv's `rating`
+// column (see main.py's rating_for_percentile), counted per `sector`
+// (really an industry, e.g. "Banks - Regional" -- see scoring.py's own
+// module docstring on that naming). na counts a priced ticker with a
+// non-positive forwardPE (main.py's write_sorted_screen_csv appends
+// these unranked, RATING_NA, never scored at all) -- worth keeping as
+// its own column rather than dropping it, since a sector where most
+// tickers never even reach scoring (e.g. Biotechnology) is itself part
+// of the picture, not just noise to filter out.
+export interface SectorRatingRow {
+  sector: string
+  strongBuy: number
+  buy: number
+  hold: number
+  sell: number
+  strongSell: number
+  na: number
+  total: number
+  scored: number
+  buyPct: number
+  sellPct: number
+}

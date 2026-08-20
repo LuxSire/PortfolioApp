@@ -565,6 +565,33 @@ header.masthead .title-block p {
   font-weight: 600;
 }
 
+.trades-history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+
+  h2 {
+    margin: 0;
+  }
+}
+
+.trades-symbol-filter {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: inherit;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 13px;
+  width: 180px;
+
+  &:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+}
+
 .asset-summary p {
   margin: 0 0 12px;
   line-height: 1.55;
@@ -2526,6 +2553,37 @@ tfoot td.col-left {
 .scoring-weight-changed {
   color: var(--focus);
   font-weight: 600;
+}
+
+/* Rating Breakdown by Sector table (see ScoringView.tsx) -- sector rows
+   are clickable to expand/collapse their granular industry rows. */
+.scoring-sector-row {
+  cursor: pointer;
+  font-weight: 600;
+
+  &:hover td {
+    background: var(--surface-2);
+  }
+}
+
+.scoring-expand-caret {
+  display: inline-block;
+  width: 12px;
+  margin-right: 6px;
+  color: var(--muted);
+  transition: transform 0.1s ease;
+
+  &.expanded {
+    transform: rotate(90deg);
+  }
+}
+
+.scoring-industry-row td {
+  color: var(--muted);
+
+  &.col-left {
+    padding-left: 28px;
+  }
 }
 
 /* Holders tab -- see HoldersView.jsx. */

@@ -240,6 +240,7 @@ DATA_DIR = "data"
 HOURLY_HISTORY_FILE = os.path.join(DATA_DIR, "price_history_hourly.json")
 DAILY_HISTORY_FILE = os.path.join(DATA_DIR, "price_history_daily_3mo.json")
 PORTFOLIO_PERFORMANCE_FILE = os.path.join(DATA_DIR, "portfolio_performance.json")
+TRADES_FILE = os.path.join(DATA_DIR, "trades.json")
 NEWS_FILE = os.path.join(DATA_DIR, "news.json")
 NEWS_SENTIMENT_FILE = os.path.join(DATA_DIR, "news_sentiment.json")
 RECOMMENDATIONS_FILE = os.path.join(DATA_DIR, "recommendations.json")
@@ -471,6 +472,15 @@ DATASETS = [
         "network": "IBKR Flex Web Service (not IB Gateway)",
         "run": {"kind": "subprocess", "argv": ["ib_server.py", "performance"]},
     },
+    {
+        "id": "trades",
+        "path": TRADES_FILE,
+        "label": "Past trades (Flex Query)",
+        "command": "python ib_server.py trades [YYYY-MM-DD]",
+        "notes": "Run button omits the date (no client-side trim); for a specific start date instead, use the CLI form. Merges by tradeID into whatever's already on disk, so repeated runs accumulate rather than only ever showing the query's own configured window",
+        "network": "IBKR Flex Web Service (not IB Gateway)",
+        "run": {"kind": "subprocess", "argv": ["ib_server.py", "trades"]},
+    },
 ]
 
 # {request path: file path} served fresh from disk on every request (see
@@ -492,6 +502,7 @@ STATIC_FILES = {
     "/price_history_hourly.json": HOURLY_HISTORY_FILE,
     "/price_history_daily_3mo.json": DAILY_HISTORY_FILE,
     "/portfolio_performance.json": PORTFOLIO_PERFORMANCE_FILE,
+    "/trades.json": TRADES_FILE,
     "/theme_taxonomy.json": TAXONOMY_FILE,
     "/ticker_themes.json": TICKER_THEMES_FILE,
     "/sec/form4/insider_transactions.json": FORM4_FILE,
@@ -1892,6 +1903,177 @@ async def performance_loop():
         await asyncio.sleep(PERFORMANCE_REFRESH_SECONDS)
 
 
+# ---------------------------------------------------------------------- #
+#  Past trades (Flex Query)                                              #
+# ---------------------------------------------------------------------- #
+# Same Flex Web Service the Portfolio tab's NAV history already uses (see
+# fetch_account_performance's own docstring for why: reqExecutions over
+# the TWS-API socket only reliably surfaces TODAY's fills, not real
+# history -- see IBApp.get_past_trades). A separate Flex Query
+# (QUERY_TRADES_ID, same QUERY_TOKEN as the NAV query -- one Flex Web
+# Service token authorizes every query configured under it) with a "Trade
+# Confirmation" or "Trades" section configured, over whatever date range
+# that query itself is set to on IBKR's side (same as the NAV query, the
+# range lives in the query definition, not in this request).
+#
+# Unlike the NAV query, this account's Trades query hasn't been run live
+# yet as of this writing, so the exact column set is unconfirmed -- IBKR's
+# XML export uses fixed attribute names (symbol, tradeDate, buySell,
+# quantity, tradePrice, ...) but its CSV export's column headers are
+# whatever the query's own Report Format configuration picked (commonly
+# more human-readable, e.g. "T. Price" instead of "tradePrice") and can
+# differ from account to account. _normalize_trade_fields below is
+# deliberately alias-tolerant (tries several known spellings per logical
+# field, case-insensitively) rather than hardcoded to one naming
+# convention, and always keeps the complete original field set under
+# "raw" -- so a real trade is never silently dropped just because this
+# account's query happens to use a column name that isn't in the alias
+# list, and the actual raw values are there to check by hand.
+
+
+def _first(fields, *keys):
+    """Case-insensitive lookup trying multiple candidate key spellings in
+    order, returning the first present non-empty value (or None) -- see
+    the module comment above for why: IBKR's Trades CSV export's column
+    headers aren't as fixed as the XML attribute names are."""
+    lower = {k.lower(): v for k, v in fields.items()}
+    for key in keys:
+        v = lower.get(key.lower())
+        if v not in (None, ""):
+            return v
+    return None
+
+
+def _trade_float(v):
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def _normalize_trade_fields(fields):
+    """One raw {field name: string value} dict (an XML <Trade> element's
+    .attrib, or a CSV Trades-section row zipped against its own header) --
+    normalized into the shape TradesView renders, plus the untouched
+    original under "raw" (see module comment above)."""
+    trade_date = _first(fields, "tradeDate", "Date/Time", "TradeDate", "Date")
+    date = None
+    if trade_date:
+        digits = "".join(ch for ch in str(trade_date) if ch.isdigit())
+        if len(digits) >= 8:
+            date = _iso_date(digits[:8])
+    return {
+        "tradeID": _first(fields, "tradeID", "TradeID"),
+        "symbol": _first(fields, "symbol", "Symbol"),
+        "assetCategory": _first(fields, "assetCategory", "AssetClass", "Asset Category"),
+        "currency": _first(fields, "currency", "Currency"),
+        "date": date,
+        "buySell": _first(fields, "buySell", "Buy/Sell"),
+        "quantity": _trade_float(_first(fields, "quantity", "Quantity")),
+        "price": _trade_float(_first(fields, "tradePrice", "T. Price", "TradePrice")),
+        "proceeds": _trade_float(_first(fields, "proceeds", "Proceeds")),
+        "commission": _trade_float(_first(fields, "ibCommission", "Comm/Fee", "IBCommission", "Commission")),
+        "netCash": _trade_float(_first(fields, "netCash", "Net Cash", "NetCash")),
+        "realizedPnl": _trade_float(_first(fields, "fifoPnlRealized", "Realized P/L", "RealizedPL", "MTM P/L")),
+        "openClose": _first(fields, "openCloseIndicator", "Open/Close", "Code"),
+        "orderType": _first(fields, "orderType", "OrderType"),
+        "exchange": _first(fields, "exchange", "Exchange"),
+        "raw": fields,
+    }
+
+
+def _parse_trades_xml(text):
+    root = ET.fromstring(text)
+    return [_normalize_trade_fields(el.attrib) for el in root.iter("Trade")]
+
+
+def _parse_trades_csv(text):
+    """Trades section(s) out of a Flex Query CSV export -- reuses
+    _flex_csv_sections (already generic, not portfolio-specific: any
+    section whose rows start with a repeated header block splits out on
+    its own). Picks whichever section(s) look like trade rows (a Symbol
+    column plus a Quantity or T. Price column) rather than assuming
+    there's exactly one section, since a query can have more than one
+    trade-shaped section (e.g. Trades and Trade Confirmation both
+    enabled)."""
+    sections = _flex_csv_sections(text)
+    trades = []
+    for header, rows in sections.items():
+        lower = {h.lower() for h in header}
+        if "symbol" not in lower:
+            continue
+        if not ({"quantity", "t. price", "tradeprice"} & lower):
+            continue
+        for row in rows:
+            fields = dict(zip(header, row))
+            trades.append(_normalize_trade_fields(fields))
+    return trades
+
+
+def _parse_trades_report(raw_bytes):
+    text = raw_bytes.decode("utf-8-sig", errors="replace")
+    if text.lstrip().startswith("<"):
+        return _parse_trades_xml(text)
+    return _parse_trades_csv(text)
+
+
+def fetch_trades_report(start_date=None):
+    """Fetches this account's real trade history via a Flex Query and
+    writes TRADES_FILE as {"kind": "trades", "rows": [...]}. Requires
+    QUERY_TOKEN and QUERY_TRADES_ID in the environment (see .env) -- the
+    same Flex Web Service token the NAV query already uses (see
+    fetch_account_performance), and the query ID of a separate Flex Query
+    with a Trades/Trade Confirmation section configured (the date range
+    lives in that query's own definition on IBKR's side, same as the NAV
+    query -- start_date here only trims rows client-side afterward).
+
+    Merges into whatever's already in TRADES_FILE by tradeID (a trade,
+    once executed, never changes -- unlike the NAV query's per-day rows,
+    there's no "freshen this row's fields" case to handle, just "add
+    whatever's new"), so a query whose configured range doesn't cover the
+    account's full history still accumulates a growing local record
+    across repeated runs rather than only ever showing its own window.
+    A row with no tradeID (shouldn't happen, but _normalize_trade_fields
+    doesn't assume the account's query configuration always includes it)
+    is kept unconditionally rather than risked being deduped away."""
+    token = os.getenv("QUERY_TOKEN")
+    query_id = os.getenv("QUERY_TRADES_ID")
+    if not (token and query_id):
+        sys.exit("QUERY_TOKEN/QUERY_TRADES_ID not set in .env -- see IBKR Account Management's Flex Web Service Configuration")
+
+    print("Requesting Trades Flex Query statement (IBKR generates it on demand, can take a while)...")
+    raw = IBApp().fetch_flex_query(token, query_id)
+    if not raw:
+        sys.exit("Flex Query fetch failed -- check QUERY_TOKEN/QUERY_TRADES_ID and that the query is active")
+    trades = _parse_trades_report(raw)
+    if not trades:
+        sys.exit("Trades Flex Query returned no rows -- check the query has a Trades/Trade Confirmation section configured")
+
+    try:
+        with open(TRADES_FILE) as f:
+            existing = json.load(f).get("rows", [])
+    except FileNotFoundError:
+        existing = []
+    by_id = {r["tradeID"]: r for r in existing if r.get("tradeID")}
+    no_id = [r for r in existing if not r.get("tradeID")]
+    for t in trades:
+        if t.get("tradeID"):
+            by_id[t["tradeID"]] = t
+        else:
+            no_id.append(t)
+    rows = list(by_id.values()) + no_id
+    rows.sort(key=lambda r: (r.get("date") or "", r.get("tradeID") or ""))
+
+    if start_date:
+        rows = [r for r in rows if (r.get("date") or "") >= start_date]
+
+    output = {"kind": "trades", "rows": rows}
+    with open(TRADES_FILE, "w") as f:
+        json.dump(output, f, indent=2)
+    print(f"Wrote {TRADES_FILE}: {len(rows)} trade(s)" + (f", {rows[0]['date']} to {rows[-1]['date']}" if rows else ""))
+    return output
+
+
 def _interleave(a, b):
     """[a0, b0, a1, b1, ...], trailing off into whichever list is longer
     once the other runs out -- used by _priority_tickers below to blend two
@@ -1922,7 +2104,7 @@ def _to_float(v):
 _REC_MOMENTUM_THRESHOLD = 0.5
 _REC_REVENUE_GROWTH_THRESHOLD = 0.1
 _REC_MEAN_REVERSION_THRESHOLD = 10
-_REC_MAX_SHORT_INTEREST = 0.2
+_REC_MAX_SHORT_INTEREST = 0.1
 
 
 def _rec_eps_trend(row):
@@ -2757,6 +2939,12 @@ def main():
     if args and args[0] == "performance":
         start_date = args[1] if len(args) > 1 else None
         fetch_account_performance(start_date)
+        return
+
+    # `python ib_server.py trades [YYYY-MM-DD]`
+    if args and args[0] == "trades":
+        start_date = args[1] if len(args) > 1 else None
+        fetch_trades_report(start_date)
         return
 
     port = int(args[0]) if args else 8765

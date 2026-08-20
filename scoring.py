@@ -20,6 +20,7 @@ docstring for the full picture.
 
 import json
 import math
+import statistics
 from datetime import date, timedelta
 
 
@@ -292,15 +293,26 @@ def pe_rank(rows):
 
 
 def _sector_avg_forward_pe(rows):
-    """Average forwardPE per sector, across rows that have both a sector and a forwardPE."""
-    sums, counts = {}, {}
+    """MEDIAN forwardPE per sector, across rows that have both a sector and
+    a forwardPE -- an arithmetic mean here is badly distorted by outliers
+    in a thin, right-skewed sector: confirmed live for Biotechnology
+    (only 41 of 204 tickers even reach scoring, the rest excluded as
+    unranked for non-positive forwardPE -- see screen_rows), where three
+    barely-profitable names with forwardPE in the hundreds/thousands
+    pulled the mean to 99.8 while the median was 17.4 -- every other
+    name in the sector then compared against that inflated mean and
+    looked artificially cheap. Median is far more robust to exactly this
+    shape of outlier and isn't specific to Biotechnology -- any sector
+    this granular (Yahoo's ~130 industry labels, not broad GICS sectors)
+    can have thin membership and a skewed tail, so this applies
+    universally rather than as a per-sector carve-out."""
+    values = {}
     for _, d in rows:
         sector = d.get("sector")
         fwd_pe = to_float(d.get("forwardPE"))
         if sector and fwd_pe is not None:
-            sums[sector] = sums.get(sector, 0) + fwd_pe
-            counts[sector] = counts.get(sector, 0) + 1
-    return {sector: sums[sector] / counts[sector] for sector in sums}
+            values.setdefault(sector, []).append(fwd_pe)
+    return {sector: statistics.median(vals) for sector, vals in values.items()}
 
 
 def sector_relative_pe_rank(rows):
@@ -396,18 +408,20 @@ def peg_rank(rows):
 #  Quality                                                                 #
 # ---------------------------------------------------------------------- #
 def _sector_avg_debt_to_equity(rows):
-    """Average non-negative debtToEquity per sector, across rows that have
+    """MEDIAN non-negative debtToEquity per sector, across rows that have
     both a sector and a non-negative debtToEquity (negative debtToEquity,
     i.e. negative shareholder equity, is excluded so one distressed company
-    doesn't skew its sector's baseline)."""
-    sums, counts = {}, {}
+    doesn't skew its sector's baseline). Median, not mean -- same
+    outlier-robustness reasoning as _sector_avg_forward_pe above: a single
+    heavily-levered name in a thin sector can pull a mean far higher than
+    what's typical, the same way it does for forwardPE."""
+    values = {}
     for _, d in rows:
         sector = d.get("sector")
         de = to_float(d.get("debtToEquity"))
         if sector and de is not None and de >= 0:
-            sums[sector] = sums.get(sector, 0) + de
-            counts[sector] = counts.get(sector, 0) + 1
-    return {sector: sums[sector] / counts[sector] for sector in sums}
+            values.setdefault(sector, []).append(de)
+    return {sector: statistics.median(vals) for sector, vals in values.items()}
 
 
 def debt_rank(rows):
@@ -844,32 +858,54 @@ def is_real_estate_sector(sector):
 # to 1.00 -- there's no runtime assertion, same as this module's own
 # original docstring note on the single-formula weights it replaces.
 #
-# The Financials column zeroes out debt/liquidity/ev_ebitda/fcf (17%
-# combined -- see is_financials_sector's own docstring for why) and
-# redistributes exactly that 17% onto the four factors Yahoo actually
-# does report cleanly for this sector: +5% pe, +5% sector_pe, +5%
-# eps_trend, +2% growth.
+# The Financials column zeroes out debt/liquidity/ev_ebitda/fcf/margin
+# (22% combined -- see is_financials_sector's own docstring for the
+# debt/liquidity/ev_ebitda/fcf reasoning; margin is the same class of
+# not-comparable-for-this-sector problem: a bank's "revenue" in the
+# profitMargins/operatingMargins ratio is net interest income + fees, a
+# structurally much smaller denominator than a retailer's gross revenue,
+# so every bank looks like a margin outlier -- confirmed live: bank
+# median profitMargins ~30%/operatingMargins ~43% vs. the rest of the
+# universe's ~4%/~9%, not a real profitability edge) and redistributes
+# that 22% onto eps_trend (+10%, standard 5% -> 15%) and growth (+2%,
+# standard 8% -> 10%). Separately (not part of that 22%, funded by
+# trimming pe and short_interest instead -- see below), sector_pe goes
+# +10% (standard 5% -> 15%) and peg goes +3% (standard 5% -> 8%): pe on
+# its own isn't sector-relative, and confirmed live it was doing most of
+# the damage in an earlier version of this column -- Financials
+# structurally trades at low ABSOLUTE P/E multiples market-wide (banks
+# and insurers both averaged ~0.25 percentile on raw pe_rank vs. 0.50
+# universe-wide), which isn't the same thing as being cheap for ITS OWN
+# sector (sector_pe only read ~0.56-0.62 for the same names) -- boosting
+# the sector-relative version instead of the universe-wide one, and
+# adding peg (also comparable across sectors) funded by trimming
+# short_interest (-3%, standard 8% -> 5%, since it isn't a
+# comparability-across-sectors factor the way pe/margin/debt/etc. are),
+# corrects that without re-introducing a missing-data problem.
 #
 # The Utilities column zeroes out liquidity (2% -- see
 # is_utilities_sector's own docstring for why just this one, not the
 # broader growth/momentum/PEG tilt also observed for this sector, which
 # reads more like real signal than a bug) and redistributes that 2% onto
-# sector_pe alone; separately, fcf is trimmed 5% -> 3% with the other 2%
-# moved onto short_interest (a capital-intensive, heavy-regulated-capex
-# sector's negative free cash flow is a weaker price/FCF signal than
-# usual, same underlying reasoning as fcf's own reduced weight for
-# Financials above, just a trim here rather than zeroing it out
-# entirely -- short_interest doesn't share fcf's yfinance-field-coverage
-# concerns, so it's a safe place to land the freed weight).
+# sector_pe alone; fcf is zeroed out entirely (standard 5% -> 0%, same
+# not-comparable-for-this-sector reasoning as Financials' fcf zeroing --
+# a capital-intensive, heavily-regulated-capex sector's negative free
+# cash flow isn't a real quality signal) with 2% of that landing on
+# short_interest (standard 8% -> 10%) and the remaining 3% on eps_trend
+# (standard 5% -> 8%, same "Yahoo reports this cleanly for the sector"
+# reasoning Financials' own eps_trend boost uses).
 #
-# The Real Estate column is otherwise IDENTICAL to Financials (same
-# debt/liquidity/ev_ebitda zeroing, same sector_pe/eps_trend/growth
-# boosts) except pe and fcf are both left at their standard 5% instead
-# of Financials' 10%/0% -- explicit call: mortgage REITs share
-# Financials' missing-EBITDA/FCF-data problem (see
-# is_real_estate_sector's own docstring), but equity REITs don't share
-# its P/E-vs-market or FCF-coverage story, so neither gets pushed to a
-# Financials-specific extreme here.
+# The Real Estate column is otherwise IDENTICAL to the ORIGINAL
+# Financials treatment (same debt/liquidity/ev_ebitda/margin zeroing,
+# same sector_pe/eps_trend/growth boosts) except pe and fcf are both
+# left at their standard 5% instead of being touched at all -- explicit
+# call: mortgage REITs share Financials' missing-EBITDA/FCF-data problem
+# (see is_real_estate_sector's own docstring), but equity REITs don't
+# share its P/E-vs-market or FCF-coverage story, so neither gets pushed
+# to a Financials-specific extreme here. Real Estate was NOT revisited
+# when Financials' pe/sector_pe/peg/short_interest were rebalanced above
+# -- it never had pe/short_interest boosted or trimmed in the first
+# place, so that specific distortion doesn't apply to it the same way.
 #
 # eps_volatility (see IBApp._eps_volatility/eps_volatility_rank) is a
 # flat 5% in EVERY column, sector_pe trimmed 5% to fund it in every
@@ -881,26 +917,26 @@ def is_real_estate_sector(sector):
 # column) land on top of this trim, e.g. Financials' sector_pe is
 # STANDARD_WEIGHTS["sector_pe"] (0.05) + 0.05 = 0.10, not the old 0.15.
 FACTOR_WEIGHTS = {
-    "pe": ("Forward P/E", 0.05, 0.10, 0.05, 0.05),
-    "sector_pe": ("Forward P/E vs. sector average", 0.05, 0.10, 0.07, 0.10),
+    "pe": ("Forward P/E", 0.05, 0.05, 0.05, 0.05),
+    "sector_pe": ("Forward P/E vs. sector average", 0.05, 0.15, 0.07, 0.10),
     "eps_volatility": ("Yearly EPS volatility", 0.05, 0.05, 0.05, 0.05),
-    "fcf": ("Price/FCF", 0.05, 0.0, 0.03, 0.05),
+    "fcf": ("Price/FCF", 0.05, 0.0, 0.0, 0.05),
     "ev_ebitda": ("EV/EBITDA", 0.05, 0.0, 0.05, 0.0),
     "momentum": ("Daily-timeframe momentum", 0.05, 0.05, 0.05, 0.05),
     "mean_reversion": ("Hourly-timeframe mean reversion", 0.05, 0.05, 0.05, 0.05),
-    "eps_trend": ("EPS-estimate revision trend", 0.05, 0.10, 0.05, 0.10),
+    "eps_trend": ("EPS-estimate revision trend", 0.05, 0.15, 0.08, 0.10),
     "analyst": ("Analyst conviction", 0.07, 0.07, 0.07, 0.07),
     "pe_vs_trailing": ("Forward P/E vs. Trailing P/E", 0.05, 0.05, 0.05, 0.05),
-    "peg": ("PEG ratio", 0.05, 0.05, 0.05, 0.05),
+    "peg": ("PEG ratio", 0.05, 0.08, 0.05, 0.05),
     "trailing_ps": ("Trailing P/S", 0.02, 0.02, 0.02, 0.02),
     "growth": ("Revenue growth", 0.08, 0.10, 0.08, 0.10),
     "debt": ("Debt/equity vs. sector average", 0.05, 0.0, 0.05, 0.0),
     "liquidity": ("Quick/current ratio", 0.02, 0.0, 0.0, 0.0),
     "roe": ("Return on equity", 0.03, 0.03, 0.03, 0.03),
-    "short_interest": ("Short interest (contrarian)", 0.08, 0.08, 0.10, 0.08),
+    "short_interest": ("Short interest (contrarian)", 0.08, 0.05, 0.10, 0.08),
     "sentiment": ("News/social/institutional sentiment", 0.05, 0.05, 0.05, 0.05),
     "insiders": ("Insider open-market buy/sell activity", 0.05, 0.05, 0.05, 0.05),
-    "margin": ("Profit/operating margins", 0.05, 0.05, 0.05, 0.05),
+    "margin": ("Profit/operating margins", 0.05, 0.0, 0.05, 0.05),
 }
 STANDARD_WEIGHTS = {factor: v[1] for factor, v in FACTOR_WEIGHTS.items()}
 FINANCIALS_WEIGHTS = {factor: v[2] for factor, v in FACTOR_WEIGHTS.items()}
@@ -920,18 +956,26 @@ def score_rows(rows, sentiment_scores=None, insider_scores=None, short_interest_
     earnings volatility is a quality signal everywhere, not a Financials/
     Utilities/Real-Estate-specific concern. On top of that, a Financials-
     sector ticker (see is_financials_sector) uses FINANCIALS_WEIGHTS
-    instead (debt_rank/liquidity_rank/
-    ev_ebitda_rank/fcf_rank zeroed out, 17% redistributed onto pe_rank/
-    sector_relative_pe_rank/eps_trend_rank/growth_rank); a Utilities-
+    instead (debt_rank/liquidity_rank/ev_ebitda_rank/fcf_rank/margin_rank
+    zeroed out, 22% redistributed onto eps_trend_rank/growth_rank --
+    eps_trend_rank getting the lion's share, 15% vs. the standard 5%;
+    separately, pe_rank is trimmed back to its standard 5% -- not sector-
+    relative on its own, it was overstating how cheap Financials looks --
+    with that weight plus a short_interest_rank trim landing on
+    sector_relative_pe_rank and peg_rank instead, both properly
+    comparable across sectors); a Utilities-
     sector ticker (see is_utilities_sector), which uses UTILITIES_WEIGHTS
     instead (liquidity_rank zeroed out with that 2% redistributed onto
-    sector_relative_pe_rank, and fcf_rank trimmed 5% -> 3% with the
-    other 2% redistributed onto short_interest_rank); or a Real-Estate-
-    sector ticker (see is_real_estate_sector), which uses
-    REAL_ESTATE_WEIGHTS instead -- identical to FINANCIALS_WEIGHTS
-    except pe_rank/fcf_rank are both left at their standard 5% rather
-    than Financials' 10%/0%. See FACTOR_WEIGHTS' own comment for the
-    full reasoning on all three. The underlying rank computations
+    sector_relative_pe_rank, and fcf_rank zeroed out entirely with that
+    5% split onto short_interest_rank and eps_trend_rank); or a Real-
+    Estate-sector ticker (see is_real_estate_sector), which uses
+    REAL_ESTATE_WEIGHTS instead -- identical to the ORIGINAL Financials
+    treatment (debt/liquidity/ev_ebitda/margin zeroed, eps_trend/growth
+    boosted) except pe_rank/fcf_rank are both left at their standard 5%,
+    and this column was never revisited for Financials' later
+    pe/sector_pe/peg/short_interest rebalance above. See FACTOR_WEIGHTS'
+    own comment for the full reasoning on all three. The underlying rank
+    computations
     themselves are identical in every case -- only which weight gets
     applied to which ticker differs, so e.g. a Real-Estate ticker's
     sector_pe percentile still reflects the whole market, not just
