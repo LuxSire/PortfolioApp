@@ -5,32 +5,40 @@ which combines them) lives in scoring.py instead -- see that module's own
 docstring for the full list of factor functions and their weights.
 
 download_all():    fetch tickers from symbols.json (active == 1), pull forward/trailing
-                    P/E + price-to-FCF from Yahoo Finance, refresh IB
-                    Gateway's own daily bars for the scored/held universe
-                    (see refresh_ib_daily_history -- best-effort, skipped
-                    entirely if IB Gateway isn't reachable), then add the
-                    regression-slope momentum score (preferring that IB
-                    coverage over the plain yfinance calculation wherever
-                    it exists), and write raw_data.json +
-                    forward_pe.csv + sorted_screen.csv. Tickers
-                    downloaded within the last FRESH_HOURS hours are skipped
-                    (their previous row is reused as-is), and tickers whose
-                    fetch fails this run (e.g. a transient Yahoo Finance
-                    error) fall back to their last successful row instead of
-                    disappearing from the outputs. Right after raw_data.json
-                    is written, also fetches StockTwits social sentiment
-                    (see social_sentiment.py) for every RATED_FOR_EXTRAS
-                    ticker (Strong Buy/Buy/Sell/Strong Sell -- everything
-                    outside the broad Hold middle) of the ranking as it
-                    stood before this run (sorted_screen.csv isn't
-                    rewritten with fresh scores until later in the same
-                    run), writing/merging into social_sentiment.json. This
-                    is a separate, unofficial data source that can fail
-                    without affecting the rest of the pipeline.
-download_prices():  reuse the forward-PE data already in forward_pe.csv, refresh IB
-                    Gateway's own daily bars the same way download_all does, and
-                    refresh the momentum score built from them, then rewrite
-                    forward_pe.csv + sorted_screen.csv.
+                    P/E + price-to-FCF from Yahoo Finance, and concurrently (as
+                    two asyncio tasks on one background thread, started right
+                    away and joined before scoring -- see _refresh_ib_daily_
+                    and_hourly/_run_ib_bar_refresh_in_background) refresh IB
+                    Gateway's own daily AND hourly bars for the WHOLE active
+                    universe (see refresh_ib_daily_history/refresh_ib_hourly_
+                    history -- best-effort, skipped entirely if IB Gateway
+                    isn't reachable), then add the Money Flow Index strength/
+                    overbought-oversold scores (preferring that IB coverage
+                    over the plain yfinance RSI fallback -- daily only;
+                    hourly has no fallback -- wherever it exists), and write
+                    raw_data.json + forward_pe.csv + sorted_screen.csv.
+                    Tickers downloaded within the last FRESH_HOURS hours are
+                    skipped (their previous row is reused as-is), and
+                    tickers whose fetch fails this run (e.g. a transient
+                    Yahoo Finance error) fall back to their last successful
+                    row instead of disappearing from the outputs. Right
+                    after raw_data.json is written, also fetches StockTwits
+                    social sentiment (see social_sentiment.py) for every
+                    RATED_FOR_EXTRAS ticker (Strong Buy/Buy/Sell/Strong Sell
+                    -- everything outside the broad Hold middle) of the
+                    ranking as it stood before this run (sorted_screen.csv
+                    isn't rewritten with fresh scores until later in the
+                    same run), writing/merging into social_sentiment.json.
+                    This is a separate, unofficial data source that can
+                    fail without affecting the rest of the pipeline.
+download_prices():  reuse the forward-PE data already in forward_pe.csv and
+                    refresh the momentum score built from whatever IB Gateway's
+                    own daily/hourly bars (and yfinance's price_history.json
+                    fallback) currently have on disk, then rewrite forward_pe.csv
+                    + sorted_screen.csv. Does NOT refresh IB Gateway's own bars
+                    itself -- unlike download_all, this one stays a quick,
+                    connection-free rescore; run `ibprices`/`ibhprices` (or `all`)
+                    first if those need refreshing too.
 rescore():          rewrite sorted_screen.csv (and forward_pe.csv) from forward_pe.csv
                     already on disk with ZERO network calls -- not even the momentum
                     refresh download_prices() still does. For when only the scoring
@@ -65,15 +73,20 @@ download_short_interest(): fetch FINRA's latest biweekly equity short
                     shortinterest`.
 download_ib_prices(): refresh IB Gateway's own 3-month daily bars (see
                     refresh_ib_daily_history/download_ib_daily_history) for
-                    the top CANDLESTICK_TOP_N ranked union RATED_FOR_EXTRAS
-                    union held tickers, skipping any whose existing bar is
-                    already current -- the PRIMARY daily-bar source for
-                    momentum/previousClose, yfinance's price_history.json
-                    only the fallback. Also run as part of `all` (see
-                    download_all) -- kept as its own command too for a
-                    standalone refresh without the rest of the pipeline.
-                    If ib_server.py is already running, this routes
-                    through its own IB Gateway connection via
+                    the WHOLE active universe (same as `all`'s own scope,
+                    not the narrower ranked/rated/held default some other
+                    callers use -- explicit instruction), skipping any
+                    ticker whose existing bar is already current -- the
+                    PRIMARY daily-bar source for momentum/previousClose,
+                    yfinance's price_history.json only the fallback. Also
+                    run as part of `all` (see download_all), concurrently
+                    with the hourly refresh below; kept as its own
+                    command too for a refresh without the rest of the
+                    pipeline. Gated by the same 3h cooldown as `all` (see
+                    IB_REFRESH_STATE_FILE) -- cannot override it itself,
+                    only `python main.py all overwrite` can. If
+                    ib_server.py is already running, this routes through
+                    its own IB Gateway connection via
                     /api/admin/refresh-ib-daily instead of connecting
                     directly (see refresh_ib_daily_history) -- IB Gateway
                     refuses a second simultaneous API connection while
@@ -84,14 +97,14 @@ download_ib_prices(): refresh IB Gateway's own 3-month daily bars (see
 download_ib_hourly_prices(): the hourly twin of download_ib_prices --
                     refresh IB Gateway's own 1-month hourly bars (see
                     refresh_ib_hourly_history/download_ib_hourly_history)
-                    for the same top CANDLESTICK_TOP_N ranked union
-                    RATED_FOR_EXTRAS union held scope, feeding
+                    for the same whole-active-universe scope, feeding
                     RecommendationsView's hourly-timeframe mean-reversion
-                    factor. Also run as part of `all`, right after
-                    ibprices (see download_all); same ib_server.py-
-                    routing and standalone-command reasoning as
-                    download_ib_prices. Run via `python main.py
-                    ibhprices`.
+                    factor -- the ONLY source for that factor, no yfinance
+                    fallback exists for it. Also run as part of `all`,
+                    concurrently with ibprices rather than after it (see
+                    download_all); same cooldown/ib_server.py-routing/
+                    standalone-command reasoning as download_ib_prices.
+                    Run via `python main.py ibhprices`.
 download_yfinance_prices(): refresh price_history.json (see
                     add_momentum_and_persist_history/write_price_history)
                     -- yfinance's own daily closes, the fallback source
@@ -189,24 +202,26 @@ root):
                      this factor only) + 5% low enterpriseToEbitda
                      (negative EBITDA ranked worst instead -- two
                      independent cash-flow-valuation factors; see
-                     scoring.ev_ebitda_rank), 5% high daily-timeframe momentum
-                     (regression-slope momentum score, divided by the
-                     annualized volatility of daily log returns -- the
-                     3-month IB Gateway daily series where available,
-                     else the plain ~1-month yfinance calculation; see
-                     IBApp.get_momentum; missing penalized as worst) + 5%
-                     low hourly-timeframe mean reversion (the SAME
-                     regression-momentum formula as the daily momentum
-                     factor above, just on IB Gateway's hourly series --
-                     a short-term trend/momentum reading treated as an
-                     entry-timing signal, not a second momentum vote: a
-                     stock already trending up hard on the hour is one
-                     you'd be chasing, so LOW/negative (a stock that's
-                     just pulled back) ranks best, the mirror of the
-                     daily momentum factor's own "high is better"
-                     direction; only populated for the CANDLESTICK_TOP_N
-                     ranked/held tickers IB Gateway fetches hourly bars
-                     for, no fallback source, missing penalized as worst)
+                     scoring.ev_ebitda_rank), 5% daily-timeframe "strength"
+                     (Money Flow Index -- the volume-weighted analog of
+                     RSI, from the 3-month IB Gateway daily series where
+                     available, else plain close-only RSI on the ~1-month
+                     yfinance fallback; see IBApp.get_momentum/
+                     _money_flow_index/_relative_strength_index -- scored
+                     via a fixed sweet-spot curve, not "high is better":
+                     see scoring.momentum_rank, peaks at 60, penalizes
+                     both weak/oversold AND extreme overbought; missing
+                     penalized as worst) + 5% hourly-timeframe overbought/
+                     oversold (the SAME Money Flow Index, just on IB
+                     Gateway's hourly series -- a short-term entry-timing
+                     signal, not a second strength vote: a stock already
+                     overbought on the hour is one you'd be chasing, so
+                     LOW/oversold ranks best, a direct linear read
+                     (rank = value / 100), the mirror of the daily
+                     factor's own sweet-spot shape; only populated for
+                     the CANDLESTICK_TOP_N ranked/held tickers IB Gateway
+                     fetches hourly bars for, no fallback source, missing
+                     ranked NEUTRAL not worst -- see scoring.mean_reversion_rank)
                      -- two independent factors, not blended into one the
                      way this used to work, 5% EPS
                      trend (eps_trend_rank -- average of the current- and
@@ -355,17 +370,20 @@ root):
                      next time the live server's own refresh runs.
 """
 
+import asyncio
 import csv
+import functools
 import json
 import os
 import socket
 import sys
+import threading
 import urllib.error
 import urllib.request
 from datetime import datetime, timedelta
 
-from IBApp import IBApp
-from scoring import (
+from modules.IBApp import IBApp
+from modules.scoring import (
     RATING_NA,
     add_avg_liquidity_ratio,
     add_target_upside,
@@ -377,45 +395,82 @@ from scoring import (
     score_rows,
     to_float,
 )
-from chatbot import answer_question
-from finra import SHORT_INTEREST_FILE, fetch_short_interest
-from recommendations import write_recommendations
-from sec_edgar import FORM4_FILE, THIRTEENF_FILE, fetch_13f_holdings, fetch_form4, fetch_xbrl_facts
-from social_sentiment import SENTIMENT_FILE, fetch_social_sentiment
-from theme_classifier import classify_themes
+from modules.chatbot import answer_question
+from modules.finra import SHORT_INTEREST_FILE, fetch_short_interest
+from modules.recommendations import write_recommendations
+from modules.sec_edgar import FORM4_FILE, THIRTEENF_FILE, fetch_13f_holdings, fetch_form4, fetch_xbrl_facts
+from modules.social_sentiment import SENTIMENT_FILE, fetch_social_sentiment
+from modules.theme_classifier import classify_themes
 
 # Every JSON file a downloader (this module, ib_server.py,
 # social_sentiment.py) produces lives here -- keeps the project root from
 # filling up with generated output. CSVs (forward_pe.csv, sorted_screen.csv)
-# and symbols.json (a hand-maintained input, not generated) deliberately
-# stay at the root; only the JSON downloader outputs moved. Created on
-# import so a fresh checkout doesn't need a manual mkdir before the first
-# run.
+# live here too now (explicit instruction -- previously deliberately kept
+# at the root); symbols.json (a hand-maintained input, not generated)
+# stays at the root, the only generated-output exception left there.
+# Created on import so a fresh checkout doesn't need a manual mkdir before
+# the first run.
 DATA_DIR = "data"
 os.makedirs(DATA_DIR, exist_ok=True)
 
-OUTPUT_CSV = "forward_pe.csv"
-SORTED_SCREEN_CSV = "sorted_screen.csv"
-RAW_DATA_FILE = os.path.join(DATA_DIR, "raw_data.json")
-PRICE_HISTORY_FILE = os.path.join(DATA_DIR, "price_history.json")
+# IB Gateway's own downloader output (bars, Flex Query XML exports, news
+# headlines) -- see DAILY_3MO_HISTORY_FILE/HOURLY_HISTORY_FILE/NEWS_FILE
+# below and ib_server.py's own NAVs.xml -- kept in its own subfolder
+# rather than loose in DATA_DIR (explicit instruction).
+IB_DIR = os.path.join(DATA_DIR, "IB")
+os.makedirs(IB_DIR, exist_ok=True)
+
+# The rewritten-every-run/computed screener outputs (see download_all/
+# rescore/write_full_csv/write_sorted_screen_csv, ib_server.py's own
+# FinBERT news_sentiment.json, and modules/recommendations.py's own
+# recommendations.json, blended from sorted_screen.csv + several other
+# sources rather than straight IB/yfinance output) -- separated from
+# DATA_DIR's other, more numerous single-purpose downloader caches
+# (explicit instruction).
+OUTPUT_DIR = os.path.join(DATA_DIR, "output")
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+# Yahoo Finance's own downloader output -- see get_forward_pe's raw_out
+# param (raw_data.json is the complete, unfiltered yfinance payload),
+# add_momentum's own yfinance fetch (price_history.json), and
+# get_forward_pe's own curated subset (forward_pe.csv) -- kept in its
+# own subfolder, the yfinance-side counterpart to IB_DIR above (explicit
+# instruction).
+YFINANCE_DIR = os.path.join(DATA_DIR, "yfinance")
+os.makedirs(YFINANCE_DIR, exist_ok=True)
+
+OUTPUT_CSV = os.path.join(YFINANCE_DIR, "forward_pe.csv")
+SORTED_SCREEN_CSV = os.path.join(OUTPUT_DIR, "sorted_screen.csv")
+RAW_DATA_FILE = os.path.join(YFINANCE_DIR, "raw_data.json")
+PRICE_HISTORY_FILE = os.path.join(YFINANCE_DIR, "price_history.json")
 # IB Gateway's own bars, not yfinance's -- see IBApp.get_momentum, which
 # blends these in for whatever ticker they cover and falls back to the
-# plain yfinance calculation for everything else. Covers only
-# CANDLESTICK_TOP_N ranked/RATED_FOR_EXTRAS/held tickers, not the whole
-# universe -- IB's paced historical-data limit (200 requests/10min, see
-# IBApp.get_ib_historical_bars) makes even that scoped set take minutes,
-# let alone the full ~2,300-ticker universe. Refreshed as part of `all`
-# and standalone via `python main.py ibprices` (see
-# download_ib_daily_history/refresh_ib_daily_history below) -- routed
-# through ib_server.py's own connection instead of opening a second one
+# plain yfinance calculation for everything else. `all`, standalone
+# `ibprices`, and standalone `ibhprices` all cover the WHOLE active
+# universe (see download_all/download_ib_prices/download_ib_hourly_
+# prices) -- only ib_server.py's own narrower ranked/rated/held default
+# scope (used by its Dataset-tab Run buttons/startup fetch when no
+# explicit ticker list is given) stays smaller. IB's paced
+# historical-data limit (HISTORICAL_PACING_MAX_REQUESTS/
+# HISTORICAL_PACING_WINDOW_SECONDS, see IBApp.get_ib_historical_bars)
+# makes even that narrower scope take minutes, let alone the full
+# ~2,300-ticker universe, which is why `all` runs this fetch in the
+# background rather than blocking on it upfront, and why an
+# explicit-scope request is gated by a 3h cooldown (see
+# IB_REFRESH_STATE_FILE/_ib_refresh_recently_completed below) rather
+# than being free to re-run on every routine `all`/`ibprices` call.
+# Refreshed as part of `all` and standalone via `python main.py
+# ibprices` (see download_ib_daily_history/refresh_ib_daily_history
+# below) -- routed through ib_server.py's own connection instead of
+# opening a second one
 # when that process is already running (IB Gateway won't accept a second
 # simultaneous connection while ib_server.py's own
 # fetch_candlestick_history (same file, same scope) is already running
 # one live). Neither file is required for the prices/all pipeline to run,
 # though: missing/stale/no-IB-Gateway just means get_momentum falls back
 # to yfinance for every ticker, same as before either existed.
-DAILY_3MO_HISTORY_FILE = os.path.join(DATA_DIR, "price_history_daily_3mo.json")
-HOURLY_HISTORY_FILE = os.path.join(DATA_DIR, "price_history_hourly.json")
+DAILY_3MO_HISTORY_FILE = os.path.join(IB_DIR, "price_history_daily_3mo.json")
+HOURLY_HISTORY_FILE = os.path.join(IB_DIR, "price_history_hourly.json")
 # Same value as ib_server.py's own CANDLESTICK_TOP_N -- duplicated,
 # not imported, for the same circular-import reason SORTED_SCREEN_CSV/
 # load_top_tickers are duplicated-by-reference in the comment above
@@ -427,9 +482,9 @@ CANDLESTICK_TOP_N = 500
 # ib_server.py itself imports SORTED_SCREEN_CSV/load_top_tickers
 # from this module, and importing it back would be circular. Read-only
 # from here, same as the price-history files above.
-NEWS_SENTIMENT_FILE = os.path.join(DATA_DIR, "news_sentiment.json")
+NEWS_SENTIMENT_FILE = os.path.join(OUTPUT_DIR, "news_sentiment.json")
 # Same duplicated-rather-than-imported reasoning as NEWS_SENTIMENT_FILE above.
-NEWS_FILE = os.path.join(DATA_DIR, "news.json")
+NEWS_FILE = os.path.join(IB_DIR, "news.json")
 SYMBOLS_FILE = "symbols.json"
 MIN_PRICE = 8
 # Strong Buy/Buy/Sell/Strong Sell -- everything except the broad Hold
@@ -600,7 +655,13 @@ def add_momentum_from_cache(app, data):
 def add_momentum_and_persist_history(app, data):
     """add_momentum, plus merging the close-series it captures into
     price_history.json — the common case across all three download_*
-    entry points."""
+    entry points (download_all/download_prices/download_yfinance_prices
+    -- the last of these is `python main.py yfprices`, the dedicated
+    yfinance-only command). Also updates MISSINGS_FILE's "yfinance" key
+    (see _update_missings) with every ticker `history` came back with no
+    closes for at all -- yf.Ticker(symbol).history() either raised on
+    all 3 attempts (see IBApp.get_momentum's own fetch closure) or
+    returned zero rows."""
     history = {}
     add_momentum(app, data, history_out=history)
     try:
@@ -610,6 +671,7 @@ def add_momentum_and_persist_history(app, data):
         all_history = {}
     all_history.update(history)
     write_price_history(all_history)
+    _update_missings("yfinance", [t for t in data if not history.get(t)])
 
 
 def _ib_gateway_reachable(host="127.0.0.1", port=4001, timeout=2):
@@ -651,43 +713,168 @@ def _ib_server_running(port=IB_SERVER_PORT, timeout=2):
         return False
 
 
-def _refresh_ib_daily_via_server(port=IB_SERVER_PORT, timeout=3600):
+# Shared with ib_server.py (same DATA_DIR-relative path, both processes
+# read/write it) -- tracks when an EXPLICIT-scope (tickers passed
+# in, not the implicit ranked/rated/held default) IB daily/hourly
+# refresh last actually completed, regardless of which process/entry
+# point ran it. See _ib_refresh_recently_completed/_mark_ib_refresh_
+# completed below.
+IB_REFRESH_STATE_FILE = os.path.join(DATA_DIR, "ib_refresh_state.json")
+IB_REFRESH_COOLDOWN_SECONDS = 3 * 3600
+
+# {"ib_daily": [...], "ib_hourly": [...], "yfinance": [...]} -- tickers
+# each data source came back with literally nothing for on the most
+# recent run that actually checked them (download_ib_daily_history/
+# download_ib_hourly_history/add_momentum's own yfinance fetch, and
+# ib_server.py's own refresh_daily_history_on_demand/refresh_hourly_
+# history_on_demand twins -- see _update_missings below). Explicit
+# instruction: both the IB "price" refreshes and the yfinance fetch
+# should surface what they couldn't get, not just silently carry the
+# ticker forward with no data. Each key is overwritten wholesale by
+# whichever process last actually checked that source (not merged/
+# accumulated -- a ticker that recovers should disappear next run), but
+# the other keys are left alone, since e.g. `ibprices` alone shouldn't
+# blow away what the last yfinance run found missing.
+MISSINGS_FILE = os.path.join(DATA_DIR, "missings.json")
+
+
+def _update_missings(key, missing_tickers):
+    """Overwrites MISSINGS_FILE's `key` entry with `missing_tickers`
+    (sorted, deduped) -- see MISSINGS_FILE's own comment for why this is
+    a wholesale replace of just this one key, not a merge/accumulation."""
+    try:
+        with open(MISSINGS_FILE) as f:
+            state = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        state = {}
+    state[key] = sorted(set(missing_tickers))
+    with open(MISSINGS_FILE, "w") as f:
+        json.dump(state, f)
+
+
+def _ib_refresh_recently_completed(kind):
+    """True if an explicit-scope IB `kind` ("daily"/"hourly") refresh
+    completed within the last IB_REFRESH_COOLDOWN_SECONDS (3h) --
+    checked by refresh_ib_daily_history/refresh_ib_hourly_history (and
+    their ib_server.py twins, against the same IB_REFRESH_STATE_FILE)
+    before attempting a fetch, so repeated `all`/`ibprices`/`ibhprices`
+    runs within a few hours of each other don't re-hit IB Gateway for a
+    full ~2340-ticker pull that just happened. Explicit instruction: no
+    command should be able to force a fresh pull within the cooldown
+    window except `python main.py all overwrite` (see download_all's own
+    overwrite param)."""
+    try:
+        with open(IB_REFRESH_STATE_FILE) as f:
+            state = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return False
+    completed_at = state.get(f"{kind}_completed_at")
+    if not completed_at:
+        return False
+    try:
+        completed = datetime.fromisoformat(completed_at)
+    except ValueError:
+        return False
+    return (datetime.now() - completed).total_seconds() < IB_REFRESH_COOLDOWN_SECONDS
+
+
+def _mark_ib_refresh_completed(kind):
+    """Records `kind` ("daily"/"hourly") as having just completed an
+    explicit-scope IB refresh, for _ib_refresh_recently_completed's own
+    cooldown check above. Merges into IB_REFRESH_STATE_FILE rather than
+    overwriting it wholesale, since daily/hourly are tracked
+    independently and either main.py or ib_server.py may be the one
+    updating it."""
+    try:
+        with open(IB_REFRESH_STATE_FILE) as f:
+            state = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        state = {}
+    state[f"{kind}_completed_at"] = datetime.now().isoformat()
+    with open(IB_REFRESH_STATE_FILE, "w") as f:
+        json.dump(state, f)
+
+
+def _refresh_ib_daily_via_server(port=IB_SERVER_PORT, timeout=7200, tickers=None, overwrite=False):
     """POST /api/admin/refresh-ib-daily on ib_server.py's already-running
     process (see that module's refresh_daily_history_on_demand) --
     {"skipped": bool, "tickersTotal": int, ...} on success, or
-    {"error": str} if IB Gateway wasn't connected on that end. timeout is
-    long: a large stale ticker list, paced by IB's rate limit, can take a
-    while, and this blocks until ib_server.py's fetch actually finishes."""
-    req = urllib.request.Request(f"http://127.0.0.1:{port}/api/admin/refresh-ib-daily", method="POST", data=b"")
+    {"error": str} if IB Gateway wasn't connected on that end. tickers,
+    if given, is sent as the request body's JSON {"tickers": [...]} to
+    request that exact scope instead of ib_server.py's own ranked/rated/
+    held default -- download_all's own full-universe call needs this.
+    overwrite, if True, is sent alongside to bypass ib_server.py's own
+    copy of the 3h cooldown check too (see IB_REFRESH_STATE_FILE) --
+    belt-and-suspenders with the local check in refresh_ib_daily_history,
+    for the case where ib_server.py's on-disk record is ahead of what
+    this process last saw. timeout is long (2hr, matching ib_server.py's
+    own handler): a large stale ticker list, paced by IB's rate limit,
+    can take a while, and this blocks until ib_server.py's fetch
+    actually finishes."""
+    data = json.dumps({"tickers": tickers, "overwrite": overwrite}).encode() if tickers is not None or overwrite else b""
+    req = urllib.request.Request(f"http://127.0.0.1:{port}/api/admin/refresh-ib-daily", method="POST", data=data)
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         return json.loads(resp.read())
 
 
-def _refresh_ib_hourly_via_server(port=IB_SERVER_PORT, timeout=3600):
+def _refresh_ib_hourly_via_server(port=IB_SERVER_PORT, timeout=7200, tickers=None, overwrite=False):
     """POST /api/admin/refresh-ib-hourly on ib_server.py's already-running
     process (see that module's refresh_hourly_history_on_demand) -- the
-    hourly-bars twin of _refresh_ib_daily_via_server, same shape/timeout
-    reasoning."""
-    req = urllib.request.Request(f"http://127.0.0.1:{port}/api/admin/refresh-ib-hourly", method="POST", data=b"")
+    hourly-bars twin of _refresh_ib_daily_via_server, same shape/timeout/
+    tickers/overwrite-passthrough reasoning."""
+    data = json.dumps({"tickers": tickers, "overwrite": overwrite}).encode() if tickers is not None or overwrite else b""
+    req = urllib.request.Request(f"http://127.0.0.1:{port}/api/admin/refresh-ib-hourly", method="POST", data=data)
     with urllib.request.urlopen(req, timeout=timeout) as resp:
         return json.loads(resp.read())
 
 
-def download_ib_daily_history(app, tickers):
+def _progress_printer(label, total):
+    """Returns an on_ticker callback (see IBApp.get_ib_historical_bars_
+    async's own docstring) that prints "{label} {i}/{total}: {symbol}..."
+    right before each request goes out -- for download_ib_daily_history/
+    download_ib_hourly_history's own direct-connect fetch, which
+    otherwise prints nothing between its start-of-batch and end-of-batch
+    lines for however long a large stale list takes (no per-ticker
+    progress the way ib_server.py's on-demand refresh has via its own
+    on_ticker, and IBApp's own internal logging.info messages are
+    silently dropped since this codebase never configures a logging
+    handler) -- explicit instruction: real-time visibility into a
+    full-universe pull that can run for an hour or more."""
+    count = 0
+
+    def on_ticker(symbol):
+        nonlocal count
+        count += 1
+        print(f"{label} {count}/{total}: {symbol}...")
+
+    return on_ticker
+
+
+async def download_ib_daily_history(app, tickers):
     """Refreshes DAILY_3MO_HISTORY_FILE (IB Gateway's own 3-month daily
     bars -- see that constant's own comment) for `tickers`, via an
     already-connected `app`. Only actually fetches a ticker whose
     existing entry is missing or older than
     most_recent_completed_trading_day() -- IB's paced historical-data
-    limit (200 requests/10min, see IBApp.get_ib_historical_bars) still
-    makes a large stale ticker list take a while, and this runs on every
-    `prices`/`all` call, so a day where
-    the data's already current does no IB Gateway work at all. Merges
-    into the existing file rather than replacing it wholesale (unlike
-    ib_server.py's own version of this fetch, which always
-    refetches its whole scope) -- exactly because this staleness gate
-    means a given run may only be touching a handful of tickers out of
-    the full scope."""
+    limit (200 requests/6min, see IBApp.get_ib_historical_bars_async)
+    still makes a large stale ticker list take a while, and this runs on
+    every `prices`/`all` call, so a day where the data's already current
+    does no IB Gateway work at all. Merges into the existing file rather
+    than replacing it wholesale (unlike ib_server.py's own version of
+    this fetch, which always refetches its whole scope) -- exactly
+    because this staleness gate means a given run may only be touching a
+    handful of tickers out of the full scope. Async (awaits
+    get_ib_historical_bars_async, not the sync get_ib_historical_bars)
+    so refresh_ib_daily_history/refresh_ib_hourly_history can run
+    concurrently as asyncio tasks (see download_all) the same way
+    ib_server.py's own on-demand refreshes do, instead of two separate
+    OS threads each blocking on its own sync call.
+
+    Also updates MISSINGS_FILE's "ib_daily" key (see _update_missings)
+    with every ticker in `tickers` that still has no bars at all after
+    this call -- whether that's because this run's own fetch came back
+    empty for it, or because it was already empty on disk and not even
+    stale enough to retry."""
     try:
         with open(DAILY_3MO_HISTORY_FILE) as f:
             existing = json.load(f)
@@ -697,14 +884,16 @@ def download_ib_daily_history(app, tickers):
     stale = [t for t in tickers if not existing.get(t) or existing[t][-1]["date"][:10] < expected]
     if not stale:
         print(f"IB daily history already current for all {len(tickers)} candidate ticker(s); skipping IB Gateway fetch")
+        _update_missings("ib_daily", [t for t in tickers if not existing.get(t)])
         return
     print(f"Fetching IB 3mo daily bars for {len(stale)}/{len(tickers)} stale/missing ticker(s) (paced, can take a while)...")
-    fresh = app.get_ib_historical_bars(stale, "3 M", "1 day")
+    fresh = await app.get_ib_historical_bars_async(stale, "3 M", "1 day", on_ticker=_progress_printer("Daily", len(stale)))
     existing.update(fresh)
     with open(DAILY_3MO_HISTORY_FILE, "w") as f:
         json.dump(existing, f)
     got = sum(1 for v in fresh.values() if v)
     print(f"Wrote {DAILY_3MO_HISTORY_FILE} ({got}/{len(stale)} fetched tickers had bars; {len(existing)} tickers total on file)")
+    _update_missings("ib_daily", [t for t in tickers if not existing.get(t)])
 
 
 # Distinct from ib_server.py's own clientId 0 (see that module's
@@ -715,44 +904,77 @@ def download_ib_daily_history(app, tickers):
 # is_connected check below took the whole `prices` pipeline down with it.
 IB_HISTORY_CLIENT_ID = 7
 
+# Separate id for refresh_ib_hourly_history's own direct connection --
+# download_all now runs the daily and hourly refreshes concurrently in
+# their own threads (each with its own IBApp(), see download_all), so
+# they need distinct clientIds to connect to IB Gateway at the same time
+# rather than colliding on IB_HISTORY_CLIENT_ID above.
+IB_HOURLY_HISTORY_CLIENT_ID = 8
 
-def refresh_ib_daily_history(app):
+
+async def refresh_ib_daily_history(app, tickers=None, overwrite=False):
     """Connects `app` to IB Gateway (if it isn't already) just long enough
-    to pull the current account's held tickers and refresh their/the
-    ranked universe's daily bars (see download_ib_daily_history), then
-    disconnects again if this call is the one that connected it. Scope
-    mirrors ib_server.py's own fetch_candlestick_history exactly:
-    top CANDLESTICK_TOP_N ranked (from sorted_screen.csv as it stood
-    before this run -- same "scoped to the ranking as it stood before
-    this run" precedent download_all's own social-sentiment step already
-    uses) union RATED_FOR_EXTRAS union every currently-held stock. The
-    RATED_FOR_EXTRAS/held unions matter for the same reason documented
-    there: a Strong Sell near the bottom of ~1900 ranked tickers, or a
-    held ETF that isn't even in the screener universe (e.g. ARKK), would
-    otherwise never be covered no matter how large CANDLESTICK_TOP_N is.
+    to refresh daily bars (see download_ib_daily_history) for `tickers`,
+    then disconnects again if this call is the one that connected it.
+    Async (awaits connect_async/download_ib_daily_history/reqPositions
+    Async, and offloads the sync ib_server.py-routing HTTP call to a
+    thread via run_in_executor) so this can run concurrently with
+    refresh_ib_hourly_history as two asyncio tasks on one event loop --
+    see download_all, which gathers both -- the same concurrency model
+    ib_server.py itself uses for its own on-demand refreshes, instead of
+    each blocking its own separate OS thread.
+
+    tickers=None (the default -- ib_server.py's own startup/Dataset-tab-
+    default scope) uses the same scope ib_server.py's own
+    fetch_candlestick_history mirrors: top CANDLESTICK_TOP_N ranked (from
+    sorted_screen.csv as it stood before this run -- same "scoped to the
+    ranking as it stood before this run" precedent download_all's own
+    social-sentiment step already uses) union RATED_FOR_EXTRAS union
+    every currently-held stock. The RATED_FOR_EXTRAS/held unions matter
+    for the same reason documented there: a Strong Sell near the bottom
+    of ~1900 ranked tickers, or a held ETF that isn't even in the
+    screener universe (e.g. ARKK), would otherwise never be covered no
+    matter how large CANDLESTICK_TOP_N is. Passing an explicit `tickers`
+    list instead (download_all and download_ib_prices both now do --
+    explicit instruction: `ibprices`/`all` should both be able to cover
+    the WHOLE active universe, not just this narrower default) skips
+    that union entirely and uses exactly what's given -- and, unlike the
+    tickers=None default, is gated by a 3h cooldown (see
+    _ib_refresh_recently_completed/IB_REFRESH_STATE_FILE): if an
+    explicit-scope refresh already completed within the last 3h, this
+    no-ops immediately without even checking IB Gateway, unless
+    overwrite=True (only download_all's own `python main.py all
+    overwrite` sets that -- explicit instruction: no other command
+    should be able to force a fresh pull inside the cooldown window).
 
     No-ops (prints and returns) if IB Gateway isn't even reachable, or if
-    app.connect() didn't actually succeed (e.g. rejected/timed out for
-    some other reason) -- rather than letting app.connect()'s own retry-
-    then-sys.exit(1) take down the rest of this pipeline's yfinance-only
-    work, or (the bug this guard replaced) silently proceeding to call
-    reqPositions()/reqHistoricalData on a connection that never came up
-    and crashing on ConnectionError instead.
+    app.connect_async() didn't actually succeed (e.g. rejected/timed out
+    for some other reason) -- rather than letting connect_async's own
+    retry-then-sys.exit(1) take down the rest of this pipeline's
+    yfinance-only work, or (the bug this guard replaced) silently
+    proceeding to call reqPositionsAsync/reqHistoricalData on a
+    connection that never came up and crashing on ConnectionError
+    instead.
 
     If ib_server.py is already running, routes through its own
-    /api/admin/refresh-ib-daily endpoint instead of connecting `app`
+    /api/admin/refresh-ib-daily endpoint (passing `tickers`/`overwrite`
+    along in the request body when given) instead of connecting `app`
     directly -- IB Gateway refuses a second simultaneous API connection
-    while that process holds one (confirmed live, times out regardless of
-    clientId -- see IB_HISTORY_CLIENT_ID's own comment below), which used
-    to be exactly what made this need "typically run with the live server
-    stopped." This is what removes that requirement."""
+    while that process holds one (confirmed live, times out regardless
+    of clientId -- see IB_HISTORY_CLIENT_ID's own comment below), which
+    used to be exactly what made this need "typically run with the live
+    server stopped." This is what removes that requirement."""
+    if tickers is not None and not overwrite and _ib_refresh_recently_completed("daily"):
+        print(f"IB daily history was already fully refreshed within the last {IB_REFRESH_COOLDOWN_SECONDS // 3600}h -- skipping (run `python main.py all overwrite` to force)")
+        return
     if not _ib_gateway_reachable():
         print("IB Gateway not reachable at 127.0.0.1:4001 -- skipping IB daily-history refresh (yfinance-only this run)")
         return
     if _ib_server_running():
         print(f"ib_server.py is already running on port {IB_SERVER_PORT} -- refreshing via its own IB Gateway connection instead of opening a second one")
         try:
-            result = _refresh_ib_daily_via_server()
+            loop = asyncio.get_running_loop()
+            result = await loop.run_in_executor(None, functools.partial(_refresh_ib_daily_via_server, tickers=tickers, overwrite=overwrite))
         except (urllib.error.URLError, OSError, TimeoutError) as e:
             print(f"ib_server.py refresh request failed ({e}) -- skipping IB daily-history refresh (yfinance-only this run)")
             return
@@ -765,18 +987,34 @@ def refresh_ib_daily_history(app):
                 f"Wrote {DAILY_3MO_HISTORY_FILE} via ib_server.py "
                 f"({result['gotBars']}/{result['staleFetched']} fetched tickers had bars; {result['tickersTotal']} tickers total in scope)"
             )
+        if tickers is not None and not result.get("error"):
+            _mark_ib_refresh_completed("daily")
         return
-    ranked = set(load_top_tickers(SORTED_SCREEN_CSV, CANDLESTICK_TOP_N))
-    rated = set(load_rated_tickers(SORTED_SCREEN_CSV, RATED_FOR_EXTRAS))
+    if tickers is None:
+        ranked = set(load_top_tickers(SORTED_SCREEN_CSV, CANDLESTICK_TOP_N))
+        rated = set(load_rated_tickers(SORTED_SCREEN_CSV, RATED_FOR_EXTRAS))
+        was_connected = app.is_connected
+        if not was_connected:
+            await app.connect_async(client_id=IB_HISTORY_CLIENT_ID)
+        if not app.is_connected:
+            print("Could not connect to IB Gateway (see the error logged above) -- skipping IB daily-history refresh (yfinance-only this run)")
+            return
+        try:
+            held = {p.contract.symbol for p in await app.ib.reqPositionsAsync() if p.contract.secType == "STK" and p.position != 0}
+            await download_ib_daily_history(app, sorted(ranked | rated | held))
+        finally:
+            if not was_connected:
+                app.disconnect()
+        return
     was_connected = app.is_connected
     if not was_connected:
-        app.connect(client_id=IB_HISTORY_CLIENT_ID)
+        await app.connect_async(client_id=IB_HISTORY_CLIENT_ID)
     if not app.is_connected:
         print("Could not connect to IB Gateway (see the error logged above) -- skipping IB daily-history refresh (yfinance-only this run)")
         return
     try:
-        held = {p.contract.symbol for p in app.ib.reqPositions() if p.contract.secType == "STK" and p.position != 0}
-        download_ib_daily_history(app, sorted(ranked | rated | held))
+        await download_ib_daily_history(app, tickers)
+        _mark_ib_refresh_completed("daily")
     finally:
         if not was_connected:
             app.disconnect()
@@ -784,19 +1022,27 @@ def refresh_ib_daily_history(app):
 
 def download_ib_prices():
     """Refreshes IB Gateway's own daily bars (see refresh_ib_daily_history)
-    on its own, via `python main.py ibprices` -- also run as part of
-    `all` (see download_all), kept standalone here for a refresh without
-    the rest of the pipeline. Still deliberately excluded from `prices`
-    (see download_prices' own docstring): that command runs routinely
-    and IB Gateway won't accept a second simultaneous API connection
-    while ib_server.py is already holding one open, so this needs to be
+    on its own, via `python main.py ibprices` -- explicit-scope, the
+    WHOLE active universe (same as symbols.json's own active tickers,
+    same list `all` uses), not the narrower ranked/rated/held default.
+    Also run as part of `all` (see download_all) with that same
+    full-universe scope; this standalone call is for a refresh without
+    the rest of the pipeline. Both this and `all` share the same 3h
+    cooldown (see IB_REFRESH_STATE_FILE) -- if a full-universe refresh
+    already completed within the last 3h (by either this command or
+    `all`), this no-ops immediately; only `python main.py all overwrite`
+    can force a fresh pull inside that window, this command cannot
+    override it itself. Still deliberately excluded from `prices` (see
+    download_prices' own docstring): that command runs routinely and IB
+    Gateway won't accept a second simultaneous API connection while
+    ib_server.py is already holding one open, so this needs to be
     something the user chooses to run rather than something a routine
     command silently attempts every time."""
     app = IBApp()
-    refresh_ib_daily_history(app)
+    asyncio.run(refresh_ib_daily_history(app, load_tickers(SYMBOLS_FILE)))
 
 
-def download_ib_hourly_history(app, tickers):
+async def download_ib_hourly_history(app, tickers):
     """Refreshes HOURLY_HISTORY_FILE (IB Gateway's own 1-month hourly
     bars) for `tickers`, via an already-connected `app` -- the hourly
     twin of download_ib_daily_history, same staleness gate (only a
@@ -804,7 +1050,9 @@ def download_ib_hourly_history(app, tickers):
     most_recent_completed_trading_day() gets refetched -- date-only,
     same as the daily check, even though these bars carry a time-of-day
     too: "has at least one bar from the most recent session" is what
-    matters here, not which hour) and same merge-not-replace behavior."""
+    matters here, not which hour), same merge-not-replace behavior, same
+    MISSINGS_FILE "ib_hourly" tracking, and same async reasoning (see
+    download_ib_daily_history's own docstring)."""
     try:
         with open(HOURLY_HISTORY_FILE) as f:
             existing = json.load(f)
@@ -814,29 +1062,36 @@ def download_ib_hourly_history(app, tickers):
     stale = [t for t in tickers if not existing.get(t) or existing[t][-1]["date"][:10] < expected]
     if not stale:
         print(f"IB hourly history already current for all {len(tickers)} candidate ticker(s); skipping IB Gateway fetch")
+        _update_missings("ib_hourly", [t for t in tickers if not existing.get(t)])
         return
     print(f"Fetching IB 1mo hourly bars for {len(stale)}/{len(tickers)} stale/missing ticker(s) (paced, can take a while)...")
-    fresh = app.get_ib_historical_bars(stale, "1 M", "1 hour")
+    fresh = await app.get_ib_historical_bars_async(stale, "1 M", "1 hour", on_ticker=_progress_printer("Hourly", len(stale)))
     existing.update(fresh)
     with open(HOURLY_HISTORY_FILE, "w") as f:
         json.dump(existing, f)
     got = sum(1 for v in fresh.values() if v)
     print(f"Wrote {HOURLY_HISTORY_FILE} ({got}/{len(stale)} fetched tickers had bars; {len(existing)} tickers total on file)")
+    _update_missings("ib_hourly", [t for t in tickers if not existing.get(t)])
 
 
-def refresh_ib_hourly_history(app):
+async def refresh_ib_hourly_history(app, tickers=None, overwrite=False):
     """The hourly twin of refresh_ib_daily_history -- same connect/scope/
-    ib_server.py-routing behavior, just for HOURLY_HISTORY_FILE via
-    download_ib_hourly_history and /api/admin/refresh-ib-hourly instead
-    of the daily file/endpoint. See that function's docstring for the
-    full reasoning; not repeated here."""
+    tickers-param/overwrite-param/cooldown/async/ib_server.py-routing
+    behavior, just for HOURLY_HISTORY_FILE via download_ib_hourly_history
+    and /api/admin/refresh-ib-hourly instead of the daily file/endpoint.
+    See that function's docstring for the full reasoning; not repeated
+    here."""
+    if tickers is not None and not overwrite and _ib_refresh_recently_completed("hourly"):
+        print(f"IB hourly history was already fully refreshed within the last {IB_REFRESH_COOLDOWN_SECONDS // 3600}h -- skipping (run `python main.py all overwrite` to force)")
+        return
     if not _ib_gateway_reachable():
         print("IB Gateway not reachable at 127.0.0.1:4001 -- skipping IB hourly-history refresh (yfinance-only this run)")
         return
     if _ib_server_running():
         print(f"ib_server.py is already running on port {IB_SERVER_PORT} -- refreshing via its own IB Gateway connection instead of opening a second one")
         try:
-            result = _refresh_ib_hourly_via_server()
+            loop = asyncio.get_running_loop()
+            result = await loop.run_in_executor(None, functools.partial(_refresh_ib_hourly_via_server, tickers=tickers, overwrite=overwrite))
         except (urllib.error.URLError, OSError, TimeoutError) as e:
             print(f"ib_server.py refresh request failed ({e}) -- skipping IB hourly-history refresh (yfinance-only this run)")
             return
@@ -849,18 +1104,34 @@ def refresh_ib_hourly_history(app):
                 f"Wrote {HOURLY_HISTORY_FILE} via ib_server.py "
                 f"({result['gotBars']}/{result['staleFetched']} fetched tickers had bars; {result['tickersTotal']} tickers total in scope)"
             )
+        if tickers is not None and not result.get("error"):
+            _mark_ib_refresh_completed("hourly")
         return
-    ranked = set(load_top_tickers(SORTED_SCREEN_CSV, CANDLESTICK_TOP_N))
-    rated = set(load_rated_tickers(SORTED_SCREEN_CSV, RATED_FOR_EXTRAS))
+    if tickers is None:
+        ranked = set(load_top_tickers(SORTED_SCREEN_CSV, CANDLESTICK_TOP_N))
+        rated = set(load_rated_tickers(SORTED_SCREEN_CSV, RATED_FOR_EXTRAS))
+        was_connected = app.is_connected
+        if not was_connected:
+            await app.connect_async(client_id=IB_HOURLY_HISTORY_CLIENT_ID)
+        if not app.is_connected:
+            print("Could not connect to IB Gateway (see the error logged above) -- skipping IB hourly-history refresh (yfinance-only this run)")
+            return
+        try:
+            held = {p.contract.symbol for p in await app.ib.reqPositionsAsync() if p.contract.secType == "STK" and p.position != 0}
+            await download_ib_hourly_history(app, sorted(ranked | rated | held))
+        finally:
+            if not was_connected:
+                app.disconnect()
+        return
     was_connected = app.is_connected
     if not was_connected:
-        app.connect(client_id=IB_HISTORY_CLIENT_ID)
+        await app.connect_async(client_id=IB_HOURLY_HISTORY_CLIENT_ID)
     if not app.is_connected:
         print("Could not connect to IB Gateway (see the error logged above) -- skipping IB hourly-history refresh (yfinance-only this run)")
         return
     try:
-        held = {p.contract.symbol for p in app.ib.reqPositions() if p.contract.secType == "STK" and p.position != 0}
-        download_ib_hourly_history(app, sorted(ranked | rated | held))
+        await download_ib_hourly_history(app, tickers)
+        _mark_ib_refresh_completed("hourly")
     finally:
         if not was_connected:
             app.disconnect()
@@ -870,12 +1141,16 @@ def download_ib_hourly_prices():
     """Refreshes IB Gateway's own hourly bars (see
     refresh_ib_hourly_history) on its own, via `python main.py
     ibhprices` -- the hourly twin of download_ib_prices/`python main.py
-    ibprices`: also run as part of `all` (right after ibprices, see
-    download_all), kept standalone here for a refresh without the rest
-    of the pipeline, and likewise excluded from `prices` for the same
-    reason (see download_ib_prices' own docstring)."""
+    ibprices`: explicit-scope, the whole active universe, same 3h
+    cooldown (see download_ib_prices' own docstring -- same reasoning
+    applies here, just for HOURLY_HISTORY_FILE). Also run as part of
+    `all` alongside the daily refresh (both concurrently, not
+    sequentially -- see download_all), with that same full-universe
+    scope. Kept standalone here for a refresh without the rest of the
+    pipeline, and likewise excluded from `prices` for the same reason
+    (see download_ib_prices' own docstring)."""
     app = IBApp()
-    refresh_ib_hourly_history(app)
+    asyncio.run(refresh_ib_hourly_history(app, load_tickers(SYMBOLS_FILE)))
 
 
 def download_yfinance_prices():
@@ -1162,20 +1437,89 @@ def write_sorted_screen_csv(data):
     write_recommendations(SORTED_SCREEN_CSV, NEWS_FILE, FORM4_FILE, THIRTEENF_FILE, SHORT_INTEREST_FILE, RAW_DATA_FILE, RATED_FOR_EXTRAS)
 
 
-def download_all():
+async def _refresh_ib_daily_and_hourly(tickers, overwrite):
+    """Runs refresh_ib_daily_history and refresh_ib_hourly_history
+    concurrently as two asyncio tasks on one event loop -- see
+    download_all's own docstring for why -- the same concurrency model
+    ib_server.py's own on-demand refreshes use (concurrent coroutines on
+    one loop), rather than two separate OS threads each blocking on its
+    own sync call. Each still gets its own IBApp() instance/IB Gateway
+    connection when connecting directly (see IB_HISTORY_CLIENT_ID/
+    IB_HOURLY_HISTORY_CLIENT_ID) -- gathering them on one loop makes the
+    IB calls themselves async, it doesn't merge the two connections into
+    one."""
+    await asyncio.gather(
+        refresh_ib_daily_history(IBApp(), tickers, overwrite),
+        refresh_ib_hourly_history(IBApp(), tickers, overwrite),
+    )
+
+
+def _run_ib_bar_refresh_in_background(tickers, overwrite):
+    """Sync entry point for download_all's own background thread (see
+    that function). asyncio.run() needs a thread with no event loop
+    already driving it, which download_all's own synchronous call stack
+    doesn't have, so this one dedicated thread owns an event loop for
+    the life of _refresh_ib_daily_and_hourly's gather -- the same
+    "dedicated background thread owns its own asyncio event loop"
+    pattern ib_server.py's run_ib_client uses for its own IB connection,
+    just torn down again at the end of this one-shot call instead of
+    living for the process's whole lifetime. Exceptions aren't expected
+    here: refresh_ib_daily_history/refresh_ib_hourly_history each catch
+    their own connection/HTTP failures internally and print+return
+    rather than raising, so none are caught specifically in this
+    wrapper."""
+    asyncio.run(_refresh_ib_daily_and_hourly(tickers, overwrite))
+
+
+def download_all(overwrite=False):
     """Full pipeline: fetch forward P/E data from Yahoo Finance, then the
-    momentum score. Does NOT refresh IB Gateway's own daily/hourly bars
-    (see refresh_ib_daily_history/refresh_ib_hourly_history) -- those are
-    a separate, on-demand step, `python main.py ibprices`/`ibhprices`
-    respectively (or their own Dataset-tab Run buttons), same as
-    download_prices() below; kept out of `all` so a routine rescan
-    doesn't also pull in a long-running, IB-Gateway-timeout-prone batch
-    job every time. Tickers downloaded within the last FRESH_HOURS hours
-    are skipped and their previous forward_pe.csv row is reused as-is,
-    rather than re-fetched."""
+    momentum score. Also refreshes IB Gateway's own daily AND hourly bars
+    (see refresh_ib_daily_history/refresh_ib_hourly_history) for the
+    WHOLE active universe (not just ranked/rated/held, unlike
+    ib_server.py's own default scope) -- explicit instruction: the
+    MFI/RSI daily-strength and hourly overbought/oversold factors should
+    be able to count on real IB bars for as much of the universe as
+    possible, since the hourly one in particular has no yfinance fallback
+    at all. Both run as concurrent asyncio tasks (see
+    _refresh_ib_daily_and_hourly) inside ONE background thread (see
+    _run_ib_bar_refresh_in_background -- explicit instruction: main.py's
+    own direct IB Gateway calls should be async, the way ib_server.py's
+    are, not sync calls parallelized across separate OS threads) --
+    started right away and joined just before add_momentum_and_persist_
+    history (which is what actually reads DAILY_3MO_HISTORY_FILE/
+    HOURLY_HISTORY_FILE back off disk) so they overlap with the Yahoo
+    Finance/forward-PE work below rather than serializing after it.
+    Best-effort: silently skipped if IB Gateway isn't reachable at all
+    (see _ib_gateway_reachable). A full-universe pull paced by IB's ~200
+    requests/6min limit (HISTORICAL_PACING_MAX_REQUESTS/
+    HISTORICAL_PACING_WINDOW_SECONDS, see IBApp.get_ib_historical_bars_
+    async) can still take on the order of an hour or more each. Note the
+    daily/hourly refreshes' own separate IBApp() instances (see
+    IB_HISTORY_CLIENT_ID/IB_HOURLY_HISTORY_CLIENT_ID) still pace
+    independently (not a shared budget -- see self._historical_request_
+    times' own comment) when connecting to IB Gateway directly, so
+    running both at once draws roughly double that rate from the real
+    account-wide limit combined; when ib_server.py is already running
+    instead, both route through its single connection/budget instead, so
+    this doubling doesn't apply there.
+
+    overwrite (only True via `python main.py all overwrite`) forces both
+    refreshes through even if an explicit-scope IB refresh already
+    completed within the last IB_REFRESH_COOLDOWN_SECONDS (3h) --
+    otherwise (the default, also what `ibprices`/`ibhprices` always use,
+    with no override of their own) that cooldown makes them no-op
+    immediately instead of re-hitting IB Gateway for a full pull that
+    just ran. See _ib_refresh_recently_completed/IB_REFRESH_STATE_FILE.
+
+    Tickers downloaded within the last FRESH_HOURS hours are skipped and
+    their previous forward_pe.csv row is reused as-is, rather than
+    re-fetched."""
     app = IBApp()
     tickers = load_tickers(SYMBOLS_FILE)
     print(f"Loaded {len(tickers)} active tickers from {SYMBOLS_FILE}")
+
+    ib_bar_thread = threading.Thread(target=_run_ib_bar_refresh_in_background, args=(tickers, overwrite), daemon=True)
+    ib_bar_thread.start()
 
     try:
         previous = load_pe_data(OUTPUT_CSV)
@@ -1211,6 +1555,8 @@ def download_all():
         print(f"No existing {SORTED_SCREEN_CSV} yet; skipping social sentiment download")
 
     apply_sector_overrides(data, load_sectors(SYMBOLS_FILE))
+    print("Waiting for background IB daily/hourly bar refresh to finish before scoring momentum...")
+    ib_bar_thread.join()
     add_momentum_and_persist_history(app, data)
     add_target_upside(data)
     add_avg_liquidity_ratio(data)
@@ -1468,7 +1814,9 @@ def download_symbols(symbols):
 if __name__ == "__main__":
     mode = sys.argv[1] if len(sys.argv) > 1 else "prices"
     if mode == "all":
-        download_all()
+        # `all overwrite` bypasses IB_REFRESH_STATE_FILE's 3h cooldown --
+        # see download_all's own overwrite param. The only command that can.
+        download_all(overwrite=(len(sys.argv) > 2 and sys.argv[2] == "overwrite"))
     elif mode == "prices":
         download_prices()
     elif mode == "rescore":

@@ -35,12 +35,12 @@ import json
 import os
 from datetime import datetime, timedelta
 
-from scoring import load_short_interest_scores
+from modules.scoring import load_short_interest_scores
 
 RECENT_NEWS_DAYS = 7
 RECENT_INSIDER_DAYS = 90
 
-OUT_FILE = os.path.join("data", "recommendations.json")
+OUT_FILE = os.path.join("data", "output", "recommendations.json")
 
 
 def _load_json_or_empty(path):

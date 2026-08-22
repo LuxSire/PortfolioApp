@@ -528,11 +528,15 @@ export default function PositionsView() {
         // (see rankTo100's own comment for why rank-based, not min-max),
         // and over the same full sorted_screen.csv universe (this parses
         // that same file before subsetting to held positions below), so
-        // Momentum/MeanRev/Sentiment/News read on one identical scale
-        // across every tab, not a Positions-only ranking. Insiders
-        // deliberately excluded -- see its own ×100 comment above.
+        // Sentiment/News read on one identical scale across every tab,
+        // not a Positions-only ranking. Insiders/MSI/ST-MSI deliberately
+        // excluded -- see ScreenerView.tsx's identical loop for why (MSI/
+        // ST-MSI are Money Flow Index/RSI readings, already on a fixed
+        // [0, 100] scale; a plain average of that across a group -- see
+        // computeFactorAverages -- is exactly what's wanted, not a
+        // population-relative rank).
         const factorRows = Object.values(factors)
-        for (const key of ['mom', 'mr', 'sent', 'newsSent', 'instChange'] as const) {
+        for (const key of ['sent', 'newsSent', 'instChange'] as const) {
           const ranked = rankTo100(factorRows.map((f) => f[key]))
           factorRows.forEach((f, i) => {
             f[key] = ranked[i]

@@ -5,7 +5,7 @@ import { earningsUrgencyClass, fmtEarningsDate, useNowTick } from '../earnings'
 import { IB_NEWS_ARTICLE_URL, IB_NEWS_URL } from '../ibStream'
 import type { AssetInfo, CandlePoint, Holder, NewsArticle, PricePoint } from '../interfaces/IAssetView'
 import { SENTIMENT_LABEL, fmtNewsTime, sentimentClass } from '../news'
-import { fmtIndex100, toNum } from '../screenerFactors'
+import { toNum } from '../screenerFactors'
 import CandlestickChart from '../components/CandlestickChart'
 import PriceChart from '../components/PriceChart'
 
@@ -598,8 +598,8 @@ export default function AssetView({ ticker }: { ticker: string }) {
           </Section>
 
           <Section title="Momentum">
-            <Stat label="LT Momentum" value={fmtIndex100(ltMomentum)} valueClass={momentumClass(ltMomentum)} />
-            <Stat label="ST Momentum" value={fmtIndex100(stMomentum)} valueClass={meanReversionClass(stMomentum)} />
+            <Stat label="LT Strength (MFI/RSI)" value={fmtNum(ltMomentum)} valueClass={momentumClass(ltMomentum)} />
+            <Stat label="ST Overbought/Oversold (MFI)" value={fmtNum(stMomentum)} valueClass={meanReversionClass(stMomentum)} />
           </Section>
         </>
       )}

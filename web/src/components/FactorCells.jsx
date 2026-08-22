@@ -1,4 +1,4 @@
-import { inverseRangeClass, inversePctThresholdClass, rangeClass } from '../colorRules'
+import { inverseRangeClass, inversePctThresholdClass, meanReversionClass, momentumClass, rangeClass } from '../colorRules'
 import { fmtDebtToEquity, fmtIndex100, fmtNum, fmtPct, fmtPrice, fmtScore } from '../screenerFactors'
 
 const signedClass = (v) => (v === null || v === undefined ? '' : v >= 0 ? 'perf-pos' : 'perf-neg')
@@ -29,8 +29,8 @@ export default function FactorCells({ factors }) {
       <td className={`num ${inverseRangeClass(factors.liq, 1, 3)}`}>{fmtNum(factors.liq)}</td>
       <td className={`num ${inversePctThresholdClass(factors.shortInt, 2, 10)}`}>{fmtPct(factors.shortInt)}</td>
       <td className={`num ${signedClass(factors.upside)}`}>{fmtPct(factors.upside)}</td>
-      <td className={`num ${signedClass(factors.mom)}`}>{fmtIndex100(factors.mom)}</td>
-      <td className={`num ${signedClass(factors.mr)}`}>{fmtIndex100(factors.mr)}</td>
+      <td className={`num ${momentumClass(factors.mom)}`}>{fmtNum(factors.mom)}</td>
+      <td className={`num ${meanReversionClass(factors.mr)}`}>{fmtNum(factors.mr)}</td>
       <td className={`num ${signedClass(factors.sent)}`}>{fmtIndex100(factors.sent)}</td>
       <td className={`num ${signedClass(factors.newsSent)}`}>{fmtIndex100(factors.newsSent)}</td>
       <td className={`num ${signedClass(factors.instChange)}`}>{fmtIndex100(factors.instChange)}</td>

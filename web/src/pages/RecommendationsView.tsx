@@ -3,10 +3,11 @@ import { AlertTriangle, Flag, Info, Search, ThumbsDown, ThumbsUp } from 'lucide-
 import { parseCSV } from '../csv'
 import { businessMillisBetween, fmtEarningsDate, useNowTick } from '../earnings'
 import { IB_STREAM_URL } from '../ibStream'
-import { fmtPct, fmtPrice, fmtSigned, ratingClass } from '../screenerFactors'
+import { fmtPct, fmtPrice, ratingClass } from '../screenerFactors'
 import { getSectorGroup, sectorGroupLabel } from '../sectorGroups'
 import RecommendationsChatbot from '../components/RecommendationsChatbot'
 import SectorFilter from '../components/SectorFilter'
+import FilterDropdown from '../components/FilterDropdown'
 import type {
   Candidate,
   CloseRow,
@@ -186,6 +187,56 @@ function CardFooter({ c }: { c: Candidate }) {
 // pass/fail gate.
 type Signal = 'good' | 'bad' | null
 
+// A stable per-factor key, one per distinct rationale line rationaleLines
+// below can produce -- lets the thumb-factor filter (see
+// selectedThumbFilters/filterByThumbs) match "MSI: thumbs up" against the
+// right line without parsing its display text. Not every line has a
+// factor with a real name in scoring.py (oppositeMatchLine has none, so
+// it's the one line below with no `factor` field at all -- excluded from
+// the filter catalog for that reason).
+type RationaleFactor =
+  | 'revenueGrowth'
+  | 'momentum'
+  | 'meanReversion'
+  | 'epsTrend'
+  | 'shortInterest'
+  | 'news'
+  | 'insiders'
+  | 'insiderOwnership'
+  | 'institutions'
+  | 'targetUpside'
+type RationaleLine = { text: string; signal: Signal; factor?: RationaleFactor }
+
+// Catalog for the thumb-factor filter's own dropdown (see
+// selectedThumbFilters next to SectorFilter in .controls) -- explicit
+// instruction: "a way to make filters based on thumb factors... only see
+// thumbs up in MSI, or thumbs down in Revenue growth." One entry per
+// RationaleFactor; label is what the dropdown/filter chip shows.
+const THUMB_FACTORS: { key: RationaleFactor; label: string }[] = [
+  { key: 'momentum', label: 'MSI' },
+  { key: 'meanReversion', label: 'ST-MSI' },
+  { key: 'revenueGrowth', label: 'Revenue growth' },
+  { key: 'epsTrend', label: 'EPS trend' },
+  { key: 'shortInterest', label: 'Short interest' },
+  { key: 'news', label: 'News' },
+  { key: 'insiders', label: 'Insiders' },
+  { key: 'insiderOwnership', label: 'Insider ownership' },
+  { key: 'institutions', label: 'Institutions (13F)' },
+  { key: 'targetUpside', label: 'Target upside' },
+]
+
+// Flattened good/bad pair per factor -- `name` doubles as both
+// FilterDropdown's item label and the selection key (see that
+// component's own items prop, which uses the same string for both), so
+// it has to be human-readable on its own; filterByThumbs looks a
+// selected name back up in this list to recover factor/signal.
+const THUMB_FILTER_ITEMS: { name: string; factor: RationaleFactor; signal: 'good' | 'bad' }[] = THUMB_FACTORS.flatMap(
+  (f) => [
+    { name: `${f.label} — up`, factor: f.key, signal: 'good' as const },
+    { name: `${f.label} — down`, factor: f.key, signal: 'bad' as const },
+  ]
+)
+
 // Generic sign mirror for a factor with no dead zone of its own (momentum,
 // EPS trend, institutional change, target upside): positive is good for a
 // Long/bad for a Short, negative is the reverse, exactly zero is neutral.
@@ -205,25 +256,54 @@ function sidedSignal(value: number, side: 'Long' | 'Short'): Signal {
 // CloseRow already gets it from the same tickerScreener merge its own
 // close-reasons check uses. Plain sign, same as momentum/EPS trend --
 // positive growth good for a Long/bad for a Short, negative the mirror.
-function revenueGrowthLine(c: Candidate, side: 'Long' | 'Short'): { text: string; signal: Signal } | null {
+function revenueGrowthLine(c: Candidate, side: 'Long' | 'Short'): RationaleLine | null {
   if (c.revenueGrowth === null || c.revenueGrowth === undefined) return null
   return {
     text: `Revenue growth ${fmtPct(c.revenueGrowth)}`,
     signal: sidedSignal(c.revenueGrowth, side),
+    factor: 'revenueGrowth',
   }
 }
 
-// momentum is IBApp's Sharpe-style regression-slope score (trend divided by
-// its own volatility -- see fmtSigned's own comment in screenerFactors.js),
-// not a return -- shown as the signed raw number, not a percentage. Every
-// card that reaches the page has already passed the hard momentum-direction
-// rule (see RecommendationsView's eligible() below), so this line is
-// showing the reader the gate it already cleared, not a new judgment call.
-function momentumLine(c: Candidate, side: 'Long' | 'Short'): { text: string; signal: Signal } | null {
+// momentum is now IBApp's Money Flow Index (or plain RSI on the yfinance-
+// fallback tier -- see IBApp.get_momentum) -- a bounded [0, 100] daily-
+// timeframe strength/overbought-oversold oscillator, NOT the old signed
+// Sharpe-style regression score, so this shows a plain magnitude with a
+// conventional zone word (>=70 overbought, <=30 oversold) instead of a
+// +/- sign. Every card that reaches the page has already passed the hard
+// momentum-direction rule (see eligibleToBuy/eligibleToSell below), so
+// this line is showing the reader the gate it already cleared, not a new
+// judgment call. Signal mirrors those same gates' own thresholds
+// (MOMENTUM_OVERSOLD/MOMENTUM_OVERBOUGHT) rather than a plain sign check
+// -- there's no "positive/negative" on a 0-100 scale, only "is this an
+// actual overbought/oversold extreme."
+function momentumZone(value: number): string {
+  if (value > MOMENTUM_OVERBOUGHT) return 'overbought'
+  if (value < MOMENTUM_OVERSOLD) return 'oversold'
+  return 'neutral'
+}
+
+// Mean-reversion signal, not continuation -- see MOMENTUM_OVERSOLD/
+// MOMENTUM_OVERBOUGHT's own comment. Oversold favors a Long/disfavors a
+// Short, overbought the mirror; anything in between is neither extreme
+// and carries no signal at all (null), not a mild lean either way.
+function momentumSignal(value: number, side: 'Long' | 'Short'): Signal {
+  if (side === 'Long') {
+    if (value < MOMENTUM_OVERSOLD) return 'good'
+    if (value > MOMENTUM_OVERBOUGHT) return 'bad'
+    return null
+  }
+  if (value > MOMENTUM_OVERBOUGHT) return 'good'
+  if (value < MOMENTUM_OVERSOLD) return 'bad'
+  return null
+}
+
+function momentumLine(c: Candidate, side: 'Long' | 'Short'): RationaleLine | null {
   if (c.momentum === null || c.momentum === undefined) return null
   return {
-    text: `Momentum ${fmtSigned(c.momentum)} (${c.momentum > 0 ? 'positive' : 'negative'})`,
-    signal: sidedSignal(c.momentum, side),
+    text: `MSI ${c.momentum.toFixed(0)} (${momentumZone(c.momentum)})`,
+    signal: momentumSignal(c.momentum, side),
+    factor: 'momentum',
   }
 }
 
@@ -231,26 +311,34 @@ function momentumLine(c: Candidate, side: 'Long' | 'Short'): { text: string; sig
 // it rather than only when the mean-reversion gate/close-reason actually
 // fires (see meanReversionOkForLong/meanReversionOkForShort and
 // buildCloseReasons' own mean-reversion check), so the reader can see the
-// reading even on a card where it's nowhere near the ±MEAN_REVERSION_THRESHOLD
-// significance bar (that bar still gates the idea-list/close-reason logic
-// elsewhere in this file -- it just doesn't gate this icon). Same "only
-// computed for CANDLESTICK_TOP_N ranked/held tickers" gap as those checks
-// -- omitted, not shown as 0, when absent.
-// Signal is a plain sign check, deliberately WITHOUT the significance bar
-// meanReversionOkForLong/OkForShort use for the entry gate -- explicit
-// instruction: what matters for this icon is direction, not magnitude. A
-// pullback (however small) is still a favorable entry read for a Long, a
-// bounce (however small) still favorable for a Short; only the opposite
-// direction is unfavorable. Polarity is the mirror of sidedSignal's own
-// (positive is BAD for a Long here, not good -- a stock already trending
-// up on the hour is one you'd be chasing), hence calling it with side
-// flipped rather than duplicating sidedSignal's body with reversed
-// branches.
-function meanReversionLine(c: Candidate, side: 'Long' | 'Short'): { text: string; signal: Signal } | null {
+// reading even on a card where it's nowhere near those gates' own
+// overbought/oversold lines (those still gate the idea-list/close-reason
+// logic elsewhere in this file -- they just don't gate this icon). Same
+// "only computed for CANDLESTICK_TOP_N ranked/held tickers" gap as those
+// checks -- omitted, not shown as 0, when absent.
+// Now IBApp's hourly Money Flow Index (see momentumLine's own comment on
+// the daily leg's equivalent change) -- bounded [0, 100]. Same shape as
+// MSI's own signal now (explicit instruction, "same story for ST-MSI"):
+// oversold favors a Long/disfavors a Short, overbought the mirror, and
+// anything in between (neither extreme) carries no signal at all --
+// reusing the same MEAN_REVERSION_OVERBOUGHT/MEAN_REVERSION_OVERSOLD
+// bounds the entry gate already uses below, rather than the old plain
+// above/below-50 check with no neutral zone.
+function meanReversionZone(value: number): string {
+  if (value >= MEAN_REVERSION_OVERBOUGHT) return 'overbought'
+  if (value <= MEAN_REVERSION_OVERSOLD) return 'oversold'
+  return 'neutral'
+}
+
+function meanReversionLine(c: Candidate, side: 'Long' | 'Short'): RationaleLine | null {
   if (c.meanReversion === null || c.meanReversion === undefined) return null
+  let signal: Signal = null
+  if (c.meanReversion >= MEAN_REVERSION_OVERBOUGHT) signal = side === 'Long' ? 'bad' : 'good'
+  else if (c.meanReversion <= MEAN_REVERSION_OVERSOLD) signal = side === 'Long' ? 'good' : 'bad'
   return {
-    text: `Hourly momentum ${fmtSigned(c.meanReversion)} (${c.meanReversion > 0 ? 'positive' : 'negative'})`,
-    signal: sidedSignal(c.meanReversion, side === 'Long' ? 'Short' : 'Long'),
+    text: `ST-MSI ${c.meanReversion.toFixed(0)} (${meanReversionZone(c.meanReversion)})`,
+    signal,
+    factor: 'meanReversion',
   }
 }
 
@@ -260,12 +348,13 @@ function meanReversionLine(c: Candidate, side: 'Long' | 'Short'): { text: string
 // reader should see the reading on every card. Reuses epsTrendValue
 // (below) rather than a separate field -- see that function's own
 // comment for the epsRevision0y/1y averaging it does.
-function epsTrendLine(c: Candidate, side: 'Long' | 'Short'): { text: string; signal: Signal } | null {
+function epsTrendLine(c: Candidate, side: 'Long' | 'Short'): RationaleLine | null {
   const epsTrend = epsTrendValue(c)
   if (epsTrend === null) return null
   return {
     text: `EPS est trend ${fmtPct(epsTrend)} (${epsTrend > 0 ? 'raised' : epsTrend < 0 ? 'cut' : 'flat'})`,
     signal: sidedSignal(epsTrend, side),
+    factor: 'epsTrend',
   }
 }
 
@@ -279,11 +368,11 @@ function epsTrendLine(c: Candidate, side: 'Long' | 'Short'): { text: string; sig
 // risk against the position, the same crowded-short reasoning notCrowded's
 // own gate already uses) -- at or under that bar, short interest isn't a
 // discriminating signal either way, no icon.
-function shortInterestLine(c: Candidate, side: 'Long' | 'Short'): { text: string; signal: Signal } | null {
+function shortInterestLine(c: Candidate, side: 'Long' | 'Short'): RationaleLine | null {
   const pct = effectiveShortPctOfFloat(c)
   if (pct === null || pct === undefined) return null
   const signal: Signal = pct > MAX_SHORT_INTEREST ? (side === 'Long' ? 'good' : 'bad') : null
-  return { text: `Short interest ${fmtPctAbs(pct)} of float`, signal }
+  return { text: `Short interest ${fmtPctAbs(pct)} of float`, signal, factor: 'shortInterest' }
 }
 
 // What fraction of shares insiders currently hold -- distinct from
@@ -297,58 +386,68 @@ function shortInterestLine(c: Candidate, side: 'Long' | 'Short'): { text: string
 // (confirmed live: 0.2% was firing "good"), which isn't a real
 // skin-in-the-game signal, just noise -- same "only the tail counts"
 // treatment MAX_SHORT_INTEREST already gives the short-interest line.
-function insiderOwnershipLine(c: Candidate, side: 'Long' | 'Short'): { text: string; signal: Signal } | null {
+function insiderOwnershipLine(c: Candidate, side: 'Long' | 'Short'): RationaleLine | null {
   if (c.heldPercentInsiders === null || c.heldPercentInsiders === undefined) return null
   const signal: Signal = c.heldPercentInsiders > MIN_INSIDER_OWNERSHIP ? (side === 'Long' ? 'good' : 'bad') : null
-  return { text: `Insider ownership ${fmtPctAbs(c.heldPercentInsiders)}`, signal }
+  return { text: `Insider ownership ${fmtPctAbs(c.heldPercentInsiders)}`, signal, factor: 'insiderOwnership' }
 }
 
-// Builds a matcher for the sector/theme hedge preference: given the
+// Builds a matcher for the industry/sector hedge preference: given the
 // tickers held on the OPPOSITE side from the list being ranked (short
 // positions when ranking Long ideas, long positions when ranking Short
 // ideas), returns a function that, for a candidate, finds a held ticker on
-// that opposite side sharing its sector or a theme tag -- an opposite-side
-// position inside the same sector/theme as an existing position is a
-// pairs-style hedge (reduces sector/theme-level risk while keeping
-// stock-specific views), which the user explicitly wants preferred over an
-// unrelated idea of otherwise similar rank. Sector match is checked first
-// (a single, unambiguous field); theme match (a ticker can carry several
-// tags -- see ticker_themes.json) is the fallback.
+// that opposite side sharing its granular industry (c.sector -- yfinance's
+// "industry" field, confusingly named "sector" throughout this app's data,
+// see CardFooter's own comment) or, failing that, its broad GICS-style
+// sector group (getSectorGroup(c.sector), e.g. "Technology") -- an
+// opposite-side position in the same industry or sector as an existing
+// position is a pairs-style hedge (reduces industry/sector-level risk
+// while keeping stock-specific views), which the user explicitly wants
+// preferred over an unrelated idea of otherwise similar rank. Industry
+// match is checked first (the more specific, more meaningful overlap);
+// broad sector-group match is the fallback. Explicitly does NOT fall back
+// to the AI-classified theme tags (ticker_themes.json) the way an earlier
+// version did -- that zero-shot classifier is best-effort and known to
+// mis-tag (see theme_classifier.py's own docstring), and it was actually
+// pairing up unrelated names on a shared bad tag in practice (e.g. MAC, a
+// mall REIT, "hedging" SNDK, a semiconductor/storage maker, and PARR, an
+// oil refiner -- all three wrongly carrying a "consumer_retail" theme tag
+// with no real business relationship to justify it).
 function buildOppositeMatcher(
   oppositeTickers: string[],
-  tickerSector: Record<string, string | null>,
-  tickerThemes: Record<string, string[]>
+  tickerSector: Record<string, string | null>
 ): (c: Candidate) => OppositeMatch | null {
-  const bySector = new Map<string, string[]>()
-  const byTheme = new Map<string, string[]>()
+  const byIndustry = new Map<string, string[]>()
+  const bySectorGroup = new Map<string, string[]>()
   for (const t of oppositeTickers) {
-    const sector = tickerSector[t]
-    if (sector) {
-      if (!bySector.has(sector)) bySector.set(sector, [])
-      ;(bySector.get(sector) as string[]).push(t)
-    }
-    for (const theme of tickerThemes[t] || []) {
-      if (!byTheme.has(theme)) byTheme.set(theme, [])
-      ;(byTheme.get(theme) as string[]).push(t)
-    }
+    const industry = tickerSector[t]
+    if (!industry) continue
+    if (!byIndustry.has(industry)) byIndustry.set(industry, [])
+    ;(byIndustry.get(industry) as string[]).push(t)
+    const group = getSectorGroup(industry)
+    if (!bySectorGroup.has(group)) bySectorGroup.set(group, [])
+    ;(bySectorGroup.get(group) as string[]).push(t)
   }
   return function match(c: Candidate): OppositeMatch | null {
-    if (c.sector && bySector.has(c.sector)) {
-      return { type: 'sector', value: c.sector, tickers: bySector.get(c.sector) as string[] }
+    if (!c.sector) return null
+    if (byIndustry.has(c.sector)) {
+      return { type: 'industry', value: c.sector, tickers: byIndustry.get(c.sector) as string[] }
     }
-    for (const theme of tickerThemes[c.ticker] || []) {
-      if (byTheme.has(theme)) {
-        return { type: 'theme', value: theme, tickers: byTheme.get(theme) as string[] }
-      }
+    const group = getSectorGroup(c.sector)
+    if (bySectorGroup.has(group)) {
+      return { type: 'sector', value: group, tickers: bySectorGroup.get(group) as string[] }
     }
     return null
   }
 }
 
-function oppositeMatchLine(match: OppositeMatch | null, oppositeSideLabel: string, themeLabels: Record<string, string>): string | null {
+// Industry match gets the thumbs-up in rationaleLines (see there) -- the
+// more specific, more meaningful overlap of the two. Broad sector-group
+// match is still shown (still a real, if looser, hedge) but stays neutral.
+function oppositeMatchLine(match: OppositeMatch | null, oppositeSideLabel: string): string | null {
   if (!match) return null
   const tickers = match.tickers.join(', ')
-  const where = match.type === 'sector' ? `sector (${match.value})` : `theme (${themeLabels[match.value] || match.value})`
+  const where = match.type === 'industry' ? `industry (${match.value})` : `sector (${match.value})`
   return `Hedges your ${tickers} ${oppositeSideLabel} — same ${where}`
 }
 
@@ -361,10 +460,10 @@ function oppositeMatchLine(match: OppositeMatch | null, oppositeSideLabel: strin
 // own comment -- rendered as a small thumbs-up/down by ThumbIcon at each
 // call site.
 function rationaleLines(
-  c: Candidate & { oppositeMatchLine?: string | null },
+  c: Candidate & { oppositeMatchLine?: string | null; oppositeMatchType?: 'industry' | 'sector' | null },
   side: 'Long' | 'Short'
-): { text: string; signal: Signal }[] {
-  const lines: { text: string; signal: Signal }[] = []
+): RationaleLine[] {
+  const lines: RationaleLine[] = []
   // percentileLabel is shown in the card's own CardFooter (bottom-right)
   // instead of buried as a bullet here -- see that
   // component's own comment.
@@ -384,32 +483,47 @@ function rationaleLines(
   const shortInterest = shortInterestLine(c, side)
   if (shortInterest) lines.push(shortInterest)
 
-  if (c.oppositeMatchLine) lines.push({ text: c.oppositeMatchLine, signal: null })
+  // Industry-level hedge match is an unambiguous good sign (explicit
+  // instruction) regardless of side -- reducing risk in the same specific
+  // business is favorable whether the new idea is a Long or a Short.
+  // Broad sector-group match is looser and stays neutral (no thumb).
+  if (c.oppositeMatchLine) lines.push({ text: c.oppositeMatchLine, signal: c.oppositeMatchType === 'industry' ? 'good' : null })
 
   const news = c.news7d
   if (news && news.total > 0) {
     lines.push({
       text: `News: ${news.bullish} bulls/${news.bearish} bears last 7d`,
       signal: news.bullish > news.bearish ? (side === 'Long' ? 'good' : 'bad') : news.bearish > news.bullish ? (side === 'Long' ? 'bad' : 'good') : null,
+      factor: 'news',
     })
   } else {
     lines.push({ text: 'No news coverage in the last 7 days', signal: null })
   }
 
+  // Insider SELLS are a notoriously noisy signal (10b5-1 pre-scheduled
+  // plans, tax, diversification -- mostly routine, not conviction), so a
+  // plain buys-vs-sells comparison flagged even a token 2-buy/9-sell
+  // quarter as outright bad -- explicit instruction/confirmed impression:
+  // that's the wrong read. Any buys at all (even a minority of the
+  // period's activity) is the meaningful signal here -- an insider
+  // voluntarily putting their own money in despite whatever routine
+  // selling is also happening. Only flip bad/good when there's PURE
+  // selling (zero buys) -- no insider stepped in to buy at all.
   const insiders = c.insiders90d
   if (insiders && insiders.buys + insiders.sells > 0) {
     lines.push({
       text: `Insiders: ${insiders.buys} buys, ${insiders.sells} sells in last 90d`,
       signal:
-        insiders.buys > insiders.sells
+        insiders.buys > 0
           ? side === 'Long'
             ? 'good'
             : 'bad'
-          : insiders.sells > insiders.buys
+          : insiders.sells > 0
             ? side === 'Long'
               ? 'bad'
               : 'good'
             : null,
+      factor: 'insiders',
     })
   }
 
@@ -420,6 +534,7 @@ function rationaleLines(
     lines.push({
       text: `Institutions ${c.instChangeQoQ >= 0 ? 'added' : 'trimmed'} ${fmtPctAbs(c.instChangeQoQ)} (13F)`,
       signal: sidedSignal(c.instChangeQoQ, side),
+      factor: 'institutions',
     })
   }
 
@@ -428,6 +543,7 @@ function rationaleLines(
     lines.push({
       text: `Target upside ${fmtPct(c.targetUpside)}${analysts ? ` (${analysts} analysts)` : ''}`,
       signal: sidedSignal(c.targetUpside, side),
+      factor: 'targetUpside',
     })
   }
 
@@ -449,6 +565,29 @@ function ThumbIcon({ signal }: { signal: Signal }) {
     return <ThumbsDown className="recommendation-thumb-icon recommendation-thumb-bad" size={13} aria-label="Unfavorable" />
   }
   return null
+}
+
+// Right-aligned tally sitting above the rationale bullets -- explicit
+// instruction: a quick up/down count before scanning the individual
+// factor lines below. Renders nothing when neither count is nonzero
+// (same "no clutter on a non-discriminating card" reasoning ThumbIcon's
+// own null case follows).
+function ThumbCounts({ lines }: { lines: RationaleLine[] }) {
+  const up = lines.filter((l) => l.signal === 'good').length
+  const down = lines.filter((l) => l.signal === 'bad').length
+  if (!up && !down) return null
+  return (
+    <div className="recommendation-thumb-counts">
+      <span className="recommendation-thumb-count recommendation-thumb-good">
+        <ThumbsUp size={13} aria-label="Favorable count" />
+        {up}
+      </span>
+      <span className="recommendation-thumb-count recommendation-thumb-bad">
+        <ThumbsDown size={13} aria-label="Unfavorable count" />
+        {down}
+      </span>
+    </div>
+  )
 }
 
 // Live price (ib_server.py's SSE stream, same as every other tab)
@@ -644,6 +783,7 @@ function RecommendationCard({
   monthlyHistory: HistoryByTicker
   side: 'Long' | 'Short'
 }) {
+  const lines = rationaleLines(c, side)
   return (
     <div className={`asset-card recommendation-card${held ? ' recommendation-card-held' : ''}`}>
       <div className="recommendation-card-header">
@@ -672,8 +812,9 @@ function RecommendationCard({
         </div>
       </div>
 
+      <ThumbCounts lines={lines} />
       <ul className="recommendation-rationale">
-        {rationaleLines(c, side).map((line, i) => (
+        {lines.map((line, i) => (
           <li key={i}>
             {line.text}
             <ThumbIcon signal={line.signal} />
@@ -695,14 +836,21 @@ function CloseCard({
   live,
   dailyHistory3mo,
   monthlyHistory,
+  goodSign,
+  badSign,
 }: {
   c: CloseRow
   live?: LiveTick
   dailyHistory3mo: HistoryByTicker
   monthlyHistory: HistoryByTicker
+  goodSign?: boolean
+  badSign?: boolean
 }) {
+  const lines = rationaleLines(c, c.closeSide)
   return (
-    <div className="asset-card recommendation-card recommendation-card-held">
+    <div
+      className={`asset-card recommendation-card recommendation-card-held${goodSign ? ' recommendation-card-goodsign' : ''}${badSign ? ' recommendation-card-badsign' : ''}`}
+    >
       <div className="recommendation-card-header">
         <div>
           <a
@@ -743,8 +891,9 @@ function CloseCard({
         ))}
       </ul>
 
+      <ThumbCounts lines={lines} />
       <ul className="recommendation-rationale">
-        {rationaleLines(c, c.closeSide).map((line, i) => (
+        {lines.map((line, i) => (
           <li key={i}>
             {line.text}
             <ThumbIcon signal={line.signal} />
@@ -778,6 +927,7 @@ function RejectedCard({
   monthlyHistory: HistoryByTicker
   side: 'Long' | 'Short'
 }) {
+  const lines = rationaleLines(c, side)
   return (
     <div
       className={`asset-card recommendation-card recommendation-card-blocked${held ? ' recommendation-card-held' : ''}`}
@@ -811,6 +961,16 @@ function RejectedCard({
       <ul className="recommendation-close-reasons">
         {c.reasons.map((r, i) => (
           <li key={i}>{r.text}</li>
+        ))}
+      </ul>
+
+      <ThumbCounts lines={lines} />
+      <ul className="recommendation-rationale">
+        {lines.map((line, i) => (
+          <li key={i}>
+            {line.text}
+            <ThumbIcon signal={line.signal} />
+          </li>
         ))}
       </ul>
       <CardFooter c={c} />
@@ -879,7 +1039,7 @@ function RecommendationSection<T>({
 // inverted "short the overextension" rule.
 //
 // Within each side, a non-held candidate that hedges an existing position
-// on the OPPOSITE side (same sector or theme -- see the longs/shorts memos'
+// on the OPPOSITE side (same industry or sector -- see the longs/shorts memos'
 // own buildOppositeMatcher/HEDGE_BONUS usage) gets a bounded score nudge so
 // it can leapfrog similarly-ranked ideas with no such overlap, without
 // out-ranking a clearly stronger idea just for the overlap -- explicit
@@ -904,25 +1064,44 @@ function RecommendationSection<T>({
 // because of too high risk or other reasons"). Position-size concentration
 // used to be flagged here too; dropped per explicit instruction -- not a
 // useful closing signal on its own.
-// MOMENTUM_THRESHOLD (long side only): explicit instruction -- a bare
-// positive sign isn't enough conviction to recommend opening a long, only
-// to keep holding one already open (see buildCloseReasons' own separate,
-// looser >=0/<=0 momentum-reversal check below, deliberately not raised
-// to this same bar -- that one flags an existing position early, before
-// its momentum has even fully reversed, not just before it's "strong").
-// Originally 1, lowered to 0.5 per explicit follow-up instruction (still
-// meaningfully above a bare positive sign, just a lower bar for entry
-// conviction than before). The short side deliberately stays a plain <0
-// -- explicit instruction, not symmetric with the long side's threshold;
-// confirmed by backtest (see the doc comment above) that momentum is a
-// continuation signal, so a short should be keyed off negative momentum,
-// not an inverted positive-momentum bar.
-const MOMENTUM_THRESHOLD = 0.5
+// MSI (daily Money Flow Index/RSI, bounded [0, 100] -- see
+// IBApp.get_momentum) is used here as a mean-reversion overbought/
+// oversold read, NOT the continuation treatment scoring.py's own
+// momentum_rank sweet-spot curve uses for the composite score -- these
+// are two independent, deliberately different treatments of the same
+// raw number (see that curve's own comment for why the composite score
+// wants "healthy middle-strength" as a quality factor; this page wants
+// "is this a genuinely overbought/oversold extreme worth acting on").
+// Explicit instruction, confirmed against concrete tickers (LQDA at 28
+// should read as a GOOD long signal, not excluded; a reading of 81
+// should read as a GOOD short signal): oversold (< MOMENTUM_OVERSOLD)
+// is good for a Long/bad for a Short, overbought (> MOMENTUM_OVERBOUGHT)
+// is bad for a Long/good for a Short, and -- explicit instruction --
+// anything in between carries NO signal at all (null, not "mildly
+// good/bad") since it's neither extreme. Same shape now applies to
+// ST-MSI/meanReversion below (see MEAN_REVERSION_OVERBOUGHT/OVERSOLD),
+// just with its own, separately-tuned band. Keep in sync with
+// ib_server.py's own _REC_MOMENTUM_OVERBOUGHT/_REC_MOMENTUM_OVERSOLD by
+// hand.
+//
+// eligibleToBuy/eligibleToSell below are deliberately LOOSER than this
+// signal shape, though -- explicit instruction: the idea-list gate only
+// BLOCKS the bad extreme (overbought for a Long, oversold for a Short),
+// it doesn't REQUIRE the good one. Neutral candidates (and even the
+// opposite extreme -- oversold for a Long, overbought for a Short) are
+// still eligible; the thumb icon just won't show a strong opinion (or
+// will show a positive one) on them.
+const MOMENTUM_OVERSOLD = 30
+const MOMENTUM_OVERBOUGHT = 70
+// Explicit instruction: block, don't require -- a Long is only excluded
+// when MSI is overbought (chasing risk); anything else (neutral OR
+// oversold) is fine to recommend. Short is the mirror: only excluded
+// when oversold, neutral or overbought both fine.
 function eligibleToBuy(c: Candidate): boolean {
-  return c.momentum !== null && c.momentum !== undefined && c.momentum >= MOMENTUM_THRESHOLD
+  return c.momentum !== null && c.momentum !== undefined && c.momentum <= MOMENTUM_OVERBOUGHT
 }
 function eligibleToSell(c: Candidate): boolean {
-  return c.momentum !== null && c.momentum !== undefined && c.momentum < 0
+  return c.momentum !== null && c.momentum !== undefined && c.momentum >= MOMENTUM_OVERSOLD
 }
 
 // FINRA's biweekly-settlement pct-of-float (shortPctOfFloatFinra) is
@@ -978,37 +1157,41 @@ function notTooMuchGrowthForShort(revenueGrowth: number | null | undefined): boo
 }
 
 // Short-term mean-reversion gate on the idea lists (mirrors the growth gate
-// above) -- meanReversion is an hourly-timeframe regression-slope trend
-// (see IBApp.get_momentum), same sign convention and formula as the daily
-// `momentum` field, just measured on the hourly bars: positive means a
-// steady hourly UPtrend, negative a steady hourly DOWNtrend. Used here as
-// an entry-timing signal, not a second momentum vote: a stock already
-// trending up hard on the hourly timeframe is a stock a new long would be
-// CHASING (bad entry, that move already happened), while a stock trending
-// down hard on the hourly timeframe is one a new short would be chasing
-// the same way -- so a significantly POSITIVE reading blocks a new long /
-// flags a held long to close (the exact FIVN situation: bought at $33.29
-// right after a multi-day hourly spike, meanReversion already deeply
-// positive, price mean-reverted down from there), while a significantly
-// NEGATIVE reading blocks a new short / flags a held short to close.
-// "Significant" is deliberately a wide dead zone (MEAN_REVERSION_THRESHOLD),
-// not any nonzero reading -- explicit instruction: most tickers sit within
-// a few points of zero just from ordinary hourly noise (see the universe's
-// own distribution: the 25th/75th percentiles are only about -0.1/+4), so
-// gating on sign alone would trip constantly on noise. Only the tail
-// (roughly the most extreme ~10% of readings either way) is meant to
-// count. Same fail-open treatment as the growth/crowded-short gates: a
-// candidate with no meanReversion at all (it's only computed for
-// CANDLESTICK_TOP_N ranked/held tickers, not the whole universe -- see
-// IBApp.get_momentum) isn't assumed to violate either side, so it still
-// passes. Lives on tickerScreener, not the recommendations.json candidate,
-// same as revenueGrowth above.
-const MEAN_REVERSION_THRESHOLD = 10
+// above) -- meanReversion is now IBApp's hourly Money Flow Index (see
+// IBApp.get_momentum), bounded [0, 100], NOT the old signed regression-
+// slope trend: high means hourly-overbought, low means hourly-oversold.
+// Used here as an entry-timing signal, not a second momentum vote: a
+// stock already overbought on the hourly timeframe is a stock a new long
+// would be CHASING (bad entry, that move already happened), while a
+// stock already oversold on the hourly timeframe is one a new short
+// would be chasing the same way -- so a significantly OVERBOUGHT reading
+// blocks a new long / flags a held long to close (the exact FIVN
+// situation: bought right after a multi-day hourly spike, meanReversion
+// already deeply overbought, price mean-reverted down from there), while
+// a significantly OVERSOLD reading blocks a new short / flags a held
+// short to close. "Significant" is deliberately a wide dead zone
+// (MEAN_REVERSION_OVERBOUGHT/MEAN_REVERSION_OVERSOLD, the conventional
+// MFI reference lines) rather than any deviation from the midpoint --
+// explicit instruction (from the old unbounded-scale version of this
+// gate): most readings sit well inside this band just from ordinary
+// hourly noise, so gating on any deviation at all would trip constantly.
+// Only the tail (roughly the most extreme ~20% of readings either way)
+// is meant to count -- momentumLine/meanReversionLine's own thumb-icon
+// signal deliberately does NOT use this same wide band (see that
+// function's comment), just this hard entry/close gate. Same fail-open
+// treatment as the growth/crowded-short gates: a candidate with no
+// meanReversion at all (it's only computed for CANDLESTICK_TOP_N
+// ranked/held tickers, not the whole universe -- see IBApp.get_momentum)
+// isn't assumed to violate either side, so it still passes. Lives on
+// tickerScreener, not the recommendations.json candidate, same as
+// revenueGrowth above.
+const MEAN_REVERSION_OVERBOUGHT = 80
+const MEAN_REVERSION_OVERSOLD = 20
 function meanReversionOkForLong(meanReversion: number | null | undefined): boolean {
-  return meanReversion === null || meanReversion === undefined || meanReversion < MEAN_REVERSION_THRESHOLD
+  return meanReversion === null || meanReversion === undefined || meanReversion < MEAN_REVERSION_OVERBOUGHT
 }
 function meanReversionOkForShort(meanReversion: number | null | undefined): boolean {
-  return meanReversion === null || meanReversion === undefined || meanReversion > -MEAN_REVERSION_THRESHOLD
+  return meanReversion === null || meanReversion === undefined || meanReversion > MEAN_REVERSION_OVERSOLD
 }
 
 // Entry-side EPS-estimate-trend gate -- same "even at a great score"
@@ -1119,20 +1302,26 @@ function buildCloseReasons({ shares, c, now }: { shares: number; c: Candidate; n
     }
   }
 
-  // Independent of rating -- a held Buy/Strong Buy long whose own momentum
-  // has already turned flat or negative (or a held Sell/Strong Sell short
-  // whose momentum has turned flat or positive) is worth flagging before
-  // the rating catches up, not just after.
+  // Independent of rating -- a held Buy/Strong Buy long entered on an
+  // oversold MSI reading is worth flagging once MSI has now reached the
+  // OPPOSITE extreme (overbought -- the reversion target was hit, a
+  // take-profit/reversal-risk signal), same mirror for a held Sell/
+  // Strong Sell short entered overbought once MSI drops to oversold.
+  // Same MOMENTUM_OVERSOLD/MOMENTUM_OVERBOUGHT extremes the entry gate
+  // uses (see that constant's own comment) -- this isn't a looser bar
+  // the way the old continuation-framing check was, since mean-reversion
+  // has no natural "in between" trigger point the way a directional
+  // crossing does.
   if (c && c.momentum !== null && c.momentum !== undefined) {
-    if (isLong && c.momentum <= 0) {
+    if (isLong && c.momentum > MOMENTUM_OVERBOUGHT) {
       reasons.push({
         type: 'momentum',
-        text: `Momentum is no longer supportive for a long (${fmtSigned(c.momentum)}, ${c.momentum === 0 ? 'flat' : 'negative'}).`,
+        text: `MSI has reached overbought (${c.momentum.toFixed(0)}) — the reversion this long was entered on may be done.`,
       })
-    } else if (!isLong && c.momentum >= 0) {
+    } else if (!isLong && c.momentum < MOMENTUM_OVERSOLD) {
       reasons.push({
         type: 'momentum',
-        text: `Momentum is no longer supportive for a short (${fmtSigned(c.momentum)}, ${c.momentum === 0 ? 'flat' : 'positive'}).`,
+        text: `MSI has reached oversold (${c.momentum.toFixed(0)}) — the reversion this short was entered on may be done.`,
       })
     }
   }
@@ -1160,23 +1349,23 @@ function buildCloseReasons({ shares, c, now }: { shares: number; c: Candidate; n
   }
 
   // Same significant-magnitude bar as meanReversionOkForLong/
-  // meanReversionOkForShort above (not any nonzero reading -- most tickers
-  // sit within a few points of zero from ordinary hourly noise). A held
-  // long that's spiked hard enough on the hourly timeframe to already be
-  // past the same bar that would have blocked opening it fresh today is
-  // the FIVN situation -- bought right after a run-up, mean-reverts
-  // against you from there. Mirror case for a held short: a hard enough
-  // drop that a bounce is due against the short.
+  // meanReversionOkForShort above (not any deviation from the midpoint --
+  // most readings sit well inside this band from ordinary hourly noise).
+  // A held long that's spiked hard enough on the hourly timeframe to
+  // already be past the same bar that would have blocked opening it
+  // fresh today is the FIVN situation -- bought right after a run-up,
+  // mean-reverts against you from there. Mirror case for a held short: a
+  // hard enough drop that a bounce is due against the short.
   if (c && c.meanReversion !== null && c.meanReversion !== undefined) {
-    if (isLong && c.meanReversion >= MEAN_REVERSION_THRESHOLD) {
+    if (isLong && c.meanReversion >= MEAN_REVERSION_OVERBOUGHT) {
       reasons.push({
         type: 'mean-reversion',
-        text: `ST momentum positive (${fmtSigned(c.meanReversion)}) — ready for a pullback.`,
+        text: `ST-MSI overbought (${c.meanReversion.toFixed(0)}) — ready for a pullback.`,
       })
-    } else if (!isLong && c.meanReversion <= -MEAN_REVERSION_THRESHOLD) {
+    } else if (!isLong && c.meanReversion <= MEAN_REVERSION_OVERSOLD) {
       reasons.push({
         type: 'mean-reversion',
-        text: `ST momentum negative (${fmtSigned(c.meanReversion)}) — ready for a bounce.`,
+        text: `ST-MSI oversold (${c.meanReversion.toFixed(0)}) — ready for a bounce.`,
       })
     }
   }
@@ -1242,8 +1431,8 @@ function buildRejectionReasons({ c, tickerScreener }: { c: Candidate; tickerScre
         type: 'momentum',
         text:
           c.momentum === null || c.momentum === undefined
-            ? 'Momentum data is unavailable.'
-            : `Momentum is ${fmtSigned(c.momentum)}, below ${MOMENTUM_THRESHOLD}.`,
+            ? 'MSI data is unavailable.'
+            : `MSI is ${c.momentum.toFixed(0)}, overbought (above ${MOMENTUM_OVERBOUGHT}).`,
       })
     }
     if (!sufficientGrowthForLong(revenueGrowth)) {
@@ -1255,7 +1444,7 @@ function buildRejectionReasons({ c, tickerScreener }: { c: Candidate; tickerScre
     if (!meanReversionOkForLong(meanReversion)) {
       reasons.push({
         type: 'mean-reversion',
-        text: `ST momentum positive (${fmtSigned(meanReversion as number)}) — already spiked.`,
+        text: `ST-MSI overbought (${(meanReversion as number).toFixed(0)}) — already spiked.`,
       })
     }
     if (!epsTrendOkForLong(epsTrend)) {
@@ -1270,8 +1459,8 @@ function buildRejectionReasons({ c, tickerScreener }: { c: Candidate; tickerScre
         type: 'momentum',
         text:
           c.momentum === null || c.momentum === undefined
-            ? 'Momentum data is unavailable.'
-            : `Momentum is ${fmtSigned(c.momentum)}, not negative.`,
+            ? 'MSI data is unavailable.'
+            : `MSI is ${c.momentum.toFixed(0)}, oversold (below ${MOMENTUM_OVERSOLD}).`,
       })
     }
     if (!notCrowded(c)) {
@@ -1289,7 +1478,7 @@ function buildRejectionReasons({ c, tickerScreener }: { c: Candidate; tickerScre
     if (!meanReversionOkForShort(meanReversion)) {
       reasons.push({
         type: 'mean-reversion',
-        text: `ST momentum negative (${fmtSigned(meanReversion as number)}) — already dropped.`,
+        text: `ST-MSI oversold (${(meanReversion as number).toFixed(0)}) — already dropped.`,
       })
     }
     if (!epsTrendOkForShort(epsTrend)) {
@@ -1314,14 +1503,14 @@ function buildRejectionReasons({ c, tickerScreener }: { c: Candidate; tickerScre
 // corresponding filter/reason function changes.
 const LONG_RULES = [
   { label: 'Rating', note: 'Strong Buy or Buy.' },
-  { label: 'Momentum', note: `Daily-timeframe momentum at or above ${MOMENTUM_THRESHOLD}; unknown momentum excluded.` },
+  { label: 'MSI', note: `Not overbought (${MOMENTUM_OVERBOUGHT} or below) — a mean-reversion read, not continuation; blocks only the overbought extreme, doesn't require oversold. Unknown MSI excluded.` },
   {
     label: 'Revenue growth',
     note: `Trailing revenue growth at or above ${fmtPctAbs(REVENUE_GROWTH_THRESHOLD)}; unknown growth not excluded.`,
   },
   {
-    label: 'Mean reversion',
-    note: `ST momentum not significantly positive — excludes a stock that's already spiked and would be chased; unknown not excluded.`,
+    label: 'ST-MSI',
+    note: `ST-MSI not significantly overbought — excludes a stock that's already spiked and would be chased; unknown not excluded.`,
   },
   {
     label: 'EPS trend',
@@ -1329,13 +1518,13 @@ const LONG_RULES = [
   },
   {
     label: 'Ranking',
-    note: 'Best composite score first. A non-held candidate that hedges an existing short position (same sector/theme) gets a small score bonus.',
+    note: 'Best composite score first. A non-held candidate that hedges an existing short position (same industry/sector) gets a small score bonus.',
   },
 ]
 
 const SHORT_RULES = [
   { label: 'Rating', note: 'Strong Sell or Sell.' },
-  { label: 'Momentum', note: 'Negative daily-timeframe momentum; unknown momentum excluded.' },
+  { label: 'MSI', note: `Not oversold (${MOMENTUM_OVERSOLD} or above) — the mirror of Long's rule; blocks only the oversold extreme, doesn't require overbought. Unknown MSI excluded.` },
   {
     label: 'Not crowded',
     note: `No more than ${fmtPctAbs(MAX_SHORT_INTEREST)} of float already sold short; unknown short interest not excluded.`,
@@ -1345,8 +1534,8 @@ const SHORT_RULES = [
     note: `Trailing revenue growth at or below ${fmtPctAbs(REVENUE_GROWTH_THRESHOLD)}; unknown growth not excluded.`,
   },
   {
-    label: 'Mean reversion',
-    note: `ST momentum not significantly negative — excludes a stock that's already dropped and would be chased; unknown not excluded.`,
+    label: 'ST-MSI',
+    note: `ST-MSI not significantly oversold — excludes a stock that's already dropped and would be chased; unknown not excluded.`,
   },
   {
     label: 'EPS trend',
@@ -1354,18 +1543,18 @@ const SHORT_RULES = [
   },
   {
     label: 'Ranking',
-    note: 'Worst composite score first. A non-held candidate that hedges an existing long position (same sector/theme) gets a small score bonus.',
+    note: 'Worst composite score first. A non-held candidate that hedges an existing long position (same industry/sector) gets a small score bonus.',
   },
 ]
 
 const CLOSE_RULES = [
   {
     label: 'Rating contradiction',
-    note: 'Held long no longer rated Buy/Strong Buy, or held short no longer rated Sell/Strong Sell — fires regardless of momentum.',
+    note: 'Held long no longer rated Buy/Strong Buy, or held short no longer rated Sell/Strong Sell — fires regardless of MSI.',
   },
   {
-    label: 'Momentum reversal',
-    note: 'Momentum has gone flat or negative for a long, or flat or positive for a short — even if the rating hasn’t caught up yet.',
+    label: 'MSI reversal',
+    note: `Long: MSI has reached overbought (> ${MOMENTUM_OVERBOUGHT}) — the reversion this long was entered on may be done. Short: reached oversold (< ${MOMENTUM_OVERSOLD}) — even if the rating hasn't caught up yet.`,
   },
   {
     label: 'Score near Hold boundary',
@@ -1380,8 +1569,8 @@ const CLOSE_RULES = [
     note: 'Long only — trailing revenue growth has turned negative.',
   },
   {
-    label: 'Mean reversion reversal',
-    note: 'Long: ST momentum turned significantly positive (recent spike, pullback due). Short: turned significantly negative (recent drop, bounce due).',
+    label: 'ST-MSI reversal',
+    note: 'Long: ST-MSI turned significantly overbought (recent spike, pullback due). Short: turned significantly oversold (recent drop, bounce due).',
   },
   {
     label: 'Crowded short',
@@ -1389,7 +1578,7 @@ const CLOSE_RULES = [
   },
   {
     label: 'Earnings coming up',
-    note: `Reports within ${EARNINGS_REVIEW_HOURS} business hours — either side, regardless of rating; an earnings call is a volatility event the momentum/growth/mean-reversion story doesn't speak to.`,
+    note: `Reports within ${EARNINGS_REVIEW_HOURS} business hours — either side, regardless of rating; an earnings call is a volatility event the MSI/growth/ST-MSI story doesn't speak to.`,
   },
 ]
 
@@ -1452,8 +1641,6 @@ export default function RecommendationsView() {
   const [dailyHistory3mo, setDailyHistory3mo] = useState<HistoryByTicker>({})
   const [monthlyHistory, setMonthlyHistory] = useState<HistoryByTicker>({})
   const [tickerSector, setTickerSector] = useState<Record<string, string | null>>({})
-  const [tickerThemes, setTickerThemes] = useState<Record<string, string[]>>({})
-  const [themeLabels, setThemeLabels] = useState<Record<string, string>>({})
   const [tickerScreener, setTickerScreener] = useState<ScreenerByTicker>({})
   // Display-only filters, applied at render time to every section below
   // (Long, Short, both "blocked" lists, To close) via filterBySymbol/
@@ -1465,6 +1652,16 @@ export default function RecommendationsView() {
   // shared component, not two separate implementations).
   const [symbolFilter, setSymbolFilter] = useState('')
   const [selectedSectorGroups, setSelectedSectorGroups] = useState<Set<string>>(new Set())
+  // Thumb-factor filter -- explicit instruction: "a way to make filters
+  // based on thumb factors... only see thumbs up in MSI, or thumbs down
+  // in Revenue growth," next to the sector dropdown. Each entry is
+  // `${RationaleFactor}:${'good'|'bad'}` (see THUMB_FACTORS). Applied
+  // ONLY to Long/Short below (filterByThumbs), not the Portfolio/blocked
+  // sections -- explicit instruction scoped this to "in long and short."
+  // Selecting more than one chip is AND, not OR (same as
+  // selectedSectorGroups/symbolFilter combining with each other): a row
+  // must match every selected chip to stay visible.
+  const [selectedThumbFilters, setSelectedThumbFilters] = useState<Set<string>>(new Set())
   // Which of the five sections below is actually mounted -- see
   // SECTION_TABS below. Only the active one's RecommendationSection (and
   // its full card grid) is rendered at all; the other four are skipped
@@ -1531,9 +1728,7 @@ export default function RecommendationsView() {
   // it wouldn't have that signal data even if it did), but still needs its
   // sector (for the opposite-side hedge matcher below) and its rating/
   // score/momentum (for the closes fallback below -- see that memo) to be
-  // visible somewhere. ticker_themes.json/theme_taxonomy.json are the same
-  // two files ThemesView.jsx reads, for the theme half of the hedge
-  // matcher.
+  // visible somewhere.
   useEffect(() => {
     fetch('/sorted_screen.csv')
       .then((r) => (r.ok ? r.text() : ''))
@@ -1586,14 +1781,6 @@ export default function RecommendationsView() {
         setTickerScreener(screener)
       })
       .catch(() => {})
-    fetch('/ticker_themes.json')
-      .then((r) => (r.ok ? r.json() : {}))
-      .then(setTickerThemes)
-      .catch(() => {})
-    fetch('/theme_taxonomy.json')
-      .then((r) => (r.ok ? r.json() : []))
-      .then((themes) => setThemeLabels(Object.fromEntries(themes.map((t: any) => [t.key, t.label]))))
-      .catch(() => {})
   }, [])
 
   // Side-specific -- a short position must never count as "held" toward the
@@ -1612,7 +1799,7 @@ export default function RecommendationsView() {
   const heldCount = useMemo(() => Object.values(positions).filter((p) => p?.shares).length, [positions])
 
   // A non-held candidate that hedges an existing OPPOSITE-side position
-  // (same sector or theme -- see buildOppositeMatcher) is nudged ahead of
+  // (same industry or sector -- see buildOppositeMatcher) is nudged ahead of
   // an otherwise similarly-ranked idea with no such overlap, per explicit
   // instruction: "an opposite position inside a theme or sector of a
   // current position is preferable". A bounded score adjustment (HEDGE_BONUS
@@ -1632,7 +1819,7 @@ export default function RecommendationsView() {
 
   const longs: RankedCandidate[] = useMemo(() => {
     if (!data) return []
-    const matcher = buildOppositeMatcher([...heldShortTickers], tickerSector, tickerThemes)
+    const matcher = buildOppositeMatcher([...heldShortTickers], tickerSector)
     const pool = data.candidates
       .filter(
         (c) =>
@@ -1653,16 +1840,17 @@ export default function RecommendationsView() {
           epsRevision1y: tickerScreener[c.ticker]?.epsRevision1y,
           revenueGrowth: tickerScreener[c.ticker]?.revenueGrowth,
           heldPercentInsiders: tickerScreener[c.ticker]?.heldPercentInsiders,
-          oppositeMatchLine: oppositeMatchLine(match, 'short', themeLabels),
+          oppositeMatchLine: oppositeMatchLine(match, 'short'),
+          oppositeMatchType: match?.type ?? null,
           _sortScore: sortScore,
         }
       })
     return pool.sort((a, b) => a._sortScore - b._sortScore)
-  }, [data, heldShortTickers, heldLongTickers, tickerSector, tickerThemes, themeLabels, tickerScreener])
+  }, [data, heldShortTickers, heldLongTickers, tickerSector, tickerScreener])
 
   const shorts: RankedCandidate[] = useMemo(() => {
     if (!data) return []
-    const matcher = buildOppositeMatcher([...heldLongTickers], tickerSector, tickerThemes)
+    const matcher = buildOppositeMatcher([...heldLongTickers], tickerSector)
     const pool = data.candidates
       .filter(
         (c) =>
@@ -1684,12 +1872,13 @@ export default function RecommendationsView() {
           epsRevision1y: tickerScreener[c.ticker]?.epsRevision1y,
           revenueGrowth: tickerScreener[c.ticker]?.revenueGrowth,
           heldPercentInsiders: tickerScreener[c.ticker]?.heldPercentInsiders,
-          oppositeMatchLine: oppositeMatchLine(match, 'long', themeLabels),
+          oppositeMatchLine: oppositeMatchLine(match, 'long'),
+          oppositeMatchType: match?.type ?? null,
           _sortScore: sortScore,
         }
       })
     return pool.sort((a, b) => b._sortScore - a._sortScore)
-  }, [data, heldLongTickers, heldShortTickers, tickerSector, tickerThemes, themeLabels, tickerScreener])
+  }, [data, heldLongTickers, heldShortTickers, tickerSector, tickerScreener])
 
   // Held positions whose own rating now contradicts the side they're held
   // on -- a long position that's drifted to Hold/Sell/Strong Sell, or a
@@ -1702,39 +1891,52 @@ export default function RecommendationsView() {
   // are. Sorted by how far the rating leans the
   // "wrong" way for that side, not by side, so the most urgent flags
   // surface first regardless of direction.
-  const closes: CloseRow[] = useMemo(() => {
-    if (!data) return []
-    const byTicker = new Map(data.candidates.map((c) => [c.ticker, c]))
-    const rows: CloseRow[] = []
+  // Built once and shared by closes/overboughtPositions/oversoldPositions/
+  // stayPositions below -- all four used to separately rebuild this same
+  // 675-candidate Map AND re-merge every held position from scratch,
+  // 4x redundant work on every data/positions/tickerScreener change
+  // (confirmed as the actual cause of a slow Portfolio-tab mount after
+  // Overbought/Oversold/Stay were added). One pass here instead.
+  const byTicker = useMemo(() => new Map((data?.candidates ?? []).map((c) => [c.ticker, c])), [data])
+
+  // tickerScreener (sorted_screen.csv) is the baseline -- it covers
+  // every rated ticker, refreshed on every screen run -- with the
+  // candidate's richer news/insiders/13F/analyst fields (news7d,
+  // insiders90d, instChangeQoQ, targetUpside, recommendationMean,
+  // numberOfAnalystOpinions -- fields tickerScreener never carries at
+  // all) layered UNDER it, not over it: recommendations.json is only
+  // rebuilt on its own separate cadence (`python main.py
+  // recommendations`), so a ticker whose rating/momentum/score has
+  // since moved in a fresher sorted_screen.csv can still have a stale
+  // candidate entry sitting around with its OLD values for those same
+  // fields -- confirmed in practice with FRPH: held short, drifted
+  // from Sell to Hold in sorted_screen.csv, but recommendations.json
+  // still had a same-ticker candidate from before that drift with
+  // rating "Sell" -- candidate-wins spread order let that stale
+  // "Sell" silently beat the fresh "Hold", so the rating-contradiction
+  // check below never fired and the position vanished from this list
+  // entirely instead of showing the Close flag it should have. Screener
+  // fields applied SECOND (spread order matters -- later keys win) so
+  // they always override a same-named but stale candidate field, while
+  // candidate-only fields still come through untouched since
+  // tickerScreener never defines those keys to begin with. Beta is the
+  // one candidate-side field this flips back to needing a null check
+  // for (tickerScreener doesn't carry it) -- see the high-beta-style
+  // checks below, which already treat a missing beta as "doesn't
+  // trip", not "worst".
+  const heldMerged = useMemo(() => {
+    const rows: { ticker: string; shares: number; c: Candidate }[] = []
     for (const [ticker, p] of Object.entries(positions)) {
       if (!p?.shares) continue
-      // tickerScreener (sorted_screen.csv) is the baseline -- it covers
-      // every rated ticker, refreshed on every screen run -- with the
-      // candidate's richer news/insiders/13F/analyst fields (news7d,
-      // insiders90d, instChangeQoQ, targetUpside, recommendationMean,
-      // numberOfAnalystOpinions -- fields tickerScreener never carries at
-      // all) layered UNDER it, not over it: recommendations.json is only
-      // rebuilt on its own separate cadence (`python main.py
-      // recommendations`), so a ticker whose rating/momentum/score has
-      // since moved in a fresher sorted_screen.csv can still have a stale
-      // candidate entry sitting around with its OLD values for those same
-      // fields -- confirmed in practice with FRPH: held short, drifted
-      // from Sell to Hold in sorted_screen.csv, but recommendations.json
-      // still had a same-ticker candidate from before that drift with
-      // rating "Sell" -- candidate-wins spread order let that stale
-      // "Sell" silently beat the fresh "Hold", so the rating-contradiction
-      // check below never fired and the position vanished from this list
-      // entirely instead of showing the Close flag it should have. Screener
-      // fields applied SECOND (spread order matters -- later keys win) so
-      // they always override a same-named but stale candidate field, while
-      // candidate-only fields still come through untouched since
-      // tickerScreener never defines those keys to begin with. Beta is the
-      // one candidate-side field this flips back to needing a null check
-      // for (tickerScreener doesn't carry it) -- see the high-beta-style
-      // checks below, which already treat a missing beta as "doesn't
-      // trip", not "worst".
-      const c: Candidate = { ...byTicker.get(ticker), ...tickerScreener[ticker], ticker }
-      const reasons = buildCloseReasons({ shares: p.shares, c, now })
+      rows.push({ ticker, shares: p.shares, c: { ...byTicker.get(ticker), ...tickerScreener[ticker], ticker } })
+    }
+    return rows
+  }, [positions, tickerScreener, byTicker])
+
+  const closes: CloseRow[] = useMemo(() => {
+    const rows: CloseRow[] = []
+    for (const { shares, c } of heldMerged) {
+      const reasons = buildCloseReasons({ shares, c, now })
       if (reasons.length === 0) continue
       const hasRatingReason = reasons.some((r) => r.type === 'rating')
       const hasMomentumReason = reasons.some((r) => r.type === 'momentum')
@@ -1750,10 +1952,72 @@ export default function RecommendationsView() {
         (hasMomentumReason ? 50 : 0) +
         (hasScoreBoundaryReason ? 30 : 0) +
         reasons.filter((r) => !['rating', 'momentum', 'score-boundary'].includes(r.type)).length * 10
-      rows.push({ ...c, closeSide: p.shares > 0 ? 'Long' : 'Short', shares: p.shares, reasons, hasRatingReason, _severity: severity })
+      rows.push({ ...c, closeSide: shares > 0 ? 'Long' : 'Short', shares, reasons, hasRatingReason, _severity: severity })
     }
     return rows.sort((a, b) => b._severity - a._severity)
-  }, [data, positions, tickerScreener, now])
+  }, [heldMerged, now])
+
+  // Every held position whose daily MSI is currently overbought/oversold
+  // -- explicit instruction: a Portfolio-wide momentum-extremes read,
+  // independent of (and can overlap with) the close-reason flags above.
+  // Not conditioned on side the way eligibleToBuy/Sell's BLOCK is --
+  // "overbought" here just means the raw MSI reading itself is past
+  // MOMENTUM_OVERBOUGHT, regardless of whether that's good or bad news
+  // for whichever side actually holds it (a held Short sitting
+  // overbought is a GOOD sign for that position, a held Long sitting
+  // overbought is a warning -- rationaleLines' own thumb icon still
+  // shows that distinction on the card, this list just surfaces "worth
+  // a look" candidates on shape alone). reasons/hasRatingReason/
+  // _severity are CloseRow-shaped (so these can reuse CloseCard) but
+  // carry no actual close-worthiness here -- always "Review", never
+  // "Close".
+  const overboughtPositions: CloseRow[] = useMemo(() => {
+    const rows: CloseRow[] = []
+    for (const { shares, c } of heldMerged) {
+      if (c.momentum === null || c.momentum === undefined || c.momentum <= MOMENTUM_OVERBOUGHT) continue
+      rows.push({
+        ...c,
+        closeSide: shares > 0 ? 'Long' : 'Short',
+        shares,
+        reasons: [{ type: 'momentum', text: `MSI ${c.momentum.toFixed(0)} — overbought.` }],
+        hasRatingReason: false,
+        _severity: c.momentum,
+      })
+    }
+    return rows.sort((a, b) => b._severity - a._severity)
+  }, [heldMerged])
+
+  const oversoldPositions: CloseRow[] = useMemo(() => {
+    const rows: CloseRow[] = []
+    for (const { shares, c } of heldMerged) {
+      if (c.momentum === null || c.momentum === undefined || c.momentum >= MOMENTUM_OVERSOLD) continue
+      rows.push({
+        ...c,
+        closeSide: shares > 0 ? 'Long' : 'Short',
+        shares,
+        reasons: [{ type: 'momentum', text: `MSI ${c.momentum.toFixed(0)} — oversold.` }],
+        hasRatingReason: false,
+        _severity: -c.momentum,
+      })
+    }
+    return rows.sort((a, b) => b._severity - a._severity)
+  }, [heldMerged])
+
+  // Every held position NOT already in one of the three lists above --
+  // explicit instruction: the "nothing to see here" bucket, so every
+  // held position accounted for across the four Portfolio containers,
+  // no ticker silently missing from all of them. Alphabetical (this is
+  // a checklist, not a ranked idea list, same reasoning rejectedStrong's
+  // own comment gives).
+  const stayPositions: CloseRow[] = useMemo(() => {
+    const flagged = new Set([...closes, ...overboughtPositions, ...oversoldPositions].map((c) => c.ticker))
+    const rows: CloseRow[] = []
+    for (const { ticker, shares, c } of heldMerged) {
+      if (flagged.has(ticker)) continue
+      rows.push({ ...c, closeSide: shares > 0 ? 'Long' : 'Short', shares, reasons: [], hasRatingReason: false, _severity: 0 })
+    }
+    return rows.sort((a, b) => a.ticker.localeCompare(b.ticker))
+  }, [heldMerged, closes, overboughtPositions, oversoldPositions])
 
   // Strong Buy/Strong Sell candidates -- the top-conviction rating on
   // either end -- that still didn't clear a Long/Short opening gate.
@@ -1769,7 +2033,17 @@ export default function RecommendationsView() {
   const rejectedStrong: RejectedRow[] = useMemo(() => {
     if (!data) return []
     const rows: RejectedRow[] = []
-    for (const c of data.candidates) {
+    for (const raw of data.candidates) {
+      // Same tickerScreener-over-stale-candidate merge as heldMerged
+      // above (see that memo's own comment for the FRPH precedent this
+      // fixes) -- without it, eligibleToBuy/eligibleToSell inside
+      // buildRejectionReasons, and the rationaleLines/ThumbIcon block
+      // this card renders, were reading recommendations.json's own
+      // possibly-stale momentum/meanReversion/rating instead of
+      // sorted_screen.csv's current one, which could show a card that
+      // LOOKS like it should pass (or already have a mismatched thumb
+      // icon) relative to what's actually on screen elsewhere.
+      const c: Candidate = { ...raw, ...tickerScreener[raw.ticker], ticker: raw.ticker }
       if (c.rating !== 'Strong Buy' && c.rating !== 'Strong Sell') continue
       const reasons = buildRejectionReasons({ c, tickerScreener })
       if (reasons.length === 0) continue
@@ -1793,6 +2067,63 @@ export default function RecommendationsView() {
   function filterBySector<T extends { sector?: string | null }>(rows: T[]): T[] {
     return selectedSectorGroups.size ? rows.filter((c) => selectedSectorGroups.has(getSectorGroup(c.sector))) : rows
   }
+
+  // Explicit instruction: filter EVERY section by thumb-icon factors
+  // (e.g. "only thumbs up in MSI"), not just Long/Short -- MSI/ST-MSI/
+  // EPS-trend "down" can never appear inside Long/Short at all (the
+  // entry gate excludes exactly the value range that would trigger
+  // their own 'bad' signal -- e.g. eligibleToBuy already excludes
+  // momentum > MOMENTUM_OVERBOUGHT, the same condition momentumSignal
+  // calls 'bad' for a Long), so a filter scoped to only those two tabs
+  // could never show those combinations no matter how many gate-failing
+  // candidates actually have them -- confirmed against AII/MFIN/CPAY/ACR,
+  // all four living in Portfolio/blocked sections, not Long/Short.
+  // `side` is either a fixed side (Long/Short's own single-side lists)
+  // or a per-row resolver (Portfolio's closeSide-carrying rows, which
+  // mix both sides in one list). Recomputes rationaleLines per row --
+  // same cost the card itself already pays to render its own rationale
+  // list, so no new expense, just reused for a second purpose. A row
+  // must match every selected chip (AND, see selectedThumbFilters' own
+  // comment); a factor whose line doesn't fire at all for a given
+  // candidate (e.g. no News in the last 7 days) never matches an
+  // up/down chip for it either, same as the card itself showing no icon
+  // there.
+  function filterByThumbs<T extends Candidate & { oppositeMatchLine?: string | null }>(
+    rows: T[],
+    side: 'Long' | 'Short' | ((row: T) => 'Long' | 'Short')
+  ): T[] {
+    if (!selectedThumbFilters.size) return rows
+    const selectedItems = THUMB_FILTER_ITEMS.filter((item) => selectedThumbFilters.has(item.name))
+    return rows.filter((c) => {
+      const lines = rationaleLines(c, typeof side === 'function' ? side(c) : side)
+      return selectedItems.every((item) => lines.some((l) => l.factor === item.factor && l.signal === item.signal))
+    })
+  }
+
+  // Item counts for the thumb-filter dropdown below -- over every
+  // section's rows as they stand before the thumb filter itself narrows
+  // them (so picking a second chip shows how many the FIRST one alone
+  // left, not a count that's already collapsed to whatever's currently
+  // selected), same scope as filterByThumbs' own "everywhere" reach.
+  const thumbFilterItems: [string, number][] = useMemo(() => {
+    const counts = new Map<string, number>()
+    const tally = (c: Candidate & { oppositeMatchLine?: string | null }, side: 'Long' | 'Short') => {
+      for (const line of rationaleLines(c, side)) {
+        if (!line.factor) continue
+        const key = `${line.factor}:${line.signal}`
+        counts.set(key, (counts.get(key) ?? 0) + 1)
+      }
+    }
+    for (const c of longs) tally(c, 'Long')
+    for (const c of shorts) tally(c, 'Short')
+    for (const c of rejectedStrongBuy) tally(c, 'Long')
+    for (const c of rejectedStrongSell) tally(c, 'Short')
+    for (const c of closes) tally(c, c.closeSide)
+    for (const c of overboughtPositions) tally(c, c.closeSide)
+    for (const c of oversoldPositions) tally(c, c.closeSide)
+    for (const c of stayPositions) tally(c, c.closeSide)
+    return THUMB_FILTER_ITEMS.map((item) => [item.name, counts.get(`${item.factor}:${item.signal}`) ?? 0])
+  }, [longs, shorts, rejectedStrongBuy, rejectedStrongSell, closes, overboughtPositions, oversoldPositions, stayPositions])
 
   return (
     <div className="positions-page positions-unbounded">
@@ -1841,6 +2172,21 @@ export default function RecommendationsView() {
             onChange={setSelectedSectorGroups}
           />
         )}
+        <FilterDropdown
+          noun="thumb filter"
+          plural="thumb filters"
+          items={thumbFilterItems}
+          selected={selectedThumbFilters}
+          onToggle={(name) =>
+            setSelectedThumbFilters((prev) => {
+              const next = new Set(prev)
+              if (next.has(name)) next.delete(name)
+              else next.add(name)
+              return next
+            })
+          }
+          onClear={() => setSelectedThumbFilters(new Set())}
+        />
       </div>
 
       <RecommendationsChatbot />
@@ -1862,7 +2208,7 @@ export default function RecommendationsView() {
               className={`recommendation-tab-btn${activeSection === 'toClose' ? ' active' : ''}`}
               onClick={() => setActiveSection('toClose')}
             >
-              To close <span className="recommendation-tab-count">{closes.length}</span>
+              Portfolio <span className="recommendation-tab-count">{closes.length}</span>
             </button>
             <button
               type="button"
@@ -1895,6 +2241,7 @@ export default function RecommendationsView() {
           </div>
 
           {activeSection === 'toClose' && (
+          <>
           <RecommendationSection
             title="To close"
             titleInfo={
@@ -1902,11 +2249,11 @@ export default function RecommendationsView() {
                 label="Closing rules"
                 header="Any one of these flags a held position for review"
                 rules={CLOSE_RULES}
-                footer="A position can trip more than one of these at once — the card below lists every reason that applies, ranked with rating contradictions first, then momentum, then the rest."
+                footer="A position can trip more than one of these at once — the card below lists every reason that applies, ranked with rating contradictions first, then MSI, then the rest."
               />
             }
-            subtitle="Held positions tripping a rating/momentum/score-boundary contradiction, a fundamentals reversal, or a crowded-short flag"
-            rows={filterBySector(filterBySymbol(closes))}
+            subtitle="Held positions tripping a rating/MSI/score-boundary contradiction, a fundamentals reversal, or a crowded-short flag"
+            rows={filterByThumbs(filterBySector(filterBySymbol(closes)), (c) => c.closeSide)}
             renderCard={(c) => (
               <CloseCard
                 key={c.ticker}
@@ -1916,15 +2263,65 @@ export default function RecommendationsView() {
                 monthlyHistory={monthlyHistory}
               />
             )}
-            emptyMessage="No held position currently has a rating/momentum contradiction or a risk flag."
+            emptyMessage="No held position currently has a rating/MSI contradiction or a risk flag."
           />
+          <RecommendationSection
+            title="Overbought"
+            subtitle={`Held positions with a daily MSI above ${MOMENTUM_OVERBOUGHT} — not itself a close signal, just a shape worth a look (a held Short sitting here is a good sign, a held Long is a warning)`}
+            rows={filterByThumbs(filterBySector(filterBySymbol(overboughtPositions)), (c) => c.closeSide)}
+            renderCard={(c) => (
+              <CloseCard
+                key={c.ticker}
+                c={c}
+                live={livePrices[c.ticker]}
+                dailyHistory3mo={dailyHistory3mo}
+                monthlyHistory={monthlyHistory}
+                goodSign={c.closeSide === 'Short'}
+                badSign={c.closeSide === 'Long'}
+              />
+            )}
+            emptyMessage="No held position currently has an overbought daily MSI."
+          />
+          <RecommendationSection
+            title="Oversold"
+            subtitle={`Held positions with a daily MSI below ${MOMENTUM_OVERSOLD} — not itself a close signal, just a shape worth a look (a held Long sitting here is a good sign, a held Short is a warning)`}
+            rows={filterByThumbs(filterBySector(filterBySymbol(oversoldPositions)), (c) => c.closeSide)}
+            renderCard={(c) => (
+              <CloseCard
+                key={c.ticker}
+                c={c}
+                live={livePrices[c.ticker]}
+                dailyHistory3mo={dailyHistory3mo}
+                monthlyHistory={monthlyHistory}
+                goodSign={c.closeSide === 'Long'}
+                badSign={c.closeSide === 'Short'}
+              />
+            )}
+            emptyMessage="No held position currently has an oversold daily MSI."
+          />
+          <RecommendationSection
+            title="Stay"
+            subtitle="Held positions not flagged To close, Overbought, or Oversold — nothing here needs attention right now"
+            rows={filterByThumbs(filterBySector(filterBySymbol(stayPositions)), (c) => c.closeSide)}
+            renderCard={(c) => (
+              <CloseCard
+                key={c.ticker}
+                c={c}
+                live={livePrices[c.ticker]}
+                dailyHistory3mo={dailyHistory3mo}
+                monthlyHistory={monthlyHistory}
+              />
+            )}
+            emptyMessage="Every held position is flagged in one of the other three containers."
+          />
+          </>
           )}
           {activeSection === 'long' && (
           <RecommendationSection
             title="Long"
             titleInfo={<RulesInfo label="Selection rules" header="Every candidate must clear all of these" rules={LONG_RULES} />}
-            subtitle={`Strong Buy / Buy with momentum ≥ ${MOMENTUM_THRESHOLD} and revenue growth ≥ ${fmtPctAbs(REVENUE_GROWTH_THRESHOLD)}, best composite score first`}
-            rows={filterBySector(filterBySymbol(longs))}
+            subtitle={`Strong Buy / Buy with MSI not overbought (≤ ${MOMENTUM_OVERBOUGHT}) and revenue growth ≥ ${fmtPctAbs(REVENUE_GROWTH_THRESHOLD)}, best composite score first`}
+            rows={filterByThumbs(filterBySector(filterBySymbol(longs)), 'Long')}
             renderCard={(c) => (
               <RecommendationCard
                 key={c.ticker}
@@ -1936,14 +2333,14 @@ export default function RecommendationsView() {
                 side="Long"
               />
             )}
-            emptyMessage="No Strong Buy/Buy candidates with positive momentum right now."
+            emptyMessage="No Strong Buy/Buy candidates clearing the MSI/growth/ST-MSI/EPS gates right now."
           />
           )}
           {activeSection === 'longBlocked' && (
           <RecommendationSection
             title="Strong Buy — blocked"
-            subtitle="Strong Buy candidates that still failed a momentum, revenue-growth, or mean-reversion gate — see Long's Selection rules for what each gate checks"
-            rows={filterBySector(filterBySymbol(rejectedStrongBuy))}
+            subtitle="Strong Buy candidates that still failed an MSI, revenue-growth, or ST-MSI gate — see Long's Selection rules for what each gate checks"
+            rows={filterByThumbs(filterBySector(filterBySymbol(rejectedStrongBuy)), 'Long')}
             renderCard={(c) => (
               <RejectedCard
                 key={c.ticker}
@@ -1962,8 +2359,8 @@ export default function RecommendationsView() {
           <RecommendationSection
             title="Short"
             titleInfo={<RulesInfo label="Selection rules" header="Every candidate must clear all of these" rules={SHORT_RULES} />}
-            subtitle={`Strong Sell / Sell with negative momentum and revenue growth ≤ ${fmtPctAbs(REVENUE_GROWTH_THRESHOLD)}, worst composite score first — excludes crowded shorts (>${fmtPctAbs(MAX_SHORT_INTEREST)} of float already short)`}
-            rows={filterBySector(filterBySymbol(shorts))}
+            subtitle={`Strong Sell / Sell with MSI not oversold (≥ ${MOMENTUM_OVERSOLD}) and revenue growth ≤ ${fmtPctAbs(REVENUE_GROWTH_THRESHOLD)}, worst composite score first — excludes crowded shorts (>${fmtPctAbs(MAX_SHORT_INTEREST)} of float already short)`}
+            rows={filterByThumbs(filterBySector(filterBySymbol(shorts)), 'Short')}
             renderCard={(c) => (
               <RecommendationCard
                 key={c.ticker}
@@ -1975,14 +2372,14 @@ export default function RecommendationsView() {
                 side="Short"
               />
             )}
-            emptyMessage="No Sell/Strong Sell candidates with negative momentum right now."
+            emptyMessage="No Sell/Strong Sell candidates clearing the MSI/growth/ST-MSI/EPS gates right now."
           />
           )}
           {activeSection === 'shortBlocked' && (
           <RecommendationSection
             title="Strong Sell — blocked"
-            subtitle="Strong Sell candidates that still failed a momentum, revenue-growth, mean-reversion, or crowded-short gate — see Short's Selection rules for what each gate checks"
-            rows={filterBySector(filterBySymbol(rejectedStrongSell))}
+            subtitle="Strong Sell candidates that still failed an MSI, revenue-growth, ST-MSI, or crowded-short gate — see Short's Selection rules for what each gate checks"
+            rows={filterByThumbs(filterBySector(filterBySymbol(rejectedStrongSell)), 'Short')}
             renderCard={(c) => (
               <RejectedCard
                 key={c.ticker}

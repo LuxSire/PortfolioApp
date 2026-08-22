@@ -1883,9 +1883,9 @@ td.col-rec {
    applies this unconditionally rather than via the `held` prop
    RecommendationCard uses. */
 .recommendation-card-held {
-  --surface: #3a2517;
-  --surface-2: #4a2f1c;
-  --line: #5c4128;
+  --surface: #2a1a10;
+  --surface-2: #382413;
+  --line: #4a331d;
   --ink: #f1e6d6;
   --muted: #c9b393;
   --good: #4cbd86;
@@ -1941,9 +1941,9 @@ td.col-rec {
    the two classes actually collide, instead of a fragile "don't move
    this rule" trap). */
 .recommendation-card-blocked.recommendation-card-held {
-  --surface: #3a2517;
-  --surface-2: #4a2f1c;
-  --line: #5c4128;
+  --surface: #2a1a10;
+  --surface-2: #382413;
+  --line: #4a331d;
   --ink: #f1e6d6;
   --muted: #c9b393;
   --good: #4cbd86;
@@ -1951,6 +1951,71 @@ td.col-rec {
   --warn: #d6b542;
   background: var(--surface);
   color: var(--ink);
+}
+
+/* Overbought+Short / Oversold+Long -- explicit instruction: a decisive dark
+   green, on top of recommendation-card-held's brown, when the MSI extreme
+   this card sits in is actually a good sign for the side actually held
+   (see overboughtPositions/oversoldPositions's own comments in
+   RecommendationsView.tsx for why that's side-dependent). Same
+   re-pin-every-token technique recommendation-card-blocked/-held already
+   use, and the same compound-selector-over-held override
+   recommendation-card-blocked.recommendation-card-held uses, so this wins
+   over the plain brown regardless of source order. */
+.recommendation-card-held.recommendation-card-goodsign {
+  --surface: #0f3d24;
+  --surface-2: #164d2d;
+  --line: #1f6640;
+  --ink: #e3f3e8;
+  --muted: #a9cdb6;
+  --good: #4cbd86;
+  --bad: #e2685c;
+  --warn: #d6b542;
+  background: var(--surface);
+  color: var(--ink);
+}
+
+/* Overbought+Long / Oversold+Short -- explicit instruction: the mirror-
+   image bad case, more red than the plain brown -- the MSI extreme this
+   card sits in is a warning for the side actually held. Same
+   re-pin-every-token/compound-selector-override technique as
+   -goodsign above. */
+.recommendation-card-held.recommendation-card-badsign {
+  --surface: #451712;
+  --surface-2: #571e17;
+  --line: #712a20;
+  --ink: #f7e3e0;
+  --muted: #dba9a2;
+  --good: #4cbd86;
+  --bad: #e2685c;
+  --warn: #d6b542;
+  background: var(--surface);
+  color: var(--ink);
+}
+
+/* Sits right above the rationale bullets, right-aligned -- explicit
+   instruction: an up/down tally before scanning the individual factor
+   lines below. */
+.recommendation-thumb-counts {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.recommendation-thumb-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.recommendation-thumb-count.recommendation-thumb-good {
+  color: var(--good);
+}
+
+.recommendation-thumb-count.recommendation-thumb-bad {
+  color: var(--bad);
 }
 
 .recommendation-card-header {

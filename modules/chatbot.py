@@ -49,15 +49,15 @@ from langchain_core.tools import tool
 from langchain_ollama import ChatOllama
 
 DATA_DIR = "data"
-SORTED_SCREEN_CSV = "sorted_screen.csv"
-RAW_DATA_FILE = os.path.join(DATA_DIR, "raw_data.json")
-NEWS_FILE = os.path.join(DATA_DIR, "news.json")
-RECOMMENDATIONS_FILE = os.path.join(DATA_DIR, "recommendations.json")
+SORTED_SCREEN_CSV = os.path.join(DATA_DIR, "output", "sorted_screen.csv")
+RAW_DATA_FILE = os.path.join(DATA_DIR, "yfinance", "raw_data.json")
+NEWS_FILE = os.path.join(DATA_DIR, "IB", "news.json")
+RECOMMENDATIONS_FILE = os.path.join(DATA_DIR, "output", "recommendations.json")
 FORM4_FILE = os.path.join(DATA_DIR, "sec", "form4", "insider_transactions.json")
 THIRTEENF_FILE = os.path.join(DATA_DIR, "sec", "13f", "institutional_holdings.json")
 THEME_TAXONOMY_FILE = os.path.join(DATA_DIR, "theme_taxonomy.json")
 TICKER_THEMES_FILE = os.path.join(DATA_DIR, "ticker_themes.json")
-PRICE_HISTORY_FILE = os.path.join(DATA_DIR, "price_history.json")
+PRICE_HISTORY_FILE = os.path.join(DATA_DIR, "yfinance", "price_history.json")
 
 OLLAMA_MODEL = "llama3.1"
 

@@ -44,63 +44,113 @@ load_dotenv()
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 logging.getLogger("yfinance").setLevel(logging.WARNING)
 
-TRADING_DAYS_PER_YEAR = 252
-# 6.5-hour regular session (9:30-16:00 ET) x 252 trading days -- lets
-# _regression_momentum annualize an hourly-bar series correctly instead
-# of treating each hourly bar as if it were a full trading day.
-TRADING_HOURS_PER_YEAR = 1638
-
 # get_momentum returns two independent factors -- daily-timeframe
-# momentum and hourly-timeframe mean reversion (see that method's
+# "strength" and hourly-timeframe overbought/oversold (see that method's
 # docstring) -- each scored in scoring.py as its own 5% of the composite,
 # rather than blended into one number with a weight here. Below these bar
-# counts a regression is too thin to trust -- momentum falls back to the
-# plain yfinance 1-month-daily calculation instead; mean_reversion has no
-# fallback and is just left None. ~30 daily bars is roughly 6 weeks; ~30
-# hourly bars is roughly a trading week.
+# counts an indicator reading is too thin to trust -- the daily leg falls
+# back to a close-only RSI on the plain yfinance 1-month-daily series
+# instead; the hourly leg has no fallback and is just left None. ~30
+# daily bars is roughly 6 weeks; ~30 hourly bars is roughly a trading
+# week -- both comfortably above MFI_PERIOD/RSI_PERIOD's own 14-bar
+# minimum, so this is really "is there enough history to trust the
+# reading at all," not a period requirement of the indicator itself.
 MIN_DAILY_BARS_FOR_BLEND = 30
 MIN_HOURLY_BARS_FOR_BLEND = 30
 
+# Standard textbook lookback for both indicators below -- 14 periods,
+# same value Wilder's original RSI and the Money Flow Index both
+# conventionally use. Kept as one shared constant since both indicators
+# play the same "how many bars of history does a reading need" role.
+MFI_PERIOD = 14
+RSI_PERIOD = 14
 
-def _regression_momentum(closes, periods_per_year=TRADING_DAYS_PER_YEAR):
-    """Annualized slope of an OLS regression on log(closes) (bar index vs.
-    log price), scaled by the fit's R² and then divided by the annualized
-    volatility of log returns — a Sharpe-style risk adjustment on top of
-    the Clenow-style trend-quality one. R² penalizes a choppy fit to the
-    trend line; the volatility term separately penalizes large swings
-    even along a well-fitted trend (e.g. a steady but violently noisy
-    climb), so the two catch different shapes of "noisy." Positive means
-    a steady uptrend, negative a steady downtrend; magnitude shrinks
-    toward 0 for flat or noisy price action regardless of net return.
-    None if returns have zero variance (a flat or single-step price
-    series) — the volatility denominator is 0 there, and the numerator is
-    0 too (a flat series yields R²=0), so it's a real 0/0, not a signal.
+# get_ib_historical_bars/get_ib_historical_bars_async's sliding-window
+# pacing (see those methods' own docstrings) -- IB's documented
+# historical-data limit is ~60 requests per rolling 10-minute window,
+# account-wide, but confirmed live against this account well above that.
+# Narrowed from the original 200-per-600s (10min) to 200-per-360s (6min)
+# -- same request budget, tighter window -- so the MFI/RSI indicators'
+# full-universe daily/hourly bar fetches (see download_all) complete
+# faster, at the cost of less margin below IB's real (undocumented)
+# ceiling.
+HISTORICAL_PACING_MAX_REQUESTS = 200
+HISTORICAL_PACING_WINDOW_SECONDS = 360
 
-    periods_per_year makes this frequency-agnostic: pass
-    TRADING_DAYS_PER_YEAR (252) for daily bars, TRADING_HOURS_PER_YEAR
-    (1638) for hourly bars — same formula, correctly annualized either
-    way, so get_momentum can run it on both a 3-month daily series and a
-    recent hourly series and blend the two."""
-    n = len(closes)
-    ys = [math.log(c) for c in closes]
-    xs = list(range(n))
-    mean_x = (n - 1) / 2
-    mean_y = sum(ys) / n
-    sxy = sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, ys))
-    sxx = sum((x - mean_x) ** 2 for x in xs)
-    slope = sxy / sxx
-    intercept = mean_y - slope * mean_x
-    ss_res = sum((y - (intercept + slope * x)) ** 2 for x, y in zip(xs, ys))
-    ss_tot = sum((y - mean_y) ** 2 for y in ys)
-    r_squared = 1 - ss_res / ss_tot if ss_tot > 0 else 0
-    annualized_slope = math.exp(slope * periods_per_year) - 1
-    trend_quality = annualized_slope * r_squared
 
-    log_returns = [ys[i] - ys[i - 1] for i in range(1, n)]
-    mean_ret = sum(log_returns) / len(log_returns)
-    variance = sum((r - mean_ret) ** 2 for r in log_returns) / (len(log_returns) - 1)
-    annualized_vol = math.sqrt(variance * periods_per_year)
-    return trend_quality / annualized_vol if annualized_vol > 0 else None
+def _money_flow_index(bars, period=MFI_PERIOD):
+    """Money Flow Index -- the volume-weighted analog of RSI, computed
+    from the trailing `period`+1 bars of {high, low, close, volume} (IB
+    Gateway's own daily/hourly bar shape -- see get_momentum). Typical
+    price = (high + low + close) / 3 folds in the whole bar's range, not
+    just the close; multiplying by volume means a price move on heavy
+    volume counts more than the same move on thin volume, the
+    "confirmation" volume is supposed to add over a close-only reading.
+
+    Standard formula (Quong & Soudack): classify each bar's typical-price
+    change vs. the prior bar as positive or negative money flow (typical
+    price * volume; a flat typical price counts toward neither side, same
+    convention RSI's own gain/loss split uses for a flat close), sum each
+    side over the window, MFI = 100 - 100/(1 + positive_sum/negative_sum)
+    -- bounded [0, 100], conventionally overbought above ~80, oversold
+    below ~20. See scoring.py's momentum_rank for how the daily reading
+    is scored (a sweet-spot curve, not a straight "high is better") and
+    mean_reversion_rank for the hourly one (a direct oversold-is-better
+    entry-timing read).
+
+    None if there aren't enough bars, or if the window has no price
+    movement at all in either direction (a dead, unchanging series --
+    genuinely no signal, not a real 0). All positive movement (no
+    negative money flow at all) returns 100 rather than dividing by
+    zero -- maximally overbought is exactly the right reading for a
+    window that only ever traded up."""
+    if len(bars) < period + 1:
+        return None
+    window = bars[-(period + 1):]
+    typical_prices = [(b["high"] + b["low"] + b["close"]) / 3 for b in window]
+    positive_flow = 0.0
+    negative_flow = 0.0
+    for i in range(1, len(typical_prices)):
+        raw_flow = typical_prices[i] * (window[i].get("volume") or 0)
+        if typical_prices[i] > typical_prices[i - 1]:
+            positive_flow += raw_flow
+        elif typical_prices[i] < typical_prices[i - 1]:
+            negative_flow += raw_flow
+    if positive_flow == 0 and negative_flow == 0:
+        return None
+    if negative_flow == 0:
+        return 100.0
+    money_flow_ratio = positive_flow / negative_flow
+    return 100 - (100 / (1 + money_flow_ratio))
+
+
+def _relative_strength_index(closes, period=RSI_PERIOD):
+    """Classic close-price-only RSI -- the fallback used when a ticker
+    only has a close-only series (yfinance) to compute from, not IB
+    Gateway's own OHLCV bars (see _money_flow_index, the primary source
+    wherever it's available). Trailing `period`-bar simple average gain
+    vs. average loss (the "Cutler's RSI" simple-moving-average variant,
+    not Wilder's original recursively-smoothed one -- deterministic from
+    just the trailing window alone, doesn't depend on how much history
+    precedes it), RSI = 100 - 100/(1 + avg_gain/avg_loss). Same None/100
+    edge-case handling as _money_flow_index."""
+    if len(closes) < period + 1:
+        return None
+    window = closes[-(period + 1):]
+    gains = []
+    losses = []
+    for i in range(1, len(window)):
+        change = window[i] - window[i - 1]
+        gains.append(max(change, 0))
+        losses.append(max(-change, 0))
+    avg_gain = sum(gains) / period
+    avg_loss = sum(losses) / period
+    if avg_gain == 0 and avg_loss == 0:
+        return None
+    if avg_loss == 0:
+        return 100.0
+    rs = avg_gain / avg_loss
+    return 100 - (100 / (1 + rs))
 
 
 # get_news_article_async's HTML-body cleanup. Block-level tags are matched
@@ -304,7 +354,12 @@ class IBApp:
         # Shared across every get_ib_historical_bars() call on this
         # instance, not reset per call — IB's historical-data pacing limit
         # is account-wide, so two calls back to back (e.g. hourly then
-        # daily bars for the same tickers) draw from the same budget.
+        # daily bars for the same tickers) draw from the same budget. NOT
+        # shared across separate IBApp() instances (e.g. download_all's
+        # concurrent daily/hourly threads, each its own IBApp()) — each
+        # instance paces itself independently, so running two at once
+        # draws roughly double HISTORICAL_PACING_MAX_REQUESTS from the
+        # real account-wide limit combined.
         self._historical_request_times = deque()
 
         self.ib.pendingTickersEvent += self.on_pending_tickers
@@ -324,6 +379,35 @@ class IBApp:
                     sys.exit(1)
                 logging.info("Connecting to IB Gateway...")
                 self.ib.connect("127.0.0.1", 4001, clientId=client_id)
+                self.is_connected = True
+                self.ib.reqMarketDataType(3)
+                self.ib.reqPnL(self.account)
+                self.connection_attempts = 0
+                logging.info("Connected to IB Gateway")
+        except Exception as e:
+            self.connection_attempts += 1
+            logging.error(f"Connection error: {e}", exc_info=True)
+            self.is_connected = False
+
+    async def connect_async(self, client_id=0):
+        """Async twin of connect() -- awaits ib_insync's own connectAsync
+        instead of the sync connect(), which internally drives the event
+        loop via util.run() and would raise ("this event loop is already
+        running") if called from inside a coroutine. For callers that are
+        themselves async (e.g. main.py's refresh_ib_daily_history/
+        refresh_ib_hourly_history, run via asyncio.run/asyncio.gather --
+        see download_all -- same reason ib_server.py's whole IB connection
+        lives on its own asyncio event loop). Same state bookkeeping/
+        retry-then-sys.exit(1) behavior as connect(), otherwise."""
+        try:
+            if not self.is_connected:
+                if self.connection_attempts >= self.max_connection_attempts:
+                    logging.error(
+                        f"Failed to connect after {self.max_connection_attempts} attempts. Exiting..."
+                    )
+                    sys.exit(1)
+                logging.info("Connecting to IB Gateway...")
+                await self.ib.connectAsync("127.0.0.1", 4001, clientId=client_id)
                 self.is_connected = True
                 self.ib.reqMarketDataType(3)
                 self.ib.reqPnL(self.account)
@@ -1398,7 +1482,7 @@ class IBApp:
 
         return history
 
-    def get_ib_historical_bars(self, tickers, duration, bar_size, max_requests_per_10min=200):
+    def get_ib_historical_bars(self, tickers, duration, bar_size, max_requests_per_window=HISTORICAL_PACING_MAX_REQUESTS, window_seconds=HISTORICAL_PACING_WINDOW_SECONDS):
         """
         Returns {ticker: [{date, open, high, low, close, volume}, ...]}
         from IB Gateway's own historical data (reqHistoricalData) — unlike
@@ -1410,15 +1494,17 @@ class IBApp:
         IB's documented historical-data pacing limit is ~60 requests per
         rolling 10-minute window, account-wide, not per-contract -- but
         confirmed live against this account well above that (100 tickers
-        in 5 minutes with no pacing violations), so the default here is
-        200/10min rather than the conservative textbook figure. Stays
-        under max_requests_per_10min via a sliding window (shared across
-        every call on this instance — see self._historical_request_times
-        — since the limit is account-wide, not scoped to one call),
-        sleeping as needed if it's ever actually reached. For a large
-        ticker list this can still take a while — meant to run in its own
-        thread, not to block anything else that needs this connection's
-        event loop pumped in the meantime.
+        in 5 minutes with no pacing violations), so the defaults here are
+        HISTORICAL_PACING_MAX_REQUESTS/HISTORICAL_PACING_WINDOW_SECONDS
+        (200/360s -- see that constant's own comment) rather than the
+        conservative textbook figure. Stays under max_requests_per_window
+        via a sliding window (shared across every call on this instance —
+        see self._historical_request_times — since the limit is
+        account-wide, not scoped to one call), sleeping as needed if it's
+        ever actually reached. For a large ticker list this can still
+        take a while — meant to run in its own thread, not to block
+        anything else that needs this connection's event loop pumped in
+        the meantime.
         """
         contracts = [self.make_contract(t) for t in tickers]
         contracts = [c for c in contracts if c is not None]
@@ -1430,10 +1516,10 @@ class IBApp:
 
         def paced_request():
             now = time.monotonic()
-            while request_times and now - request_times[0] > 600:
+            while request_times and now - request_times[0] > window_seconds:
                 request_times.popleft()
-            if len(request_times) >= max_requests_per_10min:
-                sleep_for = 600 - (now - request_times[0]) + 1
+            if len(request_times) >= max_requests_per_window:
+                sleep_for = window_seconds - (now - request_times[0]) + 1
                 logging.info(f"get_ib_historical_bars: pacing limit reached, sleeping {sleep_for:.0f}s")
                 self.ib.sleep(sleep_for)
             request_times.append(time.monotonic())
@@ -1483,10 +1569,12 @@ class IBApp:
 
         return history
 
-    async def get_ib_historical_bars_async(self, tickers, duration, bar_size, max_requests_per_10min=200, on_ticker=None):
-        """Async twin of get_ib_historical_bars, same pacing/request logic,
-        for callers that share this instance's IB Gateway connection with
-        other concurrent work (live ticks, snapshot polling) on the same
+    async def get_ib_historical_bars_async(self, tickers, duration, bar_size, max_requests_per_window=HISTORICAL_PACING_MAX_REQUESTS, window_seconds=HISTORICAL_PACING_WINDOW_SECONDS, on_ticker=None):
+        """Async twin of get_ib_historical_bars, same pacing/request logic
+        (see that method's docstring for the HISTORICAL_PACING_MAX_
+        REQUESTS/HISTORICAL_PACING_WINDOW_SECONDS defaults), for callers
+        that share this instance's IB Gateway connection with other
+        concurrent work (live ticks, snapshot polling) on the same
         asyncio event loop — awaiting reqHistoricalDataAsync and sleeping
         via asyncio.sleep (instead of the sync method's blocking
         self.ib.reqHistoricalData/self.ib.sleep) means the many minutes or
@@ -1508,10 +1596,10 @@ class IBApp:
 
         async def paced_request():
             now = time.monotonic()
-            while request_times and now - request_times[0] > 600:
+            while request_times and now - request_times[0] > window_seconds:
                 request_times.popleft()
-            if len(request_times) >= max_requests_per_10min:
-                sleep_for = 600 - (now - request_times[0]) + 1
+            if len(request_times) >= max_requests_per_window:
+                sleep_for = window_seconds - (now - request_times[0]) + 1
                 logging.info(
                     f"get_ib_historical_bars_async: pacing limit reached, sleeping {sleep_for:.0f}s"
                 )
@@ -1701,34 +1789,36 @@ class IBApp:
         Returns {ticker: {"momentum": ..., "mean_reversion": ...}} -- two
         independent factors (scoring.py's momentum_rank and
         mean_reversion_rank each score their own 5% of the composite),
-        not blended into one number the way this used to work.
+        not blended into one number.
 
-        momentum: regression-momentum (see _regression_momentum) on the
-        3-month IB Gateway daily series (daily_3mo_by_ticker -- see
+        momentum: Money Flow Index (see _money_flow_index) on the 3-month
+        IB Gateway daily series (daily_3mo_by_ticker -- see
         ib_server.py's price_history_daily_3mo.json) when it has at
-        least MIN_DAILY_BARS_FOR_BLEND bars, else the original
-        single-source fallback: a Yahoo Finance daily history fetch
-        (period=1mo), regression-momentum on that alone. None only if
-        neither source has enough closes.
+        least MIN_DAILY_BARS_FOR_BLEND bars, else the fallback: a Yahoo
+        Finance daily history fetch (period=1mo), close-only RSI (see
+        _relative_strength_index) on that alone -- MFI needs volume/high/
+        low, which this yfinance call doesn't fetch, so the fallback
+        drops to the close-only indicator rather than trying to force
+        MFI on data it doesn't have. Both are bounded [0, 100] on the
+        same scale regardless of which one a given ticker ends up with.
+        None only if neither source has enough bars.
 
-        mean_reversion: the SAME regression-momentum formula as `momentum`
-        above, just measured on the hourly IB Gateway series
-        (hourly_by_ticker -- see ib_server.py's
-        price_history_hourly.json, only fetched for CANDLESTICK_TOP_N
-        ranked/held tickers, not the whole universe) instead of the daily
-        one, when it has at least MIN_HOURLY_BARS_FOR_BLEND bars -- a
-        second, short-term-timeframe momentum reading, same sign
-        convention as `momentum` (positive = hourly uptrend, negative =
-        hourly downtrend), used as an entry-timing signal rather than a
-        second momentum vote: a stock already trending up hard on THIS
-        timeframe is, read against a long entry, a stock you'd be chasing
-        (bad timing) rather than catching early, and read against a long
-        that's already held, a stock that may be due for a pullback
-        (worth a look) -- see RecommendationsView.tsx's
+        mean_reversion: the SAME Money Flow Index, just measured on the
+        hourly IB Gateway series (hourly_by_ticker -- see
+        ib_server.py's price_history_hourly.json, only fetched for
+        CANDLESTICK_TOP_N ranked/held tickers, not the whole universe)
+        instead of the daily one, when it has at least
+        MIN_HOURLY_BARS_FOR_BLEND bars -- a second, short-term-timeframe
+        reading, used as an entry-timing signal rather than a second
+        strength vote: a stock already overbought on THIS timeframe is,
+        read against a long entry, a stock you'd be chasing (bad timing)
+        rather than catching early, and read against a long that's
+        already held, a stock that may be due for a pullback (worth a
+        look) -- see RecommendationsView.tsx's
         meanReversionOkForLong/meanReversionOkForShort and
-        buildCloseReasons for exactly how each side reads this sign.
-        There's no fallback data source for hourly bars the way momentum
-        has one (the yfinance call here is daily-only), so this is None
+        buildCloseReasons for exactly how each side reads this. There's
+        no fallback data source for hourly bars (MFI needs OHLCV, and the
+        yfinance call here is daily-close-only anyway), so this is None
         for any ticker IB Gateway hasn't fetched hourly candlesticks for.
 
         The yfinance fetch happens for every ticker regardless of which
@@ -1745,13 +1835,13 @@ class IBApp:
             daily_series = daily_3mo_by_ticker.get(symbol)
             if not daily_series or len(daily_series) < MIN_DAILY_BARS_FOR_BLEND:
                 return None
-            return _regression_momentum([b["close"] for b in daily_series], TRADING_DAYS_PER_YEAR)
+            return _money_flow_index(daily_series)
 
         def hourly_mean_reversion(symbol):
             hourly_series = hourly_by_ticker.get(symbol)
             if not hourly_series or len(hourly_series) < MIN_HOURLY_BARS_FOR_BLEND:
                 return None
-            return _regression_momentum([b["close"] for b in hourly_series], TRADING_HOURS_PER_YEAR)
+            return _money_flow_index(hourly_series)
 
         def fetch(symbol):
             print(f"Fetching {symbol}...")
@@ -1768,10 +1858,10 @@ class IBApp:
                         ]
                     if ib_mom is not None:
                         return symbol, {"momentum": ib_mom, "mean_reversion": reversion}
-                    if len(closes) < 5:
+                    if len(closes) < RSI_PERIOD + 1:
                         return symbol, {"momentum": None, "mean_reversion": reversion}
                     return symbol, {
-                        "momentum": _regression_momentum(closes.tolist()),
+                        "momentum": _relative_strength_index(closes.tolist()),
                         "mean_reversion": reversion,
                     }
                 except Exception:
@@ -1804,12 +1894,12 @@ class IBApp:
 
         momentum: IB's daily_3mo_by_ticker (see get_momentum's own
         docstring) where it has at least MIN_DAILY_BARS_FOR_BLEND bars,
-        else regression-momentum on yfinance_history_by_ticker's already-
+        else close-only RSI on yfinance_history_by_ticker's already-
         cached daily closes (price_history.json -- the same series
         get_momentum's own yfinance fetch would otherwise capture into
-        history_out) if that has at least 5 closes, else None -- same
-        two-source precedence as get_momentum, just reading the fallback
-        from disk instead of fetching it fresh.
+        history_out) if that has at least RSI_PERIOD+1 closes, else None
+        -- same two-source precedence as get_momentum, just reading the
+        fallback from disk instead of fetching it fresh.
 
         mean_reversion: identical to get_momentum -- IB's
         hourly_by_ticker only, no fallback source exists for it either
@@ -1822,13 +1912,13 @@ class IBApp:
             daily_series = daily_3mo_by_ticker.get(symbol)
             if not daily_series or len(daily_series) < MIN_DAILY_BARS_FOR_BLEND:
                 return None
-            return _regression_momentum([b["close"] for b in daily_series], TRADING_DAYS_PER_YEAR)
+            return _money_flow_index(daily_series)
 
         def hourly_mean_reversion(symbol):
             hourly_series = hourly_by_ticker.get(symbol)
             if not hourly_series or len(hourly_series) < MIN_HOURLY_BARS_FOR_BLEND:
                 return None
-            return _regression_momentum([b["close"] for b in hourly_series], TRADING_HOURS_PER_YEAR)
+            return _money_flow_index(hourly_series)
 
         momentum = {}
         for symbol in tickers:
@@ -1839,7 +1929,7 @@ class IBApp:
                 continue
             cached = yfinance_history_by_ticker.get(symbol)
             closes = [b["close"] for b in cached] if cached else []
-            mom = _regression_momentum(closes) if len(closes) >= 5 else None
+            mom = _relative_strength_index(closes) if len(closes) >= RSI_PERIOD + 1 else None
             momentum[symbol] = {"momentum": mom, "mean_reversion": reversion}
 
         return momentum

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { Search, ExternalLink, Info, Newspaper, X } from 'lucide-react'
-import { inverseRangeClass, inversePctThresholdClass, rangeClass } from '../colorRules'
+import { inverseRangeClass, inversePctThresholdClass, meanReversionClass, momentumClass, rangeClass } from '../colorRules'
 import { parseCSV } from '../csv'
 import { earningsUrgencyClass, fmtEarningsDate, useNowTick } from '../earnings'
 import { getSectorIcon } from '../sectorIcons'
@@ -256,12 +256,12 @@ const SCORE_FACTORS = [
   {
     label: 'Momentum',
     weight: 5,
-    note: 'daily-timeframe regression-slope trend, divided by its own volatility; high is better',
+    note: 'daily-timeframe Money Flow Index (or RSI on the yfinance-fallback tier); scored on a sweet-spot curve peaking at 60, not "high is better" -- a healthy strength reading beats both weak/oversold AND extreme overbought',
   },
   {
     label: 'Short-term mean reversion',
     weight: 5,
-    note: 'same regression-slope trend formula as Momentum, just on the hourly timeframe; low is better (a stock already trending up hard on the hour is one being chased, not caught early)',
+    note: 'hourly-timeframe Money Flow Index; low (oversold) is better (a stock already overbought on the hour is one being chased, not caught early)',
   },
   {
     label: 'EPS trend',
@@ -615,18 +615,23 @@ export default function ScreenerView() {
             upd: r.lastDownload || null,
           }
         })
-        // Momentum/MeanRev/Sentiment/News share one common display scale:
-        // rank-rescaled to [-100, 100] against whatever this fetch
-        // actually observed (see rankTo100), so the single worst/best-
-        // ranked reading in each is always -100/+100 — immune to one
-        // outlier crushing everything else toward one end, unlike a
-        // min-max rescale (see rankTo100's own comment for why that was
-        // tried first and replaced). Insiders deliberately excluded from
-        // this loop — see its own ×100 comment above for why a
-        // percentile rank is the wrong treatment for that one factor.
-        // Ranking (rankDescending below) is unaffected either way — a
-        // monotonic rescale never changes relative order.
-        for (const key of ['mom', 'mr', 'sent', 'newsSent', 'instChange'] as const) {
+        // Sentiment/News share one common display scale: rank-rescaled to
+        // [-100, 100] against whatever this fetch actually observed (see
+        // rankTo100), so the single worst/best-ranked reading in each is
+        // always -100/+100 — immune to one outlier crushing everything
+        // else toward one end, unlike a min-max rescale (see rankTo100's
+        // own comment for why that was tried first and replaced).
+        // Insiders/MSI/ST-MSI deliberately excluded from this loop:
+        // insiders.avg is already a bounded, comparable ratio (see its
+        // own ×100 comment above), and MSI/ST-MSI (mom/mr) are Money Flow
+        // Index/RSI readings, already on a fixed, meaningful [0, 100]
+        // scale (see scoring.py's sweet-spot curve) -- a population-
+        // relative rank would throw that fixed reference away and (the
+        // bug this fixed) rescale them onto [-100, 100] like a signed
+        // index, when they're never negative. Ranking (rankDescending
+        // below) is unaffected either way — a monotonic rescale never
+        // changes relative order.
+        for (const key of ['sent', 'newsSent', 'instChange'] as const) {
           const ranked = rankTo100(parsed.map((r) => r[key]))
           parsed.forEach((r, i) => {
             r[key] = ranked[i]
@@ -1108,8 +1113,8 @@ export default function ScreenerView() {
             )}
             {!error && rows && paged.map((r) => {
               const Icon = getSectorIcon(r.s)
-              const momClass = r.mom === null ? '' : r.mom >= 0 ? 'perf-pos' : 'perf-neg'
-              const mrClass = r.mr === null ? '' : r.mr >= 0 ? 'perf-pos' : 'perf-neg'
+              const momClass = momentumClass(r.mom)
+              const mrClass = meanReversionClass(r.mr)
               const epsTrendClass = r.epsTrend === null ? '' : r.epsTrend >= 0 ? 'perf-pos' : 'perf-neg'
               const sentClass = r.sent === null ? '' : r.sent >= 0 ? 'perf-pos' : 'perf-neg'
               const newsSentClass = r.newsSent === null ? '' : r.newsSent >= 0 ? 'perf-pos' : 'perf-neg'
@@ -1274,8 +1279,8 @@ export default function ScreenerView() {
                   <td className="col-rec">
                     <span className={`rec-badge ${recClass(r.rec)}`}>{recLabel(r.rec)}</span>
                   </td>
-                  <td className={`num ${momClass}`}>{fmtIndex100(r.mom)} <Subrank rank={r.momRank} /></td>
-                  <td className={`num ${mrClass}`}>{fmtIndex100(r.mr)} <Subrank rank={r.mrRank} /></td>
+                  <td className={`num ${momClass}`}>{fmtNum(r.mom)} <Subrank rank={r.momRank} /></td>
+                  <td className={`num ${mrClass}`}>{fmtNum(r.mr)} <Subrank rank={r.mrRank} /></td>
                   <td className={`num tooltip-cell ${sentClass}`} data-tip={sentimentTooltip(r)}>
                     {fmtIndex100(r.sent)} <Subrank rank={r.sentRank} />
                   </td>

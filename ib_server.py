@@ -153,7 +153,7 @@ a live price for (so a held position outside both of those, like an ETF
 not even in sorted_screen.csv, still gets covered) — fetched once at
 startup (see fetch_candlestick_history).
 reqHistoricalData's pacing limit (IBApp.get_ib_historical_bars_async
-defaults to 200 requests/10min, confirmed live against this account well
+defaults to 200 requests/6min, confirmed live against this account well
 above IB's ~60/10min textbook figure) means this can still take a while
 for hundreds of tickers x 2 series; it runs as a
 background asyncio task on the same single IB Gateway connection as
@@ -177,14 +177,20 @@ main thread and never touches IB Gateway, so it doesn't add a second
 client. IB Gateway/TWS shows one connected API client for this process,
 not three.
 
-The streaming server also refreshes PORTFOLIO_PERFORMANCE_FILE on its own —
-see performance_loop, one of the background asyncio tasks run_ib_client
+The streaming server also refreshes PORTFOLIO_PERFORMANCE_FILE AND
+TRADES_FILE (this account's real Flex-Query trade history, NOT
+trades_loop's own TODAY-only live-socket fills below) on its own -- see
+performance_loop, one of the background asyncio tasks run_ib_client
 starts (same pattern as snapshot_loop/trades_loop): once immediately on
-startup, then every PERFORMANCE_REFRESH_SECONDS for as long as the process
-stays up. `python ib_server.py performance [YYYY-MM-DD]` (below) is
-the standalone one-shot version of the exact same fetch, for a manual
-refresh or a specific start date without waiting on the server's own
-schedule or running the streaming server at all.
+startup, then every PERFORMANCE_REFRESH_SECONDS for as long as the
+process stays up. Both share this one cycle deliberately -- explicit
+instruction: the trades Flex Query should refresh "at the same time" as
+the portfolio one, since both are Flex Web Service queries against the
+same account. `python ib_server.py performance [YYYY-MM-DD]`/`python
+ib_server.py trades [YYYY-MM-DD]` (below) are the standalone one-shot
+versions of the exact same fetches, for a manual refresh or a specific
+start date without waiting on the server's own schedule or running the
+streaming server at all.
 
 One-shot mode: `python ib_server.py performance [YYYY-MM-DD]`
 fetches real day-by-day account NAV history via an IBKR Flex Query — not
@@ -211,44 +217,58 @@ from urllib.parse import parse_qs, urlparse
 
 from dateutil.parser import isoparse
 
-from IBApp import IBApp
+from modules.IBApp import IBApp
 from main import (
+    IB_REFRESH_COOLDOWN_SECONDS,
     OUTPUT_CSV,
     RATED_FOR_EXTRAS,
     RAW_DATA_FILE,
     SORTED_SCREEN_CSV,
     SYMBOLS_FILE,
+    _ib_refresh_recently_completed,
+    _mark_ib_refresh_completed,
+    _update_missings,
     load_rated_tickers,
     load_top_tickers,
 )
-from finra import SHORT_INTEREST_FILE
+from modules.finra import SHORT_INTEREST_FILE
 from main import PRICE_HISTORY_FILE as YAHOO_PRICE_HISTORY_FILE
-from news_sentiment import clean_headline, score_headlines
-from scoring import FACTOR_WEIGHTS, most_recent_completed_trading_day
-from sec_edgar import FORM4_FILE, THIRTEENF_FILE, THIRTEENF_HOLDERS_FILE, XBRL_FACTS_FILE
-from social_sentiment import SENTIMENT_FILE
-from theme_classifier import TAXONOMY_FILE, TICKER_THEMES_FILE
+from modules.news_sentiment import clean_headline, score_headlines
+from modules.scoring import FACTOR_WEIGHTS, most_recent_completed_trading_day
+from modules.sec_edgar import FORM4_FILE, THIRTEENF_FILE, THIRTEENF_HOLDERS_FILE, XBRL_FACTS_FILE
+from modules.social_sentiment import SENTIMENT_FILE
+from modules.theme_classifier import TAXONOMY_FILE, TICKER_THEMES_FILE
 
 MAX_STREAMED_SYMBOLS = 99  # this account's real ceiling — 100 hits IB error 101, "Max number of tickers has been reached"
 # Every JSON file this process writes lives here -- see main.py's DATA_DIR
-# for why (and why it's the JSON outputs specifically, not
-# sorted_screen.csv, which stays at the root). Duplicated rather than
-# imported from main.py's own DATA_DIR since main.py already creates the
-# directory on import and this module already imports from main.py
-# (SORTED_SCREEN_CSV, load_top_tickers) -- no need for a second os.makedirs.
+# for why. Duplicated rather than imported from main.py's own DATA_DIR
+# since main.py already creates the directory on import and this module
+# already imports from main.py (SORTED_SCREEN_CSV, load_top_tickers) --
+# no need for a second os.makedirs.
 DATA_DIR = "data"
-HOURLY_HISTORY_FILE = os.path.join(DATA_DIR, "price_history_hourly.json")
-DAILY_HISTORY_FILE = os.path.join(DATA_DIR, "price_history_daily_3mo.json")
+# IB Gateway-derived files -- bars, live-account exports, news headlines,
+# and today's fills -- see main.py's own IB_DIR for why; same
+# duplicated-not-imported reasoning as DATA_DIR above.
+IB_DIR = os.path.join(DATA_DIR, "IB")
+# Computed/rewritten-every-run outputs, blended from multiple sources
+# rather than straight from any one of them (sorted_screen.csv itself,
+# and recommendations.json, built from sorted_screen.csv + news + SEC
+# EDGAR + FINRA + raw_data.json) -- see main.py's own OUTPUT_DIR; same
+# duplicated-not-imported reasoning.
+OUTPUT_DIR = os.path.join(DATA_DIR, "output")
+HOURLY_HISTORY_FILE = os.path.join(IB_DIR, "price_history_hourly.json")
+DAILY_HISTORY_FILE = os.path.join(IB_DIR, "price_history_daily_3mo.json")
 PORTFOLIO_PERFORMANCE_FILE = os.path.join(DATA_DIR, "portfolio_performance.json")
-TRADES_FILE = os.path.join(DATA_DIR, "trades.json")
-NEWS_FILE = os.path.join(DATA_DIR, "news.json")
-NEWS_SENTIMENT_FILE = os.path.join(DATA_DIR, "news_sentiment.json")
-RECOMMENDATIONS_FILE = os.path.join(DATA_DIR, "recommendations.json")
+TRADES_FILE = os.path.join(IB_DIR, "trades.json")
+NEWS_FILE = os.path.join(IB_DIR, "news.json")
+NEWS_SENTIMENT_FILE = os.path.join(OUTPUT_DIR, "news_sentiment.json")
+RECOMMENDATIONS_FILE = os.path.join(OUTPUT_DIR, "recommendations.json")
 # See export_daily_history_on_demand -- a one-off multi-year backtest
-# export, deliberately at the project root (not DATA_DIR) since it's
-# meant to be moved into git by hand afterward, unlike every other file
-# here, which stays gitignored generated output.
-TS_EXPORT_FILE = "ts.json"
+# export, IB-derived like everything else under IB_DIR, but -- unlike
+# every other file in it, which stays gitignored generated output (see
+# .gitignore's individually-listed entries) -- is meant to be committed
+# into git by hand afterward, so it's deliberately NOT in that list.
+TS_EXPORT_FILE = os.path.join(IB_DIR, "ts.json")
 
 # GET /api/dataset-status (see _handle_dataset_status) -- every generated
 # file the web app's Dataset tab reports on, paired with the exact command
@@ -495,7 +515,7 @@ DATASETS = [
         "path": TRADES_FILE,
         "label": "Past trades (Flex Query)",
         "command": "python ib_server.py trades [YYYY-MM-DD]",
-        "notes": "Run button omits the date (no client-side trim); for a specific start date instead, use the CLI form. Merges by tradeID into whatever's already on disk, so repeated runs accumulate rather than only ever showing the query's own configured window",
+        "notes": "Run button omits the date (no client-side trim); for a specific start date instead, use the CLI form. Merges by tradeID into whatever's already on disk, so repeated runs accumulate rather than only ever showing the query's own configured window -- also auto-refreshed every 6h by the running server regardless, in the same cycle as portfolio performance (same Flex Web Service account, one shared timer)",
         "network": "IBKR Flex Web Service (not IB Gateway)",
         "run": {"kind": "subprocess", "argv": ["ib_server.py", "trades"]},
     },
@@ -607,9 +627,9 @@ def _price_history_staleness(path):
 PORTFOLIO_START_DATE = "2026-07-03"
 # Candlestick coverage is capped separately from MAX_STREAMED_SYMBOLS — it's
 # not a live-data budget, it's how many tickers IB's paced reqHistoricalData
-# (200 requests/10min, see IBApp.get_ib_historical_bars_async) can
-# realistically cover in one run. 500 tickers x 2 series is ~50 minutes;
-# the full sorted_screen.csv (~1,663 tickers) would be ~2.8 hours.
+# (200 requests/6min, see IBApp.get_ib_historical_bars_async) can
+# realistically cover in one run. 500 tickers x 2 series is ~30 minutes;
+# the full sorted_screen.csv (~1,663 tickers) would be ~1.7 hours.
 CANDLESTICK_TOP_N = 500
 HEARTBEAT_SECONDS = 15
 
@@ -920,7 +940,7 @@ async def fetch_candlestick_history(streamed_tickers):
     print(f"Wrote {DAILY_HISTORY_FILE} ({sum(1 for v in daily.values() if v)}/{len(tickers)} tickers with bars)")
 
 
-async def refresh_daily_history_on_demand(log_fn=None):
+async def refresh_daily_history_on_demand(log_fn=None, tickers=None, overwrite=False):
     """POST /api/admin/refresh-ib-daily (see _handle_refresh_ib_daily) --
     runs main.py's own download_ib_daily_history logic (same staleness
     gate: only a ticker whose existing bar is missing or older than
@@ -930,14 +950,31 @@ async def refresh_daily_history_on_demand(log_fn=None):
     refuses a second simultaneous API connection while this server is
     running (confirmed live, times out regardless of clientId -- see
     main.py's IB_HISTORY_CLIENT_ID comment) -- `python main.py ibprices`
-    calls this endpoint instead of app.connect()-ing whenever it detects
-    this server is up (see main.py's refresh_ib_daily_history).
+    (and, now, `all` -- see main.py's download_all) calls this endpoint
+    instead of app.connect()-ing whenever it detects this server is up
+    (see main.py's refresh_ib_daily_history).
 
-    Same scope as main.py's own call: top CANDLESTICK_TOP_N ranked union
+    tickers, if given (the request body's own JSON array -- see
+    _handle_refresh_ib_daily), is used as-is instead of the default
+    scope -- explicit instruction: `ibprices`/`all` now request this for
+    the WHOLE active universe, not just the ranked/rated/held subset.
+    Default (no tickers given, e.g. the Dataset tab's Run button, which
+    posts no body) is unchanged: top CANDLESTICK_TOP_N ranked union
     RATED_FOR_EXTRAS union every currently-held ticker -- held read
     straight off positions_by_ticker (already populated live by
-    on_position) rather than a fresh reqPositions() round-trip. Merges
-    into the existing DAILY_HISTORY_FILE rather than replacing it
+    on_position) rather than a fresh reqPositions() round-trip.
+
+    An explicit tickers list is also gated by a 3h cooldown, shared with
+    main.py via the same on-disk IB_REFRESH_STATE_FILE (see
+    _ib_refresh_recently_completed/_mark_ib_refresh_completed, imported
+    from main.py) -- if an explicit-scope refresh already completed
+    within the last IB_REFRESH_COOLDOWN_SECONDS, this returns immediately
+    without touching IB Gateway at all, unless overwrite=True (only
+    `python main.py all overwrite` sets that). The default (implicit)
+    scope is never gated by this cooldown -- it keeps only its own
+    per-ticker staleness gate below, same as before.
+
+    Merges into the existing DAILY_HISTORY_FILE rather than replacing it
     wholesale, unlike fetch_candlestick_history's own startup fetch --
     same reasoning as download_ib_daily_history's own docstring: the
     staleness gate here means a given call may only touch a handful of
@@ -949,11 +986,18 @@ async def refresh_daily_history_on_demand(log_fn=None):
     Dataset tab's Run button (see _run_in_process_job) to show live
     per-ticker progress; the HTTP endpoint above calls this with no
     log_fn, unchanged from before."""
-    ranked = set(load_top_tickers(SORTED_SCREEN_CSV, CANDLESTICK_TOP_N))
-    rated = set(load_rated_tickers(SORTED_SCREEN_CSV, RATED_FOR_EXTRAS))
-    with lock:
-        held = set(positions_by_ticker)
-    tickers = sorted(ranked | rated | held)
+    explicit_scope = tickers is not None
+    if explicit_scope and not overwrite and _ib_refresh_recently_completed("daily"):
+        msg = f"IB daily history was already fully refreshed within the last {IB_REFRESH_COOLDOWN_SECONDS // 3600}h -- skipping (run `python main.py all overwrite` to force)"
+        if log_fn:
+            log_fn(msg)
+        return {"skipped": True, "tickersTotal": len(tickers)}
+    if tickers is None:
+        ranked = set(load_top_tickers(SORTED_SCREEN_CSV, CANDLESTICK_TOP_N))
+        rated = set(load_rated_tickers(SORTED_SCREEN_CSV, RATED_FOR_EXTRAS))
+        with lock:
+            held = set(positions_by_ticker)
+        tickers = sorted(ranked | rated | held)
 
     try:
         with open(DAILY_HISTORY_FILE) as f:
@@ -965,6 +1009,9 @@ async def refresh_daily_history_on_demand(log_fn=None):
     if not stale:
         if log_fn:
             log_fn(f"IB daily history already current for all {len(tickers)} candidate ticker(s); skipping IB Gateway fetch")
+        if explicit_scope:
+            _mark_ib_refresh_completed("daily")
+            _update_missings("ib_daily", [t for t in tickers if not existing.get(t)])
         return {"skipped": True, "tickersTotal": len(tickers)}
 
     if log_fn:
@@ -976,21 +1023,31 @@ async def refresh_daily_history_on_demand(log_fn=None):
     got = sum(1 for v in fresh.values() if v)
     if log_fn:
         log_fn(f"Wrote {DAILY_HISTORY_FILE} ({got}/{len(stale)} fetched tickers had bars; {len(existing)} tickers total on file)")
+    if explicit_scope:
+        _mark_ib_refresh_completed("daily")
+        _update_missings("ib_daily", [t for t in tickers if not existing.get(t)])
     return {"skipped": False, "tickersTotal": len(tickers), "staleFetched": len(stale), "gotBars": got}
 
 
-async def refresh_hourly_history_on_demand(log_fn=None):
+async def refresh_hourly_history_on_demand(log_fn=None, tickers=None, overwrite=False):
     """POST /api/admin/refresh-ib-hourly (see _handle_refresh_ib_hourly)
     -- the hourly twin of refresh_daily_history_on_demand: same reason
-    for existing, same scope, same on-demand/on-this-connection approach,
-    same log_fn use (see that function's docstring), just against
+    for existing, same scope/tickers-param/overwrite-param/cooldown/
+    log_fn behavior (see that function's docstring), just against
     HOURLY_HISTORY_FILE via "1 M"/"1 hour" bars instead of the daily
     file/duration."""
-    ranked = set(load_top_tickers(SORTED_SCREEN_CSV, CANDLESTICK_TOP_N))
-    rated = set(load_rated_tickers(SORTED_SCREEN_CSV, RATED_FOR_EXTRAS))
-    with lock:
-        held = set(positions_by_ticker)
-    tickers = sorted(ranked | rated | held)
+    explicit_scope = tickers is not None
+    if explicit_scope and not overwrite and _ib_refresh_recently_completed("hourly"):
+        msg = f"IB hourly history was already fully refreshed within the last {IB_REFRESH_COOLDOWN_SECONDS // 3600}h -- skipping (run `python main.py all overwrite` to force)"
+        if log_fn:
+            log_fn(msg)
+        return {"skipped": True, "tickersTotal": len(tickers)}
+    if tickers is None:
+        ranked = set(load_top_tickers(SORTED_SCREEN_CSV, CANDLESTICK_TOP_N))
+        rated = set(load_rated_tickers(SORTED_SCREEN_CSV, RATED_FOR_EXTRAS))
+        with lock:
+            held = set(positions_by_ticker)
+        tickers = sorted(ranked | rated | held)
 
     try:
         with open(HOURLY_HISTORY_FILE) as f:
@@ -1002,6 +1059,9 @@ async def refresh_hourly_history_on_demand(log_fn=None):
     if not stale:
         if log_fn:
             log_fn(f"IB hourly history already current for all {len(tickers)} candidate ticker(s); skipping IB Gateway fetch")
+        if explicit_scope:
+            _mark_ib_refresh_completed("hourly")
+            _update_missings("ib_hourly", [t for t in tickers if not existing.get(t)])
         return {"skipped": True, "tickersTotal": len(tickers)}
 
     if log_fn:
@@ -1013,6 +1073,9 @@ async def refresh_hourly_history_on_demand(log_fn=None):
     got = sum(1 for v in fresh.values() if v)
     if log_fn:
         log_fn(f"Wrote {HOURLY_HISTORY_FILE} ({got}/{len(stale)} fetched tickers had bars; {len(existing)} tickers total on file)")
+    if explicit_scope:
+        _mark_ib_refresh_completed("hourly")
+        _update_missings("ib_hourly", [t for t in tickers if not existing.get(t)])
     return {"skipped": False, "tickersTotal": len(tickers), "staleFetched": len(stale), "gotBars": got}
 
 
@@ -1732,9 +1795,9 @@ def _parse_portfolio_report(raw_bytes):
 # Manually re-exported from IBKR Account Management (Reports > Flex
 # Queries > Run), same shape the live Flex Query API returns -- checked as
 # a fallback when the API itself fails (see fetch_account_performance).
-# NAVs.xml (kept under data/, like every other downloader JSON/export --
-# see main.py's DATA_DIR) is this account's second, narrower query
-# (Equity Summary + Change in NAV + FIFO, no options/bonds/funds
+# NAVs.xml (kept under IB_DIR, like this account's other IB-derived files
+# -- see that constant's own comment) is this account's second, narrower
+# query (Equity Summary + Change in NAV + FIFO, no options/bonds/funds
 # breakdown -- see _parse_portfolio_xml); whichever file is actually
 # newest wins, not whichever is listed first. Results.xml/Results.csv
 # stay at the root as historical reference samples of the two report
@@ -1742,7 +1805,7 @@ def _parse_portfolio_report(raw_bytes):
 # above _iso_date) -- neither currently exists on disk; this tuple just
 # keeps both formats recognized if one is ever re-exported again.
 # Gitignored: these are real account exports.
-LOCAL_FLEX_EXPORT_FILES = ("Results.xml", "Results.csv", os.path.join(DATA_DIR, "NAVs.xml"))
+LOCAL_FLEX_EXPORT_FILES = ("Results.xml", "Results.csv", os.path.join(IB_DIR, "NAVs.xml"))
 
 
 def _local_flex_export_fallback():
@@ -1886,31 +1949,45 @@ PERFORMANCE_REFRESH_SECONDS = 6 * 3600  # 6 hours -- daily-granularity NAV data 
 async def performance_loop():
     """Runs forever as a background asyncio task on the single shared IB
     Gateway connection (see run_ib_client) -- keeps
-    PORTFOLIO_PERFORMANCE_FILE (the Portfolio tab's NAV history) refreshed
-    automatically for as long as this server is running, instead of only
-    ever updating via the separate one-shot `python ib_server.py
-    performance` command (previously the ONLY way this file got updated --
-    there was no loop calling fetch_account_performance at all, which is
-    why the Portfolio tab could silently sit days stale with nobody
-    noticing). Refreshes immediately on startup (so a fresh server start
-    backfills whatever trading days piled up since the last run), then
-    every PERFORMANCE_REFRESH_SECONDS.
+    PORTFOLIO_PERFORMANCE_FILE (the Portfolio tab's NAV history) AND
+    TRADES_FILE (the Trades tab's fill history) refreshed automatically
+    for as long as this server is running, instead of only ever updating
+    via the separate one-shot `python ib_server.py performance`/`python
+    ib_server.py trades` commands. Explicit instruction: the trades fetch
+    should run "at the same time" as the portfolio one -- both are Flex
+    Web Service queries against the same account (same QUERY_TOKEN, two
+    different query IDs -- see fetch_account_performance/
+    fetch_trades_report), so one shared cycle here is both literally "at
+    the same time" and avoids a second independent timer hitting IBKR's
+    Flex Web Service on its own schedule. Before this, TRADES_FILE had NO
+    loop refreshing it at all (same bug PORTFOLIO_PERFORMANCE_FILE used
+    to have, see the DATASETS entries' own notes for the fix's precedent)
+    -- confirmed live: the Trades tab was silently stuck days stale with
+    nobody noticing. Refreshes immediately on startup (so a fresh server
+    start backfills whatever trading days piled up since the last run),
+    then every PERFORMANCE_REFRESH_SECONDS.
 
-    fetch_account_performance is a blocking synchronous HTTP round-trip
-    (IBKR's Flex Web Service has no async client, and can take
-    10-100+ seconds polling for the statement to finish generating -- see
-    its own docstring) -- run via asyncio.to_thread so it never stalls
-    this process's live price/position streaming the way calling it
-    directly on this shared event loop would.
+    Both fetch_account_performance/fetch_trades_report are blocking
+    synchronous HTTP round-trips (IBKR's Flex Web Service has no async
+    client, and each can take 10-100+ seconds polling for its own
+    statement to finish generating -- see their own docstrings) -- each
+    run via asyncio.to_thread so neither ever stalls this process's live
+    price/position streaming the way calling them directly on this
+    shared event loop would. Sequential, not concurrent (one
+    asyncio.to_thread call, then the next) -- deliberately, so a slow
+    trades poll doesn't pile up behind a slow performance one on the same
+    underlying Flex Web Service rate limit.
 
-    fetch_account_performance also calls sys.exit() on a hard failure (no
-    live fetch AND no local export fallback) -- correct for the one-shot
-    CLI mode, where killing the process on failure is fine, but fatal here:
-    called from this loop unguarded, one flaky Flex Query response would
-    take down the ENTIRE server, live price streaming included. Caught
-    explicitly (SystemExit isn't an Exception subclass, so a bare `except
-    Exception` wouldn't catch it) and logged instead, so this loop just
-    retries next cycle."""
+    Both also call sys.exit() on a hard failure (no live fetch AND no
+    local export fallback for performance; no token/query-id/rows for
+    trades) -- correct for the one-shot CLI mode, where killing the
+    process on failure is fine, but fatal here: called from this loop
+    unguarded, one flaky Flex Query response would take down the ENTIRE
+    server, live price streaming included. Each caught explicitly and
+    independently (SystemExit isn't an Exception subclass, so a bare
+    `except Exception` wouldn't catch it) and logged instead, so a
+    failure in one doesn't skip the other, and this loop just retries
+    both next cycle."""
     while True:
         try:
             await asyncio.to_thread(fetch_account_performance)
@@ -1918,6 +1995,12 @@ async def performance_loop():
             print(f"performance_loop: fetch_account_performance exited without writing (code {e.code}) -- will retry next cycle")
         except Exception as e:
             print(f"performance_loop: fetch_account_performance failed: {e}")
+        try:
+            await asyncio.to_thread(fetch_trades_report)
+        except SystemExit as e:
+            print(f"performance_loop: fetch_trades_report exited without writing (code {e.code}) -- will retry next cycle")
+        except Exception as e:
+            print(f"performance_loop: fetch_trades_report failed: {e}")
         await asyncio.sleep(PERFORMANCE_REFRESH_SECONDS)
 
 
@@ -2114,14 +2197,25 @@ def _to_float(v):
 
 
 # Recommendations tab entry-gate thresholds -- MUST match
-# RecommendationsView.tsx's own MOMENTUM_THRESHOLD/REVENUE_GROWTH_THRESHOLD/
-# MEAN_REVERSION_THRESHOLD/MAX_SHORT_INTEREST exactly (kept in sync by hand,
-# same "duplicated, not shared" convention this project already uses for
-# previousClose across three frontend files -- see _passes_long_gates/
-# _passes_short_gates below for why this needed a Python copy at all).
-_REC_MOMENTUM_THRESHOLD = 0.5
+# RecommendationsView.tsx's own MOMENTUM_OVERSOLD/MOMENTUM_OVERBOUGHT/
+# REVENUE_GROWTH_THRESHOLD/MEAN_REVERSION_OVERBOUGHT/
+# MEAN_REVERSION_OVERSOLD/MAX_SHORT_INTEREST exactly (kept in sync by
+# hand, same "duplicated, not shared" convention this project already
+# uses for previousClose across three frontend files -- see
+# _passes_long_gates/_passes_short_gates below for why this needed a
+# Python copy at all). momentum is IBApp's Money Flow Index/RSI, bounded
+# [0, 100]. Used here as a mean-reversion BLOCK, not a requirement --
+# explicit instruction: a Long is only excluded when momentum is
+# overbought (chasing risk), a Short only when oversold (bounce risk);
+# neutral -- and even the opposite extreme -- stays eligible either way.
+# NOT the continuation treatment scoring.py's own momentum_rank
+# sweet-spot curve uses for the composite score -- a separate, deliberately
+# different treatment of the same raw number.
+_REC_MOMENTUM_OVERSOLD = 30
+_REC_MOMENTUM_OVERBOUGHT = 70
 _REC_REVENUE_GROWTH_THRESHOLD = 0.1
-_REC_MEAN_REVERSION_THRESHOLD = 10
+_REC_MEAN_REVERSION_OVERBOUGHT = 80
+_REC_MEAN_REVERSION_OVERSOLD = 20
 _REC_MAX_SHORT_INTEREST = 0.1
 
 
@@ -2138,15 +2232,18 @@ def _passes_long_gates(row):
     this needed replicating in Python at all: without it, this file has no
     way to tell "will actually show up on the Recommendations page" apart
     from "is RATED_FOR_EXTRAS," and the Long/Short lists are a much
-    smaller, gated subset of that."""
+    smaller, gated subset of that. Momentum gate BLOCKS overbought, it
+    doesn't REQUIRE oversold -- explicit instruction: neutral (and even
+    oversold) candidates stay eligible, only the chasing-risk extreme is
+    excluded."""
     momentum = _to_float(row.get("momentum"))
-    if momentum is None or momentum < _REC_MOMENTUM_THRESHOLD:
+    if momentum is None or momentum > _REC_MOMENTUM_OVERBOUGHT:
         return False
     growth = _to_float(row.get("revenueGrowth"))
     if growth is not None and growth < _REC_REVENUE_GROWTH_THRESHOLD:
         return False
     mr = _to_float(row.get("meanReversion"))
-    if mr is not None and mr >= _REC_MEAN_REVERSION_THRESHOLD:
+    if mr is not None and mr >= _REC_MEAN_REVERSION_OVERBOUGHT:
         return False
     eps = _rec_eps_trend(row)
     if eps is not None and eps < 0:
@@ -2157,9 +2254,12 @@ def _passes_long_gates(row):
 def _passes_short_gates(row):
     """Mirrors RecommendationsView.tsx's eligibleToSell + notCrowded +
     notTooMuchGrowthForShort + meanReversionOkForShort +
-    epsTrendOkForShort -- the Short list's own gate set."""
+    epsTrendOkForShort -- the Short list's own gate set. Momentum gate
+    BLOCKS oversold, the mirror of the long gate above -- it doesn't
+    REQUIRE overbought; neutral (and even overbought) candidates stay
+    eligible, only the bounce-risk extreme is excluded."""
     momentum = _to_float(row.get("momentum"))
-    if momentum is None or momentum >= 0:
+    if momentum is None or momentum < _REC_MOMENTUM_OVERSOLD:
         return False
     short_pct = _to_float(row.get("shortPercentOfFloat"))
     if short_pct is not None and short_pct > _REC_MAX_SHORT_INTEREST:
@@ -2168,7 +2268,7 @@ def _passes_short_gates(row):
     if growth is not None and growth > _REC_REVENUE_GROWTH_THRESHOLD:
         return False
     mr = _to_float(row.get("meanReversion"))
-    if mr is not None and mr <= -_REC_MEAN_REVERSION_THRESHOLD:
+    if mr is not None and mr <= _REC_MEAN_REVERSION_OVERSOLD:
         return False
     eps = _rec_eps_trend(row)
     if eps is not None and eps > 0:
@@ -2653,18 +2753,38 @@ class Handler(BaseHTTPRequestHandler):
 
     def _handle_refresh_ib_daily(self):
         """POST /api/admin/refresh-ib-daily -- see
-        refresh_daily_history_on_demand. Blocks this request thread
-        (ThreadingHTTPServer, so only this one request thread, same as
-        _handle_news_article's blocking IB call above) until the fetch
-        finishes -- can take a while when many tickers are stale, paced by
-        IB's rate limit, hence the long timeout; main.py's own caller uses
-        a matching one."""
+        refresh_daily_history_on_demand. Optional JSON body {"tickers":
+        [...], "overwrite": bool} requests a specific scope instead of
+        the default ranked/rated/held one, and/or bypasses the 3h
+        cooldown an explicit-scope request is otherwise gated by (see
+        _ib_refresh_recently_completed) -- main.py's download_all now
+        sends the WHOLE active universe here (and "overwrite": true only
+        for `python main.py all overwrite`), which needs the long 7200s
+        (2hr) timeout below (the same one export_daily_history_on_demand's
+        own multi-year backtest export uses): paced by IB's rate limit,
+        ~2340 tickers at ~200 requests/6min is on the order of an hour
+        or more. Blocks this request thread (ThreadingHTTPServer, so
+        only this one request thread, same as _handle_news_article's
+        blocking IB call above) until the fetch finishes; main.py's own
+        caller uses a matching timeout."""
+        length = int(self.headers.get("Content-Length", 0))
+        tickers = None
+        overwrite = False
+        if length:
+            try:
+                body = json.loads(self.rfile.read(length))
+                tickers = body.get("tickers")
+                overwrite = bool(body.get("overwrite"))
+            except (ValueError, json.JSONDecodeError):
+                self.send_response(400)
+                self.end_headers()
+                return
         if ib_loop is None or not app.is_connected:
             self._send_json({"error": "IB Gateway not connected"})
             return
         try:
-            future = asyncio.run_coroutine_threadsafe(refresh_daily_history_on_demand(), ib_loop)
-            result = future.result(timeout=3600)
+            future = asyncio.run_coroutine_threadsafe(refresh_daily_history_on_demand(tickers=tickers, overwrite=overwrite), ib_loop)
+            result = future.result(timeout=7200)
         except Exception as e:
             self._send_json({"error": str(e)})
             return
@@ -2672,13 +2792,27 @@ class Handler(BaseHTTPRequestHandler):
 
     def _handle_refresh_ib_hourly(self):
         """POST /api/admin/refresh-ib-hourly -- the hourly twin of
-        _handle_refresh_ib_daily; see refresh_hourly_history_on_demand."""
+        _handle_refresh_ib_daily (same optional {"tickers": [...],
+        "overwrite": bool} body, same 2hr timeout for a full-universe
+        fetch); see refresh_hourly_history_on_demand."""
+        length = int(self.headers.get("Content-Length", 0))
+        tickers = None
+        overwrite = False
+        if length:
+            try:
+                body = json.loads(self.rfile.read(length))
+                tickers = body.get("tickers")
+                overwrite = bool(body.get("overwrite"))
+            except (ValueError, json.JSONDecodeError):
+                self.send_response(400)
+                self.end_headers()
+                return
         if ib_loop is None or not app.is_connected:
             self._send_json({"error": "IB Gateway not connected"})
             return
         try:
-            future = asyncio.run_coroutine_threadsafe(refresh_hourly_history_on_demand(), ib_loop)
-            result = future.result(timeout=3600)
+            future = asyncio.run_coroutine_threadsafe(refresh_hourly_history_on_demand(tickers=tickers, overwrite=overwrite), ib_loop)
+            result = future.result(timeout=7200)
         except Exception as e:
             self._send_json({"error": str(e)})
             return

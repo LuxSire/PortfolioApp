@@ -543,46 +543,84 @@ def growth_rank(rows):
     return rank_ascending(rows, key)
 
 
+# momentum_rank's "sweet spot" curve for the daily Money Flow Index/RSI
+# strength reading (see IBApp._money_flow_index/_relative_strength_index,
+# both bounded [0, 100]) -- (value, rank) breakpoints, 0=best/1=worst,
+# linearly interpolated between. Deliberately NOT a population-relative
+# percentile the way every other *_rank function here uses
+# rank_ascending: MFI/RSI is already a fixed, standardized 0-100 scale
+# with universally-understood reference points (25 = oversold, 75 =
+# overbought -- explicit instruction, tightened from the initial 30/80),
+# so re-deriving "good" from THIS universe's current distribution would
+# throw that fixed meaning away for no benefit.
+# Peaks at 60, not 50 -- gives more room on the strong side before the
+# overbought penalty kicks in, deliberately asymmetric, consistent with
+# the live backtest earlier confirming momentum is a CONTINUATION signal
+# (strong stays strong more often than it reverses) -- while still
+# docking real credit for a blow-off-top-style extreme past 75, which is
+# the actual behavior change from the old plain "high is better" regression-
+# momentum factor this replaces.
+_MOMENTUM_SWEET_SPOT = [(0, 0.8), (25, 0.5), (60, 0.0), (75, 0.5), (100, 0.9)]
+
+
+def _sweet_spot_rank(value, breakpoints):
+    """Piecewise-linear interpolation of `value` against a sorted list of
+    (x, rank) breakpoints -- clamped to the first/last breakpoint's own
+    rank outside that range (only matters for a value sitting exactly at
+    the scale's own bounds, since MFI/RSI can't go outside [0, 100])."""
+    if value <= breakpoints[0][0]:
+        return breakpoints[0][1]
+    if value >= breakpoints[-1][0]:
+        return breakpoints[-1][1]
+    for (x0, r0), (x1, r1) in zip(breakpoints, breakpoints[1:]):
+        if x0 <= value <= x1:
+            fraction = (value - x0) / (x1 - x0)
+            return r0 + fraction * (r1 - r0)
+    return breakpoints[-1][1]  # unreachable given the bounds checks above
+
+
 def momentum_rank(rows):
-    """High momentum (regression-slope momentum score, divided by the
-    annualized volatility of log returns -- the 3-month IB Gateway daily
-    series where available, else the plain ~1-month yfinance calculation;
-    see IBApp.get_momentum / _regression_momentum) ranks better; missing
-    ranked worst. A pure daily-timeframe trend read, independent of
-    mean_reversion_rank's hourly one below -- see that function's
-    docstring for why they're two separate factors, not one blended
-    number. Ranks the already-computed `momentum` field -- computing it
-    in the first place (main.py's add_momentum) needs a live IBApp
-    connection and writes price_history.json, so that stays in main.py
-    rather than here."""
-    return rank_ascending(rows, neg_perf("momentum"))
+    """Daily-timeframe Money Flow Index (or RSI on the yfinance-fallback
+    tier -- see IBApp.get_momentum) scored via the fixed sweet-spot curve
+    above, not a population-relative percentile -- see
+    _MOMENTUM_SWEET_SPOT's own comment for why. Missing ranked worst,
+    same convention as most other factors here. A pure daily-timeframe
+    strength read, independent of mean_reversion_rank's hourly one below
+    -- see that function's docstring for why they're two separate
+    factors, not one blended number. Ranks the already-computed
+    `momentum` field -- computing it in the first place (main.py's
+    add_momentum) needs a live IBApp connection and writes
+    price_history.json, so that stays in main.py rather than here."""
+    result = {}
+    for symbol, d in rows:
+        value = to_float(d.get("momentum"))
+        result[symbol] = 1.0 if value is None else _sweet_spot_rank(value, _MOMENTUM_SWEET_SPOT)
+    return result
 
 
 def mean_reversion_rank(rows):
-    """Low mean_reversion ranks better; missing ranked NEUTRAL (0.5), not
-    worst -- see rank_ascending's own docstring for why: unlike this
-    file's other factors, "missing" here overwhelmingly means "outside
-    IB Gateway's ~40%-of-universe hourly-bar coverage scope", not a real
-    signal about the ticker, so scoring it as if it were the worst
-    possible hourly-momentum reading was wrong for roughly 60% of the
-    universe.
-    mean_reversion is the SAME regression-momentum formula as momentum_rank
-    scores, just measured on the hourly IB Gateway series instead of the
-    daily one (see IBApp.get_momentum) -- same sign convention as momentum
-    (positive = hourly uptrend, negative = hourly downtrend), scored here
-    with the opposite direction on purpose: a stock already trending up
-    hard on the hourly timeframe is a stock this factor treats as being
-    chased rather than caught early, so a LOW (negative-hourly-momentum,
-    i.e. a stock that's just pulled back) reading ranks best, the mirror
-    of momentum_rank's own daily-timeframe "high is better" direction.
-    Kept as its own factor (rather than blended into momentum_rank as it
-    originally was) so each timeframe's signal can be weighted, ranked,
-    and reasoned about independently. Only populated for tickers IB
-    Gateway has fetched hourly candlesticks for (CANDLESTICK_TOP_N
-    ranked/held tickers, not the whole universe) -- there's no fallback
-    data source for hourly bars the way momentum_rank falls back to
-    yfinance daily, so this is missing far more often."""
-    return rank_ascending(rows, lambda d: to_float(d.get("meanReversion")), missing=0.5)
+    """Hourly-timeframe Money Flow Index (see IBApp._money_flow_index),
+    bounded [0, 100] -- a direct linear read (rank = value / 100), NOT
+    momentum_rank's sweet-spot curve: this factor's job is entry timing,
+    not strength, so low (oversold) should always rank best and high
+    (overbought) always worst, with no "moderate is best" hump the way
+    daily strength has one. A stock already overbought on the hour is one
+    you'd be chasing (bad timing for a new long), read against a long
+    that's already held, one that may be due for a pullback (worth a
+    look) -- see RecommendationsView.tsx's meanReversionOkForLong/
+    meanReversionOkForShort and buildCloseReasons for exactly how each
+    side reads this. Missing ranked NEUTRAL (0.5), not worst: unlike this
+    file's other factors, "missing" here overwhelmingly means "outside IB
+    Gateway's ~40%-of-universe hourly-bar coverage scope" (CANDLESTICK_TOP_N
+    ranked/held tickers only, no fallback data source the way
+    momentum_rank falls back to yfinance daily), not a real signal about
+    the ticker -- scoring it as if it were the worst possible reading was
+    wrong for roughly 60% of the universe."""
+    result = {}
+    for symbol, d in rows:
+        value = to_float(d.get("meanReversion"))
+        result[symbol] = 0.5 if value is None else value / 100
+    return result
 
 
 def eps_trend_rank(rows):
@@ -954,8 +992,8 @@ FACTOR_WEIGHTS = {
     "eps_volatility": ("Yearly EPS volatility", 0.05, 0.05, 0.05, 0.05),
     "fcf": ("Price/FCF", 0.05, 0.0, 0.0, 0.05),
     "ev_ebitda": ("EV/EBITDA", 0.05, 0.0, 0.05, 0.0),
-    "momentum": ("Daily-timeframe momentum", 0.05, 0.05, 0.05, 0.05),
-    "mean_reversion": ("Hourly-timeframe mean reversion", 0.05, 0.05, 0.05, 0.05),
+    "momentum": ("Daily-timeframe strength (MFI/RSI)", 0.05, 0.05, 0.05, 0.05),
+    "mean_reversion": ("Hourly-timeframe overbought/oversold (MFI)", 0.05, 0.05, 0.05, 0.05),
     "eps_trend": ("EPS-estimate revision trend", 0.05, 0.15, 0.08, 0.10),
     "analyst": ("Analyst conviction", 0.07, 0.07, 0.07, 0.07),
     "pe_vs_trailing": ("Forward P/E vs. Trailing P/E", 0.05, 0.05, 0.05, 0.05),

@@ -87,9 +87,10 @@ export interface Reason {
 }
 
 // buildOppositeMatcher's return value for a candidate that hedges an
-// existing opposite-side position (same sector or theme).
+// existing opposite-side position -- same granular industry (c.sector),
+// or failing that the same broad GICS-style sector group (getSectorGroup).
 export interface OppositeMatch {
-  type: 'sector' | 'theme'
+  type: 'industry' | 'sector'
   value: string
   tickers: string[]
 }
@@ -99,6 +100,7 @@ export interface OppositeMatch {
 // ROWS_PER_SIDE.
 export interface RankedCandidate extends Candidate {
   oppositeMatchLine?: string | null
+  oppositeMatchType?: 'industry' | 'sector' | null
   _sortScore: number
 }
 

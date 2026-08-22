@@ -33,8 +33,8 @@ export const COLUMNS = [
   { key: 'tgt', label: 'Target', fmt: 'price' },
   { key: 'upside', label: 'Upside', fmt: 'pct' },
   { key: 'rec', label: 'Rec', className: 'col-rec' },
-  { key: 'mom', label: 'Momentum', fmt: 'index100' },
-  { key: 'mr', label: 'MeanRev', fmt: 'index100' },
+  { key: 'mom', label: 'MSI', fmt: 'index100' },
+  { key: 'mr', label: 'ST-MSI', fmt: 'index100' },
   { key: 'sent', label: 'Sentiment', fmt: 'index100' },
   { key: 'newsSent', label: 'News', fmt: 'index100' },
   { key: 'instChange', label: 'Inst Change', fmt: 'index100' },
@@ -69,17 +69,6 @@ export function fmtPct0(v) {
   return Math.round(v * 100) + '%'
 }
 
-// Momentum is a Sharpe-style risk-adjusted ratio (trend slope divided by
-// its own volatility — see IBApp._regression_momentum), not a return, so
-// it doesn't get fmtPct's *100/'%' treatment; a signed 2-decimal number
-// reads as "units of risk-adjusted trend strength" instead of implying a
-// percentage return that isn't what this value means.
-export function fmtSigned(v) {
-  if (v === null || v === undefined) return '—'
-  if (!Number.isFinite(v)) return v > 0 ? '∞' : '−∞'
-  return (v >= 0 ? '+' : '') + v.toFixed(2)
-}
-
 // debtToEquity comes from yfinance already in percentage units (150.5 means
 // 150.5%), unlike revg/upside/perf which are fractions — no *100 here.
 export function fmtDebtToEquity(v) {
@@ -106,15 +95,18 @@ export function fmtSentiment(v) {
 }
 
 // Momentum/MeanRev/Sentiment/News/Insiders sit on genuinely different raw
-// scales (a Sharpe-style ratio for the first two, a bounded [-1, 1] ratio
-// for the other three) — rankTo100 rescales all five onto one common,
-// visually comparable [-100, 100] index by RANK (ordinal position in the
-// sorted dataset), not by raw magnitude. A min-max rescale (value's
-// linear position between the observed min and max) was tried first and
-// measured against real data: momentum's raw range is -4..+305 purely
-// because of one outlier ticker, so min-max put 95% of every OTHER
-// ticker below -90 — a single extreme reading crushed the entire rest of
-// the distribution into a sliver near one end, which is exactly the
+// scales (a bounded [0, 100] Money Flow Index/RSI reading for the first
+// two, a bounded [-1, 1] ratio for the other three) — rankTo100 rescales
+// all five onto one common, visually comparable [-100, 100] index by
+// RANK (ordinal position in the sorted dataset), not by raw magnitude.
+// Scale-agnostic by design, so it kept working unchanged when momentum/
+// meanReversion switched from an unbounded Sharpe-style regression score
+// to MFI/RSI: a min-max rescale (value's linear position between the
+// observed min and max) was tried first, back when momentum's raw range
+// really was unbounded (confirmed live at the time: -4..+305 purely
+// because of one outlier ticker, which put 95% of every OTHER ticker
+// below -90) -- a single extreme reading crushed the entire rest of the
+// distribution into a sliver near one end, which is exactly the
 // degenerate case rank-based avoids: the lowest value is still -100, the
 // highest still +100, but everything between is spread out by ordinal
 // position, immune to how far away the extremes happen to sit. Same

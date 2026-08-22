@@ -48,22 +48,30 @@ export function targetClass(target, lastPrice) {
   return ''
 }
 
-// Daily-timeframe (LT) momentum -- positive/green, negative/red, same
-// "high is better" direction scoring.py's momentum_rank scores it by.
+// Daily-timeframe (LT) "strength" -- IBApp's Money Flow Index (or RSI on
+// the yfinance-fallback tier), bounded [0, 100]. Green at/above 60 (the
+// sweet-spot curve's own peak -- see scoring.py's momentum_rank), red
+// at/below 30 (its own oversold line), neutral in between -- same
+// Explicit instruction: oversold (<30) green, overbought (>70) red,
+// neutral (neither extreme) uncolored -- a mean-reversion read of the
+// raw Money Flow Index/RSI value itself, same 30/70 bounds
+// RecommendationsView.tsx's own MOMENTUM_OVERSOLD/MOMENTUM_OVERBOUGHT
+// use, kept in sync by hand. Not direction/side-dependent the way that
+// page's Long/Short-specific signal is -- the Screener has no long/short
+// concept, this is just "is this reading at an extreme" at a glance.
 export function momentumClass(v) {
   if (typeof v !== 'number') return ''
-  if (v > 0) return 'good'
-  if (v < 0) return 'bad'
+  if (v < 30) return 'good'
+  if (v > 70) return 'bad'
   return ''
 }
 
-// Hourly-timeframe (ST) mean reversion -- the mirror of momentumClass:
-// negative/green, positive/red, same "low is better" direction
-// scoring.py's mean_reversion_rank scores it by (a stock already
-// trending up hard on the hour is one being chased, not caught early).
+// Hourly-timeframe (ST) overbought/oversold -- IBApp's hourly Money Flow
+// Index, bounded [0, 100]. Same oversold/overbought treatment as
+// momentumClass above, same 30/70 bounds -- explicit instruction.
 export function meanReversionClass(v) {
   if (typeof v !== 'number') return ''
-  if (v < 0) return 'good'
-  if (v > 0) return 'bad'
+  if (v < 30) return 'good'
+  if (v > 70) return 'bad'
   return ''
 }

@@ -5,8 +5,9 @@
 # frontend fetches /recommendations.json from web/public/, a static copy,
 # not data/ directly (see web/package.json's sync-data script).
 #
-# Zero network calls, zero IB Gateway connection -- see recommendations.py's
-# own docstring, same "just recompute from files already on disk" class of
+# Zero network calls, zero IB Gateway connection -- see
+# modules/recommendations.py's own docstring, same "just recompute from
+# files already on disk" class of
 # operation as `main.py rescore`. Safe to run on an unattended timer: no
 # clientId collision risk with ib_server.py's own IB Gateway
 # connection, unlike main.py modes that fetch fresh data (all/prices/

@@ -279,9 +279,12 @@ export default function SectorsView() {
         // (see rankTo100's own comment for why rank-based, not min-max),
         // over this same full sorted_screen.csv universe (before grouping
         // into sector/industry rows below), so the scale matches across
-        // every tab rather than being Sectors-only. Insiders deliberately
-        // excluded — see its own ×100 comment above.
-        for (const key of ['mom', 'mr', 'sent', 'newsSent', 'instChange'] as const) {
+        // every tab rather than being Sectors-only. Insiders/MSI/ST-MSI
+        // deliberately excluded — see ScreenerView.tsx's identical loop
+        // for why (MSI/ST-MSI are Money Flow Index/RSI readings, already
+        // on a fixed [0, 100] scale; a plain average across a group is
+        // exactly what's wanted, not a population-relative rank).
+        for (const key of ['sent', 'newsSent', 'instChange'] as const) {
           const ranked = rankTo100(parsed.map((r) => r[key]))
           parsed.forEach((r, i) => {
             r[key] = ranked[i]

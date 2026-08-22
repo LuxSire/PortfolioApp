@@ -49,7 +49,7 @@ import os
 DATA_DIR = "data"
 TAXONOMY_FILE = os.path.join(DATA_DIR, "theme_taxonomy.json")
 TICKER_THEMES_FILE = os.path.join(DATA_DIR, "ticker_themes.json")
-RAW_DATA_FILE = os.path.join(DATA_DIR, "raw_data.json")
+RAW_DATA_FILE = os.path.join(DATA_DIR, "yfinance", "raw_data.json")
 
 MODEL_NAME = "facebook/bart-large-mnli"
 HYPOTHESIS_TEMPLATE = "This company's core, primary business is {}."
