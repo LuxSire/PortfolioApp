@@ -675,6 +675,19 @@ header.masthead .title-block p {
   margin: 0 -24px;
 }
 
+/* Small percentile readout under SimPriceRangeChart -- the raw numbers
+   the chart's bar/reference-lines are drawn from, for anyone who wants
+   the exact figures rather than reading them off the chart by eye. */
+.sim-price-range-legend {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--muted);
+  font-family: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Menlo, monospace;
+}
+
 .chart-tooltip {
   position: absolute;
   top: 4px;
@@ -1894,6 +1907,21 @@ td.col-rec {
   background: var(--surface);
   color: var(--ink);
 }
+
+/* Table row variant of the held-position brown — used in TargetView.tsx
+   for positions already held in the IB account. Same palette as
+   recommendation-card-held above; re-declares color so inherited ink
+   tokens update for the whole row subtree. */
+tr.row-held {
+  background: #2a1a10;
+  color: #f1e6d6;
+  td { color: #f1e6d6; }
+  .good  { color: #4cbd86; }
+  .bad   { color: #e2685c; }
+  .perf-pos { color: #4cbd86; }
+  .perf-neg { color: #e2685c; }
+}
+
 
 /* RejectedCard (Strong Buy/Strong Sell — blocked) — explicit instruction:
    navy blue regardless of theme, not this app's dark-mode surface tokens

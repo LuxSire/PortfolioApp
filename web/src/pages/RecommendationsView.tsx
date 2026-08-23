@@ -205,6 +205,7 @@ type RationaleFactor =
   | 'insiderOwnership'
   | 'institutions'
   | 'targetUpside'
+  | 'simulationForecast'
 type RationaleLine = { text: string; signal: Signal; factor?: RationaleFactor }
 
 // Catalog for the thumb-factor filter's own dropdown (see
@@ -223,6 +224,7 @@ const THUMB_FACTORS: { key: RationaleFactor; label: string }[] = [
   { key: 'insiderOwnership', label: 'Insider ownership' },
   { key: 'institutions', label: 'Institutions (13F)' },
   { key: 'targetUpside', label: 'Target upside' },
+  { key: 'simulationForecast', label: 'Simulation forecast' },
 ]
 
 // Flattened good/bad pair per factor -- `name` doubles as both
@@ -444,11 +446,44 @@ function buildOppositeMatcher(
 // Industry match gets the thumbs-up in rationaleLines (see there) -- the
 // more specific, more meaningful overlap of the two. Broad sector-group
 // match is still shown (still a real, if looser, hedge) but stays neutral.
-function oppositeMatchLine(match: OppositeMatch | null, oppositeSideLabel: string): string | null {
+function oppositeMatchLine(match: OppositeMatch | null): string | null {
   if (!match) return null
   const tickers = match.tickers.join(', ')
-  const where = match.type === 'industry' ? `industry (${match.value})` : `sector (${match.value})`
-  return `Hedges your ${tickers} ${oppositeSideLabel} — same ${where}`
+  const label = match.type === 'industry' ? 'Same industry' : 'Same sector'
+  return `${label} ${tickers} - (${match.value})`
+}
+
+// The mirror-image, SAME-side check (explicit instruction): given the
+// tickers already held on the SAME side as the list being ranked, finds a
+// held ticker sharing the candidate's granular industry -- not a hedge,
+// concentration. Doubling up on the same industry in the same direction
+// stacks stock-specific risk instead of spreading it, so this gets flagged
+// with a thumb-down (see rationaleLines) rather than the hedge matcher's
+// thumb-up. Industry-only, deliberately no broad sector-group fallback the
+// way buildOppositeMatcher has -- flagging "you also hold something else in
+// Technology" would be noisy at that breadth; concentration only matters
+// once it's the same specific business line.
+function buildSameIndustryMatcher(
+  sameSideTickers: string[],
+  tickerSector: Record<string, string | null>
+): (c: Candidate) => { value: string; tickers: string[] } | null {
+  const byIndustry = new Map<string, string[]>()
+  for (const t of sameSideTickers) {
+    const industry = tickerSector[t]
+    if (!industry) continue
+    if (!byIndustry.has(industry)) byIndustry.set(industry, [])
+    ;(byIndustry.get(industry) as string[]).push(t)
+  }
+  return function match(c: Candidate) {
+    if (!c.sector || !byIndustry.has(c.sector)) return null
+    return { value: c.sector, tickers: byIndustry.get(c.sector) as string[] }
+  }
+}
+
+function concentrationLine(match: { value: string; tickers: string[] } | null): string | null {
+  if (!match) return null
+  const tickers = match.tickers.join(', ')
+  return `Same industry ${tickers} - (${match.value})`
 }
 
 // Every line here reads straight off one field of a recommendations.json
@@ -460,7 +495,11 @@ function oppositeMatchLine(match: OppositeMatch | null, oppositeSideLabel: strin
 // own comment -- rendered as a small thumbs-up/down by ThumbIcon at each
 // call site.
 function rationaleLines(
-  c: Candidate & { oppositeMatchLine?: string | null; oppositeMatchType?: 'industry' | 'sector' | null },
+  c: Candidate & {
+    oppositeMatchLine?: string | null
+    oppositeMatchType?: 'industry' | 'sector' | null
+    concentrationLine?: string | null
+  },
   side: 'Long' | 'Short'
 ): RationaleLine[] {
   const lines: RationaleLine[] = []
@@ -488,6 +527,11 @@ function rationaleLines(
   // business is favorable whether the new idea is a Long or a Short.
   // Broad sector-group match is looser and stays neutral (no thumb).
   if (c.oppositeMatchLine) lines.push({ text: c.oppositeMatchLine, signal: c.oppositeMatchType === 'industry' ? 'good' : null })
+
+  // Same-industry, same-side concentration (explicit instruction) --
+  // always a thumb-down regardless of side, the mirror of the hedge line's
+  // always-thumb-up-when-industry treatment above.
+  if (c.concentrationLine) lines.push({ text: c.concentrationLine, signal: 'bad' })
 
   const news = c.news7d
   if (news && news.total > 0) {
@@ -544,6 +588,22 @@ function rationaleLines(
       text: `Target upside ${fmtPct(c.targetUpside)}${analysts ? ` (${analysts} analysts)` : ''}`,
       signal: sidedSignal(c.targetUpside, side),
       factor: 'targetUpside',
+    })
+  }
+
+  // data/output/simulations.json's own forecastReturn (see
+  // modules/simulations.py) -- forecast price vs. current price from the
+  // EPS-driven Monte Carlo simulation, a genuinely independent read from
+  // everything else on this card (own multiple/industry-median multiple/
+  // beta-discounted multi-year EPS projection, not this app's composite
+  // score). Missing for a ticker the simulation had no data for -- same
+  // "no data, no line" convention every other optional factor here
+  // follows.
+  if (c.forecastReturn !== null && c.forecastReturn !== undefined) {
+    lines.push({
+      text: `Simulation forecast ${fmtPct(c.forecastReturn)}`,
+      signal: sidedSignal(c.forecastReturn, side),
+      factor: 'simulationForecast',
     })
   }
 
@@ -1642,6 +1702,14 @@ export default function RecommendationsView() {
   const [monthlyHistory, setMonthlyHistory] = useState<HistoryByTicker>({})
   const [tickerSector, setTickerSector] = useState<Record<string, string | null>>({})
   const [tickerScreener, setTickerScreener] = useState<ScreenerByTicker>({})
+  // data/output/simulations.json's own forecastReturn (see
+  // modules/simulations.py) per ticker -- a separate fetch/merge, same
+  // modules/simulations.py) per ticker -- a separate fetch/merge, same
+  // "own file, own state, spread into each Candidate at the same points
+  // tickerScreener already is" pattern, not folded into tickerScreener
+  // itself since it's a different source file with a different (much
+  // narrower -- only successfully-simulated tickers) scope.
+  const [tickerForecast, setTickerForecast] = useState<Record<string, number | null>>({})
   // Display-only filters, applied at render time to every section below
   // (Long, Short, both "blocked" lists, To close) via filterBySymbol/
   // filterBySector -- doesn't touch longs/shorts/rejectedStrong*/closes
@@ -1781,6 +1849,23 @@ export default function RecommendationsView() {
         setTickerScreener(screener)
       })
       .catch(() => {})
+    // data/output/simulations.json -- an array (not the {ticker: ...}
+    // shape sorted_screen.csv's own per-ticker sources use), one entry
+    // per attempted ticker, either a full simulate_ticker() result or
+    // just {ticker, error} when required input data was missing (see
+    // modules/simulations.py) -- those are skipped here, same "no data,
+    // no line" convention rationaleLines' other optional factors follow.
+    fetch('/simulations.json')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows: { ticker: string; error?: string; forecastReturn?: number | null }[]) => {
+        const forecast: Record<string, number | null> = {}
+        for (const row of rows) {
+          if (row.error) continue
+          forecast[row.ticker] = row.forecastReturn ?? null
+        }
+        setTickerForecast(forecast)
+      })
+      .catch(() => {})
   }, [])
 
   // Side-specific -- a short position must never count as "held" toward the
@@ -1820,6 +1905,7 @@ export default function RecommendationsView() {
   const longs: RankedCandidate[] = useMemo(() => {
     if (!data) return []
     const matcher = buildOppositeMatcher([...heldShortTickers], tickerSector)
+    const concentrationMatcher = buildSameIndustryMatcher([...heldLongTickers], tickerSector)
     const pool = data.candidates
       .filter(
         (c) =>
@@ -1832,6 +1918,7 @@ export default function RecommendationsView() {
       .map((c) => {
         const held = heldLongTickers.has(c.ticker)
         const match = held ? null : matcher(c)
+        const concMatch = held ? null : concentrationMatcher(c)
         const sortScore = (c.score ?? 1) - (match ? HEDGE_BONUS : 0)
         return {
           ...c,
@@ -1840,17 +1927,20 @@ export default function RecommendationsView() {
           epsRevision1y: tickerScreener[c.ticker]?.epsRevision1y,
           revenueGrowth: tickerScreener[c.ticker]?.revenueGrowth,
           heldPercentInsiders: tickerScreener[c.ticker]?.heldPercentInsiders,
-          oppositeMatchLine: oppositeMatchLine(match, 'short'),
+          forecastReturn: tickerForecast[c.ticker] ?? null,
+          oppositeMatchLine: oppositeMatchLine(match),
           oppositeMatchType: match?.type ?? null,
+          concentrationLine: concentrationLine(concMatch),
           _sortScore: sortScore,
         }
       })
     return pool.sort((a, b) => a._sortScore - b._sortScore)
-  }, [data, heldShortTickers, heldLongTickers, tickerSector, tickerScreener])
+  }, [data, heldShortTickers, heldLongTickers, tickerSector, tickerScreener, tickerForecast])
 
   const shorts: RankedCandidate[] = useMemo(() => {
     if (!data) return []
     const matcher = buildOppositeMatcher([...heldLongTickers], tickerSector)
+    const concentrationMatcher = buildSameIndustryMatcher([...heldShortTickers], tickerSector)
     const pool = data.candidates
       .filter(
         (c) =>
@@ -1864,6 +1954,7 @@ export default function RecommendationsView() {
       .map((c) => {
         const held = heldShortTickers.has(c.ticker)
         const match = held ? null : matcher(c)
+        const concMatch = held ? null : concentrationMatcher(c)
         const sortScore = (c.score ?? 0) + (match ? HEDGE_BONUS : 0)
         return {
           ...c,
@@ -1872,13 +1963,15 @@ export default function RecommendationsView() {
           epsRevision1y: tickerScreener[c.ticker]?.epsRevision1y,
           revenueGrowth: tickerScreener[c.ticker]?.revenueGrowth,
           heldPercentInsiders: tickerScreener[c.ticker]?.heldPercentInsiders,
-          oppositeMatchLine: oppositeMatchLine(match, 'long'),
+          forecastReturn: tickerForecast[c.ticker] ?? null,
+          oppositeMatchLine: oppositeMatchLine(match),
           oppositeMatchType: match?.type ?? null,
+          concentrationLine: concentrationLine(concMatch),
           _sortScore: sortScore,
         }
       })
     return pool.sort((a, b) => b._sortScore - a._sortScore)
-  }, [data, heldLongTickers, heldShortTickers, tickerSector, tickerScreener])
+  }, [data, heldLongTickers, heldShortTickers, tickerSector, tickerScreener, tickerForecast])
 
   // Held positions whose own rating now contradicts the side they're held
   // on -- a long position that's drifted to Hold/Sell/Strong Sell, or a
@@ -1928,10 +2021,14 @@ export default function RecommendationsView() {
     const rows: { ticker: string; shares: number; c: Candidate }[] = []
     for (const [ticker, p] of Object.entries(positions)) {
       if (!p?.shares) continue
-      rows.push({ ticker, shares: p.shares, c: { ...byTicker.get(ticker), ...tickerScreener[ticker], ticker } })
+      rows.push({
+        ticker,
+        shares: p.shares,
+        c: { ...byTicker.get(ticker), ...tickerScreener[ticker], ticker, forecastReturn: tickerForecast[ticker] ?? null },
+      })
     }
     return rows
-  }, [positions, tickerScreener, byTicker])
+  }, [positions, tickerScreener, byTicker, tickerForecast])
 
   const closes: CloseRow[] = useMemo(() => {
     const rows: CloseRow[] = []
@@ -2043,14 +2140,19 @@ export default function RecommendationsView() {
       // sorted_screen.csv's current one, which could show a card that
       // LOOKS like it should pass (or already have a mismatched thumb
       // icon) relative to what's actually on screen elsewhere.
-      const c: Candidate = { ...raw, ...tickerScreener[raw.ticker], ticker: raw.ticker }
+      const c: Candidate = {
+        ...raw,
+        ...tickerScreener[raw.ticker],
+        ticker: raw.ticker,
+        forecastReturn: tickerForecast[raw.ticker] ?? null,
+      }
       if (c.rating !== 'Strong Buy' && c.rating !== 'Strong Sell') continue
       const reasons = buildRejectionReasons({ c, tickerScreener })
       if (reasons.length === 0) continue
       rows.push({ ...c, reasons })
     }
     return rows.sort((a, b) => a.ticker.localeCompare(b.ticker))
-  }, [data, tickerScreener])
+  }, [data, tickerScreener, tickerForecast])
   const rejectedStrongBuy = useMemo(() => rejectedStrong.filter((c) => c.rating === 'Strong Buy'), [rejectedStrong])
   const rejectedStrongSell = useMemo(() => rejectedStrong.filter((c) => c.rating === 'Strong Sell'), [rejectedStrong])
 

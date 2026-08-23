@@ -65,6 +65,12 @@ export interface Candidate {
   // recommendations.json candidate itself -- see the longs/shorts pool
   // builders' own revenueGrowth comment for why.
   heldPercentInsiders?: number | null
+  // data/output/simulations.json's own forecastReturn (see
+  // modules/simulations.py) -- a separate fetch/merge, not part of
+  // recommendations.json or sorted_screen.csv (see RecommendationsView's
+  // own tickerForecast state/effect). null/undefined for a ticker that
+  // simulation had no data for, same as every other optional factor here.
+  forecastReturn?: number | null
 }
 
 export interface RecommendationsData {
@@ -101,6 +107,10 @@ export interface OppositeMatch {
 export interface RankedCandidate extends Candidate {
   oppositeMatchLine?: string | null
   oppositeMatchType?: 'industry' | 'sector' | null
+  // buildSameIndustryMatcher's line for a candidate that instead stacks
+  // industry concentration on top of an existing SAME-side position --
+  // always a thumb-down (see rationaleLines), the mirror of the hedge line.
+  concentrationLine?: string | null
   _sortScore: number
 }
 

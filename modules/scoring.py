@@ -52,7 +52,8 @@ def most_recent_completed_trading_day():
 # ---------------------------------------------------------------------- #
 def to_float(value):
     try:
-        return float(value)
+        result = float(value)
+        return result if math.isfinite(result) else None
     except (TypeError, ValueError):
         return None
 
@@ -645,6 +646,20 @@ def eps_trend_rank(rows):
     return {symbol: (rev_0y_ranks[symbol] + rev_1y_ranks[symbol]) / 2 for symbol, _ in rows}
 
 
+def forecast_return_rank(rows):
+    """High Monte Carlo forecastReturn ranks better; missing ranked worst.
+    forecastReturn is the confidence-discounted predicted return from
+    modules/simulations.py's EPS-driven simulation (see that module's
+    own docstring) -- (forecastPrice / currentPrice) - 1, where
+    forecastPrice is today's price shifted by the discounted blended-
+    multiple median move. Injected into each row dict by
+    write_sorted_screen_csv (main.py) from data/output/simulations.json
+    before scoring -- tickers with no simulations entry (not simulated,
+    or simulated with an error) are ranked worst, same treatment as
+    every other factor's missing data."""
+    return rank_ascending(rows, neg_perf("simReturn"))
+
+
 # ---------------------------------------------------------------------- #
 #  Analyst conviction                                                     #
 # ---------------------------------------------------------------------- #
@@ -987,19 +1002,20 @@ def is_real_estate_sector(sector):
 # column) land on top of this trim, e.g. Financials' sector_pe is
 # STANDARD_WEIGHTS["sector_pe"] (0.05) + 0.05 = 0.10, not the old 0.15.
 FACTOR_WEIGHTS = {
-    "pe": ("Forward P/E", 0.05, 0.05, 0.05, 0.05),
+    "pe": ("Forward P/E", 0.03, 0.03, 0.03, 0.03),
     "sector_pe": ("Forward P/E vs. sector average", 0.05, 0.15, 0.07, 0.10),
     "eps_volatility": ("Yearly EPS volatility", 0.05, 0.05, 0.05, 0.05),
     "fcf": ("Price/FCF", 0.05, 0.0, 0.0, 0.05),
     "ev_ebitda": ("EV/EBITDA", 0.05, 0.0, 0.05, 0.0),
     "momentum": ("Daily-timeframe strength (MFI/RSI)", 0.05, 0.05, 0.05, 0.05),
     "mean_reversion": ("Hourly-timeframe overbought/oversold (MFI)", 0.05, 0.05, 0.05, 0.05),
-    "eps_trend": ("EPS-estimate revision trend", 0.05, 0.15, 0.08, 0.10),
-    "analyst": ("Analyst conviction", 0.07, 0.07, 0.07, 0.07),
-    "pe_vs_trailing": ("Forward P/E vs. Trailing P/E", 0.05, 0.05, 0.05, 0.05),
+    "eps_trend": ("EPS-estimate revision trend", 0.05, 0.10, 0.08, 0.10),
+    "analyst": ("Analyst conviction", 0.05, 0.05, 0.05, 0.05),
+    "forecast_return": ("Simulations", 0.10, 0.15, 0.10, 0.10),
+    "pe_vs_trailing": ("Forward P/E vs. Trailing P/E", 0.03, 0.03, 0.03, 0.03),
     "peg": ("PEG ratio", 0.05, 0.08, 0.05, 0.05),
     "trailing_ps": ("Trailing P/S", 0.02, 0.02, 0.02, 0.02),
-    "growth": ("Revenue growth", 0.08, 0.10, 0.08, 0.10),
+    "growth": ("Revenue growth", 0.04, 0.06, 0.04, 0.06),
     "debt": ("Debt/equity vs. sector average", 0.05, 0.0, 0.05, 0.0),
     "liquidity": ("Quick/current ratio", 0.02, 0.0, 0.0, 0.0),
     "roe": ("Return on equity", 0.03, 0.03, 0.03, 0.03),
@@ -1064,6 +1080,7 @@ def score_rows(rows, sentiment_scores=None, insider_scores=None, short_interest_
         "mean_reversion": mean_reversion_rank(rows),
         "eps_trend": eps_trend_rank(rows),
         "analyst": analyst_conviction_rank(rows),
+        "forecast_return": forecast_return_rank(rows),
         "pe_vs_trailing": pe_vs_trailing_rank(rows),
         "peg": peg_rank(rows),
         "trailing_ps": trailing_ps_rank(rows),

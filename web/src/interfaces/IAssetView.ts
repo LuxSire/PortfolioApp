@@ -51,3 +51,39 @@ export interface CandlePoint {
   close: number
   volume: number
 }
+
+// One entry of data/output/simulations.json's own array (see
+// modules/simulations.py's simulate_ticker) -- only the fields AssetView
+// actually renders (SimPriceRangeChart's own price-distribution card);
+// see ISimulationsView.ts's RawSimResult for the fuller shape the
+// Simulations tab reads.
+export interface MonteCarloResult {
+  ticker: string
+  error?: string
+  currentPrice?: number
+  forecastPrice?: number | null
+  forecastReturn?: number | null
+  priceFloor?: number | null
+  priceCap?: number | null
+  priceAtCurrentMultiple?: {
+    p5: number
+    p25: number
+    median: number
+    p75: number
+    p95: number
+    probAboveCurrentPrice: number
+  }
+  priceAtBlendedMultiple?: {
+    p5: number
+    p25: number
+    median: number
+    p75: number
+    p95: number
+    probAboveCurrentPrice: number
+  } | null
+  analystTargets?: {
+    low: number | null
+    high: number | null
+    mean: number | null
+  } | null
+}

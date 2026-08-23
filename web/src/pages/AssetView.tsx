@@ -3,11 +3,12 @@ import { belowOneClass, inversePctThresholdClass, meanReversionClass, momentumCl
 import { parseCSV } from '../csv'
 import { earningsUrgencyClass, fmtEarningsDate, useNowTick } from '../earnings'
 import { IB_NEWS_ARTICLE_URL, IB_NEWS_URL } from '../ibStream'
-import type { AssetInfo, CandlePoint, Holder, NewsArticle, PricePoint } from '../interfaces/IAssetView'
+import type { AssetInfo, CandlePoint, Holder, MonteCarloResult, NewsArticle, PricePoint } from '../interfaces/IAssetView'
 import { SENTIMENT_LABEL, fmtNewsTime, sentimentClass } from '../news'
 import { toNum } from '../screenerFactors'
 import CandlestickChart from '../components/CandlestickChart'
 import PriceChart from '../components/PriceChart'
+import SimPriceRangeChart from '../components/SimPriceRangeChart'
 
 // Fields already surfaced in one of the curated cards above — kept out of
 // the raw field dump at the bottom so nothing shows twice.
@@ -384,6 +385,34 @@ export default function AssetView({ ticker }: { ticker: string }) {
   }, [ticker])
   const { momentum: ltMomentum, meanReversion: stMomentum } = momentum.ticker === ticker ? momentum : { momentum: null, meanReversion: null }
 
+  // data/output/simulations.json's own per-ticker simulation result (see
+  // modules/simulations.py) -- an ARRAY (one entry per attempted ticker,
+  // either a full result or just {ticker, error} when required input
+  // data was missing), not the {ticker: T} shape useTickerSeries expects,
+  // so a dedicated fetch + .find(), same pattern as the momentum/
+  // sorted_screen.csv fetch above.
+  const [simResult, setSimResult] = useState<{ ticker: string | null; sim: MonteCarloResult | null }>({
+    ticker: null,
+    sim: null,
+  })
+  useEffect(() => {
+    let cancelled = false
+    fetch('/simulations.json')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows: MonteCarloResult[]) => {
+        if (cancelled) return
+        const row = rows.find((r) => r.ticker === ticker)
+        setSimResult({ ticker, sim: row && !row.error ? row : null })
+      })
+      .catch(() => {
+        if (!cancelled) setSimResult({ ticker, sim: null })
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [ticker])
+  const sim = simResult.ticker === ticker ? simResult.sim : null
+
   const { info, error } = result.ticker === ticker ? result : { info: null, error: null }
   const loaded = !error && info && info !== 'notfound'
   const fields = loaded
@@ -448,6 +477,40 @@ export default function AssetView({ ticker }: { ticker: string }) {
 
               {priceHistory && priceHistory.length > 1 && <PriceChart data={priceHistory} />}
             </div>
+          )}
+
+          {sim && sim.priceAtCurrentMultiple && (
+            <SimPriceRangeChart
+              title="Simulated Price Distribution — Own Multiple"
+              currentPrice={sim.currentPrice ?? (lastPrice as number)}
+              forecastPrice={sim.priceAtCurrentMultiple.median}
+              forecastReturn={(sim.priceAtCurrentMultiple.median / (sim.currentPrice ?? (lastPrice as number))) - 1}
+              p5={sim.priceAtCurrentMultiple.p5}
+              p25={sim.priceAtCurrentMultiple.p25}
+              median={sim.priceAtCurrentMultiple.median}
+              p75={sim.priceAtCurrentMultiple.p75}
+              p95={sim.priceAtCurrentMultiple.p95}
+              probAboveCurrentPrice={sim.priceAtCurrentMultiple.probAboveCurrentPrice}
+              priceFloor={sim.priceFloor}
+              priceCap={sim.priceCap}
+            />
+          )}
+
+          {sim && sim.priceAtBlendedMultiple && sim.forecastPrice != null && sim.forecastReturn != null && (
+            <SimPriceRangeChart
+              title="Simulated Price Distribution — Blended Multiple"
+              currentPrice={sim.currentPrice ?? (lastPrice as number)}
+              forecastPrice={sim.forecastPrice}
+              forecastReturn={sim.forecastReturn}
+              p5={sim.priceAtBlendedMultiple.p5}
+              p25={sim.priceAtBlendedMultiple.p25}
+              median={sim.priceAtBlendedMultiple.median}
+              p75={sim.priceAtBlendedMultiple.p75}
+              p95={sim.priceAtBlendedMultiple.p95}
+              probAboveCurrentPrice={sim.priceAtBlendedMultiple.probAboveCurrentPrice}
+              priceFloor={sim.priceFloor}
+              priceCap={sim.priceCap}
+            />
           )}
 
           {((holders && holders.length > 0) || (news && news.length > 0)) && (

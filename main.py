@@ -184,6 +184,13 @@ download_symbols(): refetch forward-PE + price-performance data for a specific
                     existing forward_pe.csv/raw_data.json, then rewrite
                     sorted_screen.csv. Run via
                     `python main.py symbol TICKER [TICKER ...]`.
+download_simulations(): EPS-driven Monte Carlo price simulation prototype (see
+                    modules/simulations.py's own docstring for the formula) --
+                    zero network calls, reads forward_pe.csv only, same as
+                    rescore(). Writes data/output/simulations.json. Run via
+                    `python main.py simulations [TICKER ...]` (defaults to the
+                    full active universe when no tickers are given, same as
+                    `simulations --all`; a specific ticker list runs just those).
 
 Writes (JSON outputs under DATA_DIR ("data/"); CSVs and symbols.json, a
 hand-maintained input rather than generated output, stay at the project
@@ -397,6 +404,8 @@ from modules.scoring import (
 )
 from modules.chatbot import answer_question
 from modules.finra import SHORT_INTEREST_FILE, fetch_short_interest
+from modules.simulations import run_iter as run_eps_simulations_iter
+from modules.portfolio_optimizer import build_target_portfolio
 from modules.recommendations import write_recommendations
 from modules.sec_edgar import FORM4_FILE, THIRTEENF_FILE, fetch_13f_holdings, fetch_form4, fetch_xbrl_facts
 from modules.social_sentiment import SENTIMENT_FILE, fetch_social_sentiment
@@ -485,6 +494,9 @@ CANDLESTICK_TOP_N = 500
 NEWS_SENTIMENT_FILE = os.path.join(OUTPUT_DIR, "news_sentiment.json")
 # Same duplicated-rather-than-imported reasoning as NEWS_SENTIMENT_FILE above.
 NEWS_FILE = os.path.join(IB_DIR, "news.json")
+SIMULATIONS_FILE = os.path.join(OUTPUT_DIR, "simulations.json")
+TARGET_PORTFOLIO_FILE = os.path.join(OUTPUT_DIR, "target_portfolio.json")
+RECOMMENDATIONS_FILE = os.path.join(OUTPUT_DIR, "recommendations.json")
 SYMBOLS_FILE = "symbols.json"
 MIN_PRICE = 8
 # Strong Buy/Buy/Sell/Strong Sell -- everything except the broad Hold
@@ -845,7 +857,7 @@ def _progress_printer(label, total):
     def on_ticker(symbol):
         nonlocal count
         count += 1
-        print(f"{label} {count}/{total}: {symbol}...")
+        print(f"{label}  {symbol}  {count}/{total}")
 
     return on_ticker
 
@@ -1391,6 +1403,36 @@ def write_sorted_screen_csv(data):
     sentiment_scores = load_sentiment_scores(SENTIMENT_FILE, NEWS_SENTIMENT_FILE, THIRTEENF_FILE)
     insider_scores = load_insider_scores(FORM4_FILE)
     short_interest_scores = load_short_interest_scores(SHORT_INTEREST_FILE, RAW_DATA_FILE)
+
+    # Inject simReturn (average of median return at own-multiple and at
+    # blended-multiple) from simulations.json into each row dict so
+    # forecast_return_rank can read it directly. When only the own-multiple
+    # scenario is available (ticker had too few peers for a blended PE),
+    # simReturn falls back to that scenario's return alone. Tickers not
+    # present in the file (not yet simulated, or simulated with an error)
+    # are simply left without the field -- forecast_return_rank ranks them
+    # worst, same treatment as every other factor's missing data.
+    try:
+        with open(SIMULATIONS_FILE) as _mcf:
+            _mc_data = {}
+            for entry in json.load(_mcf):
+                if "ticker" not in entry or entry.get("error"):
+                    continue
+                _price = entry.get("currentPrice") or 0
+                if not _price:
+                    continue
+                _cur = (entry.get("priceAtCurrentMultiple") or {}).get("median")
+                _ind = (entry.get("priceAtBlendedMultiple") or {}).get("median")
+                _cur_ret = (_cur / _price - 1) if _cur is not None else None
+                _ind_ret = (_ind / _price - 1) if _ind is not None else None
+                if _cur_ret is not None and _ind_ret is not None:
+                    _mc_data[entry["ticker"]] = (_cur_ret + _ind_ret) / 2
+                elif _cur_ret is not None:
+                    _mc_data[entry["ticker"]] = _cur_ret
+    except (FileNotFoundError, json.JSONDecodeError):
+        _mc_data = {}
+    rows = [(s, {**d, "simReturn": _mc_data[s]} if s in _mc_data else d) for s, d in rows]
+
     scored = sorted(
         score_rows(rows, sentiment_scores, insider_scores, short_interest_scores), key=lambda item: item[2]
     )
@@ -1561,7 +1603,9 @@ def download_all(overwrite=False):
     add_target_upside(data)
     add_avg_liquidity_ratio(data)
     write_full_csv(data)
+    download_simulations()
     write_sorted_screen_csv(data)
+    download_target_portfolio()
 
 
 def download_prices():
@@ -1583,7 +1627,9 @@ def download_prices():
     add_target_upside(data)
     add_avg_liquidity_ratio(data)
     write_full_csv(data)
+    download_simulations()
     write_sorted_screen_csv(data)
+    download_target_portfolio()
 
 
 def rescore():
@@ -1614,7 +1660,9 @@ def rescore():
     add_target_upside(data)
     add_avg_liquidity_ratio(data)
     write_full_csv(data)
+    download_simulations()
     write_sorted_screen_csv(data)
+    download_target_portfolio()
     print(f"Rescored and wrote {SORTED_SCREEN_CSV} (and {OUTPUT_CSV}) -- no network calls made.")
 
 
@@ -1811,6 +1859,71 @@ def download_symbols(symbols):
     write_sorted_screen_csv(data)
 
 
+def download_simulations(tickers=None):
+    """EPS-driven Monte Carlo price simulation prototype (see
+    modules/simulations.py's own docstring for the full formula) -- zero
+    network calls, reads forward_pe.csv only, same as rescore(). Explicit
+    instruction: defaults to the FULL active universe currently in
+    forward_pe.csv (same scope the Screener itself covers -- what feeds
+    the Simulations tab) when no tickers are given at all, same as
+    `simulations --all`; given specific tickers, runs just those instead
+    (e.g. for a quick one-off check). Writes SIMULATIONS_FILE. Every
+    single simulated ticker is logged to the terminal as it completes (via
+    run_eps_simulations_iter, not the whole-list-at-once run()), so a
+    full-universe run's progress is visible the entire time rather than
+    going silent until everything finishes."""
+    data = load_pe_data(OUTPUT_CSV)
+    if not tickers or tickers == ["--all"]:
+        tickers = sorted(data.keys())
+    else:
+        tickers = sorted({t.strip().upper() for t in tickers})
+    print(f"Loaded {len(data)} tickers from {OUTPUT_CSV}; simulating {len(tickers)}")
+
+    results = []
+    total_tickers = len(tickers)
+    count = 0
+    for r in run_eps_simulations_iter(tickers, data):
+        results.append(r)
+        count += 1
+        if "error" in r:
+            print(f"simulations  {r['ticker']}  {count}/{total_tickers} -- {r['error']}")
+        else:
+            print(f"simulations  {r['ticker']}  {count}/{total_tickers}")
+
+    with open(SIMULATIONS_FILE, "w") as f:
+        json.dump(results, f, indent=2)
+    print(f"Wrote {SIMULATIONS_FILE}")
+
+    errored = [r for r in results if "error" in r]
+    ok = [r for r in results if "error" not in r]
+    with_industry = [r for r in ok if r["priceAtBlendedMultiple"] is not None]
+    print(f"{len(ok)}/{len(results)} simulated OK ({len(errored)} skipped -- missing data); "
+          f"{len(with_industry)} had enough peers for an industry-median comparison")
+
+
+def download_target_portfolio():
+    """Runs the Sharpe-maximising portfolio optimiser (see modules/
+    portfolio_optimizer.py) over the current recommendations.json and
+    simulations.json and writes TARGET_PORTFOLIO_FILE. Zero network calls
+    -- purely computes from files already on disk. Run via
+    `python main.py target`, or called automatically at the end of
+    `all`, `prices`, and `rescore` pipelines so TargetView always
+    reflects the latest screener and simulation state."""
+    try:
+        result = build_target_portfolio(RECOMMENDATIONS_FILE, SIMULATIONS_FILE)
+    except Exception as exc:
+        print(f"target portfolio optimiser failed: {exc}")
+        return
+    with open(TARGET_PORTFOLIO_FILE, "w") as f:
+        json.dump(result, f, indent=2)
+    n_long = len(result.get("longs", []))
+    n_short = len(result.get("shorts", []))
+    stats = result.get("stats", {})
+    sharpe = stats.get("sharpe")
+    print(f"Wrote {TARGET_PORTFOLIO_FILE}: {n_long}L + {n_short}S"
+          + (f", portfolio Sharpe {sharpe:.2f}" if sharpe is not None else ""))
+
+
 if __name__ == "__main__":
     mode = sys.argv[1] if len(sys.argv) > 1 else "prices"
     if mode == "all":
@@ -1855,8 +1968,13 @@ if __name__ == "__main__":
         if len(sys.argv) < 3:
             sys.exit("Usage: python main.py symbol TICKER [TICKER ...]")
         download_symbols(sys.argv[2:])
+    elif mode == "simulations":
+        download_simulations(sys.argv[2:] if len(sys.argv) > 2 else None)
+    elif mode == "target":
+        download_target_portfolio()
     else:
         sys.exit(
             f"Unknown mode {mode!r}, expected 'all', 'prices', 'rescore', 'form4', 'xbrl', '13f', 'shortinterest', "
-            "'ibprices', 'ibhprices', 'yfprices', 'epsvol', 'revgrowth', 'grossmargin', 'insiderown', 'themes', 'recommendations', 'chat', or 'symbol'"
+            "'ibprices', 'ibhprices', 'yfprices', 'epsvol', 'revgrowth', 'grossmargin', 'insiderown', 'themes', 'recommendations', 'chat', "
+            "'symbol', 'simulations', or 'target'"
         )
