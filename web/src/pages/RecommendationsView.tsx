@@ -158,19 +158,26 @@ function percentileLabel(c: Candidate): string | null {
 // writes; the badge itself just shows the bare number, compact enough for
 // a corner. Renders nothing only when BOTH sector and percentile are
 // missing -- either alone is still worth a footer.
-function CardFooter({ c }: { c: Candidate }) {
+// inTargetPortfolio (see recommendation-card-target-portfolio's own CSS
+// comment) stacks a "Target portfolio" label directly above the percentile
+// badge on the right -- explicit instruction: bottom right, above the
+// percentile, rather than another header badge alongside "In portfolio."
+function CardFooter({ c, inTargetPortfolio }: { c: Candidate; inTargetPortfolio?: boolean }) {
   const hasPercentile = c.scorePercentile !== null && c.scorePercentile !== undefined
-  if (!hasPercentile && !c.sector) return null
+  if (!hasPercentile && !c.sector && !inTargetPortfolio) return null
   const label = percentileLabel(c)
   const sectorGroup = c.sector ? sectorGroupLabel(getSectorGroup(c.sector)) : null
   return (
     <div className="recommendation-card-footer">
       <span className="recommendation-sector-label">{sectorGroup || '—'}</span>
-      {hasPercentile && (
-        <span className="recommendation-percentile-badge" title={label ?? undefined}>
-          {(c.scorePercentile as number).toFixed(1)}%
-        </span>
-      )}
+      <span className="recommendation-footer-right">
+        {inTargetPortfolio && <span className="recommendation-target-portfolio-label">Target portfolio</span>}
+        {hasPercentile && (
+          <span className="recommendation-percentile-badge" title={label ?? undefined}>
+            {(c.scorePercentile as number).toFixed(1)}%
+          </span>
+        )}
+      </span>
     </div>
   )
 }
@@ -607,6 +614,22 @@ function rationaleLines(
     })
   }
 
+  // data/output/target_portfolio.json's optimiser pool rank (see
+  // modules/portfolio_optimizer.py) -- more useful than just knowing
+  // whether the final Sharpe pass selected a ticker, because it shows
+  // where the idea stood in the full long/short candidate pool before
+  // covariance effects narrowed it to the target portfolio. Labeled
+  // "Optimizer pool" rather than "Long/Short-pool" -- portfolio_optimizer.py's
+  // own pool (rating + forecastReturn direction only) is a DIFFERENT,
+  // broader population than this page's own Long/Short tabs (which
+  // additionally gate on MSI/growth/mean-reversion/EPS-trend/crowded-
+  // short), so this rank is NOT "position among what's shown on this
+  // page" -- confirmed live: LQDA ranks #1 in the 318-ticker optimizer
+  // pool while failing this page's own Long tab gates entirely.
+  if (c.targetPoolSide && c.targetPoolRank && c.targetPoolSize) {
+    lines.push({ text: `Optimizer pool (${c.targetPoolSide}): ${c.targetPoolRank} / ${c.targetPoolSize}`, signal: null })
+  }
+
   return lines
 }
 
@@ -844,8 +867,20 @@ function RecommendationCard({
   side: 'Long' | 'Short'
 }) {
   const lines = rationaleLines(c, side)
+  // In the target portfolio on THIS side (see target_portfolio.json's own
+  // longs/shorts -- modules/portfolio_optimizer.py's final selected picks,
+  // not just the pool that feeds the "Optimizer pool" rationale line above)
+  // -- explicit instruction: reuse the same decisive dark green
+  // recommendation-card-goodsign already uses for a held Short-overbought/
+  // Long-oversold "good sign" card. Standalone class (not compounded with
+  // -held like -goodsign is) since a target-portfolio pick need not already
+  // be an open position -- see its own CSS comment for why it still wins
+  // over the plain -held brown when a card happens to be both.
+  const inTargetPortfolio = c.targetPortfolioSide === side
   return (
-    <div className={`asset-card recommendation-card${held ? ' recommendation-card-held' : ''}`}>
+    <div
+      className={`asset-card recommendation-card${held ? ' recommendation-card-held' : ''}${inTargetPortfolio ? ' recommendation-card-target-portfolio' : ''}`}
+    >
       <div className="recommendation-card-header">
         <div>
           <a
@@ -881,7 +916,7 @@ function RecommendationCard({
           </li>
         ))}
       </ul>
-      <CardFooter c={c} />
+      <CardFooter c={c} inTargetPortfolio={inTargetPortfolio} />
     </div>
   )
 }
@@ -907,9 +942,16 @@ function CloseCard({
   badSign?: boolean
 }) {
   const lines = rationaleLines(c, c.closeSide)
+  // Same target-portfolio dark-green treatment RecommendationCard applies --
+  // see recommendation-card-target-portfolio's own CSS comment for why it's
+  // a standalone class that outranks the plain -held brown (and, tied on
+  // specificity but defined later in source, -goodsign/-badsign too: the
+  // optimizer's own current pick is a stronger, more actionable read than a
+  // held position's MSI-extreme condition alone).
+  const inTargetPortfolio = c.targetPortfolioSide === c.closeSide
   return (
     <div
-      className={`asset-card recommendation-card recommendation-card-held${goodSign ? ' recommendation-card-goodsign' : ''}${badSign ? ' recommendation-card-badsign' : ''}`}
+      className={`asset-card recommendation-card recommendation-card-held${goodSign ? ' recommendation-card-goodsign' : ''}${badSign ? ' recommendation-card-badsign' : ''}${inTargetPortfolio ? ' recommendation-card-target-portfolio' : ''}`}
     >
       <div className="recommendation-card-header">
         <div>
@@ -960,7 +1002,7 @@ function CloseCard({
           </li>
         ))}
       </ul>
-      <CardFooter c={c} />
+      <CardFooter c={c} inTargetPortfolio={inTargetPortfolio} />
     </div>
   )
 }
@@ -1710,6 +1752,12 @@ export default function RecommendationsView() {
   // itself since it's a different source file with a different (much
   // narrower -- only successfully-simulated tickers) scope.
   const [tickerForecast, setTickerForecast] = useState<Record<string, number | null>>({})
+  // data/output/target_portfolio.json's own longs/shorts membership (see
+  // modules/portfolio_optimizer.py) per ticker -- same "own file, own
+  // state, spread into each Candidate at the same points tickerForecast
+  // already is" pattern as that state.
+  const [tickerTargetSide, setTickerTargetSide] = useState<Record<string, 'Long' | 'Short'>>({})
+  const [tickerTargetPool, setTickerTargetPool] = useState<Record<string, { side: 'Long' | 'Short'; rank: number; size: number }>>({})
   // Display-only filters, applied at render time to every section below
   // (Long, Short, both "blocked" lists, To close) via filterBySymbol/
   // filterBySector -- doesn't touch longs/shorts/rejectedStrong*/closes
@@ -1866,6 +1914,34 @@ export default function RecommendationsView() {
         setTickerForecast(forecast)
       })
       .catch(() => {})
+    // data/output/target_portfolio.json (see modules/portfolio_optimizer.py)
+    // -- {longs, shorts, longPool, shortPool, stats, generatedAt}. The
+    // selected longs/shorts still feed targetPortfolioSide for any future
+    // selected-only UI, while longPool/shortPool power the card's pool-rank
+    // line for every optimizer-eligible candidate.
+    fetch('/target_portfolio.json')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((portfolio: {
+        longs?: { ticker: string }[]
+        shorts?: { ticker: string }[]
+        longPool?: { ticker: string; poolRank?: number; poolSize?: number }[]
+        shortPool?: { ticker: string; poolRank?: number; poolSize?: number }[]
+      } | null) => {
+        if (!portfolio) return
+        const side: Record<string, 'Long' | 'Short'> = {}
+        for (const c of portfolio.longs || []) side[c.ticker] = 'Long'
+        for (const c of portfolio.shorts || []) side[c.ticker] = 'Short'
+        setTickerTargetSide(side)
+        const pool: Record<string, { side: 'Long' | 'Short'; rank: number; size: number }> = {}
+        for (const c of portfolio.longPool || []) {
+          if (c.poolRank && c.poolSize) pool[c.ticker] = { side: 'Long', rank: c.poolRank, size: c.poolSize }
+        }
+        for (const c of portfolio.shortPool || []) {
+          if (c.poolRank && c.poolSize) pool[c.ticker] = { side: 'Short', rank: c.poolRank, size: c.poolSize }
+        }
+        setTickerTargetPool(pool)
+      })
+      .catch(() => {})
   }, [])
 
   // Side-specific -- a short position must never count as "held" toward the
@@ -1920,6 +1996,7 @@ export default function RecommendationsView() {
         const match = held ? null : matcher(c)
         const concMatch = held ? null : concentrationMatcher(c)
         const sortScore = (c.score ?? 1) - (match ? HEDGE_BONUS : 0)
+        const targetPool = tickerTargetPool[c.ticker]
         return {
           ...c,
           meanReversion: tickerScreener[c.ticker]?.meanReversion,
@@ -1928,6 +2005,10 @@ export default function RecommendationsView() {
           revenueGrowth: tickerScreener[c.ticker]?.revenueGrowth,
           heldPercentInsiders: tickerScreener[c.ticker]?.heldPercentInsiders,
           forecastReturn: tickerForecast[c.ticker] ?? null,
+          targetPortfolioSide: tickerTargetSide[c.ticker] ?? null,
+          targetPoolSide: targetPool?.side ?? null,
+          targetPoolRank: targetPool?.rank ?? null,
+          targetPoolSize: targetPool?.size ?? null,
           oppositeMatchLine: oppositeMatchLine(match),
           oppositeMatchType: match?.type ?? null,
           concentrationLine: concentrationLine(concMatch),
@@ -1935,7 +2016,7 @@ export default function RecommendationsView() {
         }
       })
     return pool.sort((a, b) => a._sortScore - b._sortScore)
-  }, [data, heldShortTickers, heldLongTickers, tickerSector, tickerScreener, tickerForecast])
+  }, [data, heldShortTickers, heldLongTickers, tickerSector, tickerScreener, tickerForecast, tickerTargetSide, tickerTargetPool])
 
   const shorts: RankedCandidate[] = useMemo(() => {
     if (!data) return []
@@ -1956,6 +2037,7 @@ export default function RecommendationsView() {
         const match = held ? null : matcher(c)
         const concMatch = held ? null : concentrationMatcher(c)
         const sortScore = (c.score ?? 0) + (match ? HEDGE_BONUS : 0)
+        const targetPool = tickerTargetPool[c.ticker]
         return {
           ...c,
           meanReversion: tickerScreener[c.ticker]?.meanReversion,
@@ -1964,6 +2046,10 @@ export default function RecommendationsView() {
           revenueGrowth: tickerScreener[c.ticker]?.revenueGrowth,
           heldPercentInsiders: tickerScreener[c.ticker]?.heldPercentInsiders,
           forecastReturn: tickerForecast[c.ticker] ?? null,
+          targetPortfolioSide: tickerTargetSide[c.ticker] ?? null,
+          targetPoolSide: targetPool?.side ?? null,
+          targetPoolRank: targetPool?.rank ?? null,
+          targetPoolSize: targetPool?.size ?? null,
           oppositeMatchLine: oppositeMatchLine(match),
           oppositeMatchType: match?.type ?? null,
           concentrationLine: concentrationLine(concMatch),
@@ -1971,7 +2057,7 @@ export default function RecommendationsView() {
         }
       })
     return pool.sort((a, b) => b._sortScore - a._sortScore)
-  }, [data, heldLongTickers, heldShortTickers, tickerSector, tickerScreener, tickerForecast])
+  }, [data, heldLongTickers, heldShortTickers, tickerSector, tickerScreener, tickerForecast, tickerTargetSide, tickerTargetPool])
 
   // Held positions whose own rating now contradicts the side they're held
   // on -- a long position that's drifted to Hold/Sell/Strong Sell, or a
@@ -2024,11 +2110,20 @@ export default function RecommendationsView() {
       rows.push({
         ticker,
         shares: p.shares,
-        c: { ...byTicker.get(ticker), ...tickerScreener[ticker], ticker, forecastReturn: tickerForecast[ticker] ?? null },
+        c: {
+          ...byTicker.get(ticker),
+          ...tickerScreener[ticker],
+          ticker,
+          forecastReturn: tickerForecast[ticker] ?? null,
+          targetPortfolioSide: tickerTargetSide[ticker] ?? null,
+          targetPoolSide: tickerTargetPool[ticker]?.side ?? null,
+          targetPoolRank: tickerTargetPool[ticker]?.rank ?? null,
+          targetPoolSize: tickerTargetPool[ticker]?.size ?? null,
+        },
       })
     }
     return rows
-  }, [positions, tickerScreener, byTicker, tickerForecast])
+  }, [positions, tickerScreener, byTicker, tickerForecast, tickerTargetSide, tickerTargetPool])
 
   const closes: CloseRow[] = useMemo(() => {
     const rows: CloseRow[] = []
@@ -2145,6 +2240,10 @@ export default function RecommendationsView() {
         ...tickerScreener[raw.ticker],
         ticker: raw.ticker,
         forecastReturn: tickerForecast[raw.ticker] ?? null,
+        targetPortfolioSide: tickerTargetSide[raw.ticker] ?? null,
+        targetPoolSide: tickerTargetPool[raw.ticker]?.side ?? null,
+        targetPoolRank: tickerTargetPool[raw.ticker]?.rank ?? null,
+        targetPoolSize: tickerTargetPool[raw.ticker]?.size ?? null,
       }
       if (c.rating !== 'Strong Buy' && c.rating !== 'Strong Sell') continue
       const reasons = buildRejectionReasons({ c, tickerScreener })
@@ -2152,7 +2251,7 @@ export default function RecommendationsView() {
       rows.push({ ...c, reasons })
     }
     return rows.sort((a, b) => a.ticker.localeCompare(b.ticker))
-  }, [data, tickerScreener, tickerForecast])
+  }, [data, tickerScreener, tickerForecast, tickerTargetSide, tickerTargetPool])
   const rejectedStrongBuy = useMemo(() => rejectedStrong.filter((c) => c.rating === 'Strong Buy'), [rejectedStrong])
   const rejectedStrongSell = useMemo(() => rejectedStrong.filter((c) => c.rating === 'Strong Sell'), [rejectedStrong])
 

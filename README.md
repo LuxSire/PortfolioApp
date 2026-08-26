@@ -89,17 +89,17 @@ python main.py ibhprices
 python main.py yfprices
 
 # EPS-driven Monte Carlo price simulation -- zero network calls, reads
-# data/yfinance/forward_pe.csv only -> data/output/monte_carlo.json. Every
+# data/yfinance/forward_pe.csv only -> data/output/simulations.json. Every
 # simulated ticker is logged to the terminal as it completes. Defaults to
 # the FULL active universe (same scope as the Screener itself, what feeds
 # the Simulations tab; well under a minute, numpy-vectorized) when no
-# tickers are given -- same as `montecarlo --all` -- see "Monte Carlo EPS
+# tickers are given -- same as `simulations --all` -- see "Monte Carlo EPS
 # forecast" below for the formula.
-python main.py montecarlo
-python main.py montecarlo --all
+python main.py simulations
+python main.py simulations --all
 
 # A specific ticker list only, for a quick one-off check.
-python main.py montecarlo TSLA NFLX
+python main.py simulations TSLA NFLX
 
 # Live price/position streaming server + IB history + snapshot polling +
 # FinBERT-scored news (needs IB Gateway). Add `no_news` to skip
@@ -200,123 +200,133 @@ raw analyst consensus.
 
 ## Monte Carlo EPS forecast (prototype)
 
-`python main.py montecarlo [TICKER ...]` runs an EPS-driven Monte Carlo
+`python main.py simulations [TICKER ...]` runs an EPS-driven Monte Carlo
 price simulation — zero network calls, reads `data/yfinance/forward_pe.csv`
-only (same "just recompute from what's on disk" class of operation as
-`rescore`) — and writes `data/output/monte_carlo.json`. Defaults to the
-**full active universe** (numpy-vectorized — well under a minute even
-across ~1,900 tickers) when no tickers are given, same as
-`montecarlo --all` — this is what the **Simulations** tab reads. Given a
-specific ticker list instead, runs just those (a quick one-off check).
-Every simulated ticker is logged to the terminal as it completes. Full
-implementation in `modules/monte_carlo.py`.
-
-The Simulations tab (`web/src/pages/SimulationsView.tsx`) is a
-Screener-style ranked, filterable, sortable table over
-`data/output/monte_carlo.json` — one row per successfully-simulated
-ticker, sorted by default on `forecastReturn` (forecast price vs. current
-price — the model's actual "attractive for a long" signal; see the note
-in step 4 on why the diff-percentage alone can't be used for ranking),
-with industry/sector filters and every field the JSON carries shown as
-its own column: current price and forecast price/return side by side, own
-P/E, industry-median P/E, blended P/E and peer count/level, forward EPS,
-EPS volatility/trend/revenue growth, confidence, the median diff in
-dollars/% both raw and confidence-discounted, and both scenarios'
-median/P5/P95/probability-above-current.
+only — and writes `data/output/simulations.json`. Defaults to the **full
+active universe** when no tickers are given, same as `simulations --all`.
+Full implementation in `modules/simulations.py`.
 
 **The question it answers:** given what's already known about a company's
-earnings trajectory — not just today's consensus estimate, but where
-analysts are revising it and whether the business can sustain that — what's
-a plausible *forecast price* a year out, floored at what the company is
-fundamentally worth today?
+earnings trajectory — where analysts are revising estimates and whether
+revenue growth can sustain that — what is this stock's plausible fair
+value TODAY at the industry's own median valuation multiple?
 
 **The formula:**
 
-1. `mu_eps` is a 5-year AVERAGE projected forward from `forwardEps`, not
-   the single-year snapshot itself — and the growth rate driving that
-   projection changes source after year 1:
+**Inputs shared across all years:**
 
-   - `ownGrowthRate = avg(epsTrend, marginAdjustedRevenueGrowth)` — THIS
-     ticker's own signals, used only for the year 1 → year 2 step.
-   - `industryGrowthRate` = the same combination, but built from the peer
-     group's own **median** `epsTrend`/`revenueGrowth`/`operatingMargin`
-     (same industry-then-sector-fallback peer group as step 2 below) —
-     used for years 2 → 3, 3 → 4, and 4 → 5. A single company's own
-     revision/revenue trend is far too noisy (or, for a name with an
-     extreme one-off cut, wildly unrepresentative) to extrapolate for 4
-     years straight, so only the nearest-term step trusts it; the rest
-     fade toward what's typical for the peer group.
-   - `marginAdjustedRevenueGrowth = revenueGrowth × operatingMargin` —
-     revenue growth converted to its earnings-equivalent (a raw
-     revenue-growth % overstates earnings growth for a business that only
-     converts a fraction of each new revenue dollar to profit).
-   - `epsTrend` is the same 30-day consensus estimate revision
-     `screenerFactors.js`'s own "EPS Trend" column uses (avg of
-     `epsRevision0y`/`1y`, whichever present).
-   - Both growth rates are clamped to `[-99%, +100%]` per year so a
-     near-zero-baseline % artifact or a deep one-off cut can't flip the
-     EPS path's sign or blow up over 4 years of compounding.
-   - `epsPath = [forwardEps, forwardEps×(1+ownGrowthRate), ..., ×(1+industryGrowthRate) ×3 more]`,
-     `mu_eps = mean(epsPath)`.
-   - `sigma_eps = epsVolatility × |mu_eps|` — `epsVolatility` is
-     `stdev(EPS) / mean(|EPS|)` over the company's own trailing (up to 5
-     years of) annual Diluted EPS. Falls back to `20% × |mu_eps|` when
-     missing. 20,000 `eps_i ~ Normal(mu_eps, sigma_eps)` draws are taken.
+- `ownGrowthRate = avg(epsTrend, marginAdjustedRevenueGrowth)` — this
+  ticker's own signals. `marginAdjustedRevenueGrowth = revenueGrowth ×
+  operatingMargin` converts raw revenue growth to its earnings-equivalent.
+  `epsTrend` is the 30-day consensus estimate revision (avg of
+  `epsRevision0y`/`1y`, whichever present).
+- `industryGrowthRate` = the same combination built from the peer group's
+  **median** `epsTrend`/`revenueGrowth`/`operatingMargin` (granular
+  industry ≥ 20 peers, otherwise widened to the broad GICS-style sector).
+- `w_t = sqrt((N−t) / N)`, N = 4 — concave weight decaying from ~0.87
+  at year 1 to 0 at year 4.
+- All growth rates are clamped to [−99%, +100%].
 
-2. The SAME `eps_i` draws are priced two ways, each against a single
-   fixed multiple, floored at a fundamental price floor (step 2.5):
+**EPS path** (5 values, years 0–4):
 
-   - `price_current_i = max(max(eps_i, 0) × ownPe, floorPrice)` — `ownPe`
-     is the ticker's own current `forwardPE`.
-   - `price_blended_i = max(max(eps_i, 0) × blendedPe, floorPrice)` —
-     `blendedPe = (ownPe + industryMedianPe) / 2`, a damped half-way
-     re-rating rather than assuming the multiple fully converges to the
-     peer group. `industryMedianPe` is the **median** `forwardPE` of a
-     peer group: the ticker's own granular industry when it has at least
-     20 peers with a usable positive forward P/E, otherwise widened to
-     every ticker in the same broad GICS-style sector instead
-     (`modules/sector_groups.py`, a Python port of
-     `web/src/sectorGroups.js`). Median, not mean, so one extreme peer
-     multiple can't drag the benchmark toward it. Omitted entirely when
-     even the broad sector doesn't clear 5 peers.
+- **Year 0** — `anchorEps = price / industryMedianPE` — the EPS today's
+  price already implies at the peer group's own multiple. When no
+  industry multiple is available, falls back to a 50/50 blend of
+  `epsCurrentYear` (current-fiscal-year consensus EPS) and `forwardEps`,
+  then a 50/50 blend of `trailingEps = price / trailingPE` and
+  `forwardEps`, then `forwardEps` alone — blending rather than trusting
+  either fallback estimate in isolation, since each is a single
+  (potentially noisy) data source.
+- **Year 1 growth rate** — schedule blended 50/50 with a forward-EPS drift:
+  1. Schedule: `g1 = w1 × ownGrowthRate + (1−w1) × industryGrowthRate`
+  2. Forward drift: `g_fwd = forwardEps / anchorEps − 1` — the consensus
+     year-1 estimate nudges (without fully anchoring) the first step.
+  3. Blend: `g1* = 0.5 × g1 + 0.5 × g_fwd`
+- **Years 2–4** — `g_t = w_t × ownGrowthRate + (1−w_t) × industryGrowthRate`
+  (no `forwardEps` drift beyond year 1).
 
-2.5. `floorPrice = max(0, bookValue + sum(epsPath))` — a company
-   shouldn't be simulated as worth less than what it already owns
-   (`bookValue`, yfinance's per-share book value from `raw_data.json`)
-   plus what it's expected to earn over the next 5 years (`epsPath`'s
-   **sum**, not its average — a cumulative figure).
+**mu_eps** — 5-year discounted average:
 
-3. Report both distributions' mean, median, stdev, 5th/25th/50th/75th/95th
-   percentiles, and `P(price > current price)`, plus a `comparison` block:
-   the blended-vs-current median difference (absolute and %) and the
-   `blendedPe / ownPe` ratio driving it.
+```
+r = DISCOUNT_RATE × clamp(beta, BETA_FLOOR, BETA_CAP)   # cost-of-equity proxy, beta clamped to [0.5, 3.0]
+discountedPath[i] = epsPath[i] / (1 + r)^i               # i = 0..4
+mu_eps = mean(discountedPath)
+```
 
-4. `confidence = 1 / (1 + epsVolatility)` — 1.0 at zero volatility, 0.5 at
-   `epsVolatility` 1.0, asymptoting toward 0 beyond that (ONLY earnings
-   unpredictability; `epsTrend`/`revenueGrowth` already shape `mu_eps` in
-   step 1, so discounting by them again here would double-count).
-   `discountedMedianDiff(Pct) = medianDiff(Pct) × confidence` — multiplying
-   (not a Sharpe-style ratio) keeps it in the same $/% units as the raw
-   diff. `forecastPrice = max(floorPrice, currentPrice + discountedMedianDiff)`
-   is the number shown next to Price. `forecastReturn = forecastPrice /
-   currentPrice − 1` is what the Simulations tab actually ranks on — the
-   `medianDiffPct`/`discountedMedianDiffPct` percentage is mathematically
-   *invariant* to `mu_eps` (both scenarios scale the same `eps_i`, so their
-   ratio is always exactly `blendedPe / ownPe` regardless of `mu_eps`), so
-   it can't reflect step 1's EPS projection at all — only the dollar-scale
-   `forecastReturn` does.
+Discounting prevents later (more speculative) years from carrying the
+same weight as year 1 — this is what makes mu_eps a genuine present
+value, not a nominal figure that still needs discounting later. `r`
+scales by beta (higher systematic risk → higher discount rate), clamped
+so one extreme beta reading (e.g. a raw beta of 5+) can't over-discount
+the whole 5-year path.
 
-**Caveats** — treat the output as a probabilistic sanity-check range, not
-a price target:
+**Monte Carlo draws** (N = 20,000):
+
+```
+combinedVol = sqrt(epsVolatility² + analystDispersion²)   # RSS of two independent uncertainty sources
+sigma_eps = combinedVol × |mu_eps|
+eps_i ~ Normal(mu_eps, sigma_eps), floored (no cap) at the analyst-target-implied EPS
+```
+
+`epsVolatility` is stdev/mean(|EPS|) over ≤5 trailing years of annual EPS
+(floored at 20% for missing/implausibly-quiet data). `analystDispersion =
+(targetHighPrice − targetLowPrice) / (2 × targetMeanPrice)` — how much
+sell-side analysts disagree with EACH OTHER, in the same relative-%
+space as `epsVolatility`; falls back to `epsVolatility` alone when
+analyst targets aren't on file.
+
+**Pricing** — single scenario, industry median forwardPE only:
+
+```
+price_i = max(eps_i, 0) × industryMedianPE
+```
+
+No analyst-target-derived floor or cap — an earlier version had both
+(`targetLowPrice`/`targetHighPrice` converted to an EPS bound via
+`industryMedianPE`, scaled to `mu_eps` space via `mu_eps / forwardEps`),
+but whenever the bound's own `min()`/`max()` picked the `abs(forwardEps)`
+branch, the rescaling collapsed it to *exactly* `mu_eps` — silently
+clipping half the distribution to a single point. Confirmed live on the
+cap side for individual tickers, and on the floor side for **83% of the
+simulated universe** (binding on >25% of draws; several tickers had
+`epsFloor == muEps` to the last decimal, and for the worst cases even
+the *median* collapsed to the same clipped value as P5/P25). Both
+removed rather than patched — `eps_i` is now floored only at `0` (a
+below-zero draw isn't sellable through this model).
+
+**Forecast price and return:**
+
+```
+confidence = 1 / (1 + combinedVol)
+forecastPrice = max(0, currentPrice + confidence × (median(price_i) − currentPrice))
+forecastReturn = forecastPrice / currentPrice − 1
+```
+
+`forecastPrice` IS the confidence-weighted fair value today — no further
+adjustment needed to call it that, since mu_eps is already a genuine
+present value (it's the mean of the *discounted* 5-year EPS path above).
+An earlier version additionally multiplied by `(1 + r)` here, reasoning
+that a fairly-valued asset's price should also mechanically drift up by
+its cost of equity over the next year — dropped, because for a high-beta
+ticker that let a beta-sized markup dominate `forecastReturn` regardless
+of the earnings view, and put `forecastPrice` on a different horizon (12
+months out) than `probAboveCurrentPrice` (today), so the two could
+disagree about which side of even a ticker was on for no visible reason.
+
+`confidence` pulls the fair price toward `currentPrice` for historically
+volatile earners, or ones analysts strongly disagree about — a large
+projected upside built on an unpredictable estimate is worth less than
+the same upside from a predictable one. `forecastReturn` is what the
+Simulations tab ranks on.
+
+**Caveats** — treat the output as a probabilistic sanity-check range,
+not a price target:
 - Normal is a simplifying assumption. Real EPS distributions are often
-  skewed/fat-tailed (single earnings beats/misses) in ways a symmetric
-  bell curve understates.
-- This is EARNINGS-DRIVEN only — it says nothing about sentiment, macro,
-  rate moves, or a growth-narrative re-rating, usually the bigger driver
-  of short-term price action than the earnings print itself.
-- Both multiples are fixed points, not predictions of where the multiple
-  is headed — "at today's multiple" and "at the blended multiple" are two
-  fixed what-if scenarios, not a forecast of which one actually happens.
+  skewed/fat-tailed in ways a symmetric bell curve understates.
+- Earnings-driven only — says nothing about sentiment, macro, rate moves,
+  or multiple re-rating, usually the bigger driver of short-term price action.
+- `industryMedianPE` is a fixed current snapshot, not a forecast of where
+  the multiple is headed.
 
 ## Project layout
 
@@ -330,8 +340,8 @@ a price target:
 | `modules/sec_edgar.py` | SEC EDGAR fetchers — Form 4 insider transactions (`python main.py form4`), XBRL company facts (`python main.py xbrl`, multi-year revenue/income/assets/equity/EPS history), and 13F institutional holdings (`python main.py 13f`, matched by company name from SEC's quarterly bulk dataset since 13F has no per-ticker CIK; downloads current + prior quarter to compute QoQ institutional share-count change, blended into the sentiment factor above and shown as its own "Inst Change" column). No API key needed, just a descriptive User-Agent and staying under SEC's rate limit. |
 | `modules/news_sentiment.py` | FinBERT (`ProsusAI/finbert`) headline scoring — 1 (very bearish) to 5 (very bullish), with a filter for mechanical "Stock Rises X%, Outperforms Peers"-style headlines that carry no real signal. |
 | `modules/theme_classifier.py` | Zero-shot classification (`facebook/bart-large-mnli`, local, no API key) of a ticker's `longBusinessSummary` against `data/theme_taxonomy.json`'s fixed theme list, for the Themes tab. Best-effort (~84% top-1 accuracy measured against hand-verified tags) — never overwrites an existing `data/ticker_themes.json` entry, only fills in untagged tickers. Run via `python main.py themes TICKER [TICKER ...]`. |
-| `modules/monte_carlo.py` | EPS-driven Monte Carlo price simulation prototype — see [Monte Carlo EPS forecast](#monte-carlo-eps-forecast-prototype) above for the formula. Zero network calls, reads `data/yfinance/forward_pe.csv` only. Run via `python main.py montecarlo [TICKER ...]`. |
-| `modules/sector_groups.py` | Python port of `web/src/sectorGroups.js`'s granular-industry → broad-GICS-sector mapping, kept in sync by hand (no shared layer across the Python/JS boundary) — used by `modules/monte_carlo.py`'s industry→sector peer-group fallback. |
+| `modules/simulations.py` | EPS-driven Monte Carlo price simulation prototype — see [Monte Carlo EPS forecast](#monte-carlo-eps-forecast-prototype) above for the formula. Zero network calls, reads `data/yfinance/forward_pe.csv` only. Run via `python main.py simulations [TICKER ...]`. |
+| `modules/sector_groups.py` | Python port of `web/src/sectorGroups.js`'s granular-industry → broad-GICS-sector mapping, kept in sync by hand (no shared layer across the Python/JS boundary) — used by `modules/simulations.py`'s industry→sector peer-group fallback. |
 | `modules/IBApp.py` | `ib_insync`-based IB Gateway client: connection, historical data, news headlines, momentum, Flex Query fetch. |
 | `ib_server.py` | Local HTTP/SSE server: live prices, positions, account data, trades, snapshot polling, FinBERT-scored news, Flex Query parsing for the Portfolio tab. |
 | `symbols.json` | Curated ticker universe (`active` flag controls inclusion in the screener). |
@@ -350,9 +360,9 @@ a price target:
   `data/output/sorted_screen.csv`, `data/IB/price_history*.json`,
   `data/social_sentiment.json`, `data/IB/news.json`,
   `data/output/news_sentiment.json`, `data/ib_refresh_state.json`,
-  `data/missings.json`, `data/output/monte_carlo.json`) are also gitignored
+  `data/missings.json`, `data/output/simulations.json`) are also gitignored
   as generated caches — run `python main.py` (and `python ib_server.py` for
-  the news files, `python main.py montecarlo` for the Monte Carlo output)
+  the news files, `python main.py simulations` for the Monte Carlo output)
   to produce them. `data/IB/trades.json` and `data/output/recommendations.json`
   are the exceptions: both stay tracked in git (like `data/IB/ts.json`
   below), not gitignored, despite living in otherwise-generated-cache

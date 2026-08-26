@@ -1,12 +1,22 @@
-"""FinBERT-based bullish/bearish scoring for news headlines.
+"""FinBERT-based bullish/bearish scoring for news headlines + article bodies.
 
-Rates each headline 1 (very bearish) to 5 (very bullish) for the stock it's
+Rates each article 1 (very bearish) to 5 (very bullish) for the stock it's
 about, using ProsusAI/finbert (a BERT model fine-tuned on financial text for
 3-class positive/negative/neutral sentiment). Runs entirely locally on CPU --
 no API key, no per-call cost -- but model load (a few seconds, once) and
 inference (CPU-bound) mean callers on an asyncio event loop should offload
-through asyncio.to_thread rather than calling score_headlines directly (see
-ib_server.py's news_loop).
+through asyncio.to_thread rather than calling score_articles/score_headlines
+directly (see ib_server.py's news_loop).
+
+score_articles (the primary entry point -- see ib_server.py's news_loop/
+_backfill_news_sentiment) classifies headline + full article body together
+when a body is available (see IBApp.get_news_article_async): a headline
+like "Semtech Stock Rises" reads as neutral market-move noise on its own,
+but combined with the body's actual substance ("smashed analyst estimates
+... raised its outlook") it's clearly bullish -- the body is fetched only
+for scoring, never persisted. score_headlines (headline-only, no body) is
+kept as a narrower building block underneath it, sharing the same fast-path
+shortcuts (see fast_path_score).
 
 Score is derived from the full 3-class probability distribution, not just
 the top-1 label+confidence: polarity = P(positive) - P(negative), in
@@ -27,7 +37,7 @@ _TAG_RE = re.compile(r"^\{[^}]*\}")
 # + "outperforms"/"underperforms" wording -- a stock's own daily move
 # isn't bullish/bearish news about the company, it's just the stock
 # moving, which is neutral information, not a signal. Matched and forced
-# to neutral (see score_headlines) rather than run through FinBERT at
+# to neutral (see fast_path_score) rather than run through FinBERT at
 # all, both for correctness and because it's one less headline to run
 # inference on. Deliberately narrow (requires the "Outperforms/
 # Underperforms Peers/Market" suffix) so it doesn't catch a headline that
@@ -65,6 +75,27 @@ _MECHANICAL_MOVE_RE = re.compile(
 _INSIDER_SALES_RE = re.compile(r"\binsider (?:sales?|selling)\b", re.I)
 _INSIDER_PURCHASES_RE = re.compile(r"\binsider (?:purchases?|buying)\b", re.I)
 
+# IBD's (and occasionally another outlet's) recurring "Stock Market Today:
+# ..." market-recap headline -- reports the INDEX's own move (Dow/Nasdaq,
+# usually tied to a macro event like a jobs report, Fed meeting, or tariff
+# news), with individual company names/tickers appearing only as a
+# "notable mover of the day" mention, not because the headline is actually
+# about that company. This gets attributed to every namechecked ticker's
+# own news feed, and FinBERT scores it per whichever "Rises"/"Falls"/
+# "Soars"/"Skids" word happens to land near THAT ticker's mention -- the
+# same wrong signal _MECHANICAL_MOVE_RE above exists to intercept, just at
+# the whole-market level instead of a single stock, and a far higher-volume
+# case in practice (573 occurrences across 177 distinct headlines in this
+# project's own cached data/IB/news.json, vs. a handful for the narrower
+# per-stock template). Matched on the "Stock Market Today:" prefix alone --
+# confirmed against every distinct cached headline using it, IBD's own
+# "(Live Coverage)"-tagged recaps and a rarer WSJ one alike, every single
+# one a pure market/macro recap, never an actual company-specific piece --
+# and forced to neutral rather than run through FinBERT at all, same
+# treatment as the mechanical-move case above. Explicit instruction:
+# "anything that only speaks about stock movements is just neutral."
+_MARKET_RECAP_RE = re.compile(r"^stock market today\s*:", re.I)
+
 # The extreme labels (1/5) used to trigger at just |polarity| >= 0.55 --
 # in practice FinBERT is confidently non-neutral far more often than it's
 # genuinely "very" bullish/bearish (a 500-headline sample from this
@@ -86,6 +117,13 @@ _POLARITY_BUCKETS = [
 ]
 
 _classifier = None
+
+# A cap on how much body text actually gets combined with the headline for
+# scoring -- generous relative to FinBERT/BERT's own ~512-token input limit
+# (classifier(..., truncation=True) below would silently cut off anything
+# past that anyway), just avoids building/tokenizing a needlessly huge
+# string for the rare very-long article body.
+_MAX_BODY_CHARS = 4000
 
 
 def clean_headline(headline):
@@ -111,32 +149,100 @@ def _polarity_to_score(polarity):
     return 5
 
 
+def fast_path_score(headline):
+    """Returns the fixed score (3 neutral, 2/4 mild) for a headline that
+    matches one of the four recurring auto-generated templates below, or
+    None if it needs real FinBERT classification. These are all decided
+    from the headline's own wording alone -- a fixed, recognizable
+    template -- so there's nothing an article body would add that changes
+    the answer; callers (see ib_server.py's _fetch_article_bodies) use
+    this to skip fetching a body at all for one of these, not just to
+    skip classification."""
+    if not headline:
+        return 3
+    if _MECHANICAL_MOVE_RE.search(headline) or _MARKET_RECAP_RE.search(headline):
+        return 3
+    if _INSIDER_SALES_RE.search(headline):
+        return 2
+    if _INSIDER_PURCHASES_RE.search(headline):
+        return 4
+    return None
+
+
+def _classify(texts):
+    """Runs FinBERT on texts that already cleared fast_path_score (no
+    shortcut applies) -- returns list[int] 1-5 scores, same order. Shared
+    by score_headlines/score_articles below."""
+    classifier = _get_classifier()
+    results = classifier(texts, truncation=True)
+    scores = []
+    for class_probs in results:
+        probs = {d["label"]: d["score"] for d in class_probs}
+        polarity = probs.get("positive", 0.0) - probs.get("negative", 0.0)
+        scores.append(_polarity_to_score(polarity))
+    return scores
+
+
 def score_headlines(headlines):
     """headlines: list[str], already cleaned (see clean_headline). Returns
     a list[int] of 1-5 scores, same order/length as the input, so callers
-    can zip this 1:1 against their input list. Three cases skip FinBERT
-    entirely rather than being run through it: an empty string and a
-    _MECHANICAL_MOVE_RE match both score neutral (3); an
-    _INSIDER_SALES_RE/_INSIDER_PURCHASES_RE match scores a fixed 2/4 (see
-    that regex's own comment for why FinBERT can't be trusted here)."""
+    can zip this 1:1 against their input list. Headline-only -- see
+    score_articles for the headline+body path this project actually uses
+    for real classification; kept as a narrower building block underneath
+    it (and for a caller with no body text available at all)."""
     if not headlines:
         return []
     scores = [3] * len(headlines)
     to_classify_idx = []
     for i, h in enumerate(headlines):
-        if not h or _MECHANICAL_MOVE_RE.search(h):
-            continue
-        if _INSIDER_SALES_RE.search(h):
-            scores[i] = 2
-        elif _INSIDER_PURCHASES_RE.search(h):
-            scores[i] = 4
+        fast = fast_path_score(h)
+        if fast is not None:
+            scores[i] = fast
         else:
             to_classify_idx.append(i)
     if to_classify_idx:
-        classifier = _get_classifier()
-        results = classifier([headlines[i] for i in to_classify_idx], truncation=True)
-        for i, class_probs in zip(to_classify_idx, results):
-            probs = {d["label"]: d["score"] for d in class_probs}
-            polarity = probs.get("positive", 0.0) - probs.get("negative", 0.0)
-            scores[i] = _polarity_to_score(polarity)
+        classified = _classify([headlines[i] for i in to_classify_idx])
+        for i, score in zip(to_classify_idx, classified):
+            scores[i] = score
+    return scores
+
+
+def score_articles(headlines, bodies):
+    """headlines: list[str], already cleaned (see clean_headline). bodies:
+    a parallel list[str | None], same length -- bodies[i] is that
+    article's full plain-text body (see IBApp.get_news_article_async)
+    when one was fetched, or None when it wasn't (fast-path headline,
+    fetch failed/timed out, or no body available). Returns a list[int]
+    1-5 scores, same order/length.
+
+    Same fast_path_score shortcuts as score_headlines (checked on the
+    headline alone) for the four recurring templates that don't need real
+    classification at all -- a body is never even fetched for these (see
+    ib_server.py's _fetch_article_bodies), let alone scored. Every other
+    article is classified on headline + body combined when a body is
+    available -- the body carries the actual substance (the beat/raise
+    numbers, the "why") that a headline like "Stock Rises" reads as
+    neutral market-move noise on its own; falls back to headline-only
+    when no body came back, same as score_headlines, rather than dropping
+    the article's score entirely."""
+    if not headlines:
+        return []
+    if bodies is None:
+        bodies = [None] * len(headlines)
+    scores = [3] * len(headlines)
+    to_classify_idx = []
+    texts = []
+    for i, h in enumerate(headlines):
+        fast = fast_path_score(h)
+        if fast is not None:
+            scores[i] = fast
+            continue
+        body = bodies[i] if i < len(bodies) else None
+        text = f"{h}. {body[:_MAX_BODY_CHARS]}" if body else h
+        to_classify_idx.append(i)
+        texts.append(text)
+    if to_classify_idx:
+        classified = _classify(texts)
+        for i, score in zip(to_classify_idx, classified):
+            scores[i] = score
     return scores

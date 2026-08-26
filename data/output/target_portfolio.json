@@ -1,881 +1,1754 @@
 {
   "longs": [
     {
-      "ticker": "RAMP",
-      "name": "LiveRamp Holdings, Inc.",
-      "sector": "Software - Infrastructure",
-      "price": 37.58,
+      "ticker": "COF",
+      "name": "Capital One Financial Corporati",
+      "sector": "Credit Services",
+      "price": 216.27,
       "side": "Long",
       "rating": "Strong Buy",
-      "score": 0.4060325136378298,
-      "scorePercentile": 5.0,
-      "forecastReturn": 0.21795449063145678,
-      "positionReturn": 0.21795449063145678,
-      "vol": 0.2516,
-      "beta": 1.258,
-      "indivSharpe": 0.7271641122076978,
-      "analysts": 5.0,
-      "targetUpside": 0.02980308674827037,
-      "probAbove": 0.5,
-      "mom": 29.31298271858705,
-      "mr": 44.013103908453076,
-      "sent": 45.1046,
-      "newsSent": -93.2336,
-      "instChange": 44.6894,
-      "insiders": null,
-      "compositeScore": 0.7417
-    },
-    {
-      "ticker": "NATL",
-      "name": "NCR Atleos Corporation",
-      "sector": "Software - Application",
-      "price": 46.41,
-      "side": "Long",
-      "rating": "Buy",
-      "score": 0.4767401450416699,
-      "scorePercentile": 19.1,
-      "forecastReturn": 0.2738129641451086,
-      "positionReturn": 0.2738129641451086,
-      "vol": 0.15000000000000002,
-      "beta": 0.75,
-      "indivSharpe": 1.592086427634057,
-      "analysts": 3.0,
-      "targetUpside": 0.08309997845291961,
-      "probAbove": 0.7461,
-      "mom": 38.60271604744918,
-      "mr": 72.06104923639634,
-      "sent": 45.1046,
-      "newsSent": 82.8887,
-      "instChange": -43.0862,
-      "insiders": null,
-      "compositeScore": 0.521
-    },
-    {
-      "ticker": "IIPR",
-      "name": "Innovative Industrial Propertie",
-      "sector": "REIT - Industrial",
-      "price": 56.71,
-      "side": "Long",
-      "rating": "Buy",
-      "score": 0.4720973162776598,
-      "scorePercentile": 17.4,
-      "forecastReturn": 0.4692706607525228,
-      "positionReturn": 0.4692706607525228,
-      "vol": 0.2802,
-      "beta": 1.401,
-      "indivSharpe": 1.5498596029711733,
-      "analysts": 4.0,
-      "targetUpside": 0.11532357608887311,
-      "probAbove": 0.6396,
-      "mom": 33.74287714364529,
-      "mr": 80.48798802127683,
-      "sent": null,
-      "newsSent": 82.8887,
+      "score": 0.3442117115058474,
+      "scorePercentile": 0.4,
+      "forecastReturn": 1.0157571700344725,
+      "positionReturn": 1.0157571700344725,
+      "vol": 0.20320000000000002,
+      "beta": 1.016,
+      "indivSharpe": 4.826560876153899,
+      "analysts": 22.0,
+      "targetUpside": 0.19001086604707074,
+      "probAbove": 0.8759,
+      "shortInterest": 0.017759119166868818,
+      "mom": 55.983748775565196,
+      "mr": 51.6502344365421,
+      "sent": 44.2926,
+      "newsSent": -66.1669,
       "instChange": null,
       "insiders": null,
-      "compositeScore": 0.5199
+      "compositeScore": 0.6861,
+      "poolRank": 61,
+      "poolSize": 318,
+      "alternates": [
+        {
+          "ticker": "GNW",
+          "name": "Genworth Financial Inc",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.45235342456299876,
+          "compositeScore": 0.6838,
+          "poolRank": 62
+        },
+        {
+          "ticker": "CNOB",
+          "name": "ConnectOne Bancorp, Inc.",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.41502895257150674,
+          "compositeScore": 0.6916,
+          "poolRank": 58
+        }
+      ]
     },
     {
-      "ticker": "INVA",
-      "name": "Innoviva, Inc.",
-      "sector": "Biotechnology",
-      "price": 21.07,
+      "ticker": "GNW",
+      "name": "Genworth Financial Inc",
+      "sector": "Insurance - Life",
+      "price": 9.89,
       "side": "Long",
       "rating": "Strong Buy",
-      "score": 0.3788258775738905,
-      "scorePercentile": 2.4,
-      "forecastReturn": 0.31398873140363937,
-      "positionReturn": 0.31398873140363937,
-      "vol": 0.15000000000000002,
-      "beta": 0.75,
-      "indivSharpe": 1.859924876024262,
-      "analysts": 4.0,
-      "targetUpside": 0.6611295681063123,
-      "probAbove": 0.737475,
-      "mom": 51.77312131236294,
-      "mr": 23.24906613571457,
-      "sent": 45.1046,
-      "newsSent": -50.8133,
-      "instChange": 68.7375,
-      "insiders": null,
-      "compositeScore": 0.8675
-    },
-    {
-      "ticker": "ARW",
-      "name": "Arrow Electronics, Inc.",
-      "sector": "Electronics & Computer Distribution",
-      "price": 210.85,
-      "side": "Long",
-      "rating": "Buy",
-      "score": 0.45883520764701985,
-      "scorePercentile": 13.1,
-      "forecastReturn": 0.4060656840451877,
-      "positionReturn": 0.4060656840451877,
-      "vol": 0.24020000000000002,
-      "beta": 1.201,
-      "indivSharpe": 1.5448196671323382,
-      "analysts": 4.0,
-      "targetUpside": 0.11453640028456258,
-      "probAbove": 0.726325,
-      "mom": 54.251651258984516,
-      "mr": 83.05487432955162,
-      "sent": null,
-      "newsSent": 60.1822,
-      "instChange": null,
-      "insiders": null,
-      "compositeScore": 0.5199
-    },
-    {
-      "ticker": "GEN",
-      "name": "Gen Digital Inc.",
-      "sector": "Software - Infrastructure",
-      "price": 28.93,
-      "side": "Long",
-      "rating": "Strong Buy",
-      "score": 0.397973067119392,
-      "scorePercentile": 4.0,
-      "forecastReturn": 0.41251030979046477,
-      "positionReturn": 0.41251030979046477,
-      "vol": 0.24020000000000002,
-      "beta": 1.201,
-      "indivSharpe": 1.5716499158637165,
-      "analysts": 10.0,
-      "targetUpside": 0.10981679917041132,
-      "probAbove": 0.708075,
-      "mom": 58.97956455718818,
-      "mr": 83.59286466136179,
-      "sent": 45.1046,
-      "newsSent": 46.324,
-      "instChange": -19.8397,
-      "insiders": -33.3333,
-      "compositeScore": 0.8565
-    },
-    {
-      "ticker": "CI",
-      "name": "The Cigna Group",
-      "sector": "Healthcare Plans",
-      "price": 277.51,
-      "side": "Long",
-      "rating": "Buy",
-      "score": 0.4665237766910917,
-      "scorePercentile": 15.5,
-      "forecastReturn": 0.4144632356283644,
-      "positionReturn": 0.4144632356283644,
-      "vol": 0.15000000000000002,
-      "beta": 0.75,
-      "indivSharpe": 2.529754904189095,
-      "analysts": 24.0,
-      "targetUpside": 0.2302859716766963,
-      "probAbove": 0.73495,
-      "mom": 50.60577757259701,
-      "mr": 23.503806455192986,
-      "sent": -93.8075,
-      "newsSent": -25.1789,
-      "instChange": null,
-      "insiders": null,
-      "compositeScore": 0.5541
-    },
-    {
-      "ticker": "TPL",
-      "name": "Texas Pacific Land Corporation",
-      "sector": "Oil & Gas E&P",
-      "price": 383.64,
-      "side": "Long",
-      "rating": "Strong Buy",
-      "score": 0.3254490813140584,
-      "scorePercentile": 0.1,
-      "forecastReturn": 0.49649567265275163,
-      "positionReturn": 0.49649567265275163,
-      "vol": 0.15000000000000002,
-      "beta": 0.75,
-      "indivSharpe": 3.07663781768501,
-      "analysts": 2.0,
-      "targetUpside": 0.15212178083620054,
-      "probAbove": 0.8240000000000001,
-      "mom": 57.91014131147149,
-      "mr": 64.02532167990954,
-      "sent": 45.1046,
-      "newsSent": -93.2336,
-      "instChange": -2.6052,
-      "insiders": 90.7692,
-      "compositeScore": 0.8985
-    },
-    {
-      "ticker": "LMT",
-      "name": "Lockheed Martin Corporation",
-      "sector": "Aerospace & Defense",
-      "price": 563.57,
-      "side": "Long",
-      "rating": "Buy",
-      "score": 0.46594032088870274,
-      "scorePercentile": 15.2,
-      "forecastReturn": 0.32501984047839527,
-      "positionReturn": 0.32501984047839527,
-      "vol": 0.15000000000000002,
-      "beta": 0.75,
-      "indivSharpe": 1.9334656031893014,
-      "analysts": 19.0,
-      "targetUpside": 0.12310342991997447,
-      "probAbove": 0.76755,
-      "mom": 51.63799026078774,
-      "mr": 10.698376137847134,
-      "sent": null,
-      "newsSent": 13.0774,
-      "instChange": null,
-      "insiders": null,
-      "compositeScore": 0.5375
-    },
-    {
-      "ticker": "DOX",
-      "name": "Amdocs Limited",
-      "sector": "Software - Infrastructure",
-      "price": 61.4,
-      "side": "Long",
-      "rating": "Strong Buy",
-      "score": 0.36617618125736695,
-      "scorePercentile": 1.5,
-      "forecastReturn": 0.44000728509117093,
-      "positionReturn": 0.44000728509117093,
-      "vol": 0.15000000000000002,
-      "beta": 0.75,
-      "indivSharpe": 2.700048567274472,
-      "analysts": 4.0,
-      "targetUpside": 0.23676710097719877,
-      "probAbove": 0.735275,
-      "mom": 59.26779972016419,
-      "mr": 49.667296380675104,
-      "sent": 45.1046,
-      "newsSent": 82.8887,
-      "instChange": 8.2164,
-      "insiders": -100.0,
-      "compositeScore": 0.8951
-    },
-    {
-      "ticker": "NVDA",
-      "name": "NVIDIA Corporation",
-      "sector": "Semiconductors",
-      "price": 214.72,
-      "side": "Long",
-      "rating": "Strong Buy",
-      "score": 0.3600243981682497,
-      "scorePercentile": 0.9,
-      "forecastReturn": 0.3532056551853642,
-      "positionReturn": 0.3532056551853642,
-      "vol": 0.4,
-      "beta": 2.0,
-      "indivSharpe": 0.7955141379634103,
-      "analysts": 59.0,
-      "targetUpside": 0.4191915983606558,
-      "probAbove": 0.7357750000000001,
-      "mom": 60.38245185246199,
-      "mr": 45.55133157259977,
-      "sent": -20.6695,
-      "newsSent": -3.8386,
-      "instChange": -32.6653,
-      "insiders": -100.0,
-      "compositeScore": 0.7561
-    },
-    {
-      "ticker": "RDN",
-      "name": "Radian Group Inc.",
-      "sector": "Insurance - Specialty",
-      "price": 36.59,
-      "side": "Long",
-      "rating": "Strong Buy",
-      "score": 0.3414508104612644,
-      "scorePercentile": 0.6,
-      "forecastReturn": 0.29822908554425553,
-      "positionReturn": 0.29822908554425553,
-      "vol": 0.15000000000000002,
-      "beta": 0.75,
-      "indivSharpe": 1.7548605702950364,
-      "analysts": 5.0,
-      "targetUpside": 0.1970483738726425,
-      "probAbove": 0.77905,
-      "mom": 42.99892045689543,
-      "mr": 25.169878007927466,
-      "sent": 45.1046,
-      "newsSent": -18.4125,
-      "instChange": -53.1062,
-      "insiders": -55.5556,
-      "compositeScore": 0.8642
-    },
-    {
-      "ticker": "ASO",
-      "name": "Academy Sports and Outdoors, In",
-      "sector": "Specialty Retail",
-      "price": 45.83,
-      "side": "Long",
-      "rating": "Strong Buy",
-      "score": 0.41163249119321427,
-      "scorePercentile": 5.8,
-      "forecastReturn": 0.4551270171582973,
-      "positionReturn": 0.4551270171582973,
-      "vol": 0.2068,
-      "beta": 1.034,
-      "indivSharpe": 2.0315619785217467,
-      "analysts": 19.0,
-      "targetUpside": 0.31033449705433136,
-      "probAbove": 0.665125,
-      "mom": 39.27142968963685,
-      "mr": 58.26980779118845,
-      "sent": 45.1046,
-      "newsSent": 82.8887,
-      "instChange": -96.3928,
-      "insiders": -100.0,
-      "compositeScore": 0.8775
-    },
-    {
-      "ticker": "EPR",
-      "name": "EPR Properties",
-      "sector": "REIT - Specialty",
-      "price": 60.35,
-      "side": "Long",
-      "rating": "Strong Buy",
-      "score": 0.41075135876308694,
-      "scorePercentile": 5.6,
-      "forecastReturn": 0.2608881872536424,
-      "positionReturn": 0.2608881872536424,
-      "vol": 0.20379999999999998,
-      "beta": 1.019,
-      "indivSharpe": 1.1083816842671363,
-      "analysts": 11.0,
-      "targetUpside": 0.06725915492957757,
-      "probAbove": 0.7161500000000001,
-      "mom": 52.55304303404019,
-      "mr": 39.4928657839608,
-      "sent": 45.1046,
-      "newsSent": 25.5693,
-      "instChange": 67.1343,
-      "insiders": -100.0,
-      "compositeScore": 0.8024
-    },
-    {
-      "ticker": "MTDR",
-      "name": "Matador Resources Company",
-      "sector": "Oil & Gas E&P",
-      "price": 58.38,
-      "side": "Long",
-      "rating": "Buy",
-      "score": 0.4766427607421595,
-      "scorePercentile": 18.9,
-      "forecastReturn": 0.2950460464594218,
-      "positionReturn": 0.2950460464594218,
-      "vol": 0.1542,
-      "beta": 0.771,
-      "indivSharpe": 1.686420534756302,
-      "analysts": 19.0,
-      "targetUpside": 0.17379787598492635,
-      "probAbove": 1.0,
-      "mom": 81.77294791173043,
-      "mr": 48.68909776443789,
-      "sent": null,
-      "newsSent": 10.475,
-      "instChange": null,
-      "insiders": null,
-      "compositeScore": 0.5309
-    },
-    {
-      "ticker": "MCY",
-      "name": "Mercury General Corporation",
-      "sector": "Insurance - Property & Casualty",
-      "price": 105.7,
-      "side": "Long",
-      "rating": "Strong Buy",
-      "score": 0.3737406734662002,
-      "scorePercentile": 2.1,
-      "forecastReturn": 0.12149015029112364,
-      "positionReturn": 0.12149015029112364,
-      "vol": 0.18520000000000003,
-      "beta": 0.926,
-      "indivSharpe": 0.4670094508160023,
+      "score": 0.3435692317797386,
+      "scorePercentile": 0.3,
+      "forecastReturn": 0.45235342456299876,
+      "positionReturn": 0.45235342456299876,
+      "vol": 0.1716,
+      "beta": 0.858,
+      "indivSharpe": 2.4321295137703887,
       "analysts": 1.0,
-      "targetUpside": 0.13528855250709548,
-      "probAbove": 0.7441,
-      "mom": 44.46669657146259,
-      "mr": 63.49645785828883,
-      "sent": 45.1046,
-      "newsSent": -34.0924,
-      "instChange": -79.5591,
-      "insiders": null,
-      "compositeScore": 0.6832
+      "targetUpside": 0.21334681496461072,
+      "probAbove": 0.74365,
+      "shortInterest": 0.02089603564330188,
+      "mom": 67.58180345838565,
+      "mr": 40.86059254222051,
+      "sent": 44.2926,
+      "newsSent": -60.1043,
+      "instChange": 27.4549,
+      "insiders": -100.0,
+      "compositeScore": 0.6838,
+      "poolRank": 62,
+      "poolSize": 318,
+      "alternates": [
+        {
+          "ticker": "CNOB",
+          "name": "ConnectOne Bancorp, Inc.",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.41502895257150674,
+          "compositeScore": 0.6916,
+          "poolRank": 58
+        },
+        {
+          "ticker": "HASI",
+          "name": "HA Sustainable Infrastructure C",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.8037170464316927,
+          "compositeScore": 0.847,
+          "poolRank": 14
+        }
+      ]
     },
     {
-      "ticker": "BDC",
-      "name": "Belden Inc",
-      "sector": "Communication Equipment",
-      "price": 122.46,
+      "ticker": "HASI",
+      "name": "HA Sustainable Infrastructure C",
+      "sector": "Asset Management",
+      "price": 39.47,
       "side": "Long",
       "rating": "Strong Buy",
-      "score": 0.38144804926666265,
-      "scorePercentile": 2.5,
-      "forecastReturn": 0.29285744796334856,
-      "positionReturn": 0.29285744796334856,
-      "vol": 0.221,
-      "beta": 1.105,
-      "indivSharpe": 1.1667757826395861,
-      "analysts": 4.0,
-      "targetUpside": 0.2779683161848767,
-      "probAbove": 0.687225,
-      "mom": 74.27229119589765,
-      "mr": 23.42301356223666,
-      "sent": -55.2301,
-      "newsSent": 18.5426,
-      "instChange": -17.8357,
-      "insiders": null,
-      "compositeScore": 0.8124
-    },
-    {
-      "ticker": "HRMY",
-      "name": "Harmony Biosciences Holdings, I",
-      "sector": "Biotechnology",
-      "price": 38.15,
-      "side": "Long",
-      "rating": "Strong Buy",
-      "score": 0.3445269623119732,
-      "scorePercentile": 0.6,
-      "forecastReturn": 0.46034074150581605,
-      "positionReturn": 0.46034074150581605,
-      "vol": 0.1826,
-      "beta": 0.913,
-      "indivSharpe": 2.3293578395718293,
-      "analysts": 10.0,
-      "targetUpside": 0.20838794233289648,
-      "probAbove": 0.699275,
-      "mom": 63.41688661807154,
-      "mr": 18.50632209186648,
-      "sent": 45.1046,
-      "newsSent": 82.8887,
-      "instChange": -89.1784,
-      "insiders": null,
-      "compositeScore": 0.883
-    },
-    {
-      "ticker": "PCG",
-      "name": "Pacific Gas & Electric Co.",
-      "sector": "Utilities - Regulated Electric",
-      "price": 17.6,
-      "side": "Long",
-      "rating": "Buy",
-      "score": 0.47037736969948835,
-      "scorePercentile": 16.5,
-      "forecastReturn": 0.34076519803635263,
-      "positionReturn": 0.34076519803635263,
-      "vol": 0.15000000000000002,
-      "beta": 0.75,
-      "indivSharpe": 2.038434653575684,
-      "analysts": 16.0,
-      "targetUpside": 0.2908380681818181,
-      "probAbove": 0.7277750000000001,
-      "mom": 52.3287671232877,
-      "mr": 52.413937213562356,
-      "sent": 45.1046,
-      "newsSent": -18.4125,
+      "score": 0.3142962726433751,
+      "scorePercentile": 0.1,
+      "forecastReturn": 0.8037170464316927,
+      "positionReturn": 0.8037170464316927,
+      "vol": 0.2842,
+      "beta": 1.421,
+      "indivSharpe": 2.7048453428279124,
+      "analysts": 15.0,
+      "targetUpside": 0.24651634152520918,
+      "probAbove": 0.87785,
+      "shortInterest": 0.09419339327394169,
+      "mom": 52.29272727398946,
+      "mr": 35.025142607315075,
+      "sent": -18.328,
+      "newsSent": 84.0939,
       "instChange": null,
       "insiders": null,
-      "compositeScore": 0.5453
+      "compositeScore": 0.847,
+      "poolRank": 14,
+      "poolSize": 318,
+      "alternates": [
+        {
+          "ticker": "VIRT",
+          "name": "Virtu Financial, Inc.",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.5358659030258659,
+          "compositeScore": 0.7744,
+          "poolRank": 33
+        },
+        {
+          "ticker": "CNOB",
+          "name": "ConnectOne Bancorp, Inc.",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.41502895257150674,
+          "compositeScore": 0.6916,
+          "poolRank": 58
+        }
+      ]
     },
     {
       "ticker": "VIRT",
       "name": "Virtu Financial, Inc.",
       "sector": "Capital Markets",
-      "price": 67.93,
+      "price": 66.29,
       "side": "Long",
       "rating": "Strong Buy",
-      "score": 0.3698883230352397,
-      "scorePercentile": 1.8,
-      "forecastReturn": 0.2158522469813582,
-      "positionReturn": 0.2158522469813582,
+      "score": 0.35107180207457095,
+      "scorePercentile": 0.7,
+      "forecastReturn": 0.5358659030258659,
+      "positionReturn": 0.5358659030258659,
       "vol": 0.15000000000000002,
       "beta": 0.75,
-      "indivSharpe": 1.2056816465423876,
+      "indivSharpe": 3.3391060201724385,
       "analysts": 7.0,
-      "targetUpside": -0.017896511114382507,
-      "probAbove": 0.7993,
-      "mom": 76.78724168414716,
-      "mr": 53.31873350006117,
-      "sent": 45.1046,
-      "newsSent": -66.4281,
+      "targetUpside": 0.006400512897873023,
+      "probAbove": 0.80085,
+      "shortInterest": 0.055366402706633566,
+      "mom": 81.92916975758553,
+      "mr": 57.41776954939282,
+      "sent": 44.2926,
+      "newsSent": -67.7966,
       "instChange": null,
       "insiders": null,
-      "compositeScore": 0.8179
+      "compositeScore": 0.7744,
+      "poolRank": 33,
+      "poolSize": 318,
+      "alternates": [
+        {
+          "ticker": "SYF",
+          "name": "Synchrony Financial",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.1722945941877938,
+          "compositeScore": 0.6585,
+          "poolRank": 72
+        },
+        {
+          "ticker": "PGNY",
+          "name": "Progyny, Inc.",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.20888153936795795,
+          "compositeScore": 0.7295,
+          "poolRank": 46
+        }
+      ]
     },
     {
-      "ticker": "SCSC",
-      "name": "ScanSource, Inc.",
-      "sector": "Electronics & Computer Distribution",
-      "price": 54.35,
+      "ticker": "LQDA",
+      "name": "Liquidia Corporation",
+      "sector": "Drug Manufacturers - Specialty & Generic",
+      "price": 68.62,
+      "side": "Long",
+      "rating": "Strong Buy",
+      "score": 0.38452721369917436,
+      "scorePercentile": 3.4,
+      "forecastReturn": 1.2278737192825626,
+      "positionReturn": 1.2278737192825626,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": 7.95249146188375,
+      "analysts": 8.0,
+      "targetUpside": 0.5702419119790147,
+      "probAbove": 0.92215,
+      "shortInterest": 0.18908955503416783,
+      "mom": 25.299969694287725,
+      "mr": 48.27912132547214,
+      "sent": -42.1222,
+      "newsSent": -44.4589,
+      "instChange": 26.6533,
+      "insiders": -100.0,
+      "compositeScore": 0.9132,
+      "poolRank": 1,
+      "poolSize": 318,
+      "alternates": [
+        {
+          "ticker": "MCY",
+          "name": "Mercury General Corporation",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.09364119521324588,
+          "compositeScore": 0.6033,
+          "poolRank": 88
+        },
+        {
+          "ticker": "ET",
+          "name": "Energy Transfer LP",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.14876704989996004,
+          "compositeScore": 0.5844,
+          "poolRank": 95
+        }
+      ]
+    },
+    {
+      "ticker": "SMPL",
+      "name": "The Simply Good Foods Company",
+      "sector": "Packaged Foods",
+      "price": 10.88,
       "side": "Long",
       "rating": "Buy",
-      "score": 0.43387508567649746,
-      "scorePercentile": 8.8,
-      "forecastReturn": 0.4071288796578929,
-      "positionReturn": 0.4071288796578929,
-      "vol": 0.2484,
-      "beta": 1.242,
-      "indivSharpe": 1.4981033802652692,
-      "analysts": 2.0,
-      "targetUpside": 0.11315547378104873,
-      "probAbove": 0.6729,
-      "mom": 46.2260860947702,
-      "mr": 30.729804804865665,
-      "sent": 45.1046,
-      "newsSent": 25.5693,
-      "instChange": 0.2004,
-      "insiders": null,
-      "compositeScore": 0.5166
-    },
-    {
-      "ticker": "HALO",
-      "name": "Halozyme Therapeutics, Inc.",
-      "sector": "Biotechnology",
-      "price": 108.17,
-      "side": "Long",
-      "rating": "Strong Buy",
-      "score": 0.41358596603538417,
-      "scorePercentile": 5.9,
-      "forecastReturn": 0.34823174632510856,
-      "positionReturn": 0.34823174632510856,
-      "vol": 0.1696,
-      "beta": 0.848,
-      "indivSharpe": 1.8468852967282343,
-      "analysts": 9.0,
-      "targetUpside": -0.0796379772580198,
-      "probAbove": 0.634525,
-      "mom": 76.55762561571456,
-      "mr": 51.929208416148604,
-      "sent": 45.1046,
-      "newsSent": 58.6207,
-      "instChange": -88.3768,
-      "insiders": -100.0,
-      "compositeScore": 0.8687
-    },
-    {
-      "ticker": "HRTG",
-      "name": "Heritage Insurance Holdings, In",
-      "sector": "Insurance - Property & Casualty",
-      "price": 33.84,
-      "side": "Long",
-      "rating": "Strong Buy",
-      "score": 0.4029440722392189,
-      "scorePercentile": 4.5,
-      "forecastReturn": 0.218481704204333,
-      "positionReturn": 0.218481704204333,
-      "vol": 0.18280000000000002,
-      "beta": 0.914,
-      "indivSharpe": 1.0037292352534626,
-      "analysts": 2.0,
-      "targetUpside": 0.15248226950354593,
-      "probAbove": 0.7494000000000001,
-      "mom": 67.14617413662228,
-      "mr": 65.34914070565956,
-      "sent": 45.1046,
-      "newsSent": -84.9057,
-      "instChange": null,
-      "insiders": -100.0,
-      "compositeScore": 0.7892
-    },
-    {
-      "ticker": "SM",
-      "name": "SM Energy Company",
-      "sector": "Oil & Gas E&P",
-      "price": 37.2,
-      "side": "Long",
-      "rating": "Strong Buy",
-      "score": 0.36304068482303653,
-      "scorePercentile": 1.2,
-      "forecastReturn": 0.4961118011513932,
-      "positionReturn": 0.4961118011513932,
+      "score": 0.4231428952246006,
+      "scorePercentile": 9.7,
+      "forecastReturn": 0.29028479455589196,
+      "positionReturn": 0.29028479455589196,
       "vol": 0.15000000000000002,
       "beta": 0.75,
-      "indivSharpe": 3.0740786743426205,
-      "analysts": 15.0,
-      "targetUpside": 0.10573467741935483,
-      "probAbove": 0.807525,
-      "mom": 55.481441019430456,
-      "mr": 40.7514238398242,
-      "sent": 45.1046,
-      "newsSent": 82.8887,
-      "instChange": 93.5872,
-      "insiders": -100.0,
-      "compositeScore": 0.8974
-    },
-    {
-      "ticker": "COMP",
-      "name": "Compass, Inc.",
-      "sector": "Real Estate Services",
-      "price": 11.75,
-      "side": "Long",
-      "rating": "Strong Buy",
-      "score": 0.40866516857420465,
-      "scorePercentile": 5.3,
-      "forecastReturn": 0.3650267748058318,
-      "positionReturn": 0.3650267748058318,
-      "vol": 0.4,
-      "beta": 2.0,
-      "indivSharpe": 0.8250669370145793,
-      "analysts": 12.0,
-      "targetUpside": 0.3120570212765956,
-      "probAbove": 0.7106250000000001,
-      "mom": 62.877495520594834,
-      "mr": 21.197594019101317,
-      "sent": 45.1046,
-      "newsSent": 25.5693,
-      "instChange": 85.1703,
-      "insiders": -100.0,
-      "compositeScore": 0.7627
-    },
-    {
-      "ticker": "ALLY",
-      "name": "Ally Financial Inc.",
-      "sector": "Credit Services",
-      "price": 42.93,
-      "side": "Long",
-      "rating": "Strong Buy",
-      "score": 0.3637080014866905,
-      "scorePercentile": 1.3,
-      "forecastReturn": 0.25952789821004085,
-      "positionReturn": 0.25952789821004085,
-      "vol": 0.21600000000000003,
-      "beta": 1.08,
-      "indivSharpe": 1.0394810102316705,
-      "analysts": 17.0,
-      "targetUpside": 0.25087351502445854,
-      "probAbove": 0.7346,
-      "mom": 51.43045722467354,
-      "mr": 41.80834709328,
-      "sent": -20.6695,
-      "newsSent": -93.2336,
+      "indivSharpe": 1.7018986303726127,
+      "analysts": 8.0,
+      "targetUpside": 0.3671875,
+      "probAbove": 0.79555,
+      "shortInterest": 0.09206003416779376,
+      "mom": 43.299510655125424,
+      "mr": 57.6189224238958,
+      "sent": 44.2926,
+      "newsSent": 5.6714,
       "instChange": null,
       "insiders": null,
-      "compositeScore": 0.7925
+      "compositeScore": 0.5765,
+      "poolRank": 98,
+      "poolSize": 318,
+      "alternates": [
+        {
+          "ticker": "TNL",
+          "name": "Travel   Leisure Co.",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.3020094543074341,
+          "compositeScore": 0.8304,
+          "poolRank": 18
+        },
+        {
+          "ticker": "VRTS",
+          "name": "Virtus Investment Partners, Inc",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.254446638129741,
+          "compositeScore": 0.7445,
+          "poolRank": 42
+        }
+      ]
+    },
+    {
+      "ticker": "LPG",
+      "name": "Dorian LPG Ltd.",
+      "sector": "Oil & Gas Midstream",
+      "price": 51.13,
+      "side": "Long",
+      "rating": "Buy",
+      "score": 0.452607838652304,
+      "scorePercentile": 15.4,
+      "forecastReturn": 0.42590859200626596,
+      "positionReturn": 0.42590859200626596,
+      "vol": 0.15200000000000002,
+      "beta": 0.76,
+      "indivSharpe": 2.5717670526728016,
+      "analysts": 5.0,
+      "targetUpside": 0.013103852923919357,
+      "probAbove": 0.7853,
+      "shortInterest": 0.06335561268732201,
+      "mom": 76.547123492293,
+      "mr": 60.84257109563439,
+      "sent": 44.2926,
+      "newsSent": -93.1551,
+      "instChange": 55.511,
+      "insiders": -100.0,
+      "compositeScore": 0.545,
+      "poolRank": 117,
+      "poolSize": 318,
+      "alternates": [
+        {
+          "ticker": "EPR",
+          "name": "EPR Properties",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.20602231924897985,
+          "compositeScore": 0.7815,
+          "poolRank": 29
+        },
+        {
+          "ticker": "CNOB",
+          "name": "ConnectOne Bancorp, Inc.",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.41502895257150674,
+          "compositeScore": 0.6916,
+          "poolRank": 58
+        }
+      ]
+    },
+    {
+      "ticker": "TNL",
+      "name": "Travel   Leisure Co.",
+      "sector": "Travel Services",
+      "price": 73.12,
+      "side": "Long",
+      "rating": "Strong Buy",
+      "score": 0.37873727426505144,
+      "scorePercentile": 2.8,
+      "forecastReturn": 0.3020094543074341,
+      "positionReturn": 0.3020094543074341,
+      "vol": 0.238,
+      "beta": 1.19,
+      "indivSharpe": 1.1218884634766138,
+      "analysts": 13.0,
+      "targetUpside": 0.24242546498905893,
+      "probAbove": 0.8456,
+      "shortInterest": 0.11677380699813573,
+      "mom": 32.51047190587225,
+      "mr": 73.0377518205544,
+      "sent": -66.1576,
+      "newsSent": -32.5293,
+      "instChange": null,
+      "insiders": null,
+      "compositeScore": 0.8304,
+      "poolRank": 18,
+      "poolSize": 318,
+      "alternates": [
+        {
+          "ticker": "CNOB",
+          "name": "ConnectOne Bancorp, Inc.",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.41502895257150674,
+          "compositeScore": 0.6916,
+          "poolRank": 58
+        },
+        {
+          "ticker": "CPAY",
+          "name": "Corpay, Inc.",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.28144299741436685,
+          "compositeScore": 0.7129,
+          "poolRank": 49
+        }
+      ]
+    },
+    {
+      "ticker": "EPR",
+      "name": "EPR Properties",
+      "sector": "REIT - Specialty",
+      "price": 60.56,
+      "side": "Long",
+      "rating": "Strong Buy",
+      "score": 0.3956870291541539,
+      "scorePercentile": 4.5,
+      "forecastReturn": 0.20602231924897985,
+      "positionReturn": 0.20602231924897985,
+      "vol": 0.20379999999999998,
+      "beta": 1.019,
+      "indivSharpe": 0.8391674153531887,
+      "analysts": 11.0,
+      "targetUpside": 0.06355828929986806,
+      "probAbove": 0.7298,
+      "shortInterest": 0.09672671166926447,
+      "mom": 54.299490018602754,
+      "mr": 26.17771100338932,
+      "sent": 44.2926,
+      "newsSent": 27.9661,
+      "instChange": 67.1343,
+      "insiders": -100.0,
+      "compositeScore": 0.7815,
+      "poolRank": 29,
+      "poolSize": 318,
+      "alternates": [
+        {
+          "ticker": "AVB",
+          "name": "AvalonBay Communities, Inc.",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.19232969782300469,
+          "compositeScore": 0.6546,
+          "poolRank": 75
+        },
+        {
+          "ticker": "AMPH",
+          "name": "Amphastar Pharmaceuticals, Inc.",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.45853770662336135,
+          "compositeScore": 0.8943,
+          "poolRank": 4
+        }
+      ]
+    },
+    {
+      "ticker": "PGNY",
+      "name": "Progyny, Inc.",
+      "sector": "Healthcare Plans",
+      "price": 25.45,
+      "side": "Long",
+      "rating": "Strong Buy",
+      "score": 0.40512819053312604,
+      "scorePercentile": 5.9,
+      "forecastReturn": 0.20888153936795795,
+      "positionReturn": 0.20888153936795795,
+      "vol": 0.2034,
+      "beta": 1.017,
+      "indivSharpe": 0.8548748248178857,
+      "analysts": 12.0,
+      "targetUpside": 0.34577603143418467,
+      "probAbove": 0.7413,
+      "shortInterest": 0.06394161390965122,
+      "mom": 32.71101328549251,
+      "mr": 51.06616381911455,
+      "sent": -55.8682,
+      "newsSent": -9.7132,
+      "instChange": -78.7575,
+      "insiders": -100.0,
+      "compositeScore": 0.7295,
+      "poolRank": 46,
+      "poolSize": 318,
+      "alternates": [
+        {
+          "ticker": "CPAY",
+          "name": "Corpay, Inc.",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.28144299741436685,
+          "compositeScore": 0.7129,
+          "poolRank": 49
+        },
+        {
+          "ticker": "CNOB",
+          "name": "ConnectOne Bancorp, Inc.",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.41502895257150674,
+          "compositeScore": 0.6916,
+          "poolRank": 58
+        }
+      ]
+    },
+    {
+      "ticker": "WEX",
+      "name": "WEX Inc.",
+      "sector": "Software - Infrastructure",
+      "price": 203.25,
+      "side": "Long",
+      "rating": "Strong Buy",
+      "score": 0.40350308527539447,
+      "scorePercentile": 5.7,
+      "forecastReturn": 0.34656289941248564,
+      "positionReturn": 0.34656289941248564,
+      "vol": 0.166,
+      "beta": 0.83,
+      "indivSharpe": 1.8768849362197928,
+      "analysts": 10.0,
+      "targetUpside": -0.053382533825338196,
+      "probAbove": 0.84545,
+      "shortInterest": 0.08736370159390734,
+      "mom": 64.85461023670149,
+      "mr": 72.85638823520289,
+      "sent": 44.2926,
+      "newsSent": -60.1043,
+      "instChange": null,
+      "insiders": null,
+      "compositeScore": 0.8281,
+      "poolRank": 19,
+      "poolSize": 318,
+      "alternates": [
+        {
+          "ticker": "ASO",
+          "name": "Academy Sports and Outdoors, In",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.3050113425592855,
+          "compositeScore": 0.8557,
+          "poolRank": 12
+        },
+        {
+          "ticker": "CNOB",
+          "name": "ConnectOne Bancorp, Inc.",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.41502895257150674,
+          "compositeScore": 0.6916,
+          "poolRank": 58
+        }
+      ]
+    },
+    {
+      "ticker": "AMP",
+      "name": "Ameriprise Financial, Inc.",
+      "sector": "Asset Management",
+      "price": 561.13,
+      "side": "Long",
+      "rating": "Strong Buy",
+      "score": 0.3978367119953596,
+      "scorePercentile": 5.0,
+      "forecastReturn": 0.10110868394456429,
+      "positionReturn": 0.10110868394456429,
+      "vol": 0.22740000000000002,
+      "beta": 1.137,
+      "indivSharpe": 0.29071540872719565,
+      "analysts": 11.0,
+      "targetUpside": 0.03265642542726299,
+      "probAbove": 0.6797,
+      "shortInterest": 0.032788994720044,
+      "mom": 57.076693753469925,
+      "mr": 52.31691609294202,
+      "sent": 44.2926,
+      "newsSent": -48.8918,
+      "instChange": null,
+      "insiders": -100.0,
+      "compositeScore": 0.5418,
+      "poolRank": 120,
+      "poolSize": 318,
+      "alternates": [
+        {
+          "ticker": "HCI",
+          "name": "HCI Group, Inc.",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.08198473595913103,
+          "compositeScore": 0.5576,
+          "poolRank": 105
+        },
+        {
+          "ticker": "AMPH",
+          "name": "Amphastar Pharmaceuticals, Inc.",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.45853770662336135,
+          "compositeScore": 0.8943,
+          "poolRank": 4
+        }
+      ]
+    },
+    {
+      "ticker": "AMPH",
+      "name": "Amphastar Pharmaceuticals, Inc.",
+      "sector": "Drug Manufacturers - Specialty & Generic",
+      "price": 21.52,
+      "side": "Long",
+      "rating": "Strong Buy",
+      "score": 0.40383550722828343,
+      "scorePercentile": 5.8,
+      "forecastReturn": 0.45853770662336135,
+      "positionReturn": 0.45853770662336135,
+      "vol": 0.18020000000000003,
+      "beta": 0.901,
+      "indivSharpe": 2.350375730429308,
+      "analysts": 6.0,
+      "targetUpside": 0.04553903345724919,
+      "probAbove": 0.87645,
+      "shortInterest": 0.1575239549460606,
+      "mom": 69.89789763413465,
+      "mr": 75.26575212858859,
+      "sent": -95.1768,
+      "newsSent": 5.6714,
+      "instChange": -75.5511,
+      "insiders": -100.0,
+      "compositeScore": 0.8943,
+      "poolRank": 4,
+      "poolSize": 318,
+      "alternates": [
+        {
+          "ticker": "IIPR",
+          "name": "Innovative Industrial Propertie",
+          "rating": "Buy",
+          "forecastReturn": 0.27508592641484264,
+          "compositeScore": 0.571,
+          "poolRank": 99
+        },
+        {
+          "ticker": "HCI",
+          "name": "HCI Group, Inc.",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.08198473595913103,
+          "compositeScore": 0.5576,
+          "poolRank": 105
+        }
+      ]
+    },
+    {
+      "ticker": "SF",
+      "name": "Stifel Financial Corporation",
+      "sector": "Capital Markets",
+      "price": 80.8,
+      "side": "Long",
+      "rating": "Strong Buy",
+      "score": 0.36749667829839683,
+      "scorePercentile": 1.7,
+      "forecastReturn": 0.13991933405759527,
+      "positionReturn": 0.13991933405759527,
+      "vol": 0.19840000000000002,
+      "beta": 0.992,
+      "indivSharpe": 0.5288272885967503,
+      "analysts": 8.0,
+      "targetUpside": 0.10148514851485158,
+      "probAbove": 0.7348,
+      "shortInterest": 0.031984368852510665,
+      "mom": 54.198711757032285,
+      "mr": 38.62072797743015,
+      "sent": -66.1576,
+      "newsSent": -93.1551,
+      "instChange": null,
+      "insiders": null,
+      "compositeScore": 0.5891,
+      "poolRank": 92,
+      "poolSize": 318,
+      "alternates": [
+        {
+          "ticker": "WAL",
+          "name": "Western Alliance Bancorporation",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.20675005507853883,
+          "compositeScore": 0.6838,
+          "poolRank": 64
+        },
+        {
+          "ticker": "VRTS",
+          "name": "Virtus Investment Partners, Inc",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.254446638129741,
+          "compositeScore": 0.7445,
+          "poolRank": 42
+        }
+      ]
+    },
+    {
+      "ticker": "VRTS",
+      "name": "Virtus Investment Partners, Inc",
+      "sector": "Asset Management",
+      "price": 168.4,
+      "side": "Long",
+      "rating": "Strong Buy",
+      "score": 0.38913091538058053,
+      "scorePercentile": 4.0,
+      "forecastReturn": 0.254446638129741,
+      "positionReturn": 0.254446638129741,
+      "vol": 0.266,
+      "beta": 1.33,
+      "indivSharpe": 0.8249873613900037,
+      "analysts": 4.0,
+      "targetUpside": -0.1211401425178148,
+      "probAbove": 0.8361,
+      "shortInterest": 0.0714686581410911,
+      "mom": 38.54828003374094,
+      "mr": 57.25375182600609,
+      "sent": -35.6913,
+      "newsSent": -32.5293,
+      "instChange": null,
+      "insiders": null,
+      "compositeScore": 0.7445,
+      "poolRank": 42,
+      "poolSize": 318,
+      "alternates": [
+        {
+          "ticker": "IIPR",
+          "name": "Innovative Industrial Propertie",
+          "rating": "Buy",
+          "forecastReturn": 0.27508592641484264,
+          "compositeScore": 0.571,
+          "poolRank": 99
+        },
+        {
+          "ticker": "WAL",
+          "name": "Western Alliance Bancorporation",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.20675005507853883,
+          "compositeScore": 0.6838,
+          "poolRank": 64
+        }
+      ]
+    },
+    {
+      "ticker": "IIPR",
+      "name": "Innovative Industrial Propertie",
+      "sector": "REIT - Industrial",
+      "price": 56.8,
+      "side": "Long",
+      "rating": "Buy",
+      "score": 0.4546655666967295,
+      "scorePercentile": 15.7,
+      "forecastReturn": 0.27508592641484264,
+      "positionReturn": 0.27508592641484264,
+      "vol": 0.2802,
+      "beta": 1.401,
+      "indivSharpe": 0.8568377102599666,
+      "analysts": 4.0,
+      "targetUpside": 0.13556338028169024,
+      "probAbove": 0.7736,
+      "shortInterest": 0.1371510182233504,
+      "mom": 22.955572129174087,
+      "mr": 54.75348005969125,
+      "sent": 44.2926,
+      "newsSent": 84.0939,
+      "instChange": null,
+      "insiders": null,
+      "compositeScore": 0.571,
+      "poolRank": 99,
+      "poolSize": 318,
+      "alternates": [
+        {
+          "ticker": "CPAY",
+          "name": "Corpay, Inc.",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.28144299741436685,
+          "compositeScore": 0.7129,
+          "poolRank": 49
+        },
+        {
+          "ticker": "GOLD",
+          "name": "Gold.com, Inc.",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.886021369543279,
+          "compositeScore": 0.9014,
+          "poolRank": 3
+        }
+      ]
     },
     {
       "ticker": "ET",
       "name": "Energy Transfer LP",
       "sector": "Oil & Gas Midstream",
-      "price": 21.19,
+      "price": 21.08,
       "side": "Long",
       "rating": "Strong Buy",
-      "score": 0.3854500519436727,
-      "scorePercentile": 2.8,
-      "forecastReturn": 0.10106232604129195,
-      "positionReturn": 0.10106232604129195,
+      "score": 0.3721208908123819,
+      "scorePercentile": 2.3,
+      "forecastReturn": 0.14876704989996004,
+      "positionReturn": 0.14876704989996004,
       "vol": 0.15000000000000002,
       "beta": 0.75,
-      "indivSharpe": 0.44041550694194626,
+      "indivSharpe": 0.7584469993330668,
       "analysts": 21.0,
-      "targetUpside": 0.15755403492213294,
-      "probAbove": 1.0,
-      "mom": 66.0907459404245,
-      "mr": 41.740266386985006,
-      "sent": 45.1046,
-      "newsSent": 82.8887,
+      "targetUpside": 0.16359440227703992,
+      "probAbove": 0.74615,
+      "shortInterest": 0.008858424324253943,
+      "mom": 59.9342897114202,
+      "mr": 50.371252343554346,
+      "sent": 44.2926,
+      "newsSent": 84.0939,
       "instChange": null,
       "insiders": null,
-      "compositeScore": 0.6733
+      "compositeScore": 0.5844,
+      "poolRank": 95,
+      "poolSize": 318,
+      "alternates": [
+        {
+          "ticker": "CPAY",
+          "name": "Corpay, Inc.",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.28144299741436685,
+          "compositeScore": 0.7129,
+          "poolRank": 49
+        },
+        {
+          "ticker": "INVA",
+          "name": "Innoviva, Inc.",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.22279738593268839,
+          "compositeScore": 0.8273,
+          "poolRank": 20
+        }
+      ]
     },
     {
-      "ticker": "LPLA",
-      "name": "LPL Financial Holdings Inc.",
+      "ticker": "GOLD",
+      "name": "Gold.com, Inc.",
       "sector": "Capital Markets",
-      "price": 361.35,
+      "price": 45.8,
       "side": "Long",
       "rating": "Strong Buy",
-      "score": 0.32590996545518897,
-      "scorePercentile": 0.2,
-      "forecastReturn": 0.10733089731509748,
-      "positionReturn": 0.10733089731509748,
+      "score": 0.36996016722581987,
+      "scorePercentile": 1.9,
+      "forecastReturn": 0.886021369543279,
+      "positionReturn": 0.886021369543279,
       "vol": 0.15000000000000002,
       "beta": 0.75,
-      "indivSharpe": 0.4822059821006498,
-      "analysts": 14.0,
-      "targetUpside": 0.19512148886121472,
-      "probAbove": 0.746775,
-      "mom": 55.110383916550525,
-      "mr": 34.09519885625129,
-      "sent": 45.1046,
-      "newsSent": 25.5693,
-      "instChange": -39.8798,
-      "insiders": -100.0,
-      "compositeScore": 0.6898
+      "indivSharpe": 5.673475796955192,
+      "analysts": 5.0,
+      "targetUpside": 0.4366812227074237,
+      "probAbove": 0.79565,
+      "shortInterest": 0.15557326558927978,
+      "mom": 53.958951165088976,
+      "mr": 50.87144618533827,
+      "sent": -55.8682,
+      "newsSent": null,
+      "instChange": null,
+      "insiders": null,
+      "compositeScore": 0.9014,
+      "poolRank": 3,
+      "poolSize": 318,
+      "alternates": [
+        {
+          "ticker": "CPAY",
+          "name": "Corpay, Inc.",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.28144299741436685,
+          "compositeScore": 0.7129,
+          "poolRank": 49
+        },
+        {
+          "ticker": "CNOB",
+          "name": "ConnectOne Bancorp, Inc.",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.41502895257150674,
+          "compositeScore": 0.6916,
+          "poolRank": 58
+        }
+      ]
     },
     {
-      "ticker": "MU",
-      "name": "Micron Technology, Inc.",
-      "sector": "Semiconductors",
-      "price": 966.78,
+      "ticker": "WAL",
+      "name": "Western Alliance Bancorporation",
+      "sector": "Banks - Regional",
+      "price": 78.39,
       "side": "Long",
       "rating": "Strong Buy",
-      "score": 0.3965663549816155,
-      "scorePercentile": 3.9,
-      "forecastReturn": 0.41373064727090925,
-      "positionReturn": 0.41373064727090925,
+      "score": 0.3768182026067686,
+      "scorePercentile": 2.7,
+      "forecastReturn": 0.20675005507853883,
+      "positionReturn": 0.20675005507853883,
+      "vol": 0.2664,
+      "beta": 1.332,
+      "indivSharpe": 0.644707413958479,
+      "analysts": 15.0,
+      "targetUpside": 0.1872263043755582,
+      "probAbove": 0.8358,
+      "shortInterest": 0.06030902648322683,
+      "mom": 17.469047170086156,
+      "mr": 27.571730573993975,
+      "sent": -66.1576,
+      "newsSent": 84.0939,
+      "instChange": null,
+      "insiders": null,
+      "compositeScore": 0.6838,
+      "poolRank": 64,
+      "poolSize": 318,
+      "alternates": [
+        {
+          "ticker": "CPAY",
+          "name": "Corpay, Inc.",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.28144299741436685,
+          "compositeScore": 0.7129,
+          "poolRank": 49
+        },
+        {
+          "ticker": "TPC",
+          "name": "Tutor Perini Corporation",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.08530010602714277,
+          "compositeScore": 0.5647,
+          "poolRank": 104
+        }
+      ]
+    },
+    {
+      "ticker": "INVA",
+      "name": "Innoviva, Inc.",
+      "sector": "Biotechnology",
+      "price": 21.03,
+      "side": "Long",
+      "rating": "Strong Buy",
+      "score": 0.3962310081071119,
+      "scorePercentile": 4.8,
+      "forecastReturn": 0.22279738593268839,
+      "positionReturn": 0.22279738593268839,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": 1.251982572884589,
+      "analysts": 4.0,
+      "targetUpside": 0.6642891107941036,
+      "probAbove": 0.64845,
+      "shortInterest": 0.10187531899408263,
+      "mom": 52.63251631375285,
+      "mr": 50.28378595738342,
+      "sent": 44.2926,
+      "newsSent": -48.8918,
+      "instChange": 68.7375,
+      "insiders": null,
+      "compositeScore": 0.8273,
+      "poolRank": 20,
+      "poolSize": 318,
+      "alternates": [
+        {
+          "ticker": "HCI",
+          "name": "HCI Group, Inc.",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.08198473595913103,
+          "compositeScore": 0.5576,
+          "poolRank": 105
+        },
+        {
+          "ticker": "CPAY",
+          "name": "Corpay, Inc.",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.28144299741436685,
+          "compositeScore": 0.7129,
+          "poolRank": 49
+        }
+      ]
+    },
+    {
+      "ticker": "TPC",
+      "name": "Tutor Perini Corporation",
+      "sector": "Engineering & Construction",
+      "price": 88.32,
+      "side": "Long",
+      "rating": "Strong Buy",
+      "score": 0.38319016817931717,
+      "scorePercentile": 3.1,
+      "forecastReturn": 0.08530010602714277,
+      "positionReturn": 0.08530010602714277,
       "vol": 0.4,
       "beta": 2.0,
-      "indivSharpe": 0.946826618177273,
-      "analysts": 44.0,
-      "targetUpside": 0.5671751587744884,
-      "probAbove": 0.5990249999999999,
-      "mom": 65.9235364954281,
-      "mr": 65.51967840896164,
-      "sent": 45.1046,
-      "newsSent": -47.9506,
-      "instChange": -38.2766,
+      "indivSharpe": 0.12575026506785691,
+      "analysts": 4.0,
+      "targetUpside": 0.31623641304347827,
+      "probAbove": 0.5654,
+      "shortInterest": 0.05545127628183369,
+      "mom": 62.742336823239036,
+      "mr": 41.7069135011261,
+      "sent": 44.2926,
+      "newsSent": 61.6037,
+      "instChange": 12.2244,
       "insiders": -100.0,
-      "compositeScore": 0.7826
+      "compositeScore": 0.5647,
+      "poolRank": 104,
+      "poolSize": 318,
+      "alternates": [
+        {
+          "ticker": "HCI",
+          "name": "HCI Group, Inc.",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.08198473595913103,
+          "compositeScore": 0.5576,
+          "poolRank": 105
+        },
+        {
+          "ticker": "MCY",
+          "name": "Mercury General Corporation",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.09364119521324588,
+          "compositeScore": 0.6033,
+          "poolRank": 88
+        }
+      ]
     },
     {
-      "ticker": "OPCH",
-      "name": "Option Care Health, Inc.",
-      "sector": "Medical Care Facilities",
-      "price": 23.7,
+      "ticker": "CNOB",
+      "name": "ConnectOne Bancorp, Inc.",
+      "sector": "Banks - Regional",
+      "price": 32.19,
       "side": "Long",
-      "rating": "Buy",
-      "score": 0.4717741776017379,
-      "scorePercentile": 17.3,
-      "forecastReturn": 0.2797785104362607,
-      "positionReturn": 0.2797785104362607,
+      "rating": "Strong Buy",
+      "score": 0.40451311742340473,
+      "scorePercentile": 5.9,
+      "forecastReturn": 0.41502895257150674,
+      "positionReturn": 0.41502895257150674,
+      "vol": 0.20579999999999998,
+      "beta": 1.029,
+      "indivSharpe": 1.8465935499101396,
+      "analysts": 4.0,
+      "targetUpside": 0.14165890027959005,
+      "probAbove": 0.88195,
+      "shortInterest": 0.028133544737041667,
+      "mom": 32.58566004583689,
+      "mr": 64.32864132673318,
+      "sent": 44.2926,
+      "newsSent": null,
+      "instChange": null,
+      "insiders": null,
+      "compositeScore": 0.6916,
+      "poolRank": 58,
+      "poolSize": 318,
+      "alternates": [
+        {
+          "ticker": "HCI",
+          "name": "HCI Group, Inc.",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.08198473595913103,
+          "compositeScore": 0.5576,
+          "poolRank": 105
+        },
+        {
+          "ticker": "MCY",
+          "name": "Mercury General Corporation",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.09364119521324588,
+          "compositeScore": 0.6033,
+          "poolRank": 88
+        }
+      ]
+    },
+    {
+      "ticker": "HCI",
+      "name": "HCI Group, Inc.",
+      "sector": "Insurance - Property & Casualty",
+      "price": 185.31,
+      "side": "Long",
+      "rating": "Strong Buy",
+      "score": 0.37488566376399185,
+      "scorePercentile": 2.5,
+      "forecastReturn": 0.08198473595913103,
+      "positionReturn": 0.08198473595913103,
+      "vol": 0.20379999999999998,
+      "beta": 1.019,
+      "indivSharpe": 0.2305433560310649,
+      "analysts": 3.0,
+      "targetUpside": 0.30412104041875776,
+      "probAbove": 0.5525,
+      "shortInterest": 0.04617538828322621,
+      "mom": 55.721232442395234,
+      "mr": 71.22360251629546,
+      "sent": 44.2926,
+      "newsSent": 84.0939,
+      "instChange": -81.5631,
+      "insiders": null,
+      "compositeScore": 0.5576,
+      "poolRank": 105,
+      "poolSize": 318,
+      "alternates": [
+        {
+          "ticker": "MCY",
+          "name": "Mercury General Corporation",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.09364119521324588,
+          "compositeScore": 0.6033,
+          "poolRank": 88
+        },
+        {
+          "ticker": "ASO",
+          "name": "Academy Sports and Outdoors, In",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.3050113425592855,
+          "compositeScore": 0.8557,
+          "poolRank": 12
+        }
+      ]
+    },
+    {
+      "ticker": "SLDE",
+      "name": "Slide Insurance Holdings, Inc.",
+      "sector": "Insurance - Property & Casualty",
+      "price": 22.74,
+      "side": "Long",
+      "rating": "Strong Buy",
+      "score": 0.33384002577367056,
+      "scorePercentile": 0.2,
+      "forecastReturn": 0.2894004001693131,
+      "positionReturn": 0.2894004001693131,
+      "vol": 0.2,
+      "beta": 1.0,
+      "indivSharpe": 1.2720020008465653,
+      "analysts": 5.0,
+      "targetUpside": 0.1345646437994723,
+      "probAbove": 0.65015,
+      "shortInterest": 0.12032087545651654,
+      "mom": 78.73062825881607,
+      "mr": 70.1166038523275,
+      "sent": 44.2926,
+      "newsSent": -9.7132,
+      "instChange": 89.1784,
+      "insiders": -100.0,
+      "compositeScore": 0.8423,
+      "poolRank": 16,
+      "poolSize": 318,
+      "alternates": [
+        {
+          "ticker": "MTDR",
+          "name": "Matador Resources Company",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.27824888755175414,
+          "compositeScore": 0.862,
+          "poolRank": 9
+        },
+        {
+          "ticker": "RJF",
+          "name": "Raymond James Financial, Inc.",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.04916325367786478,
+          "compositeScore": 0.5473,
+          "poolRank": 113
+        }
+      ]
+    },
+    {
+      "ticker": "MTDR",
+      "name": "Matador Resources Company",
+      "sector": "Oil & Gas E&P",
+      "price": 57.5,
+      "side": "Long",
+      "rating": "Strong Buy",
+      "score": 0.3889710884649916,
+      "scorePercentile": 4.0,
+      "forecastReturn": 0.27824888755175414,
+      "positionReturn": 0.27824888755175414,
+      "vol": 0.1542,
+      "beta": 0.771,
+      "indivSharpe": 1.5774895431371863,
+      "analysts": 19.0,
+      "targetUpside": 0.196338608695652,
+      "probAbove": 0.789,
+      "shortInterest": 0.12767017723893564,
+      "mom": 80.47353567200764,
+      "mr": 56.96187885328305,
+      "sent": 44.2926,
+      "newsSent": 0.1956,
+      "instChange": null,
+      "insiders": null,
+      "compositeScore": 0.862,
+      "poolRank": 9,
+      "poolSize": 318,
+      "alternates": [
+        {
+          "ticker": "MGY",
+          "name": "Magnolia Oil & Gas Corporation",
+          "rating": "Buy",
+          "forecastReturn": 0.20854985978829332,
+          "compositeScore": 0.5528,
+          "poolRank": 109
+        },
+        {
+          "ticker": "HRMY",
+          "name": "Harmony Biosciences Holdings, I",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.3599747105762474,
+          "compositeScore": 0.8249,
+          "poolRank": 21
+        }
+      ]
+    },
+    {
+      "ticker": "MCY",
+      "name": "Mercury General Corporation",
+      "sector": "Insurance - Property & Casualty",
+      "price": 106.28,
+      "side": "Long",
+      "rating": "Strong Buy",
+      "score": 0.38612471560819656,
+      "scorePercentile": 3.6,
+      "forecastReturn": 0.09364119521324588,
+      "positionReturn": 0.09364119521324588,
+      "vol": 0.18520000000000003,
+      "beta": 0.926,
+      "indivSharpe": 0.31663712318167314,
+      "analysts": 1.0,
+      "targetUpside": 0.12909296198720366,
+      "probAbove": 0.55815,
+      "shortInterest": 0.05498855085454313,
+      "mom": 52.09099613290857,
+      "mr": 76.76330281820282,
+      "sent": 44.2926,
+      "newsSent": -32.5293,
+      "instChange": -79.5591,
+      "insiders": null,
+      "compositeScore": 0.6033,
+      "poolRank": 88,
+      "poolSize": 318,
+      "alternates": [
+        {
+          "ticker": "MAT",
+          "name": "Mattel, Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.1591405733620055,
+          "compositeScore": 0.5481,
+          "poolRank": 112
+        },
+        {
+          "ticker": "INGR",
+          "name": "Ingredion Incorporated",
+          "rating": "Buy",
+          "forecastReturn": 0.20216001938392902,
+          "compositeScore": 0.5457,
+          "poolRank": 116
+        }
+      ]
+    },
+    {
+      "ticker": "CPAY",
+      "name": "Corpay, Inc.",
+      "sector": "Software - Infrastructure",
+      "price": 413.92,
+      "side": "Long",
+      "rating": "Strong Buy",
+      "score": 0.3879011036198801,
+      "scorePercentile": 3.8,
+      "forecastReturn": 0.28144299741436685,
+      "positionReturn": 0.28144299741436685,
+      "vol": 0.1738,
+      "beta": 0.869,
+      "indivSharpe": 1.417968914927312,
+      "analysts": 14.0,
+      "targetUpside": 0.08871968013142628,
+      "probAbove": 0.87245,
+      "shortInterest": 0.04097706701423975,
+      "mom": 72.05195541230222,
+      "mr": 65.08139488340979,
+      "sent": -30.2251,
+      "newsSent": -32.5293,
+      "instChange": -73.1463,
+      "insiders": -100.0,
+      "compositeScore": 0.7129,
+      "poolRank": 49,
+      "poolSize": 318,
+      "alternates": [
+        {
+          "ticker": "MAT",
+          "name": "Mattel, Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.1591405733620055,
+          "compositeScore": 0.5481,
+          "poolRank": 112
+        },
+        {
+          "ticker": "INGR",
+          "name": "Ingredion Incorporated",
+          "rating": "Buy",
+          "forecastReturn": 0.20216001938392902,
+          "compositeScore": 0.5457,
+          "poolRank": 116
+        }
+      ]
+    },
+    {
+      "ticker": "REGN",
+      "name": "Regeneron Pharmaceuticals, Inc.",
+      "sector": "Biotechnology",
+      "price": 828.5,
+      "side": "Long",
+      "rating": "Strong Buy",
+      "score": 0.3960329766462849,
+      "scorePercentile": 4.7,
+      "forecastReturn": 0.19722876943302858,
+      "positionReturn": 0.19722876943302858,
       "vol": 0.15000000000000002,
       "beta": 0.75,
-      "indivSharpe": 1.6318567362417375,
-      "analysts": 12.0,
-      "targetUpside": 0.20604767932489465,
-      "probAbove": 0.7353000000000001,
-      "mom": 63.786939926264864,
-      "mr": 50.74922057186365,
-      "sent": -14.728,
-      "newsSent": -61.4183,
-      "instChange": 50.3006,
+      "indivSharpe": 1.0815251295535238,
+      "analysts": 27.0,
+      "targetUpside": 0.01439770669885343,
+      "probAbove": 0.7723,
+      "shortInterest": 0.03534727467752866,
+      "mom": 78.55716652677881,
+      "mr": 55.81295466230154,
+      "sent": 44.2926,
+      "newsSent": -5.0847,
+      "instChange": -50.7014,
+      "insiders": -100.0,
+      "compositeScore": 0.6751,
+      "poolRank": 66,
+      "poolSize": 318,
+      "alternates": [
+        {
+          "ticker": "MAT",
+          "name": "Mattel, Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.1591405733620055,
+          "compositeScore": 0.5481,
+          "poolRank": 112
+        },
+        {
+          "ticker": "INGR",
+          "name": "Ingredion Incorporated",
+          "rating": "Buy",
+          "forecastReturn": 0.20216001938392902,
+          "compositeScore": 0.5457,
+          "poolRank": 116
+        }
+      ]
+    },
+    {
+      "ticker": "MAT",
+      "name": "Mattel, Inc.",
+      "sector": "Leisure",
+      "price": 14.82,
+      "side": "Long",
+      "rating": "Buy",
+      "score": 0.41336241816085056,
+      "scorePercentile": 7.5,
+      "forecastReturn": 0.1591405733620055,
+      "positionReturn": 0.1591405733620055,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": 0.8276038224133698,
+      "analysts": 13.0,
+      "targetUpside": 0.2301464237516868,
+      "probAbove": 0.63795,
+      "shortInterest": 0.11708057962255095,
+      "mom": 61.37891325745439,
+      "mr": 42.70865723388579,
+      "sent": 44.2926,
+      "newsSent": -5.4107,
+      "instChange": -46.6934,
       "insiders": null,
-      "compositeScore": 0.5243
+      "compositeScore": 0.5481,
+      "poolRank": 112,
+      "poolSize": 318,
+      "alternates": [
+        {
+          "ticker": "INGR",
+          "name": "Ingredion Incorporated",
+          "rating": "Buy",
+          "forecastReturn": 0.20216001938392902,
+          "compositeScore": 0.5457,
+          "poolRank": 116
+        },
+        {
+          "ticker": "FOXA",
+          "name": "Fox Corporation",
+          "rating": "Buy",
+          "forecastReturn": 0.22893041206537368,
+          "compositeScore": 0.6088,
+          "poolRank": 87
+        }
+      ]
+    },
+    {
+      "ticker": "HRMY",
+      "name": "Harmony Biosciences Holdings, I",
+      "sector": "Biotechnology",
+      "price": 38.5,
+      "side": "Long",
+      "rating": "Strong Buy",
+      "score": 0.3540678911435419,
+      "scorePercentile": 0.9,
+      "forecastReturn": 0.3599747105762474,
+      "positionReturn": 0.3599747105762474,
+      "vol": 0.1826,
+      "beta": 0.913,
+      "indivSharpe": 1.7797081630681673,
+      "analysts": 10.0,
+      "targetUpside": 0.19740259740259747,
+      "probAbove": 0.765,
+      "shortInterest": 0.08633970313510982,
+      "mom": 52.664342949344,
+      "mr": 42.297358793726964,
+      "sent": 44.2926,
+      "newsSent": 84.0939,
+      "instChange": -89.1784,
+      "insiders": null,
+      "compositeScore": 0.8249,
+      "poolRank": 21,
+      "poolSize": 318,
+      "alternates": [
+        {
+          "ticker": "INGR",
+          "name": "Ingredion Incorporated",
+          "rating": "Buy",
+          "forecastReturn": 0.20216001938392902,
+          "compositeScore": 0.5457,
+          "poolRank": 116
+        },
+        {
+          "ticker": "RJF",
+          "name": "Raymond James Financial, Inc.",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.04916325367786478,
+          "compositeScore": 0.5473,
+          "poolRank": 113
+        }
+      ]
     }
   ],
   "shorts": [
     {
-      "ticker": "GKOS",
-      "name": "Glaukos Corporation",
-      "sector": "Medical Devices",
-      "price": 184.89,
-      "side": "Short",
-      "rating": "Sell",
-      "score": 0.6361383102455815,
-      "scorePercentile": 89.1,
-      "forecastReturn": -0.3658730128289879,
-      "positionReturn": 0.3658730128289879,
-      "vol": 0.1524,
-      "beta": 0.762,
-      "indivSharpe": 2.1710827613450645,
-      "analysts": 13.0,
-      "targetUpside": 0.06633052085023539,
-      "probAbove": 0.2359,
-      "mom": 69.04891304347822,
-      "mr": 54.13315956148641,
-      "sent": -27.4477,
-      "newsSent": 8.7833,
-      "instChange": null,
-      "insiders": -100.0,
-      "compositeScore": 0.6134
-    },
-    {
-      "ticker": "TFSL",
-      "name": "TFS Financial Corporation",
-      "sector": "Banks - Regional",
-      "price": 17.64,
+      "ticker": "BBIO",
+      "name": "BridgeBio Pharma, Inc.",
+      "sector": "Biotechnology",
+      "price": 81.07,
       "side": "Short",
       "rating": "Strong Sell",
-      "score": 0.7175785229129165,
-      "scorePercentile": 98.8,
-      "forecastReturn": -0.29451082134816253,
-      "positionReturn": 0.29451082134816253,
-      "vol": 0.15000000000000002,
-      "beta": 0.75,
-      "indivSharpe": 1.7300721423210832,
-      "analysts": 2.0,
-      "targetUpside": 0.07709750566893425,
-      "probAbove": 0.5,
-      "mom": 25.07871347550015,
-      "mr": 55.44967962521501,
-      "sent": -81.9247,
-      "newsSent": 39.1021,
+      "score": 0.6557716390729117,
+      "scorePercentile": 94.3,
+      "forecastReturn": -0.44460755408401054,
+      "positionReturn": 0.44460755408401054,
+      "vol": 0.1966,
+      "beta": 0.983,
+      "indivSharpe": 2.0834565314547837,
+      "analysts": 21.0,
+      "targetUpside": 0.3374684840261504,
+      "probAbove": 0.0,
+      "shortInterest": 0.13962331649067602,
+      "mom": 54.667001481868404,
+      "mr": 23.707687370375098,
+      "sent": 44.2926,
+      "newsSent": 0.1956,
+      "instChange": 81.1623,
+      "insiders": -100.0,
+      "compositeScore": 0.6386,
+      "poolRank": 68,
+      "poolSize": 268,
+      "alternates": [
+        {
+          "ticker": "WBD",
+          "name": "Warner Bros. Discovery, Inc. - ",
+          "rating": "Strong Sell",
+          "forecastReturn": -0.26215872533522344,
+          "compositeScore": 0.8998,
+          "poolRank": 3
+        },
+        {
+          "ticker": "AXSM",
+          "name": "Axsome Therapeutics, Inc.",
+          "rating": "Sell",
+          "forecastReturn": -0.27934813155359506,
+          "compositeScore": 0.6873,
+          "poolRank": 51
+        }
+      ]
+    },
+    {
+      "ticker": "WBD",
+      "name": "Warner Bros. Discovery, Inc. - ",
+      "sector": "Entertainment",
+      "price": 28.7,
+      "side": "Short",
+      "rating": "Strong Sell",
+      "score": 0.7374444060948676,
+      "scorePercentile": 99.4,
+      "forecastReturn": -0.26215872533522344,
+      "positionReturn": 0.26215872533522344,
+      "vol": 0.313,
+      "beta": 1.565,
+      "indivSharpe": 0.725746726310618,
+      "analysts": 11.0,
+      "targetUpside": 0.0389609756097562,
+      "probAbove": 0.1347,
+      "shortInterest": 0.03026286983004122,
+      "mom": 89.48838048737677,
+      "mr": 65.60210362288768,
+      "sent": 44.2926,
+      "newsSent": -75.4889,
+      "instChange": 7.014,
+      "insiders": -100.0,
+      "compositeScore": 0.8998,
+      "poolRank": 3,
+      "poolSize": 268,
+      "alternates": [
+        {
+          "ticker": "CURB",
+          "name": "Curbline Properties Corp.",
+          "rating": "Strong Sell",
+          "forecastReturn": -0.23160346656271158,
+          "compositeScore": 0.6199,
+          "poolRank": 78
+        },
+        {
+          "ticker": "MAC",
+          "name": "Macerich Company (The)",
+          "rating": "Strong Sell",
+          "forecastReturn": -0.26302950351901433,
+          "compositeScore": 0.706,
+          "poolRank": 46
+        }
+      ]
+    },
+    {
+      "ticker": "CURB",
+      "name": "Curbline Properties Corp.",
+      "sector": "REIT - Retail",
+      "price": 29.78,
+      "side": "Short",
+      "rating": "Strong Sell",
+      "score": 0.6740974337111769,
+      "scorePercentile": 95.8,
+      "forecastReturn": -0.23160346656271158,
+      "positionReturn": 0.23160346656271158,
+      "vol": 0.2,
+      "beta": 1.0,
+      "indivSharpe": 0.9830173328135579,
+      "analysts": 8.0,
+      "targetUpside": 0.13121222296843515,
+      "probAbove": 0.1429,
+      "shortInterest": 0.3023,
+      "mom": 39.50340133415893,
+      "mr": 51.31896258832445,
+      "sent": 44.2926,
+      "newsSent": -60.1043,
       "instChange": null,
-      "insiders": null,
-      "compositeScore": 0.9513
+      "insiders": -100.0,
+      "compositeScore": 0.6199,
+      "poolRank": 78,
+      "poolSize": 268,
+      "alternates": [
+        {
+          "ticker": "MAC",
+          "name": "Macerich Company (The)",
+          "rating": "Strong Sell",
+          "forecastReturn": -0.26302950351901433,
+          "compositeScore": 0.706,
+          "poolRank": 46
+        },
+        {
+          "ticker": "JOE",
+          "name": "St. Joe Company (The)",
+          "rating": "Sell",
+          "forecastReturn": -0.24220832922760094,
+          "compositeScore": 0.7519,
+          "poolRank": 27
+        }
+      ]
     },
     {
       "ticker": "JOE",
       "name": "St. Joe Company (The)",
       "sector": "Real Estate - Diversified",
-      "price": 68.89,
+      "price": 70.06,
       "side": "Short",
       "rating": "Sell",
-      "score": 0.6269832245248689,
-      "scorePercentile": 86.6,
-      "forecastReturn": -0.31349030330776617,
-      "positionReturn": 0.31349030330776617,
+      "score": 0.6476154567366064,
+      "scorePercentile": 93.0,
+      "forecastReturn": -0.24220832922760094,
+      "positionReturn": 0.24220832922760094,
       "vol": 0.258,
       "beta": 1.29,
-      "indivSharpe": 1.0794197802626595,
+      "indivSharpe": 0.8031330590217091,
       "analysts": null,
       "targetUpside": null,
-      "probAbove": 0.1979,
-      "mom": 60.92143322891252,
-      "mr": 29.057054462314042,
-      "sent": -49.1213,
-      "newsSent": 82.8887,
+      "probAbove": 0.04175,
+      "shortInterest": 0.017780905492173336,
+      "mom": 58.25184174818218,
+      "mr": 70.33004182475305,
+      "sent": -48.7942,
+      "newsSent": 84.0939,
       "instChange": null,
       "insiders": -100.0,
-      "compositeScore": 0.5114
+      "compositeScore": 0.7519,
+      "poolRank": 27,
+      "poolSize": 268,
+      "alternates": [
+        {
+          "ticker": "MAC",
+          "name": "Macerich Company (The)",
+          "rating": "Strong Sell",
+          "forecastReturn": -0.26302950351901433,
+          "compositeScore": 0.706,
+          "poolRank": 46
+        },
+        {
+          "ticker": "CZR",
+          "name": "Caesars Entertainment, Inc.",
+          "rating": "Strong Sell",
+          "forecastReturn": -0.1931405386991144,
+          "compositeScore": 0.7069,
+          "poolRank": 45
+        }
+      ]
     },
     {
-      "ticker": "NPK",
-      "name": "National Presto Industries, Inc",
-      "sector": "Aerospace & Defense",
-      "price": 149.95,
+      "ticker": "MAC",
+      "name": "Macerich Company (The)",
+      "sector": "REIT - Retail",
+      "price": 24.36,
       "side": "Short",
-      "rating": "Sell",
-      "score": 0.6293574852949362,
-      "scorePercentile": 87.1,
-      "forecastReturn": -0.30736499678024043,
-      "positionReturn": 0.30736499678024043,
-      "vol": 0.15000000000000002,
-      "beta": 0.75,
-      "indivSharpe": 1.8157666452016024,
-      "analysts": null,
-      "targetUpside": null,
-      "probAbove": 0.2417,
-      "mom": 81.17744610281925,
-      "mr": 36.28066537366471,
-      "sent": 45.1046,
-      "newsSent": 3.3832,
+      "rating": "Strong Sell",
+      "score": 0.6821716683974978,
+      "scorePercentile": 96.5,
+      "forecastReturn": -0.26302950351901433,
+      "positionReturn": 0.26302950351901433,
+      "vol": 0.4,
+      "beta": 2.0,
+      "indivSharpe": 0.5700737587975357,
+      "analysts": 16.0,
+      "targetUpside": 0.09554597701149437,
+      "probAbove": 0.1006,
+      "shortInterest": 0.07958034245895051,
+      "mom": 47.11496743668702,
+      "mr": 25.606745837863684,
+      "sent": 44.2926,
+      "newsSent": 41.395,
       "instChange": null,
       "insiders": null,
-      "compositeScore": 0.5479
+      "compositeScore": 0.706,
+      "poolRank": 46,
+      "poolSize": 268,
+      "alternates": [
+        {
+          "ticker": "CZR",
+          "name": "Caesars Entertainment, Inc.",
+          "rating": "Strong Sell",
+          "forecastReturn": -0.1931405386991144,
+          "compositeScore": 0.7069,
+          "poolRank": 45
+        },
+        {
+          "ticker": "L",
+          "name": "Loews Corporation",
+          "rating": "Strong Sell",
+          "forecastReturn": -0.19746996652321724,
+          "compositeScore": 0.9438,
+          "poolRank": 1
+        }
+      ]
+    },
+    {
+      "ticker": "CZR",
+      "name": "Caesars Entertainment, Inc.",
+      "sector": "Resorts & Casinos",
+      "price": 29.66,
+      "side": "Short",
+      "rating": "Strong Sell",
+      "score": 0.7034038890779595,
+      "scorePercentile": 98.3,
+      "forecastReturn": -0.1931405386991144,
+      "positionReturn": 0.1931405386991144,
+      "vol": 0.3508,
+      "beta": 1.754,
+      "indivSharpe": 0.4507997112289464,
+      "analysts": 15.0,
+      "targetUpside": 0.05416958867161159,
+      "probAbove": 0.263,
+      "shortInterest": 0.09728242978648927,
+      "mom": 42.924757003907125,
+      "mr": 43.869802884792385,
+      "sent": 44.2926,
+      "newsSent": -73.2073,
+      "instChange": null,
+      "insiders": null,
+      "compositeScore": 0.7069,
+      "poolRank": 45,
+      "poolSize": 268,
+      "alternates": [
+        {
+          "ticker": "TFSL",
+          "name": "TFS Financial Corporation",
+          "rating": "Strong Sell",
+          "forecastReturn": -0.19820526946347372,
+          "compositeScore": 0.6816,
+          "poolRank": 52
+        },
+        {
+          "ticker": "L",
+          "name": "Loews Corporation",
+          "rating": "Strong Sell",
+          "forecastReturn": -0.19746996652321724,
+          "compositeScore": 0.9438,
+          "poolRank": 1
+        }
+      ]
     },
     {
       "ticker": "L",
       "name": "Loews Corporation",
       "sector": "Insurance - Property & Casualty",
-      "price": 109.83,
+      "price": 111.45,
       "side": "Short",
       "rating": "Strong Sell",
-      "score": 0.7587863213922726,
-      "scorePercentile": 99.6,
-      "forecastReturn": -0.24207006338664971,
-      "positionReturn": 0.24207006338664971,
+      "score": 0.7557527140224722,
+      "scorePercentile": 99.9,
+      "forecastReturn": -0.19746996652321724,
+      "positionReturn": 0.19746996652321724,
       "vol": 0.15000000000000002,
       "beta": 0.75,
-      "indivSharpe": 1.3804670892443311,
+      "indivSharpe": 1.0831331101547814,
       "analysts": null,
       "targetUpside": null,
-      "probAbove": 0.26255,
-      "mom": 34.58933875775108,
-      "mr": 36.3384209831721,
-      "sent": 45.1046,
-      "newsSent": -93.2336,
+      "probAbove": 0.1324,
+      "shortInterest": 0.026524487982701253,
+      "mom": 39.28664236590284,
+      "mr": 46.141521527527686,
+      "sent": 44.2926,
+      "newsSent": -93.1551,
       "instChange": null,
       "insiders": null,
-      "compositeScore": 0.9817
+      "compositeScore": 0.9438,
+      "poolRank": 1,
+      "poolSize": 268,
+      "alternates": [
+        {
+          "ticker": "TFSL",
+          "name": "TFS Financial Corporation",
+          "rating": "Strong Sell",
+          "forecastReturn": -0.19820526946347372,
+          "compositeScore": 0.6816,
+          "poolRank": 52
+        },
+        {
+          "ticker": "GSAT",
+          "name": "Globalstar, Inc.",
+          "rating": "Strong Sell",
+          "forecastReturn": -0.18111819855093314,
+          "compositeScore": 0.6713,
+          "poolRank": 55
+        }
+      ]
+    },
+    {
+      "ticker": "TFSL",
+      "name": "TFS Financial Corporation",
+      "sector": "Banks - Regional",
+      "price": 17.65,
+      "side": "Short",
+      "rating": "Strong Sell",
+      "score": 0.6855975368155721,
+      "scorePercentile": 96.8,
+      "forecastReturn": -0.19820526946347372,
+      "positionReturn": 0.19820526946347372,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": 1.0880351297564912,
+      "analysts": 2.0,
+      "targetUpside": 0.07648725212464602,
+      "probAbove": 0.06965,
+      "shortInterest": 0.14930104583743742,
+      "mom": 38.0391596397218,
+      "mr": 57.77426044492918,
+      "sent": -83.0386,
+      "newsSent": 41.395,
+      "instChange": null,
+      "insiders": null,
+      "compositeScore": 0.6816,
+      "poolRank": 52,
+      "poolSize": 268,
+      "alternates": [
+        {
+          "ticker": "GSAT",
+          "name": "Globalstar, Inc.",
+          "rating": "Strong Sell",
+          "forecastReturn": -0.18111819855093314,
+          "compositeScore": 0.6713,
+          "poolRank": 55
+        },
+        {
+          "ticker": "SNOW",
+          "name": "Snowflake Inc.",
+          "rating": "Strong Sell",
+          "forecastReturn": -0.20903583231412082,
+          "compositeScore": 0.8399,
+          "poolRank": 8
+        }
+      ]
     },
     {
       "ticker": "SNOW",
@@ -884,630 +1757,4537 @@
       "price": 332.78,
       "side": "Short",
       "rating": "Strong Sell",
-      "score": 0.7423489946378393,
-      "scorePercentile": 99.3,
-      "forecastReturn": -0.2629618099322043,
-      "positionReturn": 0.2629618099322043,
+      "score": 0.7368925014961012,
+      "scorePercentile": 99.4,
+      "forecastReturn": -0.20903583231412082,
+      "positionReturn": 0.20903583231412082,
       "vol": 0.263,
       "beta": 1.315,
-      "indivSharpe": 0.8667749427080012,
+      "indivSharpe": 0.6617332027152882,
       "analysts": 48.0,
       "targetUpside": -0.03434701604663726,
-      "probAbove": 0.161275,
-      "mom": 55.52692230458755,
-      "mr": 65.33784835784334,
-      "sent": -96.318,
-      "newsSent": -3.7085,
+      "probAbove": 0.21285,
+      "shortInterest": 0.05621863544870788,
+      "mom": 47.79487170575048,
+      "mr": 44.88539340123108,
+      "sent": -95.1768,
+      "newsSent": -2.086,
       "instChange": -69.5391,
       "insiders": -100.0,
-      "compositeScore": 0.9285
-    },
-    {
-      "ticker": "NHC",
-      "name": "National HealthCare Corporation",
-      "sector": "Medical Care Facilities",
-      "price": 233.4,
-      "side": "Short",
-      "rating": "Sell",
-      "score": 0.6434671034650057,
-      "scorePercentile": 90.4,
-      "forecastReturn": -0.28550306811605985,
-      "positionReturn": 0.28550306811605985,
-      "vol": 0.15000000000000002,
-      "beta": 0.75,
-      "indivSharpe": 1.6700204541070653,
-      "analysts": null,
-      "targetUpside": null,
-      "probAbove": 0.2635,
-      "mom": 58.72772291782715,
-      "mr": 30.65632155060375,
-      "sent": 45.1046,
-      "newsSent": -93.2336,
-      "instChange": 46.2926,
-      "insiders": -60.0,
-      "compositeScore": 0.6514
-    },
-    {
-      "ticker": "COST",
-      "name": "Costco Wholesale Corporation",
-      "sector": "Discount Stores",
-      "price": 947.74,
-      "side": "Short",
-      "rating": "Sell",
-      "score": 0.6468634116697713,
-      "scorePercentile": 91.1,
-      "forecastReturn": -0.2119133636188013,
-      "positionReturn": 0.2119133636188013,
-      "vol": 0.17200000000000001,
-      "beta": 0.86,
-      "indivSharpe": 1.0285660675511703,
-      "analysts": 35.0,
-      "targetUpside": 0.13671924789499235,
-      "probAbove": 0.17355,
-      "mom": 47.11135410971385,
-      "mr": 72.82664891121655,
-      "sent": null,
-      "newsSent": 33.3767,
-      "instChange": null,
-      "insiders": -100.0,
-      "compositeScore": 0.6438
-    },
-    {
-      "ticker": "RLJ",
-      "name": "RLJ Lodging Trust",
-      "sector": "REIT - Hotel & Motel",
-      "price": 11.5,
-      "side": "Short",
-      "rating": "Sell",
-      "score": 0.6260917160691112,
-      "scorePercentile": 86.2,
-      "forecastReturn": -0.2673348831267184,
-      "positionReturn": 0.2673348831267184,
-      "vol": 0.2218,
-      "beta": 1.109,
-      "indivSharpe": 1.047497218785926,
-      "analysts": 11.0,
-      "targetUpside": -0.0039521739130435884,
-      "probAbove": 0.28155,
-      "mom": 31.26042369716758,
-      "mr": 81.22892750118498,
-      "sent": 45.1046,
-      "newsSent": 82.8887,
-      "instChange": -7.8156,
-      "insiders": null,
-      "compositeScore": 0.4947
-    },
-    {
-      "ticker": "MA",
-      "name": "Mastercard Incorporated",
-      "sector": "Credit Services",
-      "price": 580.63,
-      "side": "Short",
-      "rating": "Sell",
-      "score": 0.6332613004682099,
-      "scorePercentile": 88.1,
-      "forecastReturn": -0.22818903372105603,
-      "positionReturn": 0.22818903372105603,
-      "vol": 0.15000000000000002,
-      "beta": 0.75,
-      "indivSharpe": 1.2879268914737068,
-      "analysts": 37.0,
-      "targetUpside": 0.14926424745535005,
-      "probAbove": 0.267925,
-      "mom": 58.18366655371064,
-      "mr": 60.24255190165999,
-      "sent": null,
-      "newsSent": -4.9447,
-      "instChange": null,
-      "insiders": null,
-      "compositeScore": 0.5677
-    },
-    {
-      "ticker": "BBIO",
-      "name": "BridgeBio Pharma, Inc.",
-      "sector": "Biotechnology",
-      "price": 81.5,
-      "side": "Short",
-      "rating": "Sell",
-      "score": 0.6659154394919992,
-      "scorePercentile": 94.0,
-      "forecastReturn": -0.2586190239670657,
-      "positionReturn": 0.2586190239670657,
-      "vol": 0.1966,
-      "beta": 0.983,
-      "indivSharpe": 1.1374314545628978,
-      "analysts": 21.0,
-      "targetUpside": 0.33041190184049074,
-      "probAbove": 0.0161,
-      "mom": 54.66666666666668,
-      "mr": 24.11337992785053,
-      "sent": 45.1046,
-      "newsSent": 10.475,
-      "instChange": 81.1623,
-      "insiders": -100.0,
-      "compositeScore": 0.761
-    },
-    {
-      "ticker": "WMB",
-      "name": "Williams Companies, Inc. (The)",
-      "sector": "Oil & Gas Midstream",
-      "price": 70.49,
-      "side": "Short",
-      "rating": "Sell",
-      "score": 0.6342854631743535,
-      "scorePercentile": 88.6,
-      "forecastReturn": -0.17707645659168703,
-      "positionReturn": 0.17707645659168703,
-      "vol": 0.15000000000000002,
-      "beta": 0.75,
-      "indivSharpe": 0.9471763772779134,
-      "analysts": 20.0,
-      "targetUpside": 0.20939140303589165,
-      "probAbove": 0.284025,
-      "mom": 62.27091826759567,
-      "mr": 37.8900919735797,
-      "sent": null,
-      "newsSent": 53.676,
-      "instChange": -11.8236,
-      "insiders": -100.0,
-      "compositeScore": 0.554
-    },
-    {
-      "ticker": "VRNS",
-      "name": "Varonis Systems, Inc.",
-      "sector": "Software - Infrastructure",
-      "price": 41.23,
-      "side": "Short",
-      "rating": "Sell",
-      "score": 0.6295574154156705,
-      "scorePercentile": 87.1,
-      "forecastReturn": -0.29137313995038705,
-      "positionReturn": 0.29137313995038705,
-      "vol": 0.16180000000000003,
-      "beta": 0.809,
-      "indivSharpe": 1.5845064273818725,
-      "analysts": 22.0,
-      "targetUpside": 0.22924617996604435,
-      "probAbove": 0.220075,
-      "mom": 59.248553378411756,
-      "mr": 31.77278531081481,
-      "sent": -69.7908,
-      "newsSent": 61.6786,
-      "instChange": 91.1824,
-      "insiders": null,
-      "compositeScore": 0.5449
-    },
-    {
-      "ticker": "MDGL",
-      "name": "Madrigal Pharmaceuticals, Inc.",
-      "sector": "Biotechnology",
-      "price": 516.74,
-      "side": "Short",
-      "rating": "Sell",
-      "score": 0.6452829362252844,
-      "scorePercentile": 90.8,
-      "forecastReturn": -0.25135461916015855,
-      "positionReturn": 0.25135461916015855,
-      "vol": 0.2006,
-      "beta": 1.003,
-      "indivSharpe": 1.0785374833507406,
-      "analysts": 16.0,
-      "targetUpside": 0.31219278554011676,
-      "probAbove": 0.196925,
-      "mom": 70.48122890835748,
-      "mr": 14.993426716205619,
-      "sent": 45.1046,
-      "newsSent": -34.0924,
-      "instChange": null,
-      "insiders": -100.0,
-      "compositeScore": 0.6408
-    },
-    {
-      "ticker": "HR",
-      "name": "Healthcare Realty Trust Incorpo",
-      "sector": "REIT - Healthcare Facilities",
-      "price": 19.39,
-      "side": "Short",
-      "rating": "Strong Sell",
-      "score": 0.7255102143080837,
-      "scorePercentile": 98.9,
-      "forecastReturn": -0.19098898863993163,
-      "positionReturn": 0.19098898863993163,
-      "vol": 0.1644,
-      "beta": 0.822,
-      "indivSharpe": 0.9488381304132095,
-      "analysts": 12.0,
-      "targetUpside": 0.1131165549252191,
-      "probAbove": 0.22525,
-      "mom": 51.60277857254326,
-      "mr": 42.76974712461722,
-      "sent": 45.1046,
-      "newsSent": 46.324,
-      "instChange": null,
-      "insiders": null,
-      "compositeScore": 0.9239
-    },
-    {
-      "ticker": "GSAT",
-      "name": "Globalstar, Inc.",
-      "sector": "Telecom Services",
-      "price": 82.36,
-      "side": "Short",
-      "rating": "Strong Sell",
-      "score": 0.6754591652851227,
-      "scorePercentile": 95.0,
-      "forecastReturn": -0.13436355503108832,
-      "positionReturn": 0.13436355503108832,
-      "vol": 0.3028,
-      "beta": 1.514,
-      "indivSharpe": 0.32814912493754395,
-      "analysts": 3.0,
-      "targetUpside": 0.09276347741622137,
-      "probAbove": 0.0,
-      "mom": 27.072501157834196,
-      "mr": 43.471860861372136,
-      "sent": 45.1046,
-      "newsSent": -81.8478,
-      "instChange": -23.8477,
-      "insiders": -100.0,
-      "compositeScore": 0.6636
-    },
-    {
-      "ticker": "NEU",
-      "name": "NewMarket Corp",
-      "sector": "Specialty Chemicals",
-      "price": 937.34,
-      "side": "Short",
-      "rating": "Strong Sell",
-      "score": 0.6889739210011052,
-      "scorePercentile": 96.8,
-      "forecastReturn": -0.19113251083335392,
-      "positionReturn": 0.19113251083335392,
-      "vol": 0.15000000000000002,
-      "beta": 0.75,
-      "indivSharpe": 1.0408834055556926,
-      "analysts": null,
-      "targetUpside": null,
-      "probAbove": 0.24167500000000003,
-      "mom": 75.04327325448813,
-      "mr": 65.55569800386323,
-      "sent": -59.3305,
-      "newsSent": -93.2336,
-      "instChange": null,
-      "insiders": null,
-      "compositeScore": 0.8463
-    },
-    {
-      "ticker": "WBD",
-      "name": "Warner Bros. Discovery, Inc. - ",
-      "sector": "Entertainment",
-      "price": 28.55,
-      "side": "Short",
-      "rating": "Strong Sell",
-      "score": 0.7210279021804347,
-      "scorePercentile": 98.9,
-      "forecastReturn": -0.12667167741841012,
-      "positionReturn": 0.12667167741841012,
-      "vol": 0.313,
-      "beta": 1.565,
-      "indivSharpe": 0.29288075852527196,
-      "analysts": 10.0,
-      "targetUpside": 0.04028021015761807,
-      "probAbove": 0.0,
-      "mom": 77.86640329865871,
-      "mr": 47.049817529091825,
-      "sent": 45.1046,
-      "newsSent": -79.8308,
-      "instChange": 7.014,
-      "insiders": -100.0,
-      "compositeScore": 0.7945
-    },
-    {
-      "ticker": "TW",
-      "name": "Tradeweb Markets Inc.",
-      "sector": "Capital Markets",
-      "price": 107.04,
-      "side": "Short",
-      "rating": "Sell",
-      "score": 0.6385509621868372,
-      "scorePercentile": 89.6,
-      "forecastReturn": -0.11404977594555821,
-      "positionReturn": 0.11404977594555821,
-      "vol": 0.15000000000000002,
-      "beta": 0.75,
-      "indivSharpe": 0.5269985063037212,
-      "analysts": 14.0,
-      "targetUpside": 0.15577625186846045,
-      "probAbove": 0.456075,
-      "mom": 77.14696813973643,
-      "mr": 56.26006331141512,
-      "sent": 45.1046,
-      "newsSent": -67.0787,
-      "instChange": -88.7776,
-      "insiders": -100.0,
-      "compositeScore": 0.5266
-    },
-    {
-      "ticker": "MAMA",
-      "name": "Mama's Creations, Inc.",
-      "sector": "Packaged Foods",
-      "price": 16.44,
-      "side": "Short",
-      "rating": "Sell",
-      "score": 0.6299385362635099,
-      "scorePercentile": 87.3,
-      "forecastReturn": -0.2111319615477525,
-      "positionReturn": 0.2111319615477525,
-      "vol": 0.15000000000000002,
-      "beta": 0.75,
-      "indivSharpe": 1.1742130769850163,
-      "analysts": 7.0,
-      "targetUpside": 0.36426824817518244,
-      "probAbove": 0.211275,
-      "mom": 26.305609284332704,
-      "mr": 42.64871475367809,
-      "sent": null,
-      "newsSent": null,
-      "instChange": null,
-      "insiders": null,
-      "compositeScore": 0.5388
-    },
-    {
-      "ticker": "AESI",
-      "name": "Atlas Energy Solutions Inc.",
-      "sector": "Oil & Gas Equipment & Services",
-      "price": 12.58,
-      "side": "Short",
-      "rating": "Strong Sell",
-      "score": 0.6769315483245778,
-      "scorePercentile": 95.4,
-      "forecastReturn": -0.11272752906967165,
-      "positionReturn": 0.11272752906967165,
-      "vol": 0.21800000000000003,
-      "beta": 1.09,
-      "indivSharpe": 0.3565482984847323,
-      "analysts": 12.0,
-      "targetUpside": 0.47058823529411753,
-      "probAbove": 0.19975,
-      "mom": 59.867593687214324,
-      "mr": 43.61169542306274,
-      "sent": -46.2762,
-      "newsSent": -73.3897,
-      "instChange": 32.6653,
-      "insiders": null,
-      "compositeScore": 0.6849
-    },
-    {
-      "ticker": "BKD",
-      "name": "Brookdale Senior Living Inc.",
-      "sector": "Medical Care Facilities",
-      "price": 11.8,
-      "side": "Short",
-      "rating": "Sell",
-      "score": 0.6254796719195617,
-      "scorePercentile": 86.0,
-      "forecastReturn": -0.267837470859967,
-      "positionReturn": 0.267837470859967,
-      "vol": 0.15000000000000002,
-      "beta": 0.75,
-      "indivSharpe": 1.552249805733113,
-      "analysts": 6.0,
-      "targetUpside": 0.6313559322033897,
-      "probAbove": 0.21402500000000002,
-      "mom": 8.16687882736963,
-      "mr": 23.541623202296606,
-      "sent": 45.1046,
-      "newsSent": -34.0924,
-      "instChange": 39.479,
-      "insiders": null,
-      "compositeScore": 0.5068
-    },
-    {
-      "ticker": "MSCI",
-      "name": "MSCI Inc.",
-      "sector": "Financial Data & Stock Exchanges",
-      "price": 563.49,
-      "side": "Short",
-      "rating": "Sell",
-      "score": 0.6650725477499788,
-      "scorePercentile": 93.8,
-      "forecastReturn": -0.17425107275662632,
-      "positionReturn": 0.17425107275662632,
-      "vol": 0.2444,
-      "beta": 1.222,
-      "indivSharpe": 0.5697670734722844,
-      "analysts": 17.0,
-      "targetUpside": 0.22816525581642977,
-      "probAbove": 0.1997,
-      "mom": 26.147400414801965,
-      "mr": 42.69695870297,
-      "sent": -81.9247,
-      "newsSent": null,
-      "instChange": -25.8517,
-      "insiders": null,
-      "compositeScore": 0.6804
-    },
-    {
-      "ticker": "CPT",
-      "name": "Camden Property Trust",
-      "sector": "REIT - Residential",
-      "price": 107.59,
-      "side": "Short",
-      "rating": "Strong Sell",
-      "score": 0.6811727279776039,
-      "scorePercentile": 96.0,
-      "forecastReturn": -0.197035904935711,
-      "positionReturn": 0.197035904935711,
-      "vol": 0.15780000000000002,
-      "beta": 0.789,
-      "indivSharpe": 1.0268435040285866,
-      "analysts": 22.0,
-      "targetUpside": 0.09136955107351974,
-      "probAbove": 0.242975,
-      "mom": 29.68668873065431,
-      "mr": 22.80171155399239,
-      "sent": 45.1046,
-      "newsSent": 3.3832,
-      "instChange": 45.8918,
-      "insiders": -100.0,
-      "compositeScore": 0.8189
-    },
-    {
-      "ticker": "SBUX",
-      "name": "Starbucks Corporation",
-      "sector": "Restaurants",
-      "price": 107.08,
-      "side": "Short",
-      "rating": "Sell",
-      "score": 0.6520352980287877,
-      "scorePercentile": 91.7,
-      "forecastReturn": -0.15972285712591616,
-      "positionReturn": 0.15972285712591616,
-      "vol": 0.1932,
-      "beta": 0.966,
-      "indivSharpe": 0.6455634426807254,
-      "analysts": 31.0,
-      "targetUpside": 0.04805575270825546,
-      "probAbove": 0.19945,
-      "mom": 36.52147755617191,
-      "mr": 70.38392035431788,
-      "sent": -49.1213,
-      "newsSent": 42.2251,
-      "instChange": null,
-      "insiders": -100.0,
-      "compositeScore": 0.624
-    },
-    {
-      "ticker": "HP",
-      "name": "Helmerich & Payne, Inc.",
-      "sector": "Oil & Gas Drilling",
-      "price": 43.55,
-      "side": "Short",
-      "rating": "Strong Sell",
-      "score": 0.7026057384385768,
-      "scorePercentile": 97.7,
-      "forecastReturn": -0.07786965398042733,
-      "positionReturn": 0.07786965398042733,
-      "vol": 0.15000000000000002,
-      "beta": 0.75,
-      "indivSharpe": 0.2857976932028488,
-      "analysts": 15.0,
-      "targetUpside": -0.01416004592422504,
-      "probAbove": 0.2298,
-      "mom": 82.47520709606398,
-      "mr": 70.3478588336617,
-      "sent": -23.9331,
-      "newsSent": -4.9447,
-      "instChange": 37.4749,
-      "insiders": -100.0,
-      "compositeScore": 0.7458
-    },
-    {
-      "ticker": "NAVN",
-      "name": "Navan, Inc.",
-      "sector": "Software - Application",
-      "price": 29.16,
-      "side": "Short",
-      "rating": "Strong Sell",
-      "score": 0.6912395956290185,
-      "scorePercentile": 96.9,
-      "forecastReturn": -0.2683456932967052,
-      "positionReturn": 0.2683456932967052,
-      "vol": 0.2,
-      "beta": 1.0,
-      "indivSharpe": 1.166728466483526,
-      "analysts": 15.0,
-      "targetUpside": 0.02652023319615915,
-      "probAbove": 0.19675,
-      "mom": 66.54729315358621,
-      "mr": 54.38313452613005,
-      "sent": 45.1046,
-      "newsSent": 82.8887,
-      "instChange": -17.0341,
-      "insiders": -100.0,
-      "compositeScore": 0.8661
+      "compositeScore": 0.8399,
+      "poolRank": 8,
+      "poolSize": 268,
+      "alternates": [
+        {
+          "ticker": "GSAT",
+          "name": "Globalstar, Inc.",
+          "rating": "Strong Sell",
+          "forecastReturn": -0.18111819855093314,
+          "compositeScore": 0.6713,
+          "poolRank": 55
+        },
+        {
+          "ticker": "AXSM",
+          "name": "Axsome Therapeutics, Inc.",
+          "rating": "Sell",
+          "forecastReturn": -0.27934813155359506,
+          "compositeScore": 0.6873,
+          "poolRank": 51
+        }
+      ]
     },
     {
       "ticker": "AXSM",
       "name": "Axsome Therapeutics, Inc.",
       "sector": "Biotechnology",
-      "price": 207.77,
+      "price": 205.4,
       "side": "Short",
       "rating": "Sell",
-      "score": 0.6608018384289366,
-      "scorePercentile": 93.3,
-      "forecastReturn": -0.16694426933901474,
-      "positionReturn": 0.16694426933901474,
+      "score": 0.6526753537837123,
+      "scorePercentile": 93.6,
+      "forecastReturn": -0.27934813155359506,
+      "positionReturn": 0.27934813155359506,
       "vol": 0.15000000000000002,
       "beta": 0.75,
-      "indivSharpe": 0.879628462260098,
+      "indivSharpe": 1.6289875436906334,
       "analysts": 21.0,
-      "targetUpside": 0.373728305337633,
-      "probAbove": 0.09395,
-      "mom": 45.76753818275954,
-      "mr": 33.91340322471049,
-      "sent": 45.1046,
-      "newsSent": -22.121,
+      "targetUpside": 0.38957901655306726,
+      "probAbove": 0.02875,
+      "shortInterest": 0.07663513966067066,
+      "mom": 42.668537979679144,
+      "mr": 29.881338532960697,
+      "sent": 44.2926,
+      "newsSent": -20.6649,
       "instChange": null,
       "insiders": -100.0,
-      "compositeScore": 0.7093
+      "compositeScore": 0.6873,
+      "poolRank": 51,
+      "poolSize": 268,
+      "alternates": [
+        {
+          "ticker": "NET",
+          "name": "Cloudflare, Inc.",
+          "rating": "Strong Sell",
+          "forecastReturn": -0.20878197721137892,
+          "compositeScore": 0.8586,
+          "poolRank": 7
+        },
+        {
+          "ticker": "GSAT",
+          "name": "Globalstar, Inc.",
+          "rating": "Strong Sell",
+          "forecastReturn": -0.18111819855093314,
+          "compositeScore": 0.6713,
+          "poolRank": 55
+        }
+      ]
     },
     {
-      "ticker": "ORLY",
-      "name": "O'Reilly Automotive, Inc.",
-      "sector": "Auto Parts",
-      "price": 89.11,
+      "ticker": "GSAT",
+      "name": "Globalstar, Inc.",
+      "sector": "Telecom Services",
+      "price": 82.11,
+      "side": "Short",
+      "rating": "Strong Sell",
+      "score": 0.6705260858385993,
+      "scorePercentile": 95.6,
+      "forecastReturn": -0.18111819855093314,
+      "positionReturn": 0.18111819855093314,
+      "vol": 0.3028,
+      "beta": 1.514,
+      "indivSharpe": 0.4825567983848518,
+      "analysts": 3.0,
+      "targetUpside": 0.0960906101571064,
+      "probAbove": 0.28555,
+      "shortInterest": 0.07463723142967812,
+      "mom": 31.23214459009587,
+      "mr": 61.09023573340154,
+      "sent": 44.2926,
+      "newsSent": -81.4863,
+      "instChange": -23.8477,
+      "insiders": -100.0,
+      "compositeScore": 0.6713,
+      "poolRank": 55,
+      "poolSize": 268,
+      "alternates": [
+        {
+          "ticker": "AESI",
+          "name": "Atlas Energy Solutions Inc.",
+          "rating": "Strong Sell",
+          "forecastReturn": -0.24788248598253892,
+          "compositeScore": 0.6292,
+          "poolRank": 74
+        },
+        {
+          "ticker": "PNRG",
+          "name": "PrimeEnergy Resources Corporati",
+          "rating": "Sell",
+          "forecastReturn": -0.17168453251803573,
+          "compositeScore": 0.5609,
+          "poolRank": 112
+        }
+      ]
+    },
+    {
+      "ticker": "PNRG",
+      "name": "PrimeEnergy Resources Corporati",
+      "sector": "Oil & Gas E&P",
+      "price": 206.97,
       "side": "Short",
       "rating": "Sell",
-      "score": 0.626732862153884,
-      "scorePercentile": 86.5,
-      "forecastReturn": -0.19162408316887491,
-      "positionReturn": 0.19162408316887491,
+      "score": 0.6397323026718083,
+      "scorePercentile": 91.4,
+      "forecastReturn": -0.17168453251803573,
+      "positionReturn": 0.17168453251803573,
       "vol": 0.15000000000000002,
       "beta": 0.75,
-      "indivSharpe": 1.044160554459166,
-      "analysts": 25.0,
-      "targetUpside": 0.2097407698350353,
-      "probAbove": 0.21875,
-      "mom": 47.307373653686795,
-      "mr": 32.704986057517374,
-      "sent": 45.1046,
-      "newsSent": -50.8133,
-      "instChange": -23.0461,
-      "insiders": -100.0,
-      "compositeScore": 0.5008
+      "indivSharpe": 0.9112302167869046,
+      "analysts": 1.0,
+      "targetUpside": -0.19795139392182437,
+      "probAbove": 0.19825,
+      "shortInterest": 0.12074818385497997,
+      "mom": 65.99388545130277,
+      "mr": 25.016299476587022,
+      "sent": -99.2765,
+      "newsSent": 84.0939,
+      "instChange": null,
+      "insiders": null,
+      "compositeScore": 0.5609,
+      "poolRank": 112,
+      "poolSize": 268,
+      "alternates": [
+        {
+          "ticker": "AESI",
+          "name": "Atlas Energy Solutions Inc.",
+          "rating": "Strong Sell",
+          "forecastReturn": -0.24788248598253892,
+          "compositeScore": 0.6292,
+          "poolRank": 74
+        },
+        {
+          "ticker": "NET",
+          "name": "Cloudflare, Inc.",
+          "rating": "Strong Sell",
+          "forecastReturn": -0.20878197721137892,
+          "compositeScore": 0.8586,
+          "poolRank": 7
+        }
+      ]
+    },
+    {
+      "ticker": "CALM",
+      "name": "Cal-Maine Foods, Inc.",
+      "sector": "Farm Products",
+      "price": 84.6,
+      "side": "Short",
+      "rating": "Strong Sell",
+      "score": 0.6895008838444985,
+      "scorePercentile": 97.3,
+      "forecastReturn": -0.18454547833912227,
+      "positionReturn": 0.18454547833912227,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": 0.9969698555941483,
+      "analysts": 4.0,
+      "targetUpside": 0.04018912529550844,
+      "probAbove": 0.25395,
+      "shortInterest": 0.12140319913774483,
+      "mom": 55.05938873727894,
+      "mr": 39.30276618590334,
+      "sent": -35.6913,
+      "newsSent": null,
+      "instChange": 88.7776,
+      "insiders": null,
+      "compositeScore": 0.7116,
+      "poolRank": 41,
+      "poolSize": 268,
+      "alternates": [
+        {
+          "ticker": "XMTR",
+          "name": "Xometry, Inc.",
+          "rating": "Strong Sell",
+          "forecastReturn": -0.23025185736572218,
+          "compositeScore": 0.7837,
+          "poolRank": 19
+        },
+        {
+          "ticker": "HR",
+          "name": "Healthcare Realty Trust Incorpo",
+          "rating": "Strong Sell",
+          "forecastReturn": -0.1919439769646759,
+          "compositeScore": 0.7753,
+          "poolRank": 21
+        }
+      ]
     },
     {
       "ticker": "AIP",
       "name": "Arteris, Inc.",
       "sector": "Semiconductors",
-      "price": 23.89,
+      "price": 22.61,
       "side": "Short",
       "rating": "Strong Sell",
-      "score": 0.6755078055408882,
-      "scorePercentile": 95.1,
-      "forecastReturn": -0.19140903310290136,
-      "positionReturn": 0.19140903310290136,
+      "score": 0.6970513370037028,
+      "scorePercentile": 97.9,
+      "forecastReturn": -0.4158961102787039,
+      "positionReturn": 0.4158961102787039,
       "vol": 0.39180000000000004,
       "beta": 1.959,
-      "indivSharpe": 0.3992063121564608,
+      "indivSharpe": 0.9721697556883712,
       "analysts": 6.0,
-      "targetUpside": 0.7161992465466722,
-      "probAbove": 0.021525,
-      "mom": 41.76198643526395,
-      "mr": 43.588673128228926,
-      "sent": -78.41,
-      "newsSent": -46.9096,
+      "targetUpside": 0.8133569217160548,
+      "probAbove": 0.0,
+      "shortInterest": 0.0577092817172577,
+      "mom": 31.987848133100798,
+      "mr": 42.807766903595294,
+      "sent": -77.0096,
+      "newsSent": -44.4589,
       "instChange": 65.1303,
       "insiders": -100.0,
-      "compositeScore": 0.6895
+      "compositeScore": 0.8212,
+      "poolRank": 10,
+      "poolSize": 268,
+      "alternates": [
+        {
+          "ticker": "RKLB",
+          "name": "Rocket Lab Corporation",
+          "rating": "Strong Sell",
+          "forecastReturn": -0.36462987211811815,
+          "compositeScore": 0.7107,
+          "poolRank": 42
+        },
+        {
+          "ticker": "XMTR",
+          "name": "Xometry, Inc.",
+          "rating": "Strong Sell",
+          "forecastReturn": -0.23025185736572218,
+          "compositeScore": 0.7837,
+          "poolRank": 19
+        }
+      ]
+    },
+    {
+      "ticker": "MSCI",
+      "name": "MSCI Inc.",
+      "sector": "Financial Data & Stock Exchanges",
+      "price": 571.36,
+      "side": "Short",
+      "rating": "Sell",
+      "score": 0.6537957496706063,
+      "scorePercentile": 94.0,
+      "forecastReturn": -0.12877960160877922,
+      "positionReturn": 0.12877960160877922,
+      "vol": 0.2444,
+      "beta": 1.222,
+      "indivSharpe": 0.3837135908706187,
+      "analysts": 17.0,
+      "targetUpside": 0.21124831979837588,
+      "probAbove": 0.2168,
+      "shortInterest": 0.01721212268373114,
+      "mom": 31.296451388177644,
+      "mr": 35.86916025456658,
+      "sent": -83.0386,
+      "newsSent": null,
+      "instChange": -25.8517,
+      "insiders": null,
+      "compositeScore": 0.7294,
+      "poolRank": 33,
+      "poolSize": 268,
+      "alternates": [
+        {
+          "ticker": "MCO",
+          "name": "Moody's Corporation",
+          "rating": "Sell",
+          "forecastReturn": -0.13561350694409613,
+          "compositeScore": 0.6957,
+          "poolRank": 50
+        },
+        {
+          "ticker": "GKOS",
+          "name": "Glaukos Corporation",
+          "rating": "Sell",
+          "forecastReturn": -0.22873228522003985,
+          "compositeScore": 0.6358,
+          "poolRank": 70
+        }
+      ]
+    },
+    {
+      "ticker": "GKOS",
+      "name": "Glaukos Corporation",
+      "sector": "Medical Devices",
+      "price": 185.65,
+      "side": "Short",
+      "rating": "Sell",
+      "score": 0.6356352683929495,
+      "scorePercentile": 90.8,
+      "forecastReturn": -0.22873228522003985,
+      "positionReturn": 0.22873228522003985,
+      "vol": 0.1524,
+      "beta": 0.762,
+      "indivSharpe": 1.271209220603936,
+      "analysts": 13.0,
+      "targetUpside": 0.061965257204416924,
+      "probAbove": 0.0481,
+      "shortInterest": 0.06383290210459223,
+      "mom": 53.11338278144384,
+      "mr": 64.0031050211953,
+      "sent": -26.1254,
+      "newsSent": -2.086,
+      "instChange": null,
+      "insiders": -100.0,
+      "compositeScore": 0.6358,
+      "poolRank": 70,
+      "poolSize": 268,
+      "alternates": [
+        {
+          "ticker": "HR",
+          "name": "Healthcare Realty Trust Incorpo",
+          "rating": "Strong Sell",
+          "forecastReturn": -0.1919439769646759,
+          "compositeScore": 0.7753,
+          "poolRank": 21
+        },
+        {
+          "ticker": "XMTR",
+          "name": "Xometry, Inc.",
+          "rating": "Strong Sell",
+          "forecastReturn": -0.23025185736572218,
+          "compositeScore": 0.7837,
+          "poolRank": 19
+        }
+      ]
+    },
+    {
+      "ticker": "HR",
+      "name": "Healthcare Realty Trust Incorpo",
+      "sector": "REIT - Healthcare Facilities",
+      "price": 19.32,
+      "side": "Short",
+      "rating": "Strong Sell",
+      "score": 0.6783195684329995,
+      "scorePercentile": 96.2,
+      "forecastReturn": -0.1919439769646759,
+      "positionReturn": 0.1919439769646759,
+      "vol": 0.1644,
+      "beta": 0.822,
+      "indivSharpe": 0.9546470618289289,
+      "analysts": 12.0,
+      "targetUpside": 0.11714958592132496,
+      "probAbove": 0.2648,
+      "shortInterest": 0.05487653227844703,
+      "mom": 55.12539840541464,
+      "mr": 35.27763386155222,
+      "sent": 44.2926,
+      "newsSent": 48.5658,
+      "instChange": null,
+      "insiders": null,
+      "compositeScore": 0.7753,
+      "poolRank": 21,
+      "poolSize": 268,
+      "alternates": [
+        {
+          "ticker": "MA",
+          "name": "Mastercard Incorporated",
+          "rating": "Sell",
+          "forecastReturn": -0.1391114489934807,
+          "compositeScore": 0.6348,
+          "poolRank": 71
+        },
+        {
+          "ticker": "RLI",
+          "name": "RLI Corp.",
+          "rating": "Sell",
+          "forecastReturn": -0.12535760963214715,
+          "compositeScore": 0.5702,
+          "poolRank": 105
+        }
+      ]
+    },
+    {
+      "ticker": "NAVN",
+      "name": "Navan, Inc.",
+      "sector": "Software - Application",
+      "price": 29.36,
+      "side": "Short",
+      "rating": "Strong Sell",
+      "score": 0.6985891258220092,
+      "scorePercentile": 98.0,
+      "forecastReturn": -0.21009363248215307,
+      "positionReturn": 0.21009363248215307,
+      "vol": 0.2,
+      "beta": 1.0,
+      "indivSharpe": 0.8754681624107653,
+      "analysts": 15.0,
+      "targetUpside": 0.019527588555858344,
+      "probAbove": 0.10525,
+      "shortInterest": 0.06299762456261229,
+      "mom": 62.79605386244613,
+      "mr": 76.4686598117507,
+      "sent": 44.2926,
+      "newsSent": 84.0939,
+      "instChange": -17.0341,
+      "insiders": -100.0,
+      "compositeScore": 0.8099,
+      "poolRank": 14,
+      "poolSize": 268,
+      "alternates": [
+        {
+          "ticker": "XMTR",
+          "name": "Xometry, Inc.",
+          "rating": "Strong Sell",
+          "forecastReturn": -0.23025185736572218,
+          "compositeScore": 0.7837,
+          "poolRank": 19
+        },
+        {
+          "ticker": "MA",
+          "name": "Mastercard Incorporated",
+          "rating": "Sell",
+          "forecastReturn": -0.1391114489934807,
+          "compositeScore": 0.6348,
+          "poolRank": 71
+        }
+      ]
+    },
+    {
+      "ticker": "CME",
+      "name": "CME Group Inc.",
+      "sector": "Financial Data & Stock Exchanges",
+      "price": 279.165,
+      "side": "Short",
+      "rating": "Strong Sell",
+      "score": 0.696948579530882,
+      "scorePercentile": 97.8,
+      "forecastReturn": -0.1353165488992858,
+      "positionReturn": 0.1353165488992858,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": 0.6687769926619052,
+      "analysts": 15.0,
+      "targetUpside": 0.013976250604481155,
+      "probAbove": 0.21685,
+      "shortInterest": 0.01751898490399861,
+      "mom": 75.26936488512838,
+      "mr": 64.99908688696445,
+      "sent": 44.2926,
+      "newsSent": -21.9035,
+      "instChange": null,
+      "insiders": null,
+      "compositeScore": 0.8708,
+      "poolRank": 5,
+      "poolSize": 268,
+      "alternates": [
+        {
+          "ticker": "HP",
+          "name": "Helmerich & Payne, Inc.",
+          "rating": "Strong Sell",
+          "forecastReturn": -0.15961491337837175,
+          "compositeScore": 0.7772,
+          "poolRank": 20
+        },
+        {
+          "ticker": "AESI",
+          "name": "Atlas Energy Solutions Inc.",
+          "rating": "Strong Sell",
+          "forecastReturn": -0.24788248598253892,
+          "compositeScore": 0.6292,
+          "poolRank": 74
+        }
+      ]
+    },
+    {
+      "ticker": "AESI",
+      "name": "Atlas Energy Solutions Inc.",
+      "sector": "Oil & Gas Equipment & Services",
+      "price": 11.9,
+      "side": "Short",
+      "rating": "Strong Sell",
+      "score": 0.6750321153955299,
+      "scorePercentile": 96.0,
+      "forecastReturn": -0.24788248598253892,
+      "positionReturn": 0.24788248598253892,
+      "vol": 0.21800000000000003,
+      "beta": 1.09,
+      "indivSharpe": 0.9765251650575179,
+      "analysts": 12.0,
+      "targetUpside": 0.5546218487394958,
+      "probAbove": 0.15675,
+      "shortInterest": 0.2620882167212856,
+      "mom": 70.95207502663257,
+      "mr": 28.451890626532077,
+      "sent": -45.8199,
+      "newsSent": -73.2073,
+      "instChange": 32.6653,
+      "insiders": null,
+      "compositeScore": 0.6292,
+      "poolRank": 74,
+      "poolSize": 268,
+      "alternates": [
+        {
+          "ticker": "HP",
+          "name": "Helmerich & Payne, Inc.",
+          "rating": "Strong Sell",
+          "forecastReturn": -0.15961491337837175,
+          "compositeScore": 0.7772,
+          "poolRank": 20
+        },
+        {
+          "ticker": "UNF",
+          "name": "Unifirst Corporation",
+          "rating": "Sell",
+          "forecastReturn": -0.1331532377156498,
+          "compositeScore": 0.5552,
+          "poolRank": 115
+        }
+      ]
+    },
+    {
+      "ticker": "XMTR",
+      "name": "Xometry, Inc.",
+      "sector": "Industrial Distribution",
+      "price": 84.58,
+      "side": "Short",
+      "rating": "Strong Sell",
+      "score": 0.6861100788091704,
+      "scorePercentile": 97.0,
+      "forecastReturn": -0.23025185736572218,
+      "positionReturn": 0.23025185736572218,
+      "vol": 0.26320000000000005,
+      "beta": 1.316,
+      "indivSharpe": 0.7418383638515279,
+      "analysts": 10.0,
+      "targetUpside": 0.3040908016079451,
+      "probAbove": 0.0507,
+      "shortInterest": 0.054130859073453615,
+      "mom": 51.18981943530775,
+      "mr": 60.64207261952441,
+      "sent": 44.2926,
+      "newsSent": 50.9126,
+      "instChange": 41.483,
+      "insiders": -96.6667,
+      "compositeScore": 0.7837,
+      "poolRank": 19,
+      "poolSize": 268,
+      "alternates": [
+        {
+          "ticker": "MA",
+          "name": "Mastercard Incorporated",
+          "rating": "Sell",
+          "forecastReturn": -0.1391114489934807,
+          "compositeScore": 0.6348,
+          "poolRank": 71
+        },
+        {
+          "ticker": "BKD",
+          "name": "Brookdale Senior Living Inc.",
+          "rating": "Sell",
+          "forecastReturn": -0.2705077821700954,
+          "compositeScore": 0.5702,
+          "poolRank": 106
+        }
+      ]
+    },
+    {
+      "ticker": "MA",
+      "name": "Mastercard Incorporated",
+      "sector": "Credit Services",
+      "price": 599.86,
+      "side": "Short",
+      "rating": "Sell",
+      "score": 0.6239025772018112,
+      "scorePercentile": 87.4,
+      "forecastReturn": -0.1391114489934807,
+      "positionReturn": 0.1391114489934807,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": 0.6940763266232046,
+      "analysts": 37.0,
+      "targetUpside": 0.11242173173740522,
+      "probAbove": 0.1943,
+      "shortInterest": 0.010321874965958945,
+      "mom": 57.733964446265304,
+      "mr": 72.26641025269053,
+      "sent": 44.2926,
+      "newsSent": -23.0769,
+      "instChange": null,
+      "insiders": null,
+      "compositeScore": 0.6348,
+      "poolRank": 71,
+      "poolSize": 268,
+      "alternates": [
+        {
+          "ticker": "MCO",
+          "name": "Moody's Corporation",
+          "rating": "Sell",
+          "forecastReturn": -0.13561350694409613,
+          "compositeScore": 0.6957,
+          "poolRank": 50
+        },
+        {
+          "ticker": "FUN",
+          "name": "Six Flags Entertainment Corpora",
+          "rating": "Strong Sell",
+          "forecastReturn": -0.23900364398465335,
+          "compositeScore": 0.6582,
+          "poolRank": 59
+        }
+      ]
+    },
+    {
+      "ticker": "MDGL",
+      "name": "Madrigal Pharmaceuticals, Inc.",
+      "sector": "Biotechnology",
+      "price": 511.97,
+      "side": "Short",
+      "rating": "Sell",
+      "score": 0.6433231034940422,
+      "scorePercentile": 92.3,
+      "forecastReturn": -0.24082620950047506,
+      "positionReturn": 0.24082620950047506,
+      "vol": 0.2006,
+      "beta": 1.003,
+      "indivSharpe": 1.0260528888358678,
+      "analysts": 16.0,
+      "targetUpside": 0.32441842295447,
+      "probAbove": 0.09295,
+      "shortInterest": 0.14323842657916647,
+      "mom": 65.45502137652369,
+      "mr": 29.796245744032007,
+      "sent": 44.2926,
+      "newsSent": -32.5293,
+      "instChange": null,
+      "insiders": -100.0,
+      "compositeScore": 0.5684,
+      "poolRank": 108,
+      "poolSize": 268,
+      "alternates": [
+        {
+          "ticker": "UNF",
+          "name": "Unifirst Corporation",
+          "rating": "Sell",
+          "forecastReturn": -0.1331532377156498,
+          "compositeScore": 0.5552,
+          "poolRank": 115
+        },
+        {
+          "ticker": "FUN",
+          "name": "Six Flags Entertainment Corpora",
+          "rating": "Strong Sell",
+          "forecastReturn": -0.23900364398465335,
+          "compositeScore": 0.6582,
+          "poolRank": 59
+        }
+      ]
+    },
+    {
+      "ticker": "FUN",
+      "name": "Six Flags Entertainment Corpora",
+      "sector": "Leisure",
+      "price": 16.91,
+      "side": "Short",
+      "rating": "Strong Sell",
+      "score": 0.6796762241257788,
+      "scorePercentile": 96.3,
+      "forecastReturn": -0.23900364398465335,
+      "positionReturn": 0.23900364398465335,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": 1.360024293231022,
+      "analysts": 13.0,
+      "targetUpside": 0.2646138379657008,
+      "probAbove": 0.1549,
+      "shortInterest": 0.22266110621727925,
+      "mom": 42.04243277713251,
+      "mr": 50.86988119028577,
+      "sent": -38.9871,
+      "newsSent": -54.498,
+      "instChange": null,
+      "insiders": 100.0,
+      "compositeScore": 0.6582,
+      "poolRank": 59,
+      "poolSize": 268,
+      "alternates": [
+        {
+          "ticker": "UNF",
+          "name": "Unifirst Corporation",
+          "rating": "Sell",
+          "forecastReturn": -0.1331532377156498,
+          "compositeScore": 0.5552,
+          "poolRank": 115
+        },
+        {
+          "ticker": "WMT",
+          "name": "Walmart Inc.",
+          "rating": "Sell",
+          "forecastReturn": -0.1538609624743148,
+          "compositeScore": 0.7041,
+          "poolRank": 48
+        }
+      ]
+    },
+    {
+      "ticker": "WMT",
+      "name": "Walmart Inc.",
+      "sector": "Discount Stores",
+      "price": 106.49,
+      "side": "Short",
+      "rating": "Sell",
+      "score": 0.6345654970884647,
+      "scorePercentile": 90.5,
+      "forecastReturn": -0.1538609624743148,
+      "positionReturn": 0.1538609624743148,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": 0.7924064164954319,
+      "analysts": 40.0,
+      "targetUpside": 0.20598178232697917,
+      "probAbove": 0.25,
+      "shortInterest": 0.016476929120444704,
+      "mom": 43.58220362329146,
+      "mr": 59.729303495392585,
+      "sent": 44.2926,
+      "newsSent": -39.6349,
+      "instChange": -66.7335,
+      "insiders": -100.0,
+      "compositeScore": 0.7041,
+      "poolRank": 48,
+      "poolSize": 268,
+      "alternates": [
+        {
+          "ticker": "UNF",
+          "name": "Unifirst Corporation",
+          "rating": "Sell",
+          "forecastReturn": -0.1331532377156498,
+          "compositeScore": 0.5552,
+          "poolRank": 115
+        },
+        {
+          "ticker": "WMB",
+          "name": "Williams Companies, Inc. (The)",
+          "rating": "Sell",
+          "forecastReturn": -0.12348810813757927,
+          "compositeScore": 0.5871,
+          "poolRank": 97
+        }
+      ]
+    },
+    {
+      "ticker": "UNF",
+      "name": "Unifirst Corporation",
+      "sector": "Specialty Business Services",
+      "price": 291.75,
+      "side": "Short",
+      "rating": "Sell",
+      "score": 0.6337976678922094,
+      "scorePercentile": 90.3,
+      "forecastReturn": -0.1331532377156498,
+      "positionReturn": 0.1331532377156498,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": 0.6543549181043319,
+      "analysts": 3.0,
+      "targetUpside": -0.06312479862896303,
+      "probAbove": 0.17865,
+      "shortInterest": 0.0858,
+      "mom": 46.64425838417999,
+      "mr": 69.12298717455894,
+      "sent": null,
+      "newsSent": null,
+      "instChange": -86.7735,
+      "insiders": null,
+      "compositeScore": 0.5552,
+      "poolRank": 115,
+      "poolSize": 268,
+      "alternates": [
+        {
+          "ticker": "WMB",
+          "name": "Williams Companies, Inc. (The)",
+          "rating": "Sell",
+          "forecastReturn": -0.12348810813757927,
+          "compositeScore": 0.5871,
+          "poolRank": 97
+        },
+        {
+          "ticker": "RLI",
+          "name": "RLI Corp.",
+          "rating": "Sell",
+          "forecastReturn": -0.12535760963214715,
+          "compositeScore": 0.5702,
+          "poolRank": 105
+        }
+      ]
+    },
+    {
+      "ticker": "WMB",
+      "name": "Williams Companies, Inc. (The)",
+      "sector": "Oil & Gas Midstream",
+      "price": 70.97,
+      "side": "Short",
+      "rating": "Sell",
+      "score": 0.6233580582236815,
+      "scorePercentile": 87.1,
+      "forecastReturn": -0.12348810813757927,
+      "positionReturn": 0.12348810813757927,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": 0.589920720917195,
+      "analysts": 20.0,
+      "targetUpside": 0.20121177962519377,
+      "probAbove": 0.2499,
+      "shortInterest": 0.021776537848894627,
+      "mom": 49.58048903000945,
+      "mr": 47.29384193192911,
+      "sent": null,
+      "newsSent": 56.0626,
+      "instChange": -11.8236,
+      "insiders": -100.0,
+      "compositeScore": 0.5871,
+      "poolRank": 97,
+      "poolSize": 268,
+      "alternates": [
+        {
+          "ticker": "RLI",
+          "name": "RLI Corp.",
+          "rating": "Sell",
+          "forecastReturn": -0.12535760963214715,
+          "compositeScore": 0.5702,
+          "poolRank": 105
+        },
+        {
+          "ticker": "MCO",
+          "name": "Moody's Corporation",
+          "rating": "Sell",
+          "forecastReturn": -0.13561350694409613,
+          "compositeScore": 0.6957,
+          "poolRank": 50
+        }
+      ]
+    },
+    {
+      "ticker": "RLI",
+      "name": "RLI Corp.",
+      "sector": "Insurance - Property & Casualty",
+      "price": 66.62,
+      "side": "Short",
+      "rating": "Sell",
+      "score": 0.6432953756686296,
+      "scorePercentile": 92.3,
+      "forecastReturn": -0.12535760963214715,
+      "positionReturn": 0.12535760963214715,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": 0.6023840642143142,
+      "analysts": 4.0,
+      "targetUpside": -0.0918643050135095,
+      "probAbove": 0.2775,
+      "shortInterest": 0.09747082459658837,
+      "mom": 78.06200359278722,
+      "mr": 35.555090272649636,
+      "sent": 44.2926,
+      "newsSent": 5.6714,
+      "instChange": null,
+      "insiders": null,
+      "compositeScore": 0.5702,
+      "poolRank": 105,
+      "poolSize": 268,
+      "alternates": [
+        {
+          "ticker": "BKD",
+          "name": "Brookdale Senior Living Inc.",
+          "rating": "Sell",
+          "forecastReturn": -0.2705077821700954,
+          "compositeScore": 0.5702,
+          "poolRank": 106
+        },
+        {
+          "ticker": "MCO",
+          "name": "Moody's Corporation",
+          "rating": "Sell",
+          "forecastReturn": -0.13561350694409613,
+          "compositeScore": 0.6957,
+          "poolRank": 50
+        }
+      ]
+    },
+    {
+      "ticker": "HP",
+      "name": "Helmerich & Payne, Inc.",
+      "sector": "Oil & Gas Drilling",
+      "price": 42.49,
+      "side": "Short",
+      "rating": "Strong Sell",
+      "score": 0.7038948851046982,
+      "scorePercentile": 98.3,
+      "forecastReturn": -0.15961491337837175,
+      "positionReturn": 0.15961491337837175,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": 0.8307660891891449,
+      "analysts": 15.0,
+      "targetUpside": 0.01670981407389971,
+      "probAbove": 0.32815,
+      "shortInterest": 0.08730230205345382,
+      "mom": 79.83419252464333,
+      "mr": 69.97275498087053,
+      "sent": -48.7942,
+      "newsSent": -3.5202,
+      "instChange": 37.4749,
+      "insiders": -100.0,
+      "compositeScore": 0.7772,
+      "poolRank": 20,
+      "poolSize": 268,
+      "alternates": [
+        {
+          "ticker": "EQIX",
+          "name": "Equinix, Inc.",
+          "rating": "Sell",
+          "forecastReturn": -0.12067008730021744,
+          "compositeScore": 0.5852,
+          "poolRank": 98
+        },
+        {
+          "ticker": "BKD",
+          "name": "Brookdale Senior Living Inc.",
+          "rating": "Sell",
+          "forecastReturn": -0.2705077821700954,
+          "compositeScore": 0.5702,
+          "poolRank": 106
+        }
+      ]
+    },
+    {
+      "ticker": "BKD",
+      "name": "Brookdale Senior Living Inc.",
+      "sector": "Medical Care Facilities",
+      "price": 12.12,
+      "side": "Short",
+      "rating": "Sell",
+      "score": 0.6443864069181392,
+      "scorePercentile": 92.5,
+      "forecastReturn": -0.2705077821700954,
+      "positionReturn": 0.2705077821700954,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": 1.5700518811339692,
+      "analysts": 6.0,
+      "targetUpside": 0.5882838283828384,
+      "probAbove": 0.021,
+      "shortInterest": 0.1642091325221171,
+      "mom": 12.974044876253274,
+      "mr": 47.81705392352894,
+      "sent": 44.2926,
+      "newsSent": -32.5293,
+      "instChange": 39.479,
+      "insiders": null,
+      "compositeScore": 0.5702,
+      "poolRank": 106,
+      "poolSize": 268,
+      "alternates": [
+        {
+          "ticker": "MCO",
+          "name": "Moody's Corporation",
+          "rating": "Sell",
+          "forecastReturn": -0.13561350694409613,
+          "compositeScore": 0.6957,
+          "poolRank": 50
+        },
+        {
+          "ticker": "EQIX",
+          "name": "Equinix, Inc.",
+          "rating": "Sell",
+          "forecastReturn": -0.12067008730021744,
+          "compositeScore": 0.5852,
+          "poolRank": 98
+        }
+      ]
+    }
+  ],
+  "longPool": [
+    {
+      "ticker": "LQDA",
+      "poolRank": 1,
+      "poolSize": 318,
+      "compositeScore": 0.9132
+    },
+    {
+      "ticker": "WLFC",
+      "poolRank": 2,
+      "poolSize": 318,
+      "compositeScore": 0.9046
+    },
+    {
+      "ticker": "GOLD",
+      "poolRank": 3,
+      "poolSize": 318,
+      "compositeScore": 0.9014
+    },
+    {
+      "ticker": "AMPH",
+      "poolRank": 4,
+      "poolSize": 318,
+      "compositeScore": 0.8943
+    },
+    {
+      "ticker": "CHTR",
+      "poolRank": 5,
+      "poolSize": 318,
+      "compositeScore": 0.888
+    },
+    {
+      "ticker": "HRB",
+      "poolRank": 6,
+      "poolSize": 318,
+      "compositeScore": 0.888
+    },
+    {
+      "ticker": "YELP",
+      "poolRank": 7,
+      "poolSize": 318,
+      "compositeScore": 0.8793
+    },
+    {
+      "ticker": "SMCI",
+      "poolRank": 8,
+      "poolSize": 318,
+      "compositeScore": 0.8636
+    },
+    {
+      "ticker": "MTDR",
+      "poolRank": 9,
+      "poolSize": 318,
+      "compositeScore": 0.862
+    },
+    {
+      "ticker": "LRN",
+      "poolRank": 10,
+      "poolSize": 318,
+      "compositeScore": 0.862
+    },
+    {
+      "ticker": "BBW",
+      "poolRank": 11,
+      "poolSize": 318,
+      "compositeScore": 0.8565
+    },
+    {
+      "ticker": "ASO",
+      "poolRank": 12,
+      "poolSize": 318,
+      "compositeScore": 0.8557
+    },
+    {
+      "ticker": "PRGS",
+      "poolRank": 13,
+      "poolSize": 318,
+      "compositeScore": 0.8509
+    },
+    {
+      "ticker": "HASI",
+      "poolRank": 14,
+      "poolSize": 318,
+      "compositeScore": 0.847
+    },
+    {
+      "ticker": "DOX",
+      "poolRank": 15,
+      "poolSize": 318,
+      "compositeScore": 0.8454
+    },
+    {
+      "ticker": "SLDE",
+      "poolRank": 16,
+      "poolSize": 318,
+      "compositeScore": 0.8423
+    },
+    {
+      "ticker": "GPRE",
+      "poolRank": 17,
+      "poolSize": 318,
+      "compositeScore": 0.8344
+    },
+    {
+      "ticker": "TNL",
+      "poolRank": 18,
+      "poolSize": 318,
+      "compositeScore": 0.8304
+    },
+    {
+      "ticker": "WEX",
+      "poolRank": 19,
+      "poolSize": 318,
+      "compositeScore": 0.8281
+    },
+    {
+      "ticker": "INVA",
+      "poolRank": 20,
+      "poolSize": 318,
+      "compositeScore": 0.8273
+    },
+    {
+      "ticker": "HRMY",
+      "poolRank": 21,
+      "poolSize": 318,
+      "compositeScore": 0.8249
+    },
+    {
+      "ticker": "TPL",
+      "poolRank": 22,
+      "poolSize": 318,
+      "compositeScore": 0.8202
+    },
+    {
+      "ticker": "ZD",
+      "poolRank": 23,
+      "poolSize": 318,
+      "compositeScore": 0.8178
+    },
+    {
+      "ticker": "LAD",
+      "poolRank": 24,
+      "poolSize": 318,
+      "compositeScore": 0.7965
+    },
+    {
+      "ticker": "PGY",
+      "poolRank": 25,
+      "poolSize": 318,
+      "compositeScore": 0.7886
+    },
+    {
+      "ticker": "EPAM",
+      "poolRank": 26,
+      "poolSize": 318,
+      "compositeScore": 0.7847
+    },
+    {
+      "ticker": "CORT",
+      "poolRank": 27,
+      "poolSize": 318,
+      "compositeScore": 0.7823
+    },
+    {
+      "ticker": "BDC",
+      "poolRank": 28,
+      "poolSize": 318,
+      "compositeScore": 0.7815
+    },
+    {
+      "ticker": "EPR",
+      "poolRank": 29,
+      "poolSize": 318,
+      "compositeScore": 0.7815
+    },
+    {
+      "ticker": "PSIX",
+      "poolRank": 30,
+      "poolSize": 318,
+      "compositeScore": 0.7808
+    },
+    {
+      "ticker": "NXST",
+      "poolRank": 31,
+      "poolSize": 318,
+      "compositeScore": 0.7808
+    },
+    {
+      "ticker": "SM",
+      "poolRank": 32,
+      "poolSize": 318,
+      "compositeScore": 0.7768
+    },
+    {
+      "ticker": "VIRT",
+      "poolRank": 33,
+      "poolSize": 318,
+      "compositeScore": 0.7744
+    },
+    {
+      "ticker": "ASTH",
+      "poolRank": 34,
+      "poolSize": 318,
+      "compositeScore": 0.7689
+    },
+    {
+      "ticker": "FIVN",
+      "poolRank": 35,
+      "poolSize": 318,
+      "compositeScore": 0.7666
+    },
+    {
+      "ticker": "NUTX",
+      "poolRank": 36,
+      "poolSize": 318,
+      "compositeScore": 0.761
+    },
+    {
+      "ticker": "SNDK",
+      "poolRank": 37,
+      "poolSize": 318,
+      "compositeScore": 0.7571
+    },
+    {
+      "ticker": "GEN",
+      "poolRank": 38,
+      "poolSize": 318,
+      "compositeScore": 0.7571
+    },
+    {
+      "ticker": "SLM",
+      "poolRank": 39,
+      "poolSize": 318,
+      "compositeScore": 0.7484
+    },
+    {
+      "ticker": "LYFT",
+      "poolRank": 40,
+      "poolSize": 318,
+      "compositeScore": 0.7468
+    },
+    {
+      "ticker": "CDRE",
+      "poolRank": 41,
+      "poolSize": 318,
+      "compositeScore": 0.7461
+    },
+    {
+      "ticker": "VRTS",
+      "poolRank": 42,
+      "poolSize": 318,
+      "compositeScore": 0.7445
+    },
+    {
+      "ticker": "CENX",
+      "poolRank": 43,
+      "poolSize": 318,
+      "compositeScore": 0.7397
+    },
+    {
+      "ticker": "AMRC",
+      "poolRank": 44,
+      "poolSize": 318,
+      "compositeScore": 0.7382
+    },
+    {
+      "ticker": "PRG",
+      "poolRank": 45,
+      "poolSize": 318,
+      "compositeScore": 0.7295
+    },
+    {
+      "ticker": "PGNY",
+      "poolRank": 46,
+      "poolSize": 318,
+      "compositeScore": 0.7295
+    },
+    {
+      "ticker": "ATLC",
+      "poolRank": 47,
+      "poolSize": 318,
+      "compositeScore": 0.7216
+    },
+    {
+      "ticker": "RDN",
+      "poolRank": 48,
+      "poolSize": 318,
+      "compositeScore": 0.72
+    },
+    {
+      "ticker": "CPAY",
+      "poolRank": 49,
+      "poolSize": 318,
+      "compositeScore": 0.7129
+    },
+    {
+      "ticker": "WLY",
+      "poolRank": 50,
+      "poolSize": 318,
+      "compositeScore": 0.7129
+    },
+    {
+      "ticker": "LNC",
+      "poolRank": 51,
+      "poolSize": 318,
+      "compositeScore": 0.7106
+    },
+    {
+      "ticker": "JXN",
+      "poolRank": 52,
+      "poolSize": 318,
+      "compositeScore": 0.7043
+    },
+    {
+      "ticker": "SCSC",
+      "poolRank": 53,
+      "poolSize": 318,
+      "compositeScore": 0.7011
+    },
+    {
+      "ticker": "BFH",
+      "poolRank": 54,
+      "poolSize": 318,
+      "compositeScore": 0.6987
+    },
+    {
+      "ticker": "MU",
+      "poolRank": 55,
+      "poolSize": 318,
+      "compositeScore": 0.6948
+    },
+    {
+      "ticker": "TBBK",
+      "poolRank": 56,
+      "poolSize": 318,
+      "compositeScore": 0.6924
+    },
+    {
+      "ticker": "DOCS",
+      "poolRank": 57,
+      "poolSize": 318,
+      "compositeScore": 0.6916
+    },
+    {
+      "ticker": "CNOB",
+      "poolRank": 58,
+      "poolSize": 318,
+      "compositeScore": 0.6916
+    },
+    {
+      "ticker": "MCHP",
+      "poolRank": 59,
+      "poolSize": 318,
+      "compositeScore": 0.6885
+    },
+    {
+      "ticker": "ROCK",
+      "poolRank": 60,
+      "poolSize": 318,
+      "compositeScore": 0.6869
+    },
+    {
+      "ticker": "COF",
+      "poolRank": 61,
+      "poolSize": 318,
+      "compositeScore": 0.6861
+    },
+    {
+      "ticker": "GNW",
+      "poolRank": 62,
+      "poolSize": 318,
+      "compositeScore": 0.6838
+    },
+    {
+      "ticker": "ARLO",
+      "poolRank": 63,
+      "poolSize": 318,
+      "compositeScore": 0.6838
+    },
+    {
+      "ticker": "WAL",
+      "poolRank": 64,
+      "poolSize": 318,
+      "compositeScore": 0.6838
+    },
+    {
+      "ticker": "WLDN",
+      "poolRank": 65,
+      "poolSize": 318,
+      "compositeScore": 0.679
+    },
+    {
+      "ticker": "REGN",
+      "poolRank": 66,
+      "poolSize": 318,
+      "compositeScore": 0.6751
+    },
+    {
+      "ticker": "CARG",
+      "poolRank": 67,
+      "poolSize": 318,
+      "compositeScore": 0.668
+    },
+    {
+      "ticker": "CWK",
+      "poolRank": 68,
+      "poolSize": 318,
+      "compositeScore": 0.6664
+    },
+    {
+      "ticker": "BGC",
+      "poolRank": 69,
+      "poolSize": 318,
+      "compositeScore": 0.6648
+    },
+    {
+      "ticker": "ALLY",
+      "poolRank": 70,
+      "poolSize": 318,
+      "compositeScore": 0.664
+    },
+    {
+      "ticker": "VLY",
+      "poolRank": 71,
+      "poolSize": 318,
+      "compositeScore": 0.6632
+    },
+    {
+      "ticker": "SYF",
+      "poolRank": 72,
+      "poolSize": 318,
+      "compositeScore": 0.6585
+    },
+    {
+      "ticker": "AGM",
+      "poolRank": 73,
+      "poolSize": 318,
+      "compositeScore": 0.6554
+    },
+    {
+      "ticker": "PWP",
+      "poolRank": 74,
+      "poolSize": 318,
+      "compositeScore": 0.6546
+    },
+    {
+      "ticker": "AVB",
+      "poolRank": 75,
+      "poolSize": 318,
+      "compositeScore": 0.6546
+    },
+    {
+      "ticker": "ALGN",
+      "poolRank": 76,
+      "poolSize": 318,
+      "compositeScore": 0.6522
+    },
+    {
+      "ticker": "FRSH",
+      "poolRank": 77,
+      "poolSize": 318,
+      "compositeScore": 0.6514
+    },
+    {
+      "ticker": "TDC",
+      "poolRank": 78,
+      "poolSize": 318,
+      "compositeScore": 0.6491
+    },
+    {
+      "ticker": "AUB",
+      "poolRank": 79,
+      "poolSize": 318,
+      "compositeScore": 0.6483
+    },
+    {
+      "ticker": "CUBI",
+      "poolRank": 80,
+      "poolSize": 318,
+      "compositeScore": 0.6459
+    },
+    {
+      "ticker": "NMRK",
+      "poolRank": 81,
+      "poolSize": 318,
+      "compositeScore": 0.6388
+    },
+    {
+      "ticker": "SBH",
+      "poolRank": 82,
+      "poolSize": 318,
+      "compositeScore": 0.6356
+    },
+    {
+      "ticker": "OMF",
+      "poolRank": 83,
+      "poolSize": 318,
+      "compositeScore": 0.6349
+    },
+    {
+      "ticker": "HALO",
+      "poolRank": 84,
+      "poolSize": 318,
+      "compositeScore": 0.6222
+    },
+    {
+      "ticker": "KDP",
+      "poolRank": 85,
+      "poolSize": 318,
+      "compositeScore": 0.6183
+    },
+    {
+      "ticker": "AX",
+      "poolRank": 86,
+      "poolSize": 318,
+      "compositeScore": 0.6104
+    },
+    {
+      "ticker": "FOXA",
+      "poolRank": 87,
+      "poolSize": 318,
+      "compositeScore": 0.6088
+    },
+    {
+      "ticker": "MCY",
+      "poolRank": 88,
+      "poolSize": 318,
+      "compositeScore": 0.6033
+    },
+    {
+      "ticker": "DVA",
+      "poolRank": 89,
+      "poolSize": 318,
+      "compositeScore": 0.5938
+    },
+    {
+      "ticker": "NVDA",
+      "poolRank": 90,
+      "poolSize": 318,
+      "compositeScore": 0.5923
+    },
+    {
+      "ticker": "HLIT",
+      "poolRank": 91,
+      "poolSize": 318,
+      "compositeScore": 0.5923
+    },
+    {
+      "ticker": "SF",
+      "poolRank": 92,
+      "poolSize": 318,
+      "compositeScore": 0.5891
+    },
+    {
+      "ticker": "LEG",
+      "poolRank": 93,
+      "poolSize": 318,
+      "compositeScore": 0.5891
+    },
+    {
+      "ticker": "PARR",
+      "poolRank": 94,
+      "poolSize": 318,
+      "compositeScore": 0.5852
+    },
+    {
+      "ticker": "ET",
+      "poolRank": 95,
+      "poolSize": 318,
+      "compositeScore": 0.5844
+    },
+    {
+      "ticker": "AN",
+      "poolRank": 96,
+      "poolSize": 318,
+      "compositeScore": 0.5781
+    },
+    {
+      "ticker": "LPLA",
+      "poolRank": 97,
+      "poolSize": 318,
+      "compositeScore": 0.5765
+    },
+    {
+      "ticker": "SMPL",
+      "poolRank": 98,
+      "poolSize": 318,
+      "compositeScore": 0.5765
+    },
+    {
+      "ticker": "IIPR",
+      "poolRank": 99,
+      "poolSize": 318,
+      "compositeScore": 0.571
+    },
+    {
+      "ticker": "SPT",
+      "poolRank": 100,
+      "poolSize": 318,
+      "compositeScore": 0.5694
+    },
+    {
+      "ticker": "ANIP",
+      "poolRank": 101,
+      "poolSize": 318,
+      "compositeScore": 0.5694
+    },
+    {
+      "ticker": "PCRX",
+      "poolRank": 102,
+      "poolSize": 318,
+      "compositeScore": 0.5678
+    },
+    {
+      "ticker": "SKWD",
+      "poolRank": 103,
+      "poolSize": 318,
+      "compositeScore": 0.5655
+    },
+    {
+      "ticker": "TPC",
+      "poolRank": 104,
+      "poolSize": 318,
+      "compositeScore": 0.5647
+    },
+    {
+      "ticker": "HCI",
+      "poolRank": 105,
+      "poolSize": 318,
+      "compositeScore": 0.5576
+    },
+    {
+      "ticker": "BCO",
+      "poolRank": 106,
+      "poolSize": 318,
+      "compositeScore": 0.5576
+    },
+    {
+      "ticker": "ENR",
+      "poolRank": 107,
+      "poolSize": 318,
+      "compositeScore": 0.5552
+    },
+    {
+      "ticker": "GCT",
+      "poolRank": 108,
+      "poolSize": 318,
+      "compositeScore": 0.5536
+    },
+    {
+      "ticker": "MGY",
+      "poolRank": 109,
+      "poolSize": 318,
+      "compositeScore": 0.5528
+    },
+    {
+      "ticker": "GPN",
+      "poolRank": 110,
+      "poolSize": 318,
+      "compositeScore": 0.5497
+    },
+    {
+      "ticker": "AYI",
+      "poolRank": 111,
+      "poolSize": 318,
+      "compositeScore": 0.5481
+    },
+    {
+      "ticker": "MAT",
+      "poolRank": 112,
+      "poolSize": 318,
+      "compositeScore": 0.5481
+    },
+    {
+      "ticker": "RJF",
+      "poolRank": 113,
+      "poolSize": 318,
+      "compositeScore": 0.5473
+    },
+    {
+      "ticker": "ABG",
+      "poolRank": 114,
+      "poolSize": 318,
+      "compositeScore": 0.5473
+    },
+    {
+      "ticker": "OPCH",
+      "poolRank": 115,
+      "poolSize": 318,
+      "compositeScore": 0.5457
+    },
+    {
+      "ticker": "INGR",
+      "poolRank": 116,
+      "poolSize": 318,
+      "compositeScore": 0.5457
+    },
+    {
+      "ticker": "LPG",
+      "poolRank": 117,
+      "poolSize": 318,
+      "compositeScore": 0.545
+    },
+    {
+      "ticker": "NSIT",
+      "poolRank": 118,
+      "poolSize": 318,
+      "compositeScore": 0.5442
+    },
+    {
+      "ticker": "CVI",
+      "poolRank": 119,
+      "poolSize": 318,
+      "compositeScore": 0.5426
+    },
+    {
+      "ticker": "AMP",
+      "poolRank": 120,
+      "poolSize": 318,
+      "compositeScore": 0.5418
+    },
+    {
+      "ticker": "CCS",
+      "poolRank": 121,
+      "poolSize": 318,
+      "compositeScore": 0.5339
+    },
+    {
+      "ticker": "PBH",
+      "poolRank": 122,
+      "poolSize": 318,
+      "compositeScore": 0.5308
+    },
+    {
+      "ticker": "EXEL",
+      "poolRank": 123,
+      "poolSize": 318,
+      "compositeScore": 0.5308
+    },
+    {
+      "ticker": "EVER",
+      "poolRank": 124,
+      "poolSize": 318,
+      "compositeScore": 0.5276
+    },
+    {
+      "ticker": "LUV",
+      "poolRank": 125,
+      "poolSize": 318,
+      "compositeScore": 0.5268
+    },
+    {
+      "ticker": "ZVRA",
+      "poolRank": 126,
+      "poolSize": 318,
+      "compositeScore": 0.526
+    },
+    {
+      "ticker": "BMRN",
+      "poolRank": 127,
+      "poolSize": 318,
+      "compositeScore": 0.5237
+    },
+    {
+      "ticker": "INSW",
+      "poolRank": 128,
+      "poolSize": 318,
+      "compositeScore": 0.5118
+    },
+    {
+      "ticker": "PEGA",
+      "poolRank": 129,
+      "poolSize": 318,
+      "compositeScore": 0.5103
+    },
+    {
+      "ticker": "PAR",
+      "poolRank": 130,
+      "poolSize": 318,
+      "compositeScore": 0.5079
+    },
+    {
+      "ticker": "FG",
+      "poolRank": 131,
+      "poolSize": 318,
+      "compositeScore": 0.5039
+    },
+    {
+      "ticker": "SUPN",
+      "poolRank": 132,
+      "poolSize": 318,
+      "compositeScore": 0.5032
+    },
+    {
+      "ticker": "DKS",
+      "poolRank": 133,
+      "poolSize": 318,
+      "compositeScore": 0.4992
+    },
+    {
+      "ticker": "ZBH",
+      "poolRank": 134,
+      "poolSize": 318,
+      "compositeScore": 0.4984
+    },
+    {
+      "ticker": "GAP",
+      "poolRank": 135,
+      "poolSize": 318,
+      "compositeScore": 0.4976
+    },
+    {
+      "ticker": "ARQT",
+      "poolRank": 136,
+      "poolSize": 318,
+      "compositeScore": 0.4968
+    },
+    {
+      "ticker": "STGW",
+      "poolRank": 137,
+      "poolSize": 318,
+      "compositeScore": 0.4953
+    },
+    {
+      "ticker": "HLNE",
+      "poolRank": 138,
+      "poolSize": 318,
+      "compositeScore": 0.4945
+    },
+    {
+      "ticker": "VSEC",
+      "poolRank": 139,
+      "poolSize": 318,
+      "compositeScore": 0.4929
+    },
+    {
+      "ticker": "KMPR",
+      "poolRank": 140,
+      "poolSize": 318,
+      "compositeScore": 0.4921
+    },
+    {
+      "ticker": "PRDO",
+      "poolRank": 141,
+      "poolSize": 318,
+      "compositeScore": 0.4897
+    },
+    {
+      "ticker": "C",
+      "poolRank": 142,
+      "poolSize": 318,
+      "compositeScore": 0.4882
+    },
+    {
+      "ticker": "NESR",
+      "poolRank": 143,
+      "poolSize": 318,
+      "compositeScore": 0.4842
+    },
+    {
+      "ticker": "CTSH",
+      "poolRank": 144,
+      "poolSize": 318,
+      "compositeScore": 0.4826
+    },
+    {
+      "ticker": "TREE",
+      "poolRank": 145,
+      "poolSize": 318,
+      "compositeScore": 0.4787
+    },
+    {
+      "ticker": "FSLR",
+      "poolRank": 146,
+      "poolSize": 318,
+      "compositeScore": 0.4787
+    },
+    {
+      "ticker": "EPRT",
+      "poolRank": 147,
+      "poolSize": 318,
+      "compositeScore": 0.4787
+    },
+    {
+      "ticker": "CROX",
+      "poolRank": 148,
+      "poolSize": 318,
+      "compositeScore": 0.4779
+    },
+    {
+      "ticker": "DRH",
+      "poolRank": 149,
+      "poolSize": 318,
+      "compositeScore": 0.4756
+    },
+    {
+      "ticker": "LMB",
+      "poolRank": 150,
+      "poolSize": 318,
+      "compositeScore": 0.474
+    },
+    {
+      "ticker": "KMT",
+      "poolRank": 151,
+      "poolSize": 318,
+      "compositeScore": 0.4708
+    },
+    {
+      "ticker": "UPBD",
+      "poolRank": 152,
+      "poolSize": 318,
+      "compositeScore": 0.47
+    },
+    {
+      "ticker": "STRA",
+      "poolRank": 153,
+      "poolSize": 318,
+      "compositeScore": 0.4653
+    },
+    {
+      "ticker": "BBT",
+      "poolRank": 154,
+      "poolSize": 318,
+      "compositeScore": 0.4621
+    },
+    {
+      "ticker": "GDDY",
+      "poolRank": 155,
+      "poolSize": 318,
+      "compositeScore": 0.4614
+    },
+    {
+      "ticker": "CMCO",
+      "poolRank": 156,
+      "poolSize": 318,
+      "compositeScore": 0.4614
+    },
+    {
+      "ticker": "CBT",
+      "poolRank": 157,
+      "poolSize": 318,
+      "compositeScore": 0.4566
+    },
+    {
+      "ticker": "NLY",
+      "poolRank": 158,
+      "poolSize": 318,
+      "compositeScore": 0.4535
+    },
+    {
+      "ticker": "IT",
+      "poolRank": 159,
+      "poolSize": 318,
+      "compositeScore": 0.4511
+    },
+    {
+      "ticker": "FBK",
+      "poolRank": 160,
+      "poolSize": 318,
+      "compositeScore": 0.4503
+    },
+    {
+      "ticker": "HII",
+      "poolRank": 161,
+      "poolSize": 318,
+      "compositeScore": 0.4495
+    },
+    {
+      "ticker": "FCPT",
+      "poolRank": 162,
+      "poolSize": 318,
+      "compositeScore": 0.4487
+    },
+    {
+      "ticker": "ADMA",
+      "poolRank": 163,
+      "poolSize": 318,
+      "compositeScore": 0.4487
+    },
+    {
+      "ticker": "ACIW",
+      "poolRank": 164,
+      "poolSize": 318,
+      "compositeScore": 0.4464
+    },
+    {
+      "ticker": "INCY",
+      "poolRank": 165,
+      "poolSize": 318,
+      "compositeScore": 0.4456
+    },
+    {
+      "ticker": "CASH",
+      "poolRank": 166,
+      "poolSize": 318,
+      "compositeScore": 0.4456
+    },
+    {
+      "ticker": "PFBC",
+      "poolRank": 167,
+      "poolSize": 318,
+      "compositeScore": 0.4448
+    },
+    {
+      "ticker": "ON",
+      "poolRank": 168,
+      "poolSize": 318,
+      "compositeScore": 0.444
+    },
+    {
+      "ticker": "ATEC",
+      "poolRank": 169,
+      "poolSize": 318,
+      "compositeScore": 0.4424
+    },
+    {
+      "ticker": "FLYW",
+      "poolRank": 170,
+      "poolSize": 318,
+      "compositeScore": 0.4409
+    },
+    {
+      "ticker": "ITRI",
+      "poolRank": 171,
+      "poolSize": 318,
+      "compositeScore": 0.4401
+    },
+    {
+      "ticker": "DAVE",
+      "poolRank": 172,
+      "poolSize": 318,
+      "compositeScore": 0.4393
+    },
+    {
+      "ticker": "HNI",
+      "poolRank": 173,
+      "poolSize": 318,
+      "compositeScore": 0.4385
+    },
+    {
+      "ticker": "YOU",
+      "poolRank": 174,
+      "poolSize": 318,
+      "compositeScore": 0.4385
+    },
+    {
+      "ticker": "PATH",
+      "poolRank": 175,
+      "poolSize": 318,
+      "compositeScore": 0.4369
+    },
+    {
+      "ticker": "WMG",
+      "poolRank": 176,
+      "poolSize": 318,
+      "compositeScore": 0.433
+    },
+    {
+      "ticker": "FUL",
+      "poolRank": 177,
+      "poolSize": 318,
+      "compositeScore": 0.4322
+    },
+    {
+      "ticker": "RELY",
+      "poolRank": 178,
+      "poolSize": 318,
+      "compositeScore": 0.4322
+    },
+    {
+      "ticker": "ADBE",
+      "poolRank": 179,
+      "poolSize": 318,
+      "compositeScore": 0.4298
+    },
+    {
+      "ticker": "LIFE",
+      "poolRank": 180,
+      "poolSize": 318,
+      "compositeScore": 0.4298
+    },
+    {
+      "ticker": "DINO",
+      "poolRank": 181,
+      "poolSize": 318,
+      "compositeScore": 0.4298
+    },
+    {
+      "ticker": "PINS",
+      "poolRank": 182,
+      "poolSize": 318,
+      "compositeScore": 0.4251
+    },
+    {
+      "ticker": "SONO",
+      "poolRank": 183,
+      "poolSize": 318,
+      "compositeScore": 0.4251
+    },
+    {
+      "ticker": "TROW",
+      "poolRank": 184,
+      "poolSize": 318,
+      "compositeScore": 0.4227
+    },
+    {
+      "ticker": "BG",
+      "poolRank": 185,
+      "poolSize": 318,
+      "compositeScore": 0.4219
+    },
+    {
+      "ticker": "UCTT",
+      "poolRank": 186,
+      "poolSize": 318,
+      "compositeScore": 0.4211
+    },
+    {
+      "ticker": "CI",
+      "poolRank": 187,
+      "poolSize": 318,
+      "compositeScore": 0.4203
+    },
+    {
+      "ticker": "MD",
+      "poolRank": 188,
+      "poolSize": 318,
+      "compositeScore": 0.4188
+    },
+    {
+      "ticker": "FIS",
+      "poolRank": 189,
+      "poolSize": 318,
+      "compositeScore": 0.418
+    },
+    {
+      "ticker": "TEX",
+      "poolRank": 190,
+      "poolSize": 318,
+      "compositeScore": 0.4156
+    },
+    {
+      "ticker": "MPC",
+      "poolRank": 191,
+      "poolSize": 318,
+      "compositeScore": 0.4156
+    },
+    {
+      "ticker": "SPSC",
+      "poolRank": 192,
+      "poolSize": 318,
+      "compositeScore": 0.4148
+    },
+    {
+      "ticker": "SPB",
+      "poolRank": 193,
+      "poolSize": 318,
+      "compositeScore": 0.4148
+    },
+    {
+      "ticker": "ARW",
+      "poolRank": 194,
+      "poolSize": 318,
+      "compositeScore": 0.414
+    },
+    {
+      "ticker": "RPRX",
+      "poolRank": 195,
+      "poolSize": 318,
+      "compositeScore": 0.4132
+    },
+    {
+      "ticker": "COMP",
+      "poolRank": 196,
+      "poolSize": 318,
+      "compositeScore": 0.4117
+    },
+    {
+      "ticker": "AMG",
+      "poolRank": 197,
+      "poolSize": 318,
+      "compositeScore": 0.4109
+    },
+    {
+      "ticker": "MTG",
+      "poolRank": 198,
+      "poolSize": 318,
+      "compositeScore": 0.4109
+    },
+    {
+      "ticker": "EMN",
+      "poolRank": 199,
+      "poolSize": 318,
+      "compositeScore": 0.4109
+    },
+    {
+      "ticker": "TOWN",
+      "poolRank": 200,
+      "poolSize": 318,
+      "compositeScore": 0.4109
+    },
+    {
+      "ticker": "RDDT",
+      "poolRank": 201,
+      "poolSize": 318,
+      "compositeScore": 0.4101
+    },
+    {
+      "ticker": "ATRO",
+      "poolRank": 202,
+      "poolSize": 318,
+      "compositeScore": 0.4093
+    },
+    {
+      "ticker": "RAMP",
+      "poolRank": 203,
+      "poolSize": 318,
+      "compositeScore": 0.4093
+    },
+    {
+      "ticker": "ONB",
+      "poolRank": 204,
+      "poolSize": 318,
+      "compositeScore": 0.4077
+    },
+    {
+      "ticker": "GTES",
+      "poolRank": 205,
+      "poolSize": 318,
+      "compositeScore": 0.4077
+    },
+    {
+      "ticker": "YETI",
+      "poolRank": 206,
+      "poolSize": 318,
+      "compositeScore": 0.4069
+    },
+    {
+      "ticker": "PACS",
+      "poolRank": 207,
+      "poolSize": 318,
+      "compositeScore": 0.4069
+    },
+    {
+      "ticker": "LOPE",
+      "poolRank": 208,
+      "poolSize": 318,
+      "compositeScore": 0.4054
+    },
+    {
+      "ticker": "KTB",
+      "poolRank": 209,
+      "poolSize": 318,
+      "compositeScore": 0.4046
+    },
+    {
+      "ticker": "BELFA",
+      "poolRank": 210,
+      "poolSize": 318,
+      "compositeScore": 0.403
+    },
+    {
+      "ticker": "LMT",
+      "poolRank": 211,
+      "poolSize": 318,
+      "compositeScore": 0.4022
+    },
+    {
+      "ticker": "QNST",
+      "poolRank": 212,
+      "poolSize": 318,
+      "compositeScore": 0.4014
+    },
+    {
+      "ticker": "SSNC",
+      "poolRank": 213,
+      "poolSize": 318,
+      "compositeScore": 0.4006
+    },
+    {
+      "ticker": "PCG",
+      "poolRank": 214,
+      "poolSize": 318,
+      "compositeScore": 0.3975
+    },
+    {
+      "ticker": "APEI",
+      "poolRank": 215,
+      "poolSize": 318,
+      "compositeScore": 0.3975
+    },
+    {
+      "ticker": "VLO",
+      "poolRank": 216,
+      "poolSize": 318,
+      "compositeScore": 0.3951
+    },
+    {
+      "ticker": "CART",
+      "poolRank": 217,
+      "poolSize": 318,
+      "compositeScore": 0.3935
+    },
+    {
+      "ticker": "KWR",
+      "poolRank": 218,
+      "poolSize": 318,
+      "compositeScore": 0.3927
+    },
+    {
+      "ticker": "JLL",
+      "poolRank": 219,
+      "poolSize": 318,
+      "compositeScore": 0.392
+    },
+    {
+      "ticker": "ALB",
+      "poolRank": 220,
+      "poolSize": 318,
+      "compositeScore": 0.3888
+    },
+    {
+      "ticker": "HOPE",
+      "poolRank": 221,
+      "poolSize": 318,
+      "compositeScore": 0.3864
+    },
+    {
+      "ticker": "SOLV",
+      "poolRank": 222,
+      "poolSize": 318,
+      "compositeScore": 0.3864
+    },
+    {
+      "ticker": "NMIH",
+      "poolRank": 223,
+      "poolSize": 318,
+      "compositeScore": 0.3849
+    },
+    {
+      "ticker": "NBIX",
+      "poolRank": 224,
+      "poolSize": 318,
+      "compositeScore": 0.3841
+    },
+    {
+      "ticker": "ZION",
+      "poolRank": 225,
+      "poolSize": 318,
+      "compositeScore": 0.3841
+    },
+    {
+      "ticker": "PR",
+      "poolRank": 226,
+      "poolSize": 318,
+      "compositeScore": 0.3833
+    },
+    {
+      "ticker": "EQH",
+      "poolRank": 227,
+      "poolSize": 318,
+      "compositeScore": 0.3809
+    },
+    {
+      "ticker": "HRTG",
+      "poolRank": 228,
+      "poolSize": 318,
+      "compositeScore": 0.3801
+    },
+    {
+      "ticker": "TGLS",
+      "poolRank": 229,
+      "poolSize": 318,
+      "compositeScore": 0.3801
+    },
+    {
+      "ticker": "GM",
+      "poolRank": 230,
+      "poolSize": 318,
+      "compositeScore": 0.3801
+    },
+    {
+      "ticker": "HSIC",
+      "poolRank": 231,
+      "poolSize": 318,
+      "compositeScore": 0.3793
+    },
+    {
+      "ticker": "MITK",
+      "poolRank": 232,
+      "poolSize": 318,
+      "compositeScore": 0.3785
+    },
+    {
+      "ticker": "GMED",
+      "poolRank": 233,
+      "poolSize": 318,
+      "compositeScore": 0.3762
+    },
+    {
+      "ticker": "CBRE",
+      "poolRank": 234,
+      "poolSize": 318,
+      "compositeScore": 0.3754
+    },
+    {
+      "ticker": "NTCT",
+      "poolRank": 235,
+      "poolSize": 318,
+      "compositeScore": 0.373
+    },
+    {
+      "ticker": "HUBS",
+      "poolRank": 236,
+      "poolSize": 318,
+      "compositeScore": 0.3722
+    },
+    {
+      "ticker": "CVS",
+      "poolRank": 237,
+      "poolSize": 318,
+      "compositeScore": 0.3707
+    },
+    {
+      "ticker": "WDC",
+      "poolRank": 238,
+      "poolSize": 318,
+      "compositeScore": 0.3675
+    },
+    {
+      "ticker": "CDW",
+      "poolRank": 239,
+      "poolSize": 318,
+      "compositeScore": 0.3651
+    },
+    {
+      "ticker": "EOG",
+      "poolRank": 240,
+      "poolSize": 318,
+      "compositeScore": 0.3644
+    },
+    {
+      "ticker": "CXW",
+      "poolRank": 241,
+      "poolSize": 318,
+      "compositeScore": 0.3644
+    },
+    {
+      "ticker": "VCTR",
+      "poolRank": 242,
+      "poolSize": 318,
+      "compositeScore": 0.362
+    },
+    {
+      "ticker": "RRR",
+      "poolRank": 243,
+      "poolSize": 318,
+      "compositeScore": 0.358
+    },
+    {
+      "ticker": "PLUS",
+      "poolRank": 244,
+      "poolSize": 318,
+      "compositeScore": 0.3517
+    },
+    {
+      "ticker": "ZBRA",
+      "poolRank": 245,
+      "poolSize": 318,
+      "compositeScore": 0.3502
+    },
+    {
+      "ticker": "ADUS",
+      "poolRank": 246,
+      "poolSize": 318,
+      "compositeScore": 0.3486
+    },
+    {
+      "ticker": "CDP",
+      "poolRank": 247,
+      "poolSize": 318,
+      "compositeScore": 0.347
+    },
+    {
+      "ticker": "TPR",
+      "poolRank": 248,
+      "poolSize": 318,
+      "compositeScore": 0.3462
+    },
+    {
+      "ticker": "NTAP",
+      "poolRank": 249,
+      "poolSize": 318,
+      "compositeScore": 0.3454
+    },
+    {
+      "ticker": "BEN",
+      "poolRank": 250,
+      "poolSize": 318,
+      "compositeScore": 0.3446
+    },
+    {
+      "ticker": "LAMR",
+      "poolRank": 251,
+      "poolSize": 318,
+      "compositeScore": 0.3446
+    },
+    {
+      "ticker": "PFS",
+      "poolRank": 252,
+      "poolSize": 318,
+      "compositeScore": 0.3446
+    },
+    {
+      "ticker": "ARCB",
+      "poolRank": 253,
+      "poolSize": 318,
+      "compositeScore": 0.3446
+    },
+    {
+      "ticker": "EXPE",
+      "poolRank": 254,
+      "poolSize": 318,
+      "compositeScore": 0.3431
+    },
+    {
+      "ticker": "HRI",
+      "poolRank": 255,
+      "poolSize": 318,
+      "compositeScore": 0.3423
+    },
+    {
+      "ticker": "GATX",
+      "poolRank": 256,
+      "poolSize": 318,
+      "compositeScore": 0.3415
+    },
+    {
+      "ticker": "R",
+      "poolRank": 257,
+      "poolSize": 318,
+      "compositeScore": 0.3375
+    },
+    {
+      "ticker": "OFG",
+      "poolRank": 258,
+      "poolSize": 318,
+      "compositeScore": 0.3368
+    },
+    {
+      "ticker": "WD",
+      "poolRank": 259,
+      "poolSize": 318,
+      "compositeScore": 0.332
+    },
+    {
+      "ticker": "HPE",
+      "poolRank": 260,
+      "poolSize": 318,
+      "compositeScore": 0.332
+    },
+    {
+      "ticker": "BRC",
+      "poolRank": 261,
+      "poolSize": 318,
+      "compositeScore": 0.3304
+    },
+    {
+      "ticker": "COO",
+      "poolRank": 262,
+      "poolSize": 318,
+      "compositeScore": 0.3281
+    },
+    {
+      "ticker": "SANM",
+      "poolRank": 263,
+      "poolSize": 318,
+      "compositeScore": 0.3281
+    },
+    {
+      "ticker": "RGA",
+      "poolRank": 264,
+      "poolSize": 318,
+      "compositeScore": 0.3281
+    },
+    {
+      "ticker": "INTU",
+      "poolRank": 265,
+      "poolSize": 318,
+      "compositeScore": 0.3249
+    },
+    {
+      "ticker": "FNF",
+      "poolRank": 266,
+      "poolSize": 318,
+      "compositeScore": 0.3241
+    },
+    {
+      "ticker": "ADI",
+      "poolRank": 267,
+      "poolSize": 318,
+      "compositeScore": 0.3233
+    },
+    {
+      "ticker": "ADEA",
+      "poolRank": 268,
+      "poolSize": 318,
+      "compositeScore": 0.3233
+    },
+    {
+      "ticker": "AVGO",
+      "poolRank": 269,
+      "poolSize": 318,
+      "compositeScore": 0.3218
+    },
+    {
+      "ticker": "PNFP",
+      "poolRank": 270,
+      "poolSize": 318,
+      "compositeScore": 0.321
+    },
+    {
+      "ticker": "PEBO",
+      "poolRank": 271,
+      "poolSize": 318,
+      "compositeScore": 0.3202
+    },
+    {
+      "ticker": "FSS",
+      "poolRank": 272,
+      "poolSize": 318,
+      "compositeScore": 0.3186
+    },
+    {
+      "ticker": "BANR",
+      "poolRank": 273,
+      "poolSize": 318,
+      "compositeScore": 0.3186
+    },
+    {
+      "ticker": "NWBI",
+      "poolRank": 274,
+      "poolSize": 318,
+      "compositeScore": 0.317
+    },
+    {
+      "ticker": "PRAA",
+      "poolRank": 275,
+      "poolSize": 318,
+      "compositeScore": 0.3162
+    },
+    {
+      "ticker": "EXTR",
+      "poolRank": 276,
+      "poolSize": 318,
+      "compositeScore": 0.3147
+    },
+    {
+      "ticker": "AEIS",
+      "poolRank": 277,
+      "poolSize": 318,
+      "compositeScore": 0.3131
+    },
+    {
+      "ticker": "ORCL",
+      "poolRank": 278,
+      "poolSize": 318,
+      "compositeScore": 0.3107
+    },
+    {
+      "ticker": "PRU",
+      "poolRank": 279,
+      "poolSize": 318,
+      "compositeScore": 0.3076
+    },
+    {
+      "ticker": "BPOP",
+      "poolRank": 280,
+      "poolSize": 318,
+      "compositeScore": 0.306
+    },
+    {
+      "ticker": "MQ",
+      "poolRank": 281,
+      "poolSize": 318,
+      "compositeScore": 0.3013
+    },
+    {
+      "ticker": "MLI",
+      "poolRank": 282,
+      "poolSize": 318,
+      "compositeScore": 0.2997
+    },
+    {
+      "ticker": "APP",
+      "poolRank": 283,
+      "poolSize": 318,
+      "compositeScore": 0.2997
+    },
+    {
+      "ticker": "TER",
+      "poolRank": 284,
+      "poolSize": 318,
+      "compositeScore": 0.2981
+    },
+    {
+      "ticker": "CVSA",
+      "poolRank": 285,
+      "poolSize": 318,
+      "compositeScore": 0.2957
+    },
+    {
+      "ticker": "UMBF",
+      "poolRank": 286,
+      "poolSize": 318,
+      "compositeScore": 0.2926
+    },
+    {
+      "ticker": "AAON",
+      "poolRank": 287,
+      "poolSize": 318,
+      "compositeScore": 0.2918
+    },
+    {
+      "ticker": "GS",
+      "poolRank": 288,
+      "poolSize": 318,
+      "compositeScore": 0.291
+    },
+    {
+      "ticker": "OUT",
+      "poolRank": 289,
+      "poolSize": 318,
+      "compositeScore": 0.291
+    },
+    {
+      "ticker": "TXN",
+      "poolRank": 290,
+      "poolSize": 318,
+      "compositeScore": 0.2894
+    },
+    {
+      "ticker": "HMN",
+      "poolRank": 291,
+      "poolSize": 318,
+      "compositeScore": 0.2879
+    },
+    {
+      "ticker": "BELFB",
+      "poolRank": 292,
+      "poolSize": 318,
+      "compositeScore": 0.2879
+    },
+    {
+      "ticker": "JEF",
+      "poolRank": 293,
+      "poolSize": 318,
+      "compositeScore": 0.2855
+    },
+    {
+      "ticker": "THRM",
+      "poolRank": 294,
+      "poolSize": 318,
+      "compositeScore": 0.2823
+    },
+    {
+      "ticker": "APO",
+      "poolRank": 295,
+      "poolSize": 318,
+      "compositeScore": 0.28
+    },
+    {
+      "ticker": "IVZ",
+      "poolRank": 296,
+      "poolSize": 318,
+      "compositeScore": 0.2744
+    },
+    {
+      "ticker": "DRS",
+      "poolRank": 297,
+      "poolSize": 318,
+      "compositeScore": 0.2744
+    },
+    {
+      "ticker": "CVBF",
+      "poolRank": 298,
+      "poolSize": 318,
+      "compositeScore": 0.2721
+    },
+    {
+      "ticker": "PLMR",
+      "poolRank": 299,
+      "poolSize": 318,
+      "compositeScore": 0.2618
+    },
+    {
+      "ticker": "FLEX",
+      "poolRank": 300,
+      "poolSize": 318,
+      "compositeScore": 0.2603
+    },
+    {
+      "ticker": "CFG",
+      "poolRank": 301,
+      "poolSize": 318,
+      "compositeScore": 0.2603
+    },
+    {
+      "ticker": "MET",
+      "poolRank": 302,
+      "poolSize": 318,
+      "compositeScore": 0.2595
+    },
+    {
+      "ticker": "HBNC",
+      "poolRank": 303,
+      "poolSize": 318,
+      "compositeScore": 0.2587
+    },
+    {
+      "ticker": "SNEX",
+      "poolRank": 304,
+      "poolSize": 318,
+      "compositeScore": 0.2571
+    },
+    {
+      "ticker": "STRL",
+      "poolRank": 305,
+      "poolSize": 318,
+      "compositeScore": 0.2539
+    },
+    {
+      "ticker": "MPWR",
+      "poolRank": 306,
+      "poolSize": 318,
+      "compositeScore": 0.2539
+    },
+    {
+      "ticker": "TTMI",
+      "poolRank": 307,
+      "poolSize": 318,
+      "compositeScore": 0.2476
+    },
+    {
+      "ticker": "GFF",
+      "poolRank": 308,
+      "poolSize": 318,
+      "compositeScore": 0.2468
+    },
+    {
+      "ticker": "ADSK",
+      "poolRank": 309,
+      "poolSize": 318,
+      "compositeScore": 0.2468
+    },
+    {
+      "ticker": "SRCE",
+      "poolRank": 310,
+      "poolSize": 318,
+      "compositeScore": 0.2461
+    },
+    {
+      "ticker": "LSCC",
+      "poolRank": 311,
+      "poolSize": 318,
+      "compositeScore": 0.2358
+    },
+    {
+      "ticker": "QCRH",
+      "poolRank": 312,
+      "poolSize": 318,
+      "compositeScore": 0.2256
+    },
+    {
+      "ticker": "CVX",
+      "poolRank": 313,
+      "poolSize": 318,
+      "compositeScore": 0.2153
+    },
+    {
+      "ticker": "URI",
+      "poolRank": 314,
+      "poolSize": 318,
+      "compositeScore": 0.2035
+    },
+    {
+      "ticker": "CSCO",
+      "poolRank": 315,
+      "poolSize": 318,
+      "compositeScore": 0.1972
+    },
+    {
+      "ticker": "WFC",
+      "poolRank": 316,
+      "poolSize": 318,
+      "compositeScore": 0.1972
+    },
+    {
+      "ticker": "BAC",
+      "poolRank": 317,
+      "poolSize": 318,
+      "compositeScore": 0.1893
+    },
+    {
+      "ticker": "APH",
+      "poolRank": 318,
+      "poolSize": 318,
+      "compositeScore": 0.1885
+    }
+  ],
+  "shortPool": [
+    {
+      "ticker": "L",
+      "poolRank": 1,
+      "poolSize": 268,
+      "compositeScore": 0.9438
+    },
+    {
+      "ticker": "OPY",
+      "poolRank": 2,
+      "poolSize": 268,
+      "compositeScore": 0.9026
+    },
+    {
+      "ticker": "WBD",
+      "poolRank": 3,
+      "poolSize": 268,
+      "compositeScore": 0.8998
+    },
+    {
+      "ticker": "BA",
+      "poolRank": 4,
+      "poolSize": 268,
+      "compositeScore": 0.8811
+    },
+    {
+      "ticker": "CME",
+      "poolRank": 5,
+      "poolSize": 268,
+      "compositeScore": 0.8708
+    },
+    {
+      "ticker": "WELL",
+      "poolRank": 6,
+      "poolSize": 268,
+      "compositeScore": 0.8642
+    },
+    {
+      "ticker": "NET",
+      "poolRank": 7,
+      "poolSize": 268,
+      "compositeScore": 0.8586
+    },
+    {
+      "ticker": "SNOW",
+      "poolRank": 8,
+      "poolSize": 268,
+      "compositeScore": 0.8399
+    },
+    {
+      "ticker": "TSLA",
+      "poolRank": 9,
+      "poolSize": 268,
+      "compositeScore": 0.8287
+    },
+    {
+      "ticker": "AIP",
+      "poolRank": 10,
+      "poolSize": 268,
+      "compositeScore": 0.8212
+    },
+    {
+      "ticker": "LBRT",
+      "poolRank": 11,
+      "poolSize": 268,
+      "compositeScore": 0.8212
+    },
+    {
+      "ticker": "NSA",
+      "poolRank": 12,
+      "poolSize": 268,
+      "compositeScore": 0.8193
+    },
+    {
+      "ticker": "S",
+      "poolRank": 13,
+      "poolSize": 268,
+      "compositeScore": 0.8193
+    },
+    {
+      "ticker": "NAVN",
+      "poolRank": 14,
+      "poolSize": 268,
+      "compositeScore": 0.8099
+    },
+    {
+      "ticker": "CRWD",
+      "poolRank": 15,
+      "poolSize": 268,
+      "compositeScore": 0.8071
+    },
+    {
+      "ticker": "CPNG",
+      "poolRank": 16,
+      "poolSize": 268,
+      "compositeScore": 0.8043
+    },
+    {
+      "ticker": "FWONK",
+      "poolRank": 17,
+      "poolSize": 268,
+      "compositeScore": 0.8006
+    },
+    {
+      "ticker": "AXGN",
+      "poolRank": 18,
+      "poolSize": 268,
+      "compositeScore": 0.8006
+    },
+    {
+      "ticker": "XMTR",
+      "poolRank": 19,
+      "poolSize": 268,
+      "compositeScore": 0.7837
+    },
+    {
+      "ticker": "HP",
+      "poolRank": 20,
+      "poolSize": 268,
+      "compositeScore": 0.7772
+    },
+    {
+      "ticker": "HR",
+      "poolRank": 21,
+      "poolSize": 268,
+      "compositeScore": 0.7753
+    },
+    {
+      "ticker": "SAFT",
+      "poolRank": 22,
+      "poolSize": 268,
+      "compositeScore": 0.7697
+    },
+    {
+      "ticker": "YSS",
+      "poolRank": 23,
+      "poolSize": 268,
+      "compositeScore": 0.7687
+    },
+    {
+      "ticker": "CPT",
+      "poolRank": 24,
+      "poolSize": 268,
+      "compositeScore": 0.7659
+    },
+    {
+      "ticker": "RBRK",
+      "poolRank": 25,
+      "poolSize": 268,
+      "compositeScore": 0.7612
+    },
+    {
+      "ticker": "UDR",
+      "poolRank": 26,
+      "poolSize": 268,
+      "compositeScore": 0.7603
+    },
+    {
+      "ticker": "JOE",
+      "poolRank": 27,
+      "poolSize": 268,
+      "compositeScore": 0.7519
+    },
+    {
+      "ticker": "MKL",
+      "poolRank": 28,
+      "poolSize": 268,
+      "compositeScore": 0.75
+    },
+    {
+      "ticker": "PL",
+      "poolRank": 29,
+      "poolSize": 268,
+      "compositeScore": 0.7453
+    },
+    {
+      "ticker": "COIN",
+      "poolRank": 30,
+      "poolSize": 268,
+      "compositeScore": 0.7434
+    },
+    {
+      "ticker": "MDB",
+      "poolRank": 31,
+      "poolSize": 268,
+      "compositeScore": 0.7378
+    },
+    {
+      "ticker": "PECO",
+      "poolRank": 32,
+      "poolSize": 268,
+      "compositeScore": 0.7303
+    },
+    {
+      "ticker": "MSCI",
+      "poolRank": 33,
+      "poolSize": 268,
+      "compositeScore": 0.7294
+    },
+    {
+      "ticker": "XERS",
+      "poolRank": 34,
+      "poolSize": 268,
+      "compositeScore": 0.7275
+    },
+    {
+      "ticker": "VSAT",
+      "poolRank": 35,
+      "poolSize": 268,
+      "compositeScore": 0.7228
+    },
+    {
+      "ticker": "MBC",
+      "poolRank": 36,
+      "poolSize": 268,
+      "compositeScore": 0.721
+    },
+    {
+      "ticker": "LASR",
+      "poolRank": 37,
+      "poolSize": 268,
+      "compositeScore": 0.72
+    },
+    {
+      "ticker": "PUMP",
+      "poolRank": 38,
+      "poolSize": 268,
+      "compositeScore": 0.7163
+    },
+    {
+      "ticker": "OLN",
+      "poolRank": 39,
+      "poolSize": 268,
+      "compositeScore": 0.7135
+    },
+    {
+      "ticker": "SBUX",
+      "poolRank": 40,
+      "poolSize": 268,
+      "compositeScore": 0.7116
+    },
+    {
+      "ticker": "CALM",
+      "poolRank": 41,
+      "poolSize": 268,
+      "compositeScore": 0.7116
+    },
+    {
+      "ticker": "RKLB",
+      "poolRank": 42,
+      "poolSize": 268,
+      "compositeScore": 0.7107
+    },
+    {
+      "ticker": "BMNR",
+      "poolRank": 43,
+      "poolSize": 268,
+      "compositeScore": 0.7107
+    },
+    {
+      "ticker": "TXG",
+      "poolRank": 44,
+      "poolSize": 268,
+      "compositeScore": 0.7107
+    },
+    {
+      "ticker": "CZR",
+      "poolRank": 45,
+      "poolSize": 268,
+      "compositeScore": 0.7069
+    },
+    {
+      "ticker": "MAC",
+      "poolRank": 46,
+      "poolSize": 268,
+      "compositeScore": 0.706
+    },
+    {
+      "ticker": "NEU",
+      "poolRank": 47,
+      "poolSize": 268,
+      "compositeScore": 0.7051
+    },
+    {
+      "ticker": "WMT",
+      "poolRank": 48,
+      "poolSize": 268,
+      "compositeScore": 0.7041
+    },
+    {
+      "ticker": "DE",
+      "poolRank": 49,
+      "poolSize": 268,
+      "compositeScore": 0.7041
+    },
+    {
+      "ticker": "MCO",
+      "poolRank": 50,
+      "poolSize": 268,
+      "compositeScore": 0.6957
+    },
+    {
+      "ticker": "AXSM",
+      "poolRank": 51,
+      "poolSize": 268,
+      "compositeScore": 0.6873
+    },
+    {
+      "ticker": "TFSL",
+      "poolRank": 52,
+      "poolSize": 268,
+      "compositeScore": 0.6816
+    },
+    {
+      "ticker": "VRNS",
+      "poolRank": 53,
+      "poolSize": 268,
+      "compositeScore": 0.6798
+    },
+    {
+      "ticker": "DBRG",
+      "poolRank": 54,
+      "poolSize": 268,
+      "compositeScore": 0.6723
+    },
+    {
+      "ticker": "GSAT",
+      "poolRank": 55,
+      "poolSize": 268,
+      "compositeScore": 0.6713
+    },
+    {
+      "ticker": "TTWO",
+      "poolRank": 56,
+      "poolSize": 268,
+      "compositeScore": 0.6639
+    },
+    {
+      "ticker": "FLNC",
+      "poolRank": 57,
+      "poolSize": 268,
+      "compositeScore": 0.6639
+    },
+    {
+      "ticker": "PRM",
+      "poolRank": 58,
+      "poolSize": 268,
+      "compositeScore": 0.6629
+    },
+    {
+      "ticker": "FUN",
+      "poolRank": 59,
+      "poolSize": 268,
+      "compositeScore": 0.6582
+    },
+    {
+      "ticker": "SHO",
+      "poolRank": 60,
+      "poolSize": 268,
+      "compositeScore": 0.6582
+    },
+    {
+      "ticker": "CRCL",
+      "poolRank": 61,
+      "poolSize": 268,
+      "compositeScore": 0.6554
+    },
+    {
+      "ticker": "GTLB",
+      "poolRank": 62,
+      "poolSize": 268,
+      "compositeScore": 0.6545
+    },
+    {
+      "ticker": "YUM",
+      "poolRank": 63,
+      "poolSize": 268,
+      "compositeScore": 0.6517
+    },
+    {
+      "ticker": "ATEX",
+      "poolRank": 64,
+      "poolSize": 268,
+      "compositeScore": 0.6479
+    },
+    {
+      "ticker": "TNDM",
+      "poolRank": 65,
+      "poolSize": 268,
+      "compositeScore": 0.6479
+    },
+    {
+      "ticker": "AZO",
+      "poolRank": 66,
+      "poolSize": 268,
+      "compositeScore": 0.6433
+    },
+    {
+      "ticker": "MNRO",
+      "poolRank": 67,
+      "poolSize": 268,
+      "compositeScore": 0.6433
+    },
+    {
+      "ticker": "BBIO",
+      "poolRank": 68,
+      "poolSize": 268,
+      "compositeScore": 0.6386
+    },
+    {
+      "ticker": "TJX",
+      "poolRank": 69,
+      "poolSize": 268,
+      "compositeScore": 0.6367
+    },
+    {
+      "ticker": "GKOS",
+      "poolRank": 70,
+      "poolSize": 268,
+      "compositeScore": 0.6358
+    },
+    {
+      "ticker": "MA",
+      "poolRank": 71,
+      "poolSize": 268,
+      "compositeScore": 0.6348
+    },
+    {
+      "ticker": "CORZ",
+      "poolRank": 72,
+      "poolSize": 268,
+      "compositeScore": 0.6348
+    },
+    {
+      "ticker": "SLAB",
+      "poolRank": 73,
+      "poolSize": 268,
+      "compositeScore": 0.6339
+    },
+    {
+      "ticker": "AESI",
+      "poolRank": 74,
+      "poolSize": 268,
+      "compositeScore": 0.6292
+    },
+    {
+      "ticker": "LEGN",
+      "poolRank": 75,
+      "poolSize": 268,
+      "compositeScore": 0.6283
+    },
+    {
+      "ticker": "IRT",
+      "poolRank": 76,
+      "poolSize": 268,
+      "compositeScore": 0.6273
+    },
+    {
+      "ticker": "AMBA",
+      "poolRank": 77,
+      "poolSize": 268,
+      "compositeScore": 0.6264
+    },
+    {
+      "ticker": "CURB",
+      "poolRank": 78,
+      "poolSize": 268,
+      "compositeScore": 0.6199
+    },
+    {
+      "ticker": "ATRC",
+      "poolRank": 79,
+      "poolSize": 268,
+      "compositeScore": 0.617
+    },
+    {
+      "ticker": "UE",
+      "poolRank": 80,
+      "poolSize": 268,
+      "compositeScore": 0.617
+    },
+    {
+      "ticker": "AFL",
+      "poolRank": 81,
+      "poolSize": 268,
+      "compositeScore": 0.6142
+    },
+    {
+      "ticker": "FWRG",
+      "poolRank": 82,
+      "poolSize": 268,
+      "compositeScore": 0.6142
+    },
+    {
+      "ticker": "NDAQ",
+      "poolRank": 83,
+      "poolSize": 268,
+      "compositeScore": 0.6105
+    },
+    {
+      "ticker": "MCD",
+      "poolRank": 84,
+      "poolSize": 268,
+      "compositeScore": 0.6096
+    },
+    {
+      "ticker": "APD",
+      "poolRank": 85,
+      "poolSize": 268,
+      "compositeScore": 0.6096
+    },
+    {
+      "ticker": "HIMS",
+      "poolRank": 86,
+      "poolSize": 268,
+      "compositeScore": 0.6086
+    },
+    {
+      "ticker": "GSHD",
+      "poolRank": 87,
+      "poolSize": 268,
+      "compositeScore": 0.6021
+    },
+    {
+      "ticker": "HD",
+      "poolRank": 88,
+      "poolSize": 268,
+      "compositeScore": 0.6011
+    },
+    {
+      "ticker": "AOSL",
+      "poolRank": 89,
+      "poolSize": 268,
+      "compositeScore": 0.6002
+    },
+    {
+      "ticker": "WYFI",
+      "poolRank": 90,
+      "poolSize": 268,
+      "compositeScore": 0.5993
+    },
+    {
+      "ticker": "ACA",
+      "poolRank": 91,
+      "poolSize": 268,
+      "compositeScore": 0.5974
+    },
+    {
+      "ticker": "ESS",
+      "poolRank": 92,
+      "poolSize": 268,
+      "compositeScore": 0.5955
+    },
+    {
+      "ticker": "MOS",
+      "poolRank": 93,
+      "poolSize": 268,
+      "compositeScore": 0.5955
+    },
+    {
+      "ticker": "UTI",
+      "poolRank": 94,
+      "poolSize": 268,
+      "compositeScore": 0.5946
+    },
+    {
+      "ticker": "HWKN",
+      "poolRank": 95,
+      "poolSize": 268,
+      "compositeScore": 0.5936
+    },
+    {
+      "ticker": "ZS",
+      "poolRank": 96,
+      "poolSize": 268,
+      "compositeScore": 0.589
+    },
+    {
+      "ticker": "WMB",
+      "poolRank": 97,
+      "poolSize": 268,
+      "compositeScore": 0.5871
+    },
+    {
+      "ticker": "EQIX",
+      "poolRank": 98,
+      "poolSize": 268,
+      "compositeScore": 0.5852
+    },
+    {
+      "ticker": "BTU",
+      "poolRank": 99,
+      "poolSize": 268,
+      "compositeScore": 0.5824
+    },
+    {
+      "ticker": "LIND",
+      "poolRank": 100,
+      "poolSize": 268,
+      "compositeScore": 0.5796
+    },
+    {
+      "ticker": "MLM",
+      "poolRank": 101,
+      "poolSize": 268,
+      "compositeScore": 0.5768
+    },
+    {
+      "ticker": "RARE",
+      "poolRank": 102,
+      "poolSize": 268,
+      "compositeScore": 0.573
+    },
+    {
+      "ticker": "CNS",
+      "poolRank": 103,
+      "poolSize": 268,
+      "compositeScore": 0.5721
+    },
+    {
+      "ticker": "TSCO",
+      "poolRank": 104,
+      "poolSize": 268,
+      "compositeScore": 0.5721
+    },
+    {
+      "ticker": "RLI",
+      "poolRank": 105,
+      "poolSize": 268,
+      "compositeScore": 0.5702
+    },
+    {
+      "ticker": "BKD",
+      "poolRank": 106,
+      "poolSize": 268,
+      "compositeScore": 0.5702
+    },
+    {
+      "ticker": "CWST",
+      "poolRank": 107,
+      "poolSize": 268,
+      "compositeScore": 0.5684
+    },
+    {
+      "ticker": "MDGL",
+      "poolRank": 108,
+      "poolSize": 268,
+      "compositeScore": 0.5684
+    },
+    {
+      "ticker": "SHAK",
+      "poolRank": 109,
+      "poolSize": 268,
+      "compositeScore": 0.5646
+    },
+    {
+      "ticker": "VITL",
+      "poolRank": 110,
+      "poolSize": 268,
+      "compositeScore": 0.5646
+    },
+    {
+      "ticker": "O",
+      "poolRank": 111,
+      "poolSize": 268,
+      "compositeScore": 0.5618
+    },
+    {
+      "ticker": "PNRG",
+      "poolRank": 112,
+      "poolSize": 268,
+      "compositeScore": 0.5609
+    },
+    {
+      "ticker": "PM",
+      "poolRank": 113,
+      "poolSize": 268,
+      "compositeScore": 0.5599
+    },
+    {
+      "ticker": "V",
+      "poolRank": 114,
+      "poolSize": 268,
+      "compositeScore": 0.5562
+    },
+    {
+      "ticker": "UNF",
+      "poolRank": 115,
+      "poolSize": 268,
+      "compositeScore": 0.5552
+    },
+    {
+      "ticker": "CRK",
+      "poolRank": 116,
+      "poolSize": 268,
+      "compositeScore": 0.5534
+    },
+    {
+      "ticker": "DOW",
+      "poolRank": 117,
+      "poolSize": 268,
+      "compositeScore": 0.5515
+    },
+    {
+      "ticker": "INSM",
+      "poolRank": 118,
+      "poolSize": 268,
+      "compositeScore": 0.5506
+    },
+    {
+      "ticker": "METC",
+      "poolRank": 119,
+      "poolSize": 268,
+      "compositeScore": 0.5506
+    },
+    {
+      "ticker": "NEO",
+      "poolRank": 120,
+      "poolSize": 268,
+      "compositeScore": 0.5496
+    },
+    {
+      "ticker": "IBM",
+      "poolRank": 121,
+      "poolSize": 268,
+      "compositeScore": 0.5487
+    },
+    {
+      "ticker": "PI",
+      "poolRank": 122,
+      "poolSize": 268,
+      "compositeScore": 0.5431
+    },
+    {
+      "ticker": "NNI",
+      "poolRank": 123,
+      "poolSize": 268,
+      "compositeScore": 0.5421
+    },
+    {
+      "ticker": "VIA",
+      "poolRank": 124,
+      "poolSize": 268,
+      "compositeScore": 0.5412
+    },
+    {
+      "ticker": "ORLY",
+      "poolRank": 125,
+      "poolSize": 268,
+      "compositeScore": 0.5403
+    },
+    {
+      "ticker": "DOCN",
+      "poolRank": 126,
+      "poolSize": 268,
+      "compositeScore": 0.5393
+    },
+    {
+      "ticker": "PGR",
+      "poolRank": 127,
+      "poolSize": 268,
+      "compositeScore": 0.5384
+    },
+    {
+      "ticker": "NPK",
+      "poolRank": 128,
+      "poolSize": 268,
+      "compositeScore": 0.5365
+    },
+    {
+      "ticker": "HLI",
+      "poolRank": 129,
+      "poolSize": 268,
+      "compositeScore": 0.5356
+    },
+    {
+      "ticker": "UMH",
+      "poolRank": 130,
+      "poolSize": 268,
+      "compositeScore": 0.5346
+    },
+    {
+      "ticker": "IFF",
+      "poolRank": 131,
+      "poolSize": 268,
+      "compositeScore": 0.5328
+    },
+    {
+      "ticker": "BIPC",
+      "poolRank": 132,
+      "poolSize": 268,
+      "compositeScore": 0.5328
+    },
+    {
+      "ticker": "PG",
+      "poolRank": 133,
+      "poolSize": 268,
+      "compositeScore": 0.5272
+    },
+    {
+      "ticker": "STAG",
+      "poolRank": 134,
+      "poolSize": 268,
+      "compositeScore": 0.5206
+    },
+    {
+      "ticker": "PANW",
+      "poolRank": 135,
+      "poolSize": 268,
+      "compositeScore": 0.5159
+    },
+    {
+      "ticker": "COST",
+      "poolRank": 136,
+      "poolSize": 268,
+      "compositeScore": 0.5131
+    },
+    {
+      "ticker": "AXON",
+      "poolRank": 137,
+      "poolSize": 268,
+      "compositeScore": 0.5103
+    },
+    {
+      "ticker": "GPC",
+      "poolRank": 138,
+      "poolSize": 268,
+      "compositeScore": 0.5094
+    },
+    {
+      "ticker": "MIAX",
+      "poolRank": 139,
+      "poolSize": 268,
+      "compositeScore": 0.5047
+    },
+    {
+      "ticker": "WGS",
+      "poolRank": 140,
+      "poolSize": 268,
+      "compositeScore": 0.5037
+    },
+    {
+      "ticker": "AHR",
+      "poolRank": 141,
+      "poolSize": 268,
+      "compositeScore": 0.4991
+    },
+    {
+      "ticker": "BV",
+      "poolRank": 142,
+      "poolSize": 268,
+      "compositeScore": 0.4991
+    },
+    {
+      "ticker": "CBU",
+      "poolRank": 143,
+      "poolSize": 268,
+      "compositeScore": 0.485
+    },
+    {
+      "ticker": "JNJ",
+      "poolRank": 144,
+      "poolSize": 268,
+      "compositeScore": 0.4822
+    },
+    {
+      "ticker": "AWR",
+      "poolRank": 145,
+      "poolSize": 268,
+      "compositeScore": 0.4822
+    },
+    {
+      "ticker": "AMH",
+      "poolRank": 146,
+      "poolSize": 268,
+      "compositeScore": 0.4794
+    },
+    {
+      "ticker": "ECL",
+      "poolRank": 147,
+      "poolSize": 268,
+      "compositeScore": 0.4785
+    },
+    {
+      "ticker": "PSMT",
+      "poolRank": 148,
+      "poolSize": 268,
+      "compositeScore": 0.4785
+    },
+    {
+      "ticker": "BZH",
+      "poolRank": 149,
+      "poolSize": 268,
+      "compositeScore": 0.4757
+    },
+    {
+      "ticker": "CVCO",
+      "poolRank": 150,
+      "poolSize": 268,
+      "compositeScore": 0.4747
+    },
+    {
+      "ticker": "PTEN",
+      "poolRank": 151,
+      "poolSize": 268,
+      "compositeScore": 0.4691
+    },
+    {
+      "ticker": "NHC",
+      "poolRank": 152,
+      "poolSize": 268,
+      "compositeScore": 0.4682
+    },
+    {
+      "ticker": "W",
+      "poolRank": 153,
+      "poolSize": 268,
+      "compositeScore": 0.4682
+    },
+    {
+      "ticker": "CHCO",
+      "poolRank": 154,
+      "poolSize": 268,
+      "compositeScore": 0.4672
+    },
+    {
+      "ticker": "PEN",
+      "poolRank": 155,
+      "poolSize": 268,
+      "compositeScore": 0.4663
+    },
+    {
+      "ticker": "TFIN",
+      "poolRank": 156,
+      "poolSize": 268,
+      "compositeScore": 0.4663
+    },
+    {
+      "ticker": "KRG",
+      "poolRank": 157,
+      "poolSize": 268,
+      "compositeScore": 0.4663
+    },
+    {
+      "ticker": "TMDX",
+      "poolRank": 158,
+      "poolSize": 268,
+      "compositeScore": 0.4625
+    },
+    {
+      "ticker": "ICE",
+      "poolRank": 159,
+      "poolSize": 268,
+      "compositeScore": 0.4597
+    },
+    {
+      "ticker": "BRZE",
+      "poolRank": 160,
+      "poolSize": 268,
+      "compositeScore": 0.4579
+    },
+    {
+      "ticker": "IOT",
+      "poolRank": 161,
+      "poolSize": 268,
+      "compositeScore": 0.4541
+    },
+    {
+      "ticker": "MRCY",
+      "poolRank": 162,
+      "poolSize": 268,
+      "compositeScore": 0.4476
+    },
+    {
+      "ticker": "FWRD",
+      "poolRank": 163,
+      "poolSize": 268,
+      "compositeScore": 0.4448
+    },
+    {
+      "ticker": "DKNG",
+      "poolRank": 164,
+      "poolSize": 268,
+      "compositeScore": 0.4391
+    },
+    {
+      "ticker": "GWRE",
+      "poolRank": 165,
+      "poolSize": 268,
+      "compositeScore": 0.4382
+    },
+    {
+      "ticker": "RYN",
+      "poolRank": 166,
+      "poolSize": 268,
+      "compositeScore": 0.4363
+    },
+    {
+      "ticker": "NEOG",
+      "poolRank": 167,
+      "poolSize": 268,
+      "compositeScore": 0.4335
+    },
+    {
+      "ticker": "EQT",
+      "poolRank": 168,
+      "poolSize": 268,
+      "compositeScore": 0.4326
+    },
+    {
+      "ticker": "AMPL",
+      "poolRank": 169,
+      "poolSize": 268,
+      "compositeScore": 0.4251
+    },
+    {
+      "ticker": "OPLN",
+      "poolRank": 170,
+      "poolSize": 268,
+      "compositeScore": 0.4213
+    },
+    {
+      "ticker": "AWK",
+      "poolRank": 171,
+      "poolSize": 268,
+      "compositeScore": 0.4157
+    },
+    {
+      "ticker": "WY",
+      "poolRank": 172,
+      "poolSize": 268,
+      "compositeScore": 0.412
+    },
+    {
+      "ticker": "PZZA",
+      "poolRank": 173,
+      "poolSize": 268,
+      "compositeScore": 0.4092
+    },
+    {
+      "ticker": "LOW",
+      "poolRank": 174,
+      "poolSize": 268,
+      "compositeScore": 0.4073
+    },
+    {
+      "ticker": "NTNX",
+      "poolRank": 175,
+      "poolSize": 268,
+      "compositeScore": 0.4045
+    },
+    {
+      "ticker": "RKT",
+      "poolRank": 176,
+      "poolSize": 268,
+      "compositeScore": 0.4045
+    },
+    {
+      "ticker": "MAR",
+      "poolRank": 177,
+      "poolSize": 268,
+      "compositeScore": 0.4036
+    },
+    {
+      "ticker": "PLD",
+      "poolRank": 178,
+      "poolSize": 268,
+      "compositeScore": 0.3989
+    },
+    {
+      "ticker": "EL",
+      "poolRank": 179,
+      "poolSize": 268,
+      "compositeScore": 0.3989
+    },
+    {
+      "ticker": "NE",
+      "poolRank": 180,
+      "poolSize": 268,
+      "compositeScore": 0.3961
+    },
+    {
+      "ticker": "BLDR",
+      "poolRank": 181,
+      "poolSize": 268,
+      "compositeScore": 0.3951
+    },
+    {
+      "ticker": "SVV",
+      "poolRank": 182,
+      "poolSize": 268,
+      "compositeScore": 0.3951
+    },
+    {
+      "ticker": "CEVA",
+      "poolRank": 183,
+      "poolSize": 268,
+      "compositeScore": 0.3923
+    },
+    {
+      "ticker": "ILMN",
+      "poolRank": 184,
+      "poolSize": 268,
+      "compositeScore": 0.3886
+    },
+    {
+      "ticker": "AIN",
+      "poolRank": 185,
+      "poolSize": 268,
+      "compositeScore": 0.3876
+    },
+    {
+      "ticker": "CTRI",
+      "poolRank": 186,
+      "poolSize": 268,
+      "compositeScore": 0.3876
+    },
+    {
+      "ticker": "VNO",
+      "poolRank": 187,
+      "poolSize": 268,
+      "compositeScore": 0.3867
+    },
+    {
+      "ticker": "MEI",
+      "poolRank": 188,
+      "poolSize": 268,
+      "compositeScore": 0.382
+    },
+    {
+      "ticker": "CBOE",
+      "poolRank": 189,
+      "poolSize": 268,
+      "compositeScore": 0.3811
+    },
+    {
+      "ticker": "GE",
+      "poolRank": 190,
+      "poolSize": 268,
+      "compositeScore": 0.3811
+    },
+    {
+      "ticker": "ROOT",
+      "poolRank": 191,
+      "poolSize": 268,
+      "compositeScore": 0.3801
+    },
+    {
+      "ticker": "MAIN",
+      "poolRank": 192,
+      "poolSize": 268,
+      "compositeScore": 0.3792
+    },
+    {
+      "ticker": "AXP",
+      "poolRank": 193,
+      "poolSize": 268,
+      "compositeScore": 0.3764
+    },
+    {
+      "ticker": "HUN",
+      "poolRank": 194,
+      "poolSize": 268,
+      "compositeScore": 0.3689
+    },
+    {
+      "ticker": "AMN",
+      "poolRank": 195,
+      "poolSize": 268,
+      "compositeScore": 0.3689
+    },
+    {
+      "ticker": "OMDA",
+      "poolRank": 196,
+      "poolSize": 268,
+      "compositeScore": 0.3661
+    },
+    {
+      "ticker": "DIS",
+      "poolRank": 197,
+      "poolSize": 268,
+      "compositeScore": 0.3642
+    },
+    {
+      "ticker": "SMTC",
+      "poolRank": 198,
+      "poolSize": 268,
+      "compositeScore": 0.3642
+    },
+    {
+      "ticker": "LPX",
+      "poolRank": 199,
+      "poolSize": 268,
+      "compositeScore": 0.3596
+    },
+    {
+      "ticker": "FEIM",
+      "poolRank": 200,
+      "poolSize": 268,
+      "compositeScore": 0.3586
+    },
+    {
+      "ticker": "HUM",
+      "poolRank": 201,
+      "poolSize": 268,
+      "compositeScore": 0.3577
+    },
+    {
+      "ticker": "FLUT",
+      "poolRank": 202,
+      "poolSize": 268,
+      "compositeScore": 0.3567
+    },
+    {
+      "ticker": "KNSL",
+      "poolRank": 203,
+      "poolSize": 268,
+      "compositeScore": 0.3549
+    },
+    {
+      "ticker": "LYV",
+      "poolRank": 204,
+      "poolSize": 268,
+      "compositeScore": 0.353
+    },
+    {
+      "ticker": "ETR",
+      "poolRank": 205,
+      "poolSize": 268,
+      "compositeScore": 0.3493
+    },
+    {
+      "ticker": "VPG",
+      "poolRank": 206,
+      "poolSize": 268,
+      "compositeScore": 0.3474
+    },
+    {
+      "ticker": "QXO",
+      "poolRank": 207,
+      "poolSize": 268,
+      "compositeScore": 0.3408
+    },
+    {
+      "ticker": "KMX",
+      "poolRank": 208,
+      "poolSize": 268,
+      "compositeScore": 0.338
+    },
+    {
+      "ticker": "BANF",
+      "poolRank": 209,
+      "poolSize": 268,
+      "compositeScore": 0.3371
+    },
+    {
+      "ticker": "AAOI",
+      "poolRank": 210,
+      "poolSize": 268,
+      "compositeScore": 0.3371
+    },
+    {
+      "ticker": "IRTC",
+      "poolRank": 211,
+      "poolSize": 268,
+      "compositeScore": 0.3305
+    },
+    {
+      "ticker": "UNFI",
+      "poolRank": 212,
+      "poolSize": 268,
+      "compositeScore": 0.3305
+    },
+    {
+      "ticker": "WTTR",
+      "poolRank": 213,
+      "poolSize": 268,
+      "compositeScore": 0.3268
+    },
+    {
+      "ticker": "ERIE",
+      "poolRank": 214,
+      "poolSize": 268,
+      "compositeScore": 0.3174
+    },
+    {
+      "ticker": "BURL",
+      "poolRank": 215,
+      "poolSize": 268,
+      "compositeScore": 0.3146
+    },
+    {
+      "ticker": "CRL",
+      "poolRank": 216,
+      "poolSize": 268,
+      "compositeScore": 0.3146
+    },
+    {
+      "ticker": "HOOD",
+      "poolRank": 217,
+      "poolSize": 268,
+      "compositeScore": 0.3137
+    },
+    {
+      "ticker": "XPO",
+      "poolRank": 218,
+      "poolSize": 268,
+      "compositeScore": 0.3006
+    },
+    {
+      "ticker": "FFIN",
+      "poolRank": 219,
+      "poolSize": 268,
+      "compositeScore": 0.2884
+    },
+    {
+      "ticker": "WSM",
+      "poolRank": 220,
+      "poolSize": 268,
+      "compositeScore": 0.2856
+    },
+    {
+      "ticker": "FUBO",
+      "poolRank": 221,
+      "poolSize": 268,
+      "compositeScore": 0.2856
+    },
+    {
+      "ticker": "ROAD",
+      "poolRank": 222,
+      "poolSize": 268,
+      "compositeScore": 0.28
+    },
+    {
+      "ticker": "BAND",
+      "poolRank": 223,
+      "poolSize": 268,
+      "compositeScore": 0.28
+    },
+    {
+      "ticker": "MC",
+      "poolRank": 224,
+      "poolSize": 268,
+      "compositeScore": 0.279
+    },
+    {
+      "ticker": "NKE",
+      "poolRank": 225,
+      "poolSize": 268,
+      "compositeScore": 0.2772
+    },
+    {
+      "ticker": "TARS",
+      "poolRank": 226,
+      "poolSize": 268,
+      "compositeScore": 0.2725
+    },
+    {
+      "ticker": "SMA",
+      "poolRank": 227,
+      "poolSize": 268,
+      "compositeScore": 0.2687
+    },
+    {
+      "ticker": "GO",
+      "poolRank": 228,
+      "poolSize": 268,
+      "compositeScore": 0.2669
+    },
+    {
+      "ticker": "APPN",
+      "poolRank": 229,
+      "poolSize": 268,
+      "compositeScore": 0.265
+    },
+    {
+      "ticker": "ADP",
+      "poolRank": 230,
+      "poolSize": 268,
+      "compositeScore": 0.2631
+    },
+    {
+      "ticker": "KRUS",
+      "poolRank": 231,
+      "poolSize": 268,
+      "compositeScore": 0.2631
+    },
+    {
+      "ticker": "LTH",
+      "poolRank": 232,
+      "poolSize": 268,
+      "compositeScore": 0.2575
+    },
+    {
+      "ticker": "AMR",
+      "poolRank": 233,
+      "poolSize": 268,
+      "compositeScore": 0.2575
+    },
+    {
+      "ticker": "SAIA",
+      "poolRank": 234,
+      "poolSize": 268,
+      "compositeScore": 0.2556
+    },
+    {
+      "ticker": "INTA",
+      "poolRank": 235,
+      "poolSize": 268,
+      "compositeScore": 0.2537
+    },
+    {
+      "ticker": "AKR",
+      "poolRank": 236,
+      "poolSize": 268,
+      "compositeScore": 0.2519
+    },
+    {
+      "ticker": "PRK",
+      "poolRank": 237,
+      "poolSize": 268,
+      "compositeScore": 0.25
+    },
+    {
+      "ticker": "MKTX",
+      "poolRank": 238,
+      "poolSize": 268,
+      "compositeScore": 0.2472
+    },
+    {
+      "ticker": "BLFS",
+      "poolRank": 239,
+      "poolSize": 268,
+      "compositeScore": 0.2453
+    },
+    {
+      "ticker": "BKNG",
+      "poolRank": 240,
+      "poolSize": 268,
+      "compositeScore": 0.2416
+    },
+    {
+      "ticker": "SGRY",
+      "poolRank": 241,
+      "poolSize": 268,
+      "compositeScore": 0.2388
+    },
+    {
+      "ticker": "SCHL",
+      "poolRank": 242,
+      "poolSize": 268,
+      "compositeScore": 0.235
+    },
+    {
+      "ticker": "NI",
+      "poolRank": 243,
+      "poolSize": 268,
+      "compositeScore": 0.2341
+    },
+    {
+      "ticker": "WLK",
+      "poolRank": 244,
+      "poolSize": 268,
+      "compositeScore": 0.2313
+    },
+    {
+      "ticker": "STEP",
+      "poolRank": 245,
+      "poolSize": 268,
+      "compositeScore": 0.2303
+    },
+    {
+      "ticker": "REAL",
+      "poolRank": 246,
+      "poolSize": 268,
+      "compositeScore": 0.2257
+    },
+    {
+      "ticker": "CTOS",
+      "poolRank": 247,
+      "poolSize": 268,
+      "compositeScore": 0.2163
+    },
+    {
+      "ticker": "TRNO",
+      "poolRank": 248,
+      "poolSize": 268,
+      "compositeScore": 0.2107
+    },
+    {
+      "ticker": "SWX",
+      "poolRank": 249,
+      "poolSize": 268,
+      "compositeScore": 0.2051
+    },
+    {
+      "ticker": "PRSU",
+      "poolRank": 250,
+      "poolSize": 268,
+      "compositeScore": 0.2051
+    },
+    {
+      "ticker": "CAR",
+      "poolRank": 251,
+      "poolSize": 268,
+      "compositeScore": 0.2041
+    },
+    {
+      "ticker": "SOFI",
+      "poolRank": 252,
+      "poolSize": 268,
+      "compositeScore": 0.1929
+    },
+    {
+      "ticker": "WEC",
+      "poolRank": 253,
+      "poolSize": 268,
+      "compositeScore": 0.1713
+    },
+    {
+      "ticker": "RH",
+      "poolRank": 254,
+      "poolSize": 268,
+      "compositeScore": 0.1657
+    },
+    {
+      "ticker": "AEP",
+      "poolRank": 255,
+      "poolSize": 268,
+      "compositeScore": 0.1648
+    },
+    {
+      "ticker": "FND",
+      "poolRank": 256,
+      "poolSize": 268,
+      "compositeScore": 0.1554
+    },
+    {
+      "ticker": "MOH",
+      "poolRank": 257,
+      "poolSize": 268,
+      "compositeScore": 0.1545
+    },
+    {
+      "ticker": "LGIH",
+      "poolRank": 258,
+      "poolSize": 268,
+      "compositeScore": 0.1545
+    },
+    {
+      "ticker": "BKV",
+      "poolRank": 259,
+      "poolSize": 268,
+      "compositeScore": 0.1442
+    },
+    {
+      "ticker": "GBCI",
+      "poolRank": 260,
+      "poolSize": 268,
+      "compositeScore": 0.1414
+    },
+    {
+      "ticker": "WING",
+      "poolRank": 261,
+      "poolSize": 268,
+      "compositeScore": 0.1386
+    },
+    {
+      "ticker": "DPZ",
+      "poolRank": 262,
+      "poolSize": 268,
+      "compositeScore": 0.1376
+    },
+    {
+      "ticker": "ASAN",
+      "poolRank": 263,
+      "poolSize": 268,
+      "compositeScore": 0.133
+    },
+    {
+      "ticker": "INSP",
+      "poolRank": 264,
+      "poolSize": 268,
+      "compositeScore": 0.1264
+    },
+    {
+      "ticker": "NTST",
+      "poolRank": 265,
+      "poolSize": 268,
+      "compositeScore": 0.1255
+    },
+    {
+      "ticker": "TCBI",
+      "poolRank": 266,
+      "poolSize": 268,
+      "compositeScore": 0.1152
+    },
+    {
+      "ticker": "ANAB",
+      "poolRank": 267,
+      "poolSize": 268,
+      "compositeScore": 0.1039
+    },
+    {
+      "ticker": "FIBK",
+      "poolRank": 268,
+      "poolSize": 268,
+      "compositeScore": 0.0562
     }
   ],
   "stats": {
-    "portfolioReturn": 0.273226,
-    "portfolioVol": 0.036142,
-    "sharpe": 6.5913,
-    "sortino": 9.3215
+    "portfolioReturn": 0.286367,
+    "portfolioVol": 0.035763,
+    "sharpe": 7.0287,
+    "sortino": 9.9401
   },
-  "generatedAt": "2026-08-23T16:02:12Z"
+  "generatedAt": "2026-08-25T16:30:02Z"
 }

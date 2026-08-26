@@ -1,10 +1,10 @@
 {
-  "AAMI": {
-    "currentShortPositionQuantity": 960244,
-    "previousShortPositionQuantity": 978433,
-    "changePercent": -1.86,
-    "averageDailyVolumeQuantity": 425472,
-    "daysToCoverQuantity": 2.26,
+  "AAL": {
+    "currentShortPositionQuantity": 64120117,
+    "previousShortPositionQuantity": 63578122,
+    "changePercent": 0.85,
+    "averageDailyVolumeQuantity": 105870349,
+    "daysToCoverQuantity": 1.0,
     "settlementDate": "2026-07-31"
   },
   "AAOI": {
@@ -31,14 +31,6 @@
     "daysToCoverQuantity": 7.1,
     "settlementDate": "2026-07-31"
   },
-  "AAT": {
-    "currentShortPositionQuantity": 1123516,
-    "previousShortPositionQuantity": 1421881,
-    "changePercent": -20.98,
-    "averageDailyVolumeQuantity": 424614,
-    "daysToCoverQuantity": 2.65,
-    "settlementDate": "2026-07-31"
-  },
   "ABG": {
     "currentShortPositionQuantity": 1046623,
     "previousShortPositionQuantity": 1163655,
@@ -47,28 +39,28 @@
     "daysToCoverQuantity": 3.42,
     "settlementDate": "2026-07-31"
   },
-  "ABT": {
-    "currentShortPositionQuantity": 22624184,
-    "previousShortPositionQuantity": 24846147,
-    "changePercent": -8.94,
-    "averageDailyVolumeQuantity": 13625912,
-    "daysToCoverQuantity": 1.66,
+  "ACA": {
+    "currentShortPositionQuantity": 821007,
+    "previousShortPositionQuantity": 993631,
+    "changePercent": -17.37,
+    "averageDailyVolumeQuantity": 789915,
+    "daysToCoverQuantity": 1.04,
     "settlementDate": "2026-07-31"
   },
-  "ABX": {
-    "currentShortPositionQuantity": 5567138,
-    "previousShortPositionQuantity": 5539121,
-    "changePercent": 0.51,
-    "averageDailyVolumeQuantity": 556437,
-    "daysToCoverQuantity": 10.0,
+  "ACAD": {
+    "currentShortPositionQuantity": 10812093,
+    "previousShortPositionQuantity": 11029444,
+    "changePercent": -1.97,
+    "averageDailyVolumeQuantity": 1358749,
+    "daysToCoverQuantity": 7.96,
     "settlementDate": "2026-07-31"
   },
-  "ACEL": {
-    "currentShortPositionQuantity": 2169562,
-    "previousShortPositionQuantity": 2068192,
-    "changePercent": 4.9,
-    "averageDailyVolumeQuantity": 245731,
-    "daysToCoverQuantity": 8.83,
+  "ACHC": {
+    "currentShortPositionQuantity": 21801530,
+    "previousShortPositionQuantity": 21795658,
+    "changePercent": 0.03,
+    "averageDailyVolumeQuantity": 3266338,
+    "daysToCoverQuantity": 6.67,
     "settlementDate": "2026-07-31"
   },
   "ACIW": {
@@ -79,28 +71,12 @@
     "daysToCoverQuantity": 6.39,
     "settlementDate": "2026-07-31"
   },
-  "ACNT": {
-    "currentShortPositionQuantity": 157944,
-    "previousShortPositionQuantity": 163393,
-    "changePercent": -3.33,
-    "averageDailyVolumeQuantity": 37855,
-    "daysToCoverQuantity": 4.17,
-    "settlementDate": "2026-07-31"
-  },
-  "ACR": {
-    "currentShortPositionQuantity": 165321,
-    "previousShortPositionQuantity": 179188,
-    "changePercent": -7.74,
-    "averageDailyVolumeQuantity": 23826,
-    "daysToCoverQuantity": 6.94,
-    "settlementDate": "2026-07-31"
-  },
-  "ADC": {
-    "currentShortPositionQuantity": 14341202,
-    "previousShortPositionQuantity": 14347872,
-    "changePercent": -0.05,
-    "averageDailyVolumeQuantity": 1222621,
-    "daysToCoverQuantity": 11.73,
+  "ADBE": {
+    "currentShortPositionQuantity": 19347621,
+    "previousShortPositionQuantity": 20264951,
+    "changePercent": -4.53,
+    "averageDailyVolumeQuantity": 5923758,
+    "daysToCoverQuantity": 3.27,
     "settlementDate": "2026-07-31"
   },
   "ADEA": {
@@ -135,36 +111,12 @@
     "daysToCoverQuantity": 3.61,
     "settlementDate": "2026-07-31"
   },
-  "ADTN": {
-    "currentShortPositionQuantity": 10646986,
-    "previousShortPositionQuantity": 12697742,
-    "changePercent": -16.15,
-    "averageDailyVolumeQuantity": 2536769,
-    "daysToCoverQuantity": 4.2,
-    "settlementDate": "2026-07-31"
-  },
   "ADUS": {
     "currentShortPositionQuantity": 1205635,
     "previousShortPositionQuantity": 1253032,
     "changePercent": -3.78,
     "averageDailyVolumeQuantity": 234451,
     "daysToCoverQuantity": 5.14,
-    "settlementDate": "2026-07-31"
-  },
-  "ADV": {
-    "currentShortPositionQuantity": 513153,
-    "previousShortPositionQuantity": 540821,
-    "changePercent": -5.12,
-    "averageDailyVolumeQuantity": 104067,
-    "daysToCoverQuantity": 4.93,
-    "settlementDate": "2026-07-31"
-  },
-  "AEHR": {
-    "currentShortPositionQuantity": 4292682,
-    "previousShortPositionQuantity": 4811203,
-    "changePercent": -10.78,
-    "averageDailyVolumeQuantity": 3093545,
-    "daysToCoverQuantity": 1.39,
     "settlementDate": "2026-07-31"
   },
   "AEIS": {
@@ -191,20 +143,12 @@
     "daysToCoverQuantity": 6.05,
     "settlementDate": "2026-07-31"
   },
-  "AGCO": {
-    "currentShortPositionQuantity": 3236122,
-    "previousShortPositionQuantity": 2779289,
-    "changePercent": 16.44,
-    "averageDailyVolumeQuantity": 951741,
-    "daysToCoverQuantity": 3.4,
-    "settlementDate": "2026-07-31"
-  },
-  "AGL": {
-    "currentShortPositionQuantity": 872239,
-    "previousShortPositionQuantity": 859438,
-    "changePercent": 1.49,
-    "averageDailyVolumeQuantity": 327103,
-    "daysToCoverQuantity": 2.67,
+  "AFRM": {
+    "currentShortPositionQuantity": 15391541,
+    "previousShortPositionQuantity": 16725898,
+    "changePercent": -7.98,
+    "averageDailyVolumeQuantity": 3521123,
+    "daysToCoverQuantity": 4.37,
     "settlementDate": "2026-07-31"
   },
   "AGM": {
@@ -215,20 +159,12 @@
     "daysToCoverQuantity": 2.91,
     "settlementDate": "2026-07-31"
   },
-  "AGNC": {
-    "currentShortPositionQuantity": 100097330,
-    "previousShortPositionQuantity": 108144310,
-    "changePercent": -7.44,
-    "averageDailyVolumeQuantity": 22629542,
-    "daysToCoverQuantity": 4.42,
-    "settlementDate": "2026-07-31"
-  },
-  "AII": {
-    "currentShortPositionQuantity": 254301,
-    "previousShortPositionQuantity": 309442,
-    "changePercent": -17.82,
-    "averageDailyVolumeQuantity": 85567,
-    "daysToCoverQuantity": 2.97,
+  "AHR": {
+    "currentShortPositionQuantity": 22144341,
+    "previousShortPositionQuantity": 21916381,
+    "changePercent": 1.04,
+    "averageDailyVolumeQuantity": 2289115,
+    "daysToCoverQuantity": 9.67,
     "settlementDate": "2026-07-31"
   },
   "AIN": {
@@ -247,22 +183,6 @@
     "daysToCoverQuantity": 3.87,
     "settlementDate": "2026-07-31"
   },
-  "AJG": {
-    "currentShortPositionQuantity": 6242351,
-    "previousShortPositionQuantity": 7990928,
-    "changePercent": -21.88,
-    "averageDailyVolumeQuantity": 1371362,
-    "daysToCoverQuantity": 4.55,
-    "settlementDate": "2026-07-31"
-  },
-  "AKR": {
-    "currentShortPositionQuantity": 16896731,
-    "previousShortPositionQuantity": 17060799,
-    "changePercent": -0.96,
-    "averageDailyVolumeQuantity": 1343598,
-    "daysToCoverQuantity": 12.58,
-    "settlementDate": "2026-07-31"
-  },
   "ALB": {
     "currentShortPositionQuantity": 11190342,
     "previousShortPositionQuantity": 10733519,
@@ -279,36 +199,28 @@
     "daysToCoverQuantity": 3.97,
     "settlementDate": "2026-07-31"
   },
-  "ALGT": {
-    "currentShortPositionQuantity": 1424730,
-    "previousShortPositionQuantity": 1624542,
-    "changePercent": -12.3,
-    "averageDailyVolumeQuantity": 426459,
-    "daysToCoverQuantity": 3.34,
-    "settlementDate": "2026-07-31"
-  },
-  "ALH": {
-    "currentShortPositionQuantity": 4204150,
-    "previousShortPositionQuantity": 3491221,
-    "changePercent": 20.42,
-    "averageDailyVolumeQuantity": 600168,
-    "daysToCoverQuantity": 7.0,
-    "settlementDate": "2026-07-31"
-  },
-  "ALHC": {
-    "currentShortPositionQuantity": 22045849,
-    "previousShortPositionQuantity": 24812050,
-    "changePercent": -11.15,
-    "averageDailyVolumeQuantity": 4778836,
-    "daysToCoverQuantity": 4.61,
-    "settlementDate": "2026-07-31"
-  },
   "ALIT": {
     "currentShortPositionQuantity": 822546,
     "previousShortPositionQuantity": 1079077,
     "changePercent": -23.77,
     "averageDailyVolumeQuantity": 538410,
     "daysToCoverQuantity": 1.53,
+    "settlementDate": "2026-07-31"
+  },
+  "ALK": {
+    "currentShortPositionQuantity": 10738019,
+    "previousShortPositionQuantity": 10966796,
+    "changePercent": -2.09,
+    "averageDailyVolumeQuantity": 3392186,
+    "daysToCoverQuantity": 3.17,
+    "settlementDate": "2026-07-31"
+  },
+  "ALKT": {
+    "currentShortPositionQuantity": 7320083,
+    "previousShortPositionQuantity": 7686611,
+    "changePercent": -4.77,
+    "averageDailyVolumeQuantity": 1252442,
+    "daysToCoverQuantity": 5.84,
     "settlementDate": "2026-07-31"
   },
   "ALLY": {
@@ -319,22 +231,6 @@
     "daysToCoverQuantity": 3.62,
     "settlementDate": "2026-07-31"
   },
-  "AMAL": {
-    "currentShortPositionQuantity": 953270,
-    "previousShortPositionQuantity": 973412,
-    "changePercent": -2.07,
-    "averageDailyVolumeQuantity": 176010,
-    "daysToCoverQuantity": 5.42,
-    "settlementDate": "2026-07-31"
-  },
-  "AMAT": {
-    "currentShortPositionQuantity": 14231996,
-    "previousShortPositionQuantity": 16703697,
-    "changePercent": -14.8,
-    "averageDailyVolumeQuantity": 7987322,
-    "daysToCoverQuantity": 1.78,
-    "settlementDate": "2026-07-31"
-  },
   "AMBA": {
     "currentShortPositionQuantity": 5154890,
     "previousShortPositionQuantity": 3945513,
@@ -343,20 +239,12 @@
     "daysToCoverQuantity": 2.16,
     "settlementDate": "2026-07-31"
   },
-  "AMD": {
-    "currentShortPositionQuantity": 37752132,
-    "previousShortPositionQuantity": 39768152,
-    "changePercent": -5.07,
-    "averageDailyVolumeQuantity": 29041226,
-    "daysToCoverQuantity": 1.3,
-    "settlementDate": "2026-07-31"
-  },
-  "AMH": {
-    "currentShortPositionQuantity": 9809173,
-    "previousShortPositionQuantity": 10855177,
-    "changePercent": -9.64,
-    "averageDailyVolumeQuantity": 2114889,
-    "daysToCoverQuantity": 4.64,
+  "AMG": {
+    "currentShortPositionQuantity": 781318,
+    "previousShortPositionQuantity": 883948,
+    "changePercent": -11.61,
+    "averageDailyVolumeQuantity": 289042,
+    "daysToCoverQuantity": 2.7,
     "settlementDate": "2026-07-31"
   },
   "AMN": {
@@ -383,6 +271,22 @@
     "daysToCoverQuantity": 11.89,
     "settlementDate": "2026-07-31"
   },
+  "AMPL": {
+    "currentShortPositionQuantity": 7681101,
+    "previousShortPositionQuantity": 8696566,
+    "changePercent": -11.68,
+    "averageDailyVolumeQuantity": 1733362,
+    "daysToCoverQuantity": 4.43,
+    "settlementDate": "2026-07-31"
+  },
+  "AMPX": {
+    "currentShortPositionQuantity": 23928102,
+    "previousShortPositionQuantity": 28034609,
+    "changePercent": -14.65,
+    "averageDailyVolumeQuantity": 5752370,
+    "daysToCoverQuantity": 4.16,
+    "settlementDate": "2026-07-31"
+  },
   "AMR": {
     "currentShortPositionQuantity": 1676578,
     "previousShortPositionQuantity": 1664676,
@@ -391,28 +295,12 @@
     "daysToCoverQuantity": 5.91,
     "settlementDate": "2026-07-31"
   },
-  "AMSF": {
-    "currentShortPositionQuantity": 806624,
-    "previousShortPositionQuantity": 835527,
-    "changePercent": -3.46,
-    "averageDailyVolumeQuantity": 250932,
-    "daysToCoverQuantity": 3.21,
-    "settlementDate": "2026-07-31"
-  },
-  "ANAB": {
-    "currentShortPositionQuantity": 5401866,
-    "previousShortPositionQuantity": 4999494,
-    "changePercent": 8.05,
-    "averageDailyVolumeQuantity": 749400,
-    "daysToCoverQuantity": 7.21,
-    "settlementDate": "2026-07-31"
-  },
-  "ANET": {
-    "currentShortPositionQuantity": 12815409,
-    "previousShortPositionQuantity": 19887856,
-    "changePercent": -35.56,
-    "averageDailyVolumeQuantity": 6608958,
-    "daysToCoverQuantity": 1.94,
+  "AMRC": {
+    "currentShortPositionQuantity": 4479520,
+    "previousShortPositionQuantity": 4215391,
+    "changePercent": 6.27,
+    "averageDailyVolumeQuantity": 545549,
+    "daysToCoverQuantity": 8.21,
     "settlementDate": "2026-07-31"
   },
   "ANIP": {
@@ -421,6 +309,14 @@
     "changePercent": -30.76,
     "averageDailyVolumeQuantity": 252428,
     "daysToCoverQuantity": 9.25,
+    "settlementDate": "2026-07-31"
+  },
+  "AORT": {
+    "currentShortPositionQuantity": 2705501,
+    "previousShortPositionQuantity": 2498637,
+    "changePercent": 8.28,
+    "averageDailyVolumeQuantity": 568148,
+    "daysToCoverQuantity": 4.76,
     "settlementDate": "2026-07-31"
   },
   "AOSL": {
@@ -495,6 +391,14 @@
     "daysToCoverQuantity": 10.84,
     "settlementDate": "2026-07-31"
   },
+  "ARM": {
+    "currentShortPositionQuantity": 16867253,
+    "previousShortPositionQuantity": 17460573,
+    "changePercent": -3.4,
+    "averageDailyVolumeQuantity": 6369077,
+    "daysToCoverQuantity": 2.65,
+    "settlementDate": "2026-07-31"
+  },
   "ARQT": {
     "currentShortPositionQuantity": 12686384,
     "previousShortPositionQuantity": 13561565,
@@ -503,28 +407,20 @@
     "daysToCoverQuantity": 10.74,
     "settlementDate": "2026-07-31"
   },
+  "ARW": {
+    "currentShortPositionQuantity": 1333076,
+    "previousShortPositionQuantity": 1479660,
+    "changePercent": -9.91,
+    "averageDailyVolumeQuantity": 489068,
+    "daysToCoverQuantity": 2.73,
+    "settlementDate": "2026-07-31"
+  },
   "ASAN": {
     "currentShortPositionQuantity": 28563366,
     "previousShortPositionQuantity": 35653631,
     "changePercent": -19.89,
     "averageDailyVolumeQuantity": 6023940,
     "daysToCoverQuantity": 4.74,
-    "settlementDate": "2026-07-31"
-  },
-  "ASIC": {
-    "currentShortPositionQuantity": 275126,
-    "previousShortPositionQuantity": 236025,
-    "changePercent": 16.57,
-    "averageDailyVolumeQuantity": 67448,
-    "daysToCoverQuantity": 4.08,
-    "settlementDate": "2026-07-31"
-  },
-  "ASIX": {
-    "currentShortPositionQuantity": 603236,
-    "previousShortPositionQuantity": 671031,
-    "changePercent": -10.1,
-    "averageDailyVolumeQuantity": 214183,
-    "daysToCoverQuantity": 2.82,
     "settlementDate": "2026-07-31"
   },
   "ASO": {
@@ -543,28 +439,12 @@
     "daysToCoverQuantity": 4.93,
     "settlementDate": "2026-07-31"
   },
-  "ASUR": {
-    "currentShortPositionQuantity": 773234,
-    "previousShortPositionQuantity": 806074,
-    "changePercent": -4.07,
-    "averageDailyVolumeQuantity": 99790,
-    "daysToCoverQuantity": 7.75,
-    "settlementDate": "2026-07-31"
-  },
   "ATEC": {
     "currentShortPositionQuantity": 13788007,
     "previousShortPositionQuantity": 13748220,
     "changePercent": 0.29,
     "averageDailyVolumeQuantity": 1901128,
     "daysToCoverQuantity": 7.25,
-    "settlementDate": "2026-07-31"
-  },
-  "ATEN": {
-    "currentShortPositionQuantity": 7614474,
-    "previousShortPositionQuantity": 6846972,
-    "changePercent": 11.21,
-    "averageDailyVolumeQuantity": 1366337,
-    "daysToCoverQuantity": 5.57,
     "settlementDate": "2026-07-31"
   },
   "ATEX": {
@@ -583,12 +463,28 @@
     "daysToCoverQuantity": 2.88,
     "settlementDate": "2026-07-31"
   },
-  "ATLO": {
-    "currentShortPositionQuantity": 270576,
-    "previousShortPositionQuantity": 241544,
-    "changePercent": 12.02,
-    "averageDailyVolumeQuantity": 34737,
-    "daysToCoverQuantity": 7.79,
+  "ATR": {
+    "currentShortPositionQuantity": 1835928,
+    "previousShortPositionQuantity": 1839198,
+    "changePercent": -0.18,
+    "averageDailyVolumeQuantity": 499051,
+    "daysToCoverQuantity": 3.68,
+    "settlementDate": "2026-07-31"
+  },
+  "ATRC": {
+    "currentShortPositionQuantity": 3864377,
+    "previousShortPositionQuantity": 4864713,
+    "changePercent": -20.56,
+    "averageDailyVolumeQuantity": 1038652,
+    "daysToCoverQuantity": 3.72,
+    "settlementDate": "2026-07-31"
+  },
+  "ATRO": {
+    "currentShortPositionQuantity": 3045742,
+    "previousShortPositionQuantity": 3017432,
+    "changePercent": 0.94,
+    "averageDailyVolumeQuantity": 472997,
+    "daysToCoverQuantity": 6.44,
     "settlementDate": "2026-07-31"
   },
   "AUB": {
@@ -599,28 +495,20 @@
     "daysToCoverQuantity": 5.98,
     "settlementDate": "2026-07-31"
   },
+  "AVB": {
+    "currentShortPositionQuantity": 3752768,
+    "previousShortPositionQuantity": 3181902,
+    "changePercent": 17.94,
+    "averageDailyVolumeQuantity": 739486,
+    "daysToCoverQuantity": 5.07,
+    "settlementDate": "2026-07-31"
+  },
   "AVGO": {
     "currentShortPositionQuantity": 61196152,
     "previousShortPositionQuantity": 68638929,
     "changePercent": -10.84,
     "averageDailyVolumeQuantity": 19024490,
     "daysToCoverQuantity": 3.22,
-    "settlementDate": "2026-07-31"
-  },
-  "AVPT": {
-    "currentShortPositionQuantity": 10867755,
-    "previousShortPositionQuantity": 12448691,
-    "changePercent": -12.7,
-    "averageDailyVolumeQuantity": 2155087,
-    "daysToCoverQuantity": 5.04,
-    "settlementDate": "2026-07-31"
-  },
-  "AVTR": {
-    "currentShortPositionQuantity": 53171919,
-    "previousShortPositionQuantity": 55976133,
-    "changePercent": -5.01,
-    "averageDailyVolumeQuantity": 15756310,
-    "daysToCoverQuantity": 3.37,
     "settlementDate": "2026-07-31"
   },
   "AX": {
@@ -639,6 +527,14 @@
     "daysToCoverQuantity": 3.35,
     "settlementDate": "2026-07-31"
   },
+  "AXP": {
+    "currentShortPositionQuantity": 12150889,
+    "previousShortPositionQuantity": 11492443,
+    "changePercent": 5.73,
+    "averageDailyVolumeQuantity": 3247267,
+    "daysToCoverQuantity": 3.74,
+    "settlementDate": "2026-07-31"
+  },
   "AXSM": {
     "currentShortPositionQuantity": 3407383,
     "previousShortPositionQuantity": 3024030,
@@ -647,12 +543,28 @@
     "daysToCoverQuantity": 5.11,
     "settlementDate": "2026-07-31"
   },
+  "AYI": {
+    "currentShortPositionQuantity": 1363219,
+    "previousShortPositionQuantity": 1456107,
+    "changePercent": -6.38,
+    "averageDailyVolumeQuantity": 285961,
+    "daysToCoverQuantity": 4.77,
+    "settlementDate": "2026-07-31"
+  },
   "AZO": {
     "currentShortPositionQuantity": 432888,
     "previousShortPositionQuantity": 494460,
     "changePercent": -12.45,
     "averageDailyVolumeQuantity": 142403,
     "daysToCoverQuantity": 3.04,
+    "settlementDate": "2026-07-31"
+  },
+  "AZTA": {
+    "currentShortPositionQuantity": 5339160,
+    "previousShortPositionQuantity": 6032546,
+    "changePercent": -11.49,
+    "averageDailyVolumeQuantity": 570202,
+    "daysToCoverQuantity": 9.36,
     "settlementDate": "2026-07-31"
   },
   "BA": {
@@ -671,20 +583,12 @@
     "daysToCoverQuantity": 2.94,
     "settlementDate": "2026-07-31"
   },
-  "BAND": {
-    "currentShortPositionQuantity": 4428510,
-    "previousShortPositionQuantity": 3614165,
-    "changePercent": 22.53,
-    "averageDailyVolumeQuantity": 1447316,
-    "daysToCoverQuantity": 3.06,
-    "settlementDate": "2026-07-31"
-  },
-  "BAX": {
-    "currentShortPositionQuantity": 32667256,
-    "previousShortPositionQuantity": 36839907,
-    "changePercent": -11.33,
-    "averageDailyVolumeQuantity": 7531769,
-    "daysToCoverQuantity": 4.34,
+  "BANF": {
+    "currentShortPositionQuantity": 885302,
+    "previousShortPositionQuantity": 939223,
+    "changePercent": -5.74,
+    "averageDailyVolumeQuantity": 150837,
+    "daysToCoverQuantity": 5.87,
     "settlementDate": "2026-07-31"
   },
   "BBIO": {
@@ -695,28 +599,20 @@
     "daysToCoverQuantity": 11.5,
     "settlementDate": "2026-07-31"
   },
+  "BBT": {
+    "currentShortPositionQuantity": 3515519,
+    "previousShortPositionQuantity": 3765559,
+    "changePercent": -6.64,
+    "averageDailyVolumeQuantity": 850019,
+    "daysToCoverQuantity": 4.14,
+    "settlementDate": "2026-07-31"
+  },
   "BBW": {
     "currentShortPositionQuantity": 2739680,
     "previousShortPositionQuantity": 2850760,
     "changePercent": -3.9,
     "averageDailyVolumeQuantity": 245840,
     "daysToCoverQuantity": 11.14,
-    "settlementDate": "2026-07-31"
-  },
-  "BCAL": {
-    "currentShortPositionQuantity": 909590,
-    "previousShortPositionQuantity": 900257,
-    "changePercent": 1.04,
-    "averageDailyVolumeQuantity": 265229,
-    "daysToCoverQuantity": 3.43,
-    "settlementDate": "2026-07-31"
-  },
-  "BCBP": {
-    "currentShortPositionQuantity": 773477,
-    "previousShortPositionQuantity": 689482,
-    "changePercent": 12.18,
-    "averageDailyVolumeQuantity": 143759,
-    "daysToCoverQuantity": 5.38,
     "settlementDate": "2026-07-31"
   },
   "BCO": {
@@ -733,6 +629,14 @@
     "changePercent": 17.07,
     "averageDailyVolumeQuantity": 594817,
     "daysToCoverQuantity": 5.87,
+    "settlementDate": "2026-07-31"
+  },
+  "BELFA": {
+    "currentShortPositionQuantity": 156133,
+    "previousShortPositionQuantity": 148149,
+    "changePercent": 5.39,
+    "averageDailyVolumeQuantity": 168876,
+    "daysToCoverQuantity": 1.0,
     "settlementDate": "2026-07-31"
   },
   "BELFB": {
@@ -759,6 +663,14 @@
     "daysToCoverQuantity": 5.69,
     "settlementDate": "2026-07-31"
   },
+  "BFH": {
+    "currentShortPositionQuantity": 2758377,
+    "previousShortPositionQuantity": 2897085,
+    "changePercent": -4.79,
+    "averageDailyVolumeQuantity": 740146,
+    "daysToCoverQuantity": 3.73,
+    "settlementDate": "2026-07-31"
+  },
   "BG": {
     "currentShortPositionQuantity": 5844405,
     "previousShortPositionQuantity": 6290656,
@@ -783,12 +695,12 @@
     "daysToCoverQuantity": 7.33,
     "settlementDate": "2026-07-31"
   },
-  "BJRI": {
-    "currentShortPositionQuantity": 1510855,
-    "previousShortPositionQuantity": 1665477,
-    "changePercent": -9.28,
-    "averageDailyVolumeQuantity": 603728,
-    "daysToCoverQuantity": 2.5,
+  "BJ": {
+    "currentShortPositionQuantity": 9548354,
+    "previousShortPositionQuantity": 8202465,
+    "changePercent": 16.41,
+    "averageDailyVolumeQuantity": 1543302,
+    "daysToCoverQuantity": 6.19,
     "settlementDate": "2026-07-31"
   },
   "BKD": {
@@ -799,52 +711,20 @@
     "daysToCoverQuantity": 7.9,
     "settlementDate": "2026-07-31"
   },
-  "BKTI": {
-    "currentShortPositionQuantity": 164299,
-    "previousShortPositionQuantity": 161592,
-    "changePercent": 1.68,
-    "averageDailyVolumeQuantity": 41670,
-    "daysToCoverQuantity": 3.94,
+  "BLFS": {
+    "currentShortPositionQuantity": 4544348,
+    "previousShortPositionQuantity": 2856425,
+    "changePercent": 59.09,
+    "averageDailyVolumeQuantity": 2208090,
+    "daysToCoverQuantity": 2.06,
     "settlementDate": "2026-07-31"
   },
-  "BKV": {
-    "currentShortPositionQuantity": 5993294,
-    "previousShortPositionQuantity": 6370694,
-    "changePercent": -5.92,
-    "averageDailyVolumeQuantity": 879512,
-    "daysToCoverQuantity": 6.81,
-    "settlementDate": "2026-07-31"
-  },
-  "BLBD": {
-    "currentShortPositionQuantity": 3822795,
-    "previousShortPositionQuantity": 3956173,
-    "changePercent": -3.37,
-    "averageDailyVolumeQuantity": 471448,
-    "daysToCoverQuantity": 8.11,
-    "settlementDate": "2026-07-31"
-  },
-  "BLDR": {
-    "currentShortPositionQuantity": 8013450,
-    "previousShortPositionQuantity": 7200190,
-    "changePercent": 11.29,
-    "averageDailyVolumeQuantity": 2627706,
-    "daysToCoverQuantity": 3.05,
-    "settlementDate": "2026-07-31"
-  },
-  "BLK": {
-    "currentShortPositionQuantity": 2176024,
-    "previousShortPositionQuantity": 2095185,
-    "changePercent": 3.86,
-    "averageDailyVolumeQuantity": 782086,
-    "daysToCoverQuantity": 2.78,
-    "settlementDate": "2026-07-31"
-  },
-  "BLMN": {
-    "currentShortPositionQuantity": 9135418,
-    "previousShortPositionQuantity": 8093997,
-    "changePercent": 12.87,
-    "averageDailyVolumeQuantity": 1513601,
-    "daysToCoverQuantity": 6.04,
+  "BMNR": {
+    "currentShortPositionQuantity": 42768324,
+    "previousShortPositionQuantity": 49117115,
+    "changePercent": -12.93,
+    "averageDailyVolumeQuantity": 36871372,
+    "daysToCoverQuantity": 1.16,
     "settlementDate": "2026-07-31"
   },
   "BMRN": {
@@ -855,12 +735,28 @@
     "daysToCoverQuantity": 7.42,
     "settlementDate": "2026-07-31"
   },
-  "BNL": {
-    "currentShortPositionQuantity": 11574138,
-    "previousShortPositionQuantity": 12395520,
-    "changePercent": -6.63,
-    "averageDailyVolumeQuantity": 1667917,
-    "daysToCoverQuantity": 6.94,
+  "BPOP": {
+    "currentShortPositionQuantity": 1974243,
+    "previousShortPositionQuantity": 1930557,
+    "changePercent": 2.26,
+    "averageDailyVolumeQuantity": 503313,
+    "daysToCoverQuantity": 3.92,
+    "settlementDate": "2026-07-31"
+  },
+  "BRC": {
+    "currentShortPositionQuantity": 696463,
+    "previousShortPositionQuantity": 689015,
+    "changePercent": 1.08,
+    "averageDailyVolumeQuantity": 171914,
+    "daysToCoverQuantity": 4.05,
+    "settlementDate": "2026-07-31"
+  },
+  "BRKR": {
+    "currentShortPositionQuantity": 12684689,
+    "previousShortPositionQuantity": 14632119,
+    "changePercent": -13.31,
+    "averageDailyVolumeQuantity": 1937232,
+    "daysToCoverQuantity": 6.55,
     "settlementDate": "2026-07-31"
   },
   "BRO": {
@@ -871,12 +767,12 @@
     "daysToCoverQuantity": 4.86,
     "settlementDate": "2026-07-31"
   },
-  "BSVN": {
-    "currentShortPositionQuantity": 72427,
-    "previousShortPositionQuantity": 71106,
-    "changePercent": 1.86,
-    "averageDailyVolumeQuantity": 42795,
-    "daysToCoverQuantity": 1.69,
+  "BRZE": {
+    "currentShortPositionQuantity": 11843868,
+    "previousShortPositionQuantity": 12553830,
+    "changePercent": -5.66,
+    "averageDailyVolumeQuantity": 2365581,
+    "daysToCoverQuantity": 5.01,
     "settlementDate": "2026-07-31"
   },
   "BTU": {
@@ -887,14 +783,6 @@
     "daysToCoverQuantity": 4.77,
     "settlementDate": "2026-07-31"
   },
-  "BULL": {
-    "currentShortPositionQuantity": 26705518,
-    "previousShortPositionQuantity": 26732710,
-    "changePercent": -0.1,
-    "averageDailyVolumeQuantity": 9054812,
-    "daysToCoverQuantity": 2.95,
-    "settlementDate": "2026-07-31"
-  },
   "BURL": {
     "currentShortPositionQuantity": 2715459,
     "previousShortPositionQuantity": 2652653,
@@ -903,20 +791,20 @@
     "daysToCoverQuantity": 4.14,
     "settlementDate": "2026-07-31"
   },
-  "BWB": {
-    "currentShortPositionQuantity": 613447,
-    "previousShortPositionQuantity": 588844,
-    "changePercent": 4.18,
-    "averageDailyVolumeQuantity": 174324,
-    "daysToCoverQuantity": 3.52,
+  "BV": {
+    "currentShortPositionQuantity": 3676099,
+    "previousShortPositionQuantity": 4543725,
+    "changePercent": -19.1,
+    "averageDailyVolumeQuantity": 744462,
+    "daysToCoverQuantity": 4.94,
     "settlementDate": "2026-07-31"
   },
-  "BXC": {
-    "currentShortPositionQuantity": 436968,
-    "previousShortPositionQuantity": 444898,
-    "changePercent": -1.78,
-    "averageDailyVolumeQuantity": 154816,
-    "daysToCoverQuantity": 2.82,
+  "BWIN": {
+    "currentShortPositionQuantity": 11288142,
+    "previousShortPositionQuantity": 11552379,
+    "changePercent": -2.29,
+    "averageDailyVolumeQuantity": 1299352,
+    "daysToCoverQuantity": 8.69,
     "settlementDate": "2026-07-31"
   },
   "BXMT": {
@@ -943,14 +831,6 @@
     "daysToCoverQuantity": 2.14,
     "settlementDate": "2026-07-31"
   },
-  "CABO": {
-    "currentShortPositionQuantity": 808809,
-    "previousShortPositionQuantity": 919884,
-    "changePercent": -12.07,
-    "averageDailyVolumeQuantity": 188904,
-    "daysToCoverQuantity": 4.28,
-    "settlementDate": "2026-07-31"
-  },
   "CAG": {
     "currentShortPositionQuantity": 43083539,
     "previousShortPositionQuantity": 49361024,
@@ -959,12 +839,28 @@
     "daysToCoverQuantity": 2.75,
     "settlementDate": "2026-07-31"
   },
+  "CAKE": {
+    "currentShortPositionQuantity": 9542274,
+    "previousShortPositionQuantity": 8909603,
+    "changePercent": 7.1,
+    "averageDailyVolumeQuantity": 1979975,
+    "daysToCoverQuantity": 4.82,
+    "settlementDate": "2026-07-31"
+  },
   "CALM": {
     "currentShortPositionQuantity": 5103170,
     "previousShortPositionQuantity": 5949877,
     "changePercent": -14.23,
     "averageDailyVolumeQuantity": 1143809,
     "daysToCoverQuantity": 4.46,
+    "settlementDate": "2026-07-31"
+  },
+  "CAR": {
+    "currentShortPositionQuantity": 5542005,
+    "previousShortPositionQuantity": 5416609,
+    "changePercent": 2.32,
+    "averageDailyVolumeQuantity": 610395,
+    "daysToCoverQuantity": 9.08,
     "settlementDate": "2026-07-31"
   },
   "CARG": {
@@ -983,38 +879,6 @@
     "daysToCoverQuantity": 4.7,
     "settlementDate": "2026-07-31"
   },
-  "CASY": {
-    "currentShortPositionQuantity": 1688551,
-    "previousShortPositionQuantity": 1324515,
-    "changePercent": 27.48,
-    "averageDailyVolumeQuantity": 281703,
-    "daysToCoverQuantity": 5.99,
-    "settlementDate": "2026-07-31"
-  },
-  "CBFV": {
-    "currentShortPositionQuantity": 85688,
-    "previousShortPositionQuantity": 78072,
-    "changePercent": 9.76,
-    "averageDailyVolumeQuantity": 5934,
-    "daysToCoverQuantity": 14.44,
-    "settlementDate": "2026-07-31"
-  },
-  "CBNA": {
-    "currentShortPositionQuantity": 32079,
-    "previousShortPositionQuantity": 25118,
-    "changePercent": 27.71,
-    "averageDailyVolumeQuantity": 23939,
-    "daysToCoverQuantity": 1.34,
-    "settlementDate": "2026-07-31"
-  },
-  "CBNK": {
-    "currentShortPositionQuantity": 654376,
-    "previousShortPositionQuantity": 653291,
-    "changePercent": 0.17,
-    "averageDailyVolumeQuantity": 58752,
-    "daysToCoverQuantity": 11.14,
-    "settlementDate": "2026-07-31"
-  },
   "CBRE": {
     "currentShortPositionQuantity": 4825569,
     "previousShortPositionQuantity": 5381465,
@@ -1029,6 +893,14 @@
     "changePercent": -7.2,
     "averageDailyVolumeQuantity": 907933,
     "daysToCoverQuantity": 5.79,
+    "settlementDate": "2026-07-31"
+  },
+  "CBRS": {
+    "currentShortPositionQuantity": 12895548,
+    "previousShortPositionQuantity": 10424930,
+    "changePercent": 23.7,
+    "averageDailyVolumeQuantity": 5841152,
+    "daysToCoverQuantity": 2.21,
     "settlementDate": "2026-07-31"
   },
   "CBT": {
@@ -1055,44 +927,12 @@
     "daysToCoverQuantity": 2.63,
     "settlementDate": "2026-07-31"
   },
-  "CCNE": {
-    "currentShortPositionQuantity": 631211,
-    "previousShortPositionQuantity": 649524,
-    "changePercent": -2.82,
-    "averageDailyVolumeQuantity": 146410,
-    "daysToCoverQuantity": 4.31,
-    "settlementDate": "2026-07-31"
-  },
   "CCS": {
     "currentShortPositionQuantity": 1761602,
     "previousShortPositionQuantity": 1915407,
     "changePercent": -8.03,
     "averageDailyVolumeQuantity": 311436,
     "daysToCoverQuantity": 5.66,
-    "settlementDate": "2026-07-31"
-  },
-  "CCSI": {
-    "currentShortPositionQuantity": 746841,
-    "previousShortPositionQuantity": 805669,
-    "changePercent": -7.3,
-    "averageDailyVolumeQuantity": 126539,
-    "daysToCoverQuantity": 5.9,
-    "settlementDate": "2026-07-31"
-  },
-  "CDNA": {
-    "currentShortPositionQuantity": 6135225,
-    "previousShortPositionQuantity": 6187364,
-    "changePercent": -0.84,
-    "averageDailyVolumeQuantity": 1442843,
-    "daysToCoverQuantity": 4.25,
-    "settlementDate": "2026-07-31"
-  },
-  "CDNS": {
-    "currentShortPositionQuantity": 6099964,
-    "previousShortPositionQuantity": 6187380,
-    "changePercent": -1.41,
-    "averageDailyVolumeQuantity": 2921189,
-    "daysToCoverQuantity": 2.09,
     "settlementDate": "2026-07-31"
   },
   "CDP": {
@@ -1117,6 +957,14 @@
     "changePercent": -16.15,
     "averageDailyVolumeQuantity": 1768065,
     "daysToCoverQuantity": 4.64,
+    "settlementDate": "2026-07-31"
+  },
+  "CEG": {
+    "currentShortPositionQuantity": 10429475,
+    "previousShortPositionQuantity": 10654877,
+    "changePercent": -2.12,
+    "averageDailyVolumeQuantity": 2673773,
+    "daysToCoverQuantity": 3.9,
     "settlementDate": "2026-07-31"
   },
   "CENX": {
@@ -1151,20 +999,28 @@
     "daysToCoverQuantity": 5.76,
     "settlementDate": "2026-07-31"
   },
-  "CHCT": {
-    "currentShortPositionQuantity": 1005696,
-    "previousShortPositionQuantity": 962292,
-    "changePercent": 4.51,
-    "averageDailyVolumeQuantity": 213113,
-    "daysToCoverQuantity": 4.72,
+  "CHD": {
+    "currentShortPositionQuantity": 10363620,
+    "previousShortPositionQuantity": 10531980,
+    "changePercent": -1.6,
+    "averageDailyVolumeQuantity": 1906139,
+    "daysToCoverQuantity": 5.44,
     "settlementDate": "2026-07-31"
   },
-  "CHMG": {
-    "currentShortPositionQuantity": 59931,
-    "previousShortPositionQuantity": 88921,
-    "changePercent": -32.6,
-    "averageDailyVolumeQuantity": 71796,
-    "daysToCoverQuantity": 1.0,
+  "CHTR": {
+    "currentShortPositionQuantity": 22464161,
+    "previousShortPositionQuantity": 20265471,
+    "changePercent": 10.85,
+    "averageDailyVolumeQuantity": 3678540,
+    "daysToCoverQuantity": 6.11,
+    "settlementDate": "2026-07-31"
+  },
+  "CI": {
+    "currentShortPositionQuantity": 4766977,
+    "previousShortPositionQuantity": 6178422,
+    "changePercent": -22.84,
+    "averageDailyVolumeQuantity": 1865973,
+    "daysToCoverQuantity": 2.55,
     "settlementDate": "2026-07-31"
   },
   "CIFR": {
@@ -1175,28 +1031,20 @@
     "daysToCoverQuantity": 1.89,
     "settlementDate": "2026-07-31"
   },
-  "CIM": {
-    "currentShortPositionQuantity": 1698438,
-    "previousShortPositionQuantity": 1730252,
-    "changePercent": -1.84,
-    "averageDailyVolumeQuantity": 623345,
-    "daysToCoverQuantity": 2.72,
+  "CLF": {
+    "currentShortPositionQuantity": 80256726,
+    "previousShortPositionQuantity": 83596285,
+    "changePercent": -3.99,
+    "averageDailyVolumeQuantity": 33285040,
+    "daysToCoverQuantity": 2.41,
     "settlementDate": "2026-07-31"
   },
-  "CIVB": {
-    "currentShortPositionQuantity": 501143,
-    "previousShortPositionQuantity": 414597,
-    "changePercent": 20.87,
-    "averageDailyVolumeQuantity": 118363,
-    "daysToCoverQuantity": 4.23,
-    "settlementDate": "2026-07-31"
-  },
-  "CLMT": {
-    "currentShortPositionQuantity": 3335395,
-    "previousShortPositionQuantity": 3661359,
-    "changePercent": -8.9,
-    "averageDailyVolumeQuantity": 1176310,
-    "daysToCoverQuantity": 2.84,
+  "CLX": {
+    "currentShortPositionQuantity": 13522338,
+    "previousShortPositionQuantity": 11666754,
+    "changePercent": 15.9,
+    "averageDailyVolumeQuantity": 2242262,
+    "daysToCoverQuantity": 6.03,
     "settlementDate": "2026-07-31"
   },
   "CMCO": {
@@ -1215,6 +1063,14 @@
     "daysToCoverQuantity": 2.26,
     "settlementDate": "2026-07-31"
   },
+  "CMG": {
+    "currentShortPositionQuantity": 39015442,
+    "previousShortPositionQuantity": 50630812,
+    "changePercent": -22.94,
+    "averageDailyVolumeQuantity": 17970225,
+    "daysToCoverQuantity": 2.17,
+    "settlementDate": "2026-07-31"
+  },
   "CNOB": {
     "currentShortPositionQuantity": 1337043,
     "previousShortPositionQuantity": 1548771,
@@ -1223,12 +1079,12 @@
     "daysToCoverQuantity": 2.61,
     "settlementDate": "2026-07-31"
   },
-  "CNX": {
-    "currentShortPositionQuantity": 15172466,
-    "previousShortPositionQuantity": 15159036,
-    "changePercent": 0.09,
-    "averageDailyVolumeQuantity": 1703537,
-    "daysToCoverQuantity": 8.91,
+  "CNS": {
+    "currentShortPositionQuantity": 1087999,
+    "previousShortPositionQuantity": 1344466,
+    "changePercent": -19.08,
+    "averageDailyVolumeQuantity": 297955,
+    "daysToCoverQuantity": 3.65,
     "settlementDate": "2026-07-31"
   },
   "COCO": {
@@ -1263,12 +1119,20 @@
     "daysToCoverQuantity": 4.22,
     "settlementDate": "2026-07-31"
   },
-  "COOK": {
-    "currentShortPositionQuantity": 56888,
-    "previousShortPositionQuantity": 51498,
-    "changePercent": 10.47,
-    "averageDailyVolumeQuantity": 87656,
-    "daysToCoverQuantity": 1.0,
+  "COO": {
+    "currentShortPositionQuantity": 8344882,
+    "previousShortPositionQuantity": 7918348,
+    "changePercent": 5.39,
+    "averageDailyVolumeQuantity": 1897971,
+    "daysToCoverQuantity": 4.4,
+    "settlementDate": "2026-07-31"
+  },
+  "CORT": {
+    "currentShortPositionQuantity": 9819732,
+    "previousShortPositionQuantity": 9442750,
+    "changePercent": 3.99,
+    "averageDailyVolumeQuantity": 1538603,
+    "daysToCoverQuantity": 6.38,
     "settlementDate": "2026-07-31"
   },
   "CORZ": {
@@ -1277,6 +1141,14 @@
     "changePercent": -0.35,
     "averageDailyVolumeQuantity": 13820542,
     "daysToCoverQuantity": 4.57,
+    "settlementDate": "2026-07-31"
+  },
+  "COST": {
+    "currentShortPositionQuantity": 7655966,
+    "previousShortPositionQuantity": 6957664,
+    "changePercent": 10.04,
+    "averageDailyVolumeQuantity": 2042482,
+    "daysToCoverQuantity": 3.75,
     "settlementDate": "2026-07-31"
   },
   "CPAY": {
@@ -1311,14 +1183,6 @@
     "daysToCoverQuantity": 2.31,
     "settlementDate": "2026-07-31"
   },
-  "CRGY": {
-    "currentShortPositionQuantity": 36057243,
-    "previousShortPositionQuantity": 41736247,
-    "changePercent": -13.61,
-    "averageDailyVolumeQuantity": 5731731,
-    "daysToCoverQuantity": 6.29,
-    "settlementDate": "2026-07-31"
-  },
   "CRK": {
     "currentShortPositionQuantity": 24916247,
     "previousShortPositionQuantity": 24068525,
@@ -1333,6 +1197,14 @@
     "changePercent": 2.29,
     "averageDailyVolumeQuantity": 841792,
     "daysToCoverQuantity": 4.06,
+    "settlementDate": "2026-07-31"
+  },
+  "CROX": {
+    "currentShortPositionQuantity": 4415345,
+    "previousShortPositionQuantity": 4942071,
+    "changePercent": -10.66,
+    "averageDailyVolumeQuantity": 1081230,
+    "daysToCoverQuantity": 4.08,
     "settlementDate": "2026-07-31"
   },
   "CRWD": {
@@ -1351,12 +1223,20 @@
     "daysToCoverQuantity": 3.28,
     "settlementDate": "2026-07-31"
   },
-  "CSV": {
-    "currentShortPositionQuantity": 457520,
-    "previousShortPositionQuantity": 450029,
-    "changePercent": 1.66,
-    "averageDailyVolumeQuantity": 119072,
-    "daysToCoverQuantity": 3.84,
+  "CTRI": {
+    "currentShortPositionQuantity": 3528154,
+    "previousShortPositionQuantity": 3261943,
+    "changePercent": 8.16,
+    "averageDailyVolumeQuantity": 1578306,
+    "daysToCoverQuantity": 2.24,
+    "settlementDate": "2026-07-31"
+  },
+  "CTSH": {
+    "currentShortPositionQuantity": 44811814,
+    "previousShortPositionQuantity": 57093656,
+    "changePercent": -21.51,
+    "averageDailyVolumeQuantity": 9377396,
+    "daysToCoverQuantity": 4.78,
     "settlementDate": "2026-07-31"
   },
   "CUBI": {
@@ -1367,20 +1247,20 @@
     "daysToCoverQuantity": 8.12,
     "settlementDate": "2026-07-31"
   },
-  "CURB": {
-    "currentShortPositionQuantity": 18337651,
-    "previousShortPositionQuantity": 17571331,
-    "changePercent": 4.36,
-    "averageDailyVolumeQuantity": 1455094,
-    "daysToCoverQuantity": 12.6,
-    "settlementDate": "2026-07-31"
-  },
   "CVBF": {
     "currentShortPositionQuantity": 7947148,
     "previousShortPositionQuantity": 8524410,
     "changePercent": -6.77,
     "averageDailyVolumeQuantity": 1625590,
     "daysToCoverQuantity": 4.89,
+    "settlementDate": "2026-07-31"
+  },
+  "CVCO": {
+    "currentShortPositionQuantity": 374690,
+    "previousShortPositionQuantity": 443591,
+    "changePercent": -15.53,
+    "averageDailyVolumeQuantity": 117121,
+    "daysToCoverQuantity": 3.2,
     "settlementDate": "2026-07-31"
   },
   "CVI": {
@@ -1391,6 +1271,14 @@
     "daysToCoverQuantity": 5.35,
     "settlementDate": "2026-07-31"
   },
+  "CVNA": {
+    "currentShortPositionQuantity": 71271408,
+    "previousShortPositionQuantity": 76207110,
+    "changePercent": -6.48,
+    "averageDailyVolumeQuantity": 11844552,
+    "daysToCoverQuantity": 6.02,
+    "settlementDate": "2026-07-31"
+  },
   "CVS": {
     "currentShortPositionQuantity": 18676470,
     "previousShortPositionQuantity": 19524883,
@@ -1399,12 +1287,20 @@
     "daysToCoverQuantity": 2.41,
     "settlementDate": "2026-07-31"
   },
-  "CWBC": {
-    "currentShortPositionQuantity": 1151526,
-    "previousShortPositionQuantity": 1205801,
-    "changePercent": -4.5,
-    "averageDailyVolumeQuantity": 284612,
-    "daysToCoverQuantity": 4.05,
+  "CVSA": {
+    "currentShortPositionQuantity": 1651144,
+    "previousShortPositionQuantity": 1682699,
+    "changePercent": -1.88,
+    "averageDailyVolumeQuantity": 348979,
+    "daysToCoverQuantity": 4.73,
+    "settlementDate": "2026-07-31"
+  },
+  "CVX": {
+    "currentShortPositionQuantity": 20250198,
+    "previousShortPositionQuantity": 20366208,
+    "changePercent": -0.57,
+    "averageDailyVolumeQuantity": 7371493,
+    "daysToCoverQuantity": 2.75,
     "settlementDate": "2026-07-31"
   },
   "CWK": {
@@ -1415,6 +1311,14 @@
     "daysToCoverQuantity": 5.97,
     "settlementDate": "2026-07-31"
   },
+  "CWST": {
+    "currentShortPositionQuantity": 4680761,
+    "previousShortPositionQuantity": 4904523,
+    "changePercent": -4.56,
+    "averageDailyVolumeQuantity": 730574,
+    "daysToCoverQuantity": 6.41,
+    "settlementDate": "2026-07-31"
+  },
   "CXW": {
     "currentShortPositionQuantity": 3574436,
     "previousShortPositionQuantity": 2155884,
@@ -1423,20 +1327,20 @@
     "daysToCoverQuantity": 3.75,
     "settlementDate": "2026-07-31"
   },
-  "CZNC": {
-    "currentShortPositionQuantity": 400041,
-    "previousShortPositionQuantity": 333202,
-    "changePercent": 20.06,
-    "averageDailyVolumeQuantity": 72376,
-    "daysToCoverQuantity": 5.53,
+  "CZR": {
+    "currentShortPositionQuantity": 17688528,
+    "previousShortPositionQuantity": 18579565,
+    "changePercent": -4.8,
+    "averageDailyVolumeQuantity": 3137922,
+    "daysToCoverQuantity": 5.64,
     "settlementDate": "2026-07-31"
   },
-  "DAN": {
-    "currentShortPositionQuantity": 3841850,
-    "previousShortPositionQuantity": 4124266,
-    "changePercent": -6.85,
-    "averageDailyVolumeQuantity": 1196905,
-    "daysToCoverQuantity": 3.21,
+  "DASH": {
+    "currentShortPositionQuantity": 18087013,
+    "previousShortPositionQuantity": 18781477,
+    "changePercent": -3.7,
+    "averageDailyVolumeQuantity": 3416203,
+    "daysToCoverQuantity": 5.29,
     "settlementDate": "2026-07-31"
   },
   "DAVE": {
@@ -1455,6 +1359,14 @@
     "daysToCoverQuantity": 4.5,
     "settlementDate": "2026-07-31"
   },
+  "DDOG": {
+    "currentShortPositionQuantity": 11729899,
+    "previousShortPositionQuantity": 12494014,
+    "changePercent": -6.12,
+    "averageDailyVolumeQuantity": 3852941,
+    "daysToCoverQuantity": 3.04,
+    "settlementDate": "2026-07-31"
+  },
   "DE": {
     "currentShortPositionQuantity": 6289736,
     "previousShortPositionQuantity": 6649037,
@@ -1471,12 +1383,12 @@
     "daysToCoverQuantity": 2.79,
     "settlementDate": "2026-07-31"
   },
-  "DKNG": {
-    "currentShortPositionQuantity": 38098326,
-    "previousShortPositionQuantity": 39353188,
-    "changePercent": -3.19,
-    "averageDailyVolumeQuantity": 10580002,
-    "daysToCoverQuantity": 3.6,
+  "DIS": {
+    "currentShortPositionQuantity": 19483572,
+    "previousShortPositionQuantity": 22638865,
+    "changePercent": -13.94,
+    "averageDailyVolumeQuantity": 11482041,
+    "daysToCoverQuantity": 1.7,
     "settlementDate": "2026-07-31"
   },
   "DKS": {
@@ -1543,12 +1455,20 @@
     "daysToCoverQuantity": 7.51,
     "settlementDate": "2026-07-31"
   },
-  "EFSI": {
-    "currentShortPositionQuantity": 93507,
-    "previousShortPositionQuantity": 81847,
-    "changePercent": 14.25,
-    "averageDailyVolumeQuantity": 64991,
-    "daysToCoverQuantity": 1.44,
+  "EA": {
+    "currentShortPositionQuantity": 12731853,
+    "previousShortPositionQuantity": 8723759,
+    "changePercent": 45.94,
+    "averageDailyVolumeQuantity": 2916365,
+    "daysToCoverQuantity": 4.37,
+    "settlementDate": "2026-07-31"
+  },
+  "ECL": {
+    "currentShortPositionQuantity": 3096775,
+    "previousShortPositionQuantity": 3314735,
+    "changePercent": -6.58,
+    "averageDailyVolumeQuantity": 1329623,
+    "daysToCoverQuantity": 2.33,
     "settlementDate": "2026-07-31"
   },
   "EHC": {
@@ -1559,14 +1479,6 @@
     "daysToCoverQuantity": 4.89,
     "settlementDate": "2026-07-31"
   },
-  "EIX": {
-    "currentShortPositionQuantity": 14754295,
-    "previousShortPositionQuantity": 15277222,
-    "changePercent": -3.42,
-    "averageDailyVolumeQuantity": 2734288,
-    "daysToCoverQuantity": 5.4,
-    "settlementDate": "2026-07-31"
-  },
   "EL": {
     "currentShortPositionQuantity": 7967625,
     "previousShortPositionQuantity": 7988300,
@@ -1575,12 +1487,12 @@
     "daysToCoverQuantity": 3.74,
     "settlementDate": "2026-07-31"
   },
-  "ELA": {
-    "currentShortPositionQuantity": 395545,
-    "previousShortPositionQuantity": 328986,
-    "changePercent": 20.23,
-    "averageDailyVolumeQuantity": 126118,
-    "daysToCoverQuantity": 3.14,
+  "EMN": {
+    "currentShortPositionQuantity": 5266760,
+    "previousShortPositionQuantity": 5363963,
+    "changePercent": -1.81,
+    "averageDailyVolumeQuantity": 1398844,
+    "daysToCoverQuantity": 3.77,
     "settlementDate": "2026-07-31"
   },
   "ENR": {
@@ -1623,6 +1535,22 @@
     "daysToCoverQuantity": 9.78,
     "settlementDate": "2026-07-31"
   },
+  "EQH": {
+    "currentShortPositionQuantity": 6549644,
+    "previousShortPositionQuantity": 5453324,
+    "changePercent": 20.1,
+    "averageDailyVolumeQuantity": 2677977,
+    "daysToCoverQuantity": 2.45,
+    "settlementDate": "2026-07-31"
+  },
+  "EQIX": {
+    "currentShortPositionQuantity": 1905105,
+    "previousShortPositionQuantity": 1877216,
+    "changePercent": 1.49,
+    "averageDailyVolumeQuantity": 582033,
+    "daysToCoverQuantity": 3.27,
+    "settlementDate": "2026-07-31"
+  },
   "EQT": {
     "currentShortPositionQuantity": 18171312,
     "previousShortPositionQuantity": 20683827,
@@ -1631,28 +1559,20 @@
     "daysToCoverQuantity": 2.26,
     "settlementDate": "2026-07-31"
   },
-  "ES": {
-    "currentShortPositionQuantity": 10791332,
-    "previousShortPositionQuantity": 13633447,
-    "changePercent": -20.85,
-    "averageDailyVolumeQuantity": 2382079,
-    "daysToCoverQuantity": 4.53,
+  "ERIE": {
+    "currentShortPositionQuantity": 2846745,
+    "previousShortPositionQuantity": 2946827,
+    "changePercent": -3.4,
+    "averageDailyVolumeQuantity": 320381,
+    "daysToCoverQuantity": 8.89,
     "settlementDate": "2026-07-31"
   },
-  "ESCA": {
-    "currentShortPositionQuantity": 219574,
-    "previousShortPositionQuantity": 215950,
-    "changePercent": 1.68,
-    "averageDailyVolumeQuantity": 32012,
-    "daysToCoverQuantity": 6.86,
-    "settlementDate": "2026-07-31"
-  },
-  "ESS": {
-    "currentShortPositionQuantity": 2227641,
-    "previousShortPositionQuantity": 2030071,
-    "changePercent": 9.73,
-    "averageDailyVolumeQuantity": 522913,
-    "daysToCoverQuantity": 4.26,
+  "ET": {
+    "currentShortPositionQuantity": 26084269,
+    "previousShortPositionQuantity": 33648079,
+    "changePercent": -22.48,
+    "averageDailyVolumeQuantity": 9014694,
+    "daysToCoverQuantity": 2.89,
     "settlementDate": "2026-07-31"
   },
   "EVER": {
@@ -1687,14 +1607,6 @@
     "daysToCoverQuantity": 5.31,
     "settlementDate": "2026-07-31"
   },
-  "EXR": {
-    "currentShortPositionQuantity": 4658227,
-    "previousShortPositionQuantity": 4590724,
-    "changePercent": 1.47,
-    "averageDailyVolumeQuantity": 1531286,
-    "daysToCoverQuantity": 3.04,
-    "settlementDate": "2026-07-31"
-  },
   "EXTR": {
     "currentShortPositionQuantity": 7655982,
     "previousShortPositionQuantity": 7281726,
@@ -1703,76 +1615,44 @@
     "daysToCoverQuantity": 5.22,
     "settlementDate": "2026-07-31"
   },
-  "EYE": {
-    "currentShortPositionQuantity": 14289071,
-    "previousShortPositionQuantity": 16647112,
-    "changePercent": -14.16,
-    "averageDailyVolumeQuantity": 1669092,
-    "daysToCoverQuantity": 8.56,
+  "FAST": {
+    "currentShortPositionQuantity": 35899233,
+    "previousShortPositionQuantity": 31475902,
+    "changePercent": 14.05,
+    "averageDailyVolumeQuantity": 8315588,
+    "daysToCoverQuantity": 4.32,
     "settlementDate": "2026-07-31"
   },
-  "F": {
-    "currentShortPositionQuantity": 85896044,
-    "previousShortPositionQuantity": 96466645,
-    "changePercent": -10.96,
-    "averageDailyVolumeQuantity": 60038582,
-    "daysToCoverQuantity": 1.43,
+  "FBK": {
+    "currentShortPositionQuantity": 1828470,
+    "previousShortPositionQuantity": 2142095,
+    "changePercent": -14.64,
+    "averageDailyVolumeQuantity": 402990,
+    "daysToCoverQuantity": 4.54,
     "settlementDate": "2026-07-31"
   },
-  "FBIZ": {
-    "currentShortPositionQuantity": 184655,
-    "previousShortPositionQuantity": 154110,
-    "changePercent": 19.82,
-    "averageDailyVolumeQuantity": 80041,
-    "daysToCoverQuantity": 2.31,
+  "FCPT": {
+    "currentShortPositionQuantity": 4321884,
+    "previousShortPositionQuantity": 3926420,
+    "changePercent": 10.07,
+    "averageDailyVolumeQuantity": 761150,
+    "daysToCoverQuantity": 5.68,
     "settlementDate": "2026-07-31"
   },
-  "FCCO": {
-    "currentShortPositionQuantity": 171511,
-    "previousShortPositionQuantity": 159122,
-    "changePercent": 7.79,
-    "averageDailyVolumeQuantity": 58834,
-    "daysToCoverQuantity": 2.92,
+  "FFIN": {
+    "currentShortPositionQuantity": 8403942,
+    "previousShortPositionQuantity": 8568399,
+    "changePercent": -1.92,
+    "averageDailyVolumeQuantity": 837163,
+    "daysToCoverQuantity": 10.04,
     "settlementDate": "2026-07-31"
   },
-  "FCFS": {
-    "currentShortPositionQuantity": 2238267,
-    "previousShortPositionQuantity": 1996808,
-    "changePercent": 12.09,
-    "averageDailyVolumeQuantity": 534456,
-    "daysToCoverQuantity": 4.19,
-    "settlementDate": "2026-07-31"
-  },
-  "FEIM": {
-    "currentShortPositionQuantity": 1184364,
-    "previousShortPositionQuantity": 907117,
-    "changePercent": 30.56,
-    "averageDailyVolumeQuantity": 578637,
-    "daysToCoverQuantity": 2.05,
-    "settlementDate": "2026-07-31"
-  },
-  "FFBC": {
-    "currentShortPositionQuantity": 5475421,
-    "previousShortPositionQuantity": 4979499,
-    "changePercent": 9.96,
-    "averageDailyVolumeQuantity": 1445342,
-    "daysToCoverQuantity": 3.79,
-    "settlementDate": "2026-07-31"
-  },
-  "FIBK": {
-    "currentShortPositionQuantity": 8983565,
-    "previousShortPositionQuantity": 9218865,
-    "changePercent": -2.55,
-    "averageDailyVolumeQuantity": 1420855,
-    "daysToCoverQuantity": 6.32,
-    "settlementDate": "2026-07-31"
-  },
-  "FINW": {
-    "currentShortPositionQuantity": 139979,
-    "previousShortPositionQuantity": 132695,
-    "changePercent": 5.49,
-    "averageDailyVolumeQuantity": 28803,
-    "daysToCoverQuantity": 4.86,
+  "FG": {
+    "currentShortPositionQuantity": 3218304,
+    "previousShortPositionQuantity": 4667575,
+    "changePercent": -31.05,
+    "averageDailyVolumeQuantity": 697129,
+    "daysToCoverQuantity": 4.62,
     "settlementDate": "2026-07-31"
   },
   "FIS": {
@@ -1781,22 +1661,6 @@
     "changePercent": 5.47,
     "averageDailyVolumeQuantity": 5802674,
     "daysToCoverQuantity": 3.25,
-    "settlementDate": "2026-07-31"
-  },
-  "FISI": {
-    "currentShortPositionQuantity": 485305,
-    "previousShortPositionQuantity": 542036,
-    "changePercent": -10.47,
-    "averageDailyVolumeQuantity": 161465,
-    "daysToCoverQuantity": 3.01,
-    "settlementDate": "2026-07-31"
-  },
-  "FITB": {
-    "currentShortPositionQuantity": 42693452,
-    "previousShortPositionQuantity": 43052744,
-    "changePercent": -0.83,
-    "averageDailyVolumeQuantity": 6479283,
-    "daysToCoverQuantity": 6.59,
     "settlementDate": "2026-07-31"
   },
   "FIVN": {
@@ -1823,22 +1687,6 @@
     "daysToCoverQuantity": 3.35,
     "settlementDate": "2026-07-31"
   },
-  "FLR": {
-    "currentShortPositionQuantity": 9418827,
-    "previousShortPositionQuantity": 9514570,
-    "changePercent": -1.01,
-    "averageDailyVolumeQuantity": 2117889,
-    "daysToCoverQuantity": 4.45,
-    "settlementDate": "2026-07-31"
-  },
-  "FLUT": {
-    "currentShortPositionQuantity": 10390583,
-    "previousShortPositionQuantity": 14160653,
-    "changePercent": -26.62,
-    "averageDailyVolumeQuantity": 2114077,
-    "daysToCoverQuantity": 4.91,
-    "settlementDate": "2026-07-31"
-  },
   "FLYW": {
     "currentShortPositionQuantity": 12681558,
     "previousShortPositionQuantity": 13105497,
@@ -1847,20 +1695,12 @@
     "daysToCoverQuantity": 6.48,
     "settlementDate": "2026-07-31"
   },
-  "FMBH": {
-    "currentShortPositionQuantity": 581978,
-    "previousShortPositionQuantity": 537498,
-    "changePercent": 8.28,
-    "averageDailyVolumeQuantity": 161468,
-    "daysToCoverQuantity": 3.6,
-    "settlementDate": "2026-07-31"
-  },
-  "FMNB": {
-    "currentShortPositionQuantity": 1859250,
-    "previousShortPositionQuantity": 1720408,
-    "changePercent": 8.07,
-    "averageDailyVolumeQuantity": 470191,
-    "daysToCoverQuantity": 3.95,
+  "FND": {
+    "currentShortPositionQuantity": 14518174,
+    "previousShortPositionQuantity": 15723464,
+    "changePercent": -7.67,
+    "averageDailyVolumeQuantity": 2655842,
+    "daysToCoverQuantity": 5.47,
     "settlementDate": "2026-07-31"
   },
   "FNF": {
@@ -1871,44 +1711,20 @@
     "daysToCoverQuantity": 5.62,
     "settlementDate": "2026-07-31"
   },
-  "FOA": {
-    "currentShortPositionQuantity": 517081,
-    "previousShortPositionQuantity": 547731,
-    "changePercent": -5.6,
-    "averageDailyVolumeQuantity": 47443,
-    "daysToCoverQuantity": 10.9,
+  "FOXA": {
+    "currentShortPositionQuantity": 44259326,
+    "previousShortPositionQuantity": 48168776,
+    "changePercent": -8.12,
+    "averageDailyVolumeQuantity": 3846216,
+    "daysToCoverQuantity": 11.51,
     "settlementDate": "2026-07-31"
   },
-  "FORR": {
-    "currentShortPositionQuantity": 586146,
-    "previousShortPositionQuantity": 647138,
-    "changePercent": -9.42,
-    "averageDailyVolumeQuantity": 124426,
-    "daysToCoverQuantity": 4.71,
-    "settlementDate": "2026-07-31"
-  },
-  "FOXF": {
-    "currentShortPositionQuantity": 3588247,
-    "previousShortPositionQuantity": 3463106,
-    "changePercent": 3.61,
-    "averageDailyVolumeQuantity": 486452,
-    "daysToCoverQuantity": 7.38,
-    "settlementDate": "2026-07-31"
-  },
-  "FRAF": {
-    "currentShortPositionQuantity": 147985,
-    "previousShortPositionQuantity": 116095,
-    "changePercent": 27.47,
-    "averageDailyVolumeQuantity": 41347,
-    "daysToCoverQuantity": 3.58,
-    "settlementDate": "2026-07-31"
-  },
-  "FRPH": {
-    "currentShortPositionQuantity": 422851,
-    "previousShortPositionQuantity": 412599,
-    "changePercent": 2.48,
-    "averageDailyVolumeQuantity": 77809,
-    "daysToCoverQuantity": 5.43,
+  "FRPT": {
+    "currentShortPositionQuantity": 8016448,
+    "previousShortPositionQuantity": 8685116,
+    "changePercent": -7.7,
+    "averageDailyVolumeQuantity": 909958,
+    "daysToCoverQuantity": 8.81,
     "settlementDate": "2026-07-31"
   },
   "FRSH": {
@@ -1917,14 +1733,6 @@
     "changePercent": 23.94,
     "averageDailyVolumeQuantity": 14007802,
     "daysToCoverQuantity": 1.79,
-    "settlementDate": "2026-07-31"
-  },
-  "FRST": {
-    "currentShortPositionQuantity": 521484,
-    "previousShortPositionQuantity": 517942,
-    "changePercent": 0.68,
-    "averageDailyVolumeQuantity": 178807,
-    "daysToCoverQuantity": 2.92,
     "settlementDate": "2026-07-31"
   },
   "FSLR": {
@@ -1951,30 +1759,6 @@
     "daysToCoverQuantity": 8.74,
     "settlementDate": "2026-07-31"
   },
-  "FSUN": {
-    "currentShortPositionQuantity": 1442360,
-    "previousShortPositionQuantity": 1400904,
-    "changePercent": 2.96,
-    "averageDailyVolumeQuantity": 287484,
-    "daysToCoverQuantity": 5.02,
-    "settlementDate": "2026-07-31"
-  },
-  "FTAI": {
-    "currentShortPositionQuantity": 6954418,
-    "previousShortPositionQuantity": 6789373,
-    "changePercent": 2.43,
-    "averageDailyVolumeQuantity": 1972081,
-    "daysToCoverQuantity": 3.53,
-    "settlementDate": "2026-07-31"
-  },
-  "FTLF": {
-    "currentShortPositionQuantity": 90894,
-    "previousShortPositionQuantity": 76550,
-    "changePercent": 18.74,
-    "averageDailyVolumeQuantity": 14888,
-    "daysToCoverQuantity": 6.11,
-    "settlementDate": "2026-07-31"
-  },
   "FUBO": {
     "currentShortPositionQuantity": 6835906,
     "previousShortPositionQuantity": 6571408,
@@ -1983,12 +1767,12 @@
     "daysToCoverQuantity": 5.29,
     "settlementDate": "2026-07-31"
   },
-  "FULT": {
-    "currentShortPositionQuantity": 8235629,
-    "previousShortPositionQuantity": 9850422,
-    "changePercent": -16.39,
-    "averageDailyVolumeQuantity": 1955995,
-    "daysToCoverQuantity": 4.21,
+  "FUL": {
+    "currentShortPositionQuantity": 2773188,
+    "previousShortPositionQuantity": 2383124,
+    "changePercent": 16.37,
+    "averageDailyVolumeQuantity": 631010,
+    "daysToCoverQuantity": 4.39,
     "settlementDate": "2026-07-31"
   },
   "FUN": {
@@ -1999,36 +1783,20 @@
     "daysToCoverQuantity": 10.12,
     "settlementDate": "2026-07-31"
   },
-  "FUNC": {
-    "currentShortPositionQuantity": 81822,
-    "previousShortPositionQuantity": 92370,
-    "changePercent": -11.42,
-    "averageDailyVolumeQuantity": 31669,
-    "daysToCoverQuantity": 2.58,
+  "FWONK": {
+    "currentShortPositionQuantity": 8185079,
+    "previousShortPositionQuantity": 8312063,
+    "changePercent": -1.53,
+    "averageDailyVolumeQuantity": 1775588,
+    "daysToCoverQuantity": 4.61,
     "settlementDate": "2026-07-31"
   },
-  "FVR": {
-    "currentShortPositionQuantity": 2091943,
-    "previousShortPositionQuantity": 2068824,
-    "changePercent": 1.12,
-    "averageDailyVolumeQuantity": 146630,
-    "daysToCoverQuantity": 14.27,
-    "settlementDate": "2026-07-31"
-  },
-  "FWRD": {
-    "currentShortPositionQuantity": 2304283,
-    "previousShortPositionQuantity": 2329137,
-    "changePercent": -1.07,
-    "averageDailyVolumeQuantity": 822392,
-    "daysToCoverQuantity": 2.8,
-    "settlementDate": "2026-07-31"
-  },
-  "FXNC": {
-    "currentShortPositionQuantity": 153842,
-    "previousShortPositionQuantity": 148098,
-    "changePercent": 3.88,
-    "averageDailyVolumeQuantity": 35771,
-    "daysToCoverQuantity": 4.3,
+  "FWRG": {
+    "currentShortPositionQuantity": 6015854,
+    "previousShortPositionQuantity": 5317321,
+    "changePercent": 13.14,
+    "averageDailyVolumeQuantity": 901889,
+    "daysToCoverQuantity": 6.67,
     "settlementDate": "2026-07-31"
   },
   "GAP": {
@@ -2047,28 +1815,36 @@
     "daysToCoverQuantity": 6.88,
     "settlementDate": "2026-07-31"
   },
-  "GBFH": {
-    "currentShortPositionQuantity": 698030,
-    "previousShortPositionQuantity": 705599,
-    "changePercent": -1.07,
-    "averageDailyVolumeQuantity": 103710,
-    "daysToCoverQuantity": 6.73,
-    "settlementDate": "2026-07-31"
-  },
-  "GBX": {
-    "currentShortPositionQuantity": 2856783,
-    "previousShortPositionQuantity": 3124285,
-    "changePercent": -8.56,
-    "averageDailyVolumeQuantity": 438872,
-    "daysToCoverQuantity": 6.51,
-    "settlementDate": "2026-07-31"
-  },
   "GCT": {
     "currentShortPositionQuantity": 4433182,
     "previousShortPositionQuantity": 4839415,
     "changePercent": -8.39,
     "averageDailyVolumeQuantity": 604615,
     "daysToCoverQuantity": 7.33,
+    "settlementDate": "2026-07-31"
+  },
+  "GDDY": {
+    "currentShortPositionQuantity": 5156052,
+    "previousShortPositionQuantity": 6569025,
+    "changePercent": -21.51,
+    "averageDailyVolumeQuantity": 2096006,
+    "daysToCoverQuantity": 2.46,
+    "settlementDate": "2026-07-31"
+  },
+  "GDYN": {
+    "currentShortPositionQuantity": 5061373,
+    "previousShortPositionQuantity": 5062091,
+    "changePercent": -0.01,
+    "averageDailyVolumeQuantity": 1989370,
+    "daysToCoverQuantity": 2.54,
+    "settlementDate": "2026-07-31"
+  },
+  "GE": {
+    "currentShortPositionQuantity": 14243769,
+    "previousShortPositionQuantity": 14900112,
+    "changePercent": -4.4,
+    "averageDailyVolumeQuantity": 4068413,
+    "daysToCoverQuantity": 3.5,
     "settlementDate": "2026-07-31"
   },
   "GEN": {
@@ -2079,12 +1855,20 @@
     "daysToCoverQuantity": 7.61,
     "settlementDate": "2026-07-31"
   },
-  "GEO": {
-    "currentShortPositionQuantity": 9570334,
-    "previousShortPositionQuantity": 10387135,
-    "changePercent": -7.86,
-    "averageDailyVolumeQuantity": 1401976,
-    "daysToCoverQuantity": 6.83,
+  "GFF": {
+    "currentShortPositionQuantity": 1615031,
+    "previousShortPositionQuantity": 1623505,
+    "changePercent": -0.52,
+    "averageDailyVolumeQuantity": 267169,
+    "daysToCoverQuantity": 6.04,
+    "settlementDate": "2026-07-31"
+  },
+  "GHM": {
+    "currentShortPositionQuantity": 727970,
+    "previousShortPositionQuantity": 564129,
+    "changePercent": 29.04,
+    "averageDailyVolumeQuantity": 286069,
+    "daysToCoverQuantity": 2.54,
     "settlementDate": "2026-07-31"
   },
   "GIS": {
@@ -2103,12 +1887,12 @@
     "daysToCoverQuantity": 3.64,
     "settlementDate": "2026-07-31"
   },
-  "GNE": {
-    "currentShortPositionQuantity": 582862,
-    "previousShortPositionQuantity": 553549,
-    "changePercent": 5.3,
-    "averageDailyVolumeQuantity": 69457,
-    "daysToCoverQuantity": 8.39,
+  "GMED": {
+    "currentShortPositionQuantity": 6886644,
+    "previousShortPositionQuantity": 7069160,
+    "changePercent": -2.58,
+    "averageDailyVolumeQuantity": 1409379,
+    "daysToCoverQuantity": 4.89,
     "settlementDate": "2026-07-31"
   },
   "GNW": {
@@ -2127,20 +1911,20 @@
     "daysToCoverQuantity": 10.28,
     "settlementDate": "2026-07-31"
   },
-  "GOLF": {
-    "currentShortPositionQuantity": 2812525,
-    "previousShortPositionQuantity": 2675537,
-    "changePercent": 5.12,
-    "averageDailyVolumeQuantity": 267318,
-    "daysToCoverQuantity": 10.52,
+  "GOLD": {
+    "currentShortPositionQuantity": 3022053,
+    "previousShortPositionQuantity": 3046848,
+    "changePercent": -0.81,
+    "averageDailyVolumeQuantity": 366421,
+    "daysToCoverQuantity": 8.25,
     "settlementDate": "2026-07-31"
   },
-  "GPGI": {
-    "currentShortPositionQuantity": 31815075,
-    "previousShortPositionQuantity": 33752047,
-    "changePercent": -5.74,
-    "averageDailyVolumeQuantity": 1390233,
-    "daysToCoverQuantity": 22.88,
+  "GPC": {
+    "currentShortPositionQuantity": 8698477,
+    "previousShortPositionQuantity": 9114972,
+    "changePercent": -4.57,
+    "averageDailyVolumeQuantity": 1788916,
+    "daysToCoverQuantity": 4.86,
     "settlementDate": "2026-07-31"
   },
   "GPN": {
@@ -2151,28 +1935,12 @@
     "daysToCoverQuantity": 5.38,
     "settlementDate": "2026-07-31"
   },
-  "GPOR": {
-    "currentShortPositionQuantity": 1025727,
-    "previousShortPositionQuantity": 1275191,
-    "changePercent": -19.56,
-    "averageDailyVolumeQuantity": 254199,
-    "daysToCoverQuantity": 4.04,
-    "settlementDate": "2026-07-31"
-  },
-  "GRND": {
-    "currentShortPositionQuantity": 8694709,
-    "previousShortPositionQuantity": 9365396,
-    "changePercent": -7.16,
-    "averageDailyVolumeQuantity": 1590534,
-    "daysToCoverQuantity": 5.47,
-    "settlementDate": "2026-07-31"
-  },
-  "GRPN": {
-    "currentShortPositionQuantity": 13729826,
-    "previousShortPositionQuantity": 13376270,
-    "changePercent": 2.64,
-    "averageDailyVolumeQuantity": 1444520,
-    "daysToCoverQuantity": 9.5,
+  "GPRE": {
+    "currentShortPositionQuantity": 13000266,
+    "previousShortPositionQuantity": 13317802,
+    "changePercent": -2.38,
+    "averageDailyVolumeQuantity": 1531590,
+    "daysToCoverQuantity": 8.49,
     "settlementDate": "2026-07-31"
   },
   "GS": {
@@ -2191,20 +1959,20 @@
     "daysToCoverQuantity": 3.34,
     "settlementDate": "2026-07-31"
   },
-  "GSBC": {
-    "currentShortPositionQuantity": 525117,
-    "previousShortPositionQuantity": 523907,
-    "changePercent": 0.23,
-    "averageDailyVolumeQuantity": 121238,
-    "daysToCoverQuantity": 4.33,
-    "settlementDate": "2026-07-31"
-  },
   "GSHD": {
     "currentShortPositionQuantity": 1694022,
     "previousShortPositionQuantity": 1970534,
     "changePercent": -14.03,
     "averageDailyVolumeQuantity": 698901,
     "daysToCoverQuantity": 2.42,
+    "settlementDate": "2026-07-31"
+  },
+  "GTES": {
+    "currentShortPositionQuantity": 11529572,
+    "previousShortPositionQuantity": 12709391,
+    "changePercent": -9.28,
+    "averageDailyVolumeQuantity": 2166818,
+    "daysToCoverQuantity": 5.32,
     "settlementDate": "2026-07-31"
   },
   "GTLB": {
@@ -2215,20 +1983,12 @@
     "daysToCoverQuantity": 4.9,
     "settlementDate": "2026-07-31"
   },
-  "GTY": {
-    "currentShortPositionQuantity": 7794033,
-    "previousShortPositionQuantity": 7777522,
-    "changePercent": 0.21,
-    "averageDailyVolumeQuantity": 572770,
-    "daysToCoverQuantity": 13.61,
-    "settlementDate": "2026-07-31"
-  },
-  "HAFC": {
-    "currentShortPositionQuantity": 965361,
-    "previousShortPositionQuantity": 1045609,
-    "changePercent": -7.67,
-    "averageDailyVolumeQuantity": 324336,
-    "daysToCoverQuantity": 2.98,
+  "GWRE": {
+    "currentShortPositionQuantity": 5068737,
+    "previousShortPositionQuantity": 5101424,
+    "changePercent": -0.64,
+    "averageDailyVolumeQuantity": 1293645,
+    "daysToCoverQuantity": 3.92,
     "settlementDate": "2026-07-31"
   },
   "HALO": {
@@ -2255,36 +2015,12 @@
     "daysToCoverQuantity": 1.72,
     "settlementDate": "2026-07-31"
   },
-  "HBCP": {
-    "currentShortPositionQuantity": 313908,
-    "previousShortPositionQuantity": 316586,
-    "changePercent": -0.85,
-    "averageDailyVolumeQuantity": 130014,
-    "daysToCoverQuantity": 2.41,
-    "settlementDate": "2026-07-31"
-  },
   "HBNC": {
     "currentShortPositionQuantity": 1939201,
     "previousShortPositionQuantity": 1499697,
     "changePercent": 29.31,
     "averageDailyVolumeQuantity": 776494,
     "daysToCoverQuantity": 2.5,
-    "settlementDate": "2026-07-31"
-  },
-  "HBT": {
-    "currentShortPositionQuantity": 751019,
-    "previousShortPositionQuantity": 567453,
-    "changePercent": 32.35,
-    "averageDailyVolumeQuantity": 151218,
-    "daysToCoverQuantity": 4.97,
-    "settlementDate": "2026-07-31"
-  },
-  "HCC": {
-    "currentShortPositionQuantity": 4544144,
-    "previousShortPositionQuantity": 3906361,
-    "changePercent": 16.33,
-    "averageDailyVolumeQuantity": 723717,
-    "daysToCoverQuantity": 6.28,
     "settlementDate": "2026-07-31"
   },
   "HCI": {
@@ -2303,20 +2039,12 @@
     "daysToCoverQuantity": 2.95,
     "settlementDate": "2026-07-31"
   },
-  "HE": {
-    "currentShortPositionQuantity": 15570125,
-    "previousShortPositionQuantity": 16196758,
-    "changePercent": -3.87,
-    "averageDailyVolumeQuantity": 1462409,
-    "daysToCoverQuantity": 10.65,
-    "settlementDate": "2026-07-31"
-  },
-  "HGV": {
-    "currentShortPositionQuantity": 5812606,
-    "previousShortPositionQuantity": 5739274,
-    "changePercent": 1.28,
-    "averageDailyVolumeQuantity": 1220711,
-    "daysToCoverQuantity": 4.76,
+  "HII": {
+    "currentShortPositionQuantity": 1135111,
+    "previousShortPositionQuantity": 1016220,
+    "changePercent": 11.7,
+    "averageDailyVolumeQuantity": 668809,
+    "daysToCoverQuantity": 1.7,
     "settlementDate": "2026-07-31"
   },
   "HIMS": {
@@ -2327,12 +2055,28 @@
     "daysToCoverQuantity": 3.71,
     "settlementDate": "2026-07-31"
   },
-  "HIPO": {
-    "currentShortPositionQuantity": 800909,
-    "previousShortPositionQuantity": 887138,
-    "changePercent": -9.72,
-    "averageDailyVolumeQuantity": 147498,
-    "daysToCoverQuantity": 5.43,
+  "HIW": {
+    "currentShortPositionQuantity": 11091324,
+    "previousShortPositionQuantity": 10242243,
+    "changePercent": 8.29,
+    "averageDailyVolumeQuantity": 1727998,
+    "daysToCoverQuantity": 6.42,
+    "settlementDate": "2026-07-31"
+  },
+  "HL": {
+    "currentShortPositionQuantity": 47342354,
+    "previousShortPositionQuantity": 41153121,
+    "changePercent": 15.04,
+    "averageDailyVolumeQuantity": 47278465,
+    "daysToCoverQuantity": 1.0,
+    "settlementDate": "2026-07-31"
+  },
+  "HLI": {
+    "currentShortPositionQuantity": 2190756,
+    "previousShortPositionQuantity": 1778379,
+    "changePercent": 23.19,
+    "averageDailyVolumeQuantity": 1013220,
+    "daysToCoverQuantity": 2.16,
     "settlementDate": "2026-07-31"
   },
   "HLIT": {
@@ -2341,6 +2085,14 @@
     "changePercent": 17.87,
     "averageDailyVolumeQuantity": 1394403,
     "daysToCoverQuantity": 4.18,
+    "settlementDate": "2026-07-31"
+  },
+  "HLNE": {
+    "currentShortPositionQuantity": 3855743,
+    "previousShortPositionQuantity": 4341569,
+    "changePercent": -11.19,
+    "averageDailyVolumeQuantity": 714604,
+    "daysToCoverQuantity": 5.4,
     "settlementDate": "2026-07-31"
   },
   "HMN": {
@@ -2359,12 +2111,12 @@
     "daysToCoverQuantity": 6.28,
     "settlementDate": "2026-07-31"
   },
-  "HON": {
-    "currentShortPositionQuantity": 8418114,
-    "previousShortPositionQuantity": 9556342,
-    "changePercent": -11.91,
-    "averageDailyVolumeQuantity": 3545278,
-    "daysToCoverQuantity": 2.37,
+  "HOOD": {
+    "currentShortPositionQuantity": 33162605,
+    "previousShortPositionQuantity": 38088351,
+    "changePercent": -12.93,
+    "averageDailyVolumeQuantity": 21430884,
+    "daysToCoverQuantity": 1.55,
     "settlementDate": "2026-07-31"
   },
   "HOPE": {
@@ -2391,12 +2143,28 @@
     "daysToCoverQuantity": 4.12,
     "settlementDate": "2026-07-31"
   },
-  "HPQ": {
-    "currentShortPositionQuantity": 77988801,
-    "previousShortPositionQuantity": 90012419,
-    "changePercent": -13.36,
-    "averageDailyVolumeQuantity": 15528717,
-    "daysToCoverQuantity": 5.02,
+  "HR": {
+    "currentShortPositionQuantity": 18678066,
+    "previousShortPositionQuantity": 18794815,
+    "changePercent": -0.62,
+    "averageDailyVolumeQuantity": 3997926,
+    "daysToCoverQuantity": 4.67,
+    "settlementDate": "2026-07-31"
+  },
+  "HRB": {
+    "currentShortPositionQuantity": 17315253,
+    "previousShortPositionQuantity": 17749914,
+    "changePercent": -2.45,
+    "averageDailyVolumeQuantity": 1810278,
+    "daysToCoverQuantity": 9.56,
+    "settlementDate": "2026-07-31"
+  },
+  "HRI": {
+    "currentShortPositionQuantity": 2019409,
+    "previousShortPositionQuantity": 2228765,
+    "changePercent": -9.39,
+    "averageDailyVolumeQuantity": 627814,
+    "daysToCoverQuantity": 3.22,
     "settlementDate": "2026-07-31"
   },
   "HRMY": {
@@ -2407,6 +2175,14 @@
     "daysToCoverQuantity": 5.05,
     "settlementDate": "2026-07-31"
   },
+  "HROW": {
+    "currentShortPositionQuantity": 6783121,
+    "previousShortPositionQuantity": 6844497,
+    "changePercent": -0.9,
+    "averageDailyVolumeQuantity": 576307,
+    "daysToCoverQuantity": 11.77,
+    "settlementDate": "2026-07-31"
+  },
   "HRTG": {
     "currentShortPositionQuantity": 744535,
     "previousShortPositionQuantity": 918505,
@@ -2415,20 +2191,36 @@
     "daysToCoverQuantity": 2.62,
     "settlementDate": "2026-07-31"
   },
-  "HTB": {
-    "currentShortPositionQuantity": 268526,
-    "previousShortPositionQuantity": 243424,
-    "changePercent": 10.31,
-    "averageDailyVolumeQuantity": 127767,
-    "daysToCoverQuantity": 2.1,
+  "HSIC": {
+    "currentShortPositionQuantity": 6301135,
+    "previousShortPositionQuantity": 6534965,
+    "changePercent": -3.58,
+    "averageDailyVolumeQuantity": 1338508,
+    "daysToCoverQuantity": 4.71,
     "settlementDate": "2026-07-31"
   },
-  "HTLD": {
-    "currentShortPositionQuantity": 2845404,
-    "previousShortPositionQuantity": 2106405,
-    "changePercent": 35.08,
-    "averageDailyVolumeQuantity": 775617,
-    "daysToCoverQuantity": 3.67,
+  "HTH": {
+    "currentShortPositionQuantity": 2126121,
+    "previousShortPositionQuantity": 2140406,
+    "changePercent": -0.67,
+    "averageDailyVolumeQuantity": 275762,
+    "daysToCoverQuantity": 7.71,
+    "settlementDate": "2026-07-31"
+  },
+  "HTO": {
+    "currentShortPositionQuantity": 5082968,
+    "previousShortPositionQuantity": 5300989,
+    "changePercent": -4.11,
+    "averageDailyVolumeQuantity": 501789,
+    "daysToCoverQuantity": 10.13,
+    "settlementDate": "2026-07-31"
+  },
+  "HUBG": {
+    "currentShortPositionQuantity": 3801416,
+    "previousShortPositionQuantity": 3893407,
+    "changePercent": -2.36,
+    "averageDailyVolumeQuantity": 778723,
+    "daysToCoverQuantity": 4.88,
     "settlementDate": "2026-07-31"
   },
   "HUBS": {
@@ -2439,36 +2231,28 @@
     "daysToCoverQuantity": 2.63,
     "settlementDate": "2026-07-31"
   },
-  "HWKN": {
-    "currentShortPositionQuantity": 1049871,
-    "previousShortPositionQuantity": 1123423,
-    "changePercent": -6.55,
-    "averageDailyVolumeQuantity": 191695,
-    "daysToCoverQuantity": 5.48,
+  "HUM": {
+    "currentShortPositionQuantity": 3659421,
+    "previousShortPositionQuantity": 4251822,
+    "changePercent": -13.93,
+    "averageDailyVolumeQuantity": 1689672,
+    "daysToCoverQuantity": 2.17,
     "settlementDate": "2026-07-31"
   },
-  "HWM": {
-    "currentShortPositionQuantity": 6892544,
-    "previousShortPositionQuantity": 7843614,
-    "changePercent": -12.13,
-    "averageDailyVolumeQuantity": 2106250,
-    "daysToCoverQuantity": 3.27,
+  "HUN": {
+    "currentShortPositionQuantity": 15751882,
+    "previousShortPositionQuantity": 17314382,
+    "changePercent": -9.02,
+    "averageDailyVolumeQuantity": 4018142,
+    "daysToCoverQuantity": 3.92,
     "settlementDate": "2026-07-31"
   },
-  "HY": {
-    "currentShortPositionQuantity": 484073,
-    "previousShortPositionQuantity": 464978,
-    "changePercent": 4.11,
-    "averageDailyVolumeQuantity": 95079,
-    "daysToCoverQuantity": 5.09,
-    "settlementDate": "2026-07-31"
-  },
-  "IBCP": {
-    "currentShortPositionQuantity": 544413,
-    "previousShortPositionQuantity": 527109,
-    "changePercent": 3.28,
-    "averageDailyVolumeQuantity": 242495,
-    "daysToCoverQuantity": 2.25,
+  "HZO": {
+    "currentShortPositionQuantity": 2927051,
+    "previousShortPositionQuantity": 2592596,
+    "changePercent": 12.9,
+    "averageDailyVolumeQuantity": 336622,
+    "daysToCoverQuantity": 8.7,
     "settlementDate": "2026-07-31"
   },
   "IBM": {
@@ -2479,12 +2263,20 @@
     "daysToCoverQuantity": 1.82,
     "settlementDate": "2026-07-31"
   },
-  "IBTA": {
-    "currentShortPositionQuantity": 3181973,
-    "previousShortPositionQuantity": 3056684,
-    "changePercent": 4.1,
-    "averageDailyVolumeQuantity": 179900,
-    "daysToCoverQuantity": 17.69,
+  "ICE": {
+    "currentShortPositionQuantity": 7928441,
+    "previousShortPositionQuantity": 9058341,
+    "changePercent": -12.47,
+    "averageDailyVolumeQuantity": 4335988,
+    "daysToCoverQuantity": 1.83,
+    "settlementDate": "2026-07-31"
+  },
+  "IDXX": {
+    "currentShortPositionQuantity": 1926454,
+    "previousShortPositionQuantity": 2100008,
+    "changePercent": -8.26,
+    "averageDailyVolumeQuantity": 486815,
+    "daysToCoverQuantity": 3.96,
     "settlementDate": "2026-07-31"
   },
   "IFF": {
@@ -2495,14 +2287,6 @@
     "daysToCoverQuantity": 9.76,
     "settlementDate": "2026-07-31"
   },
-  "IIIV": {
-    "currentShortPositionQuantity": 3100336,
-    "previousShortPositionQuantity": 3291059,
-    "changePercent": -5.8,
-    "averageDailyVolumeQuantity": 257673,
-    "daysToCoverQuantity": 12.03,
-    "settlementDate": "2026-07-31"
-  },
   "IIPR": {
     "currentShortPositionQuantity": 3701915,
     "previousShortPositionQuantity": 3890097,
@@ -2511,28 +2295,20 @@
     "daysToCoverQuantity": 11.5,
     "settlementDate": "2026-07-31"
   },
-  "ILMN": {
-    "currentShortPositionQuantity": 8056689,
-    "previousShortPositionQuantity": 8752414,
-    "changePercent": -7.95,
-    "averageDailyVolumeQuantity": 1785975,
-    "daysToCoverQuantity": 4.51,
+  "IMKTA": {
+    "currentShortPositionQuantity": 1075412,
+    "previousShortPositionQuantity": 1015426,
+    "changePercent": 5.91,
+    "averageDailyVolumeQuantity": 116944,
+    "daysToCoverQuantity": 9.2,
     "settlementDate": "2026-07-31"
   },
-  "IMXI": {
-    "currentShortPositionQuantity": 1311125,
-    "previousShortPositionQuantity": 1299623,
-    "changePercent": 0.89,
-    "averageDailyVolumeQuantity": 406254,
-    "daysToCoverQuantity": 3.23,
-    "settlementDate": "2026-07-31"
-  },
-  "INNV": {
-    "currentShortPositionQuantity": 808124,
-    "previousShortPositionQuantity": 1000508,
-    "changePercent": -19.23,
-    "averageDailyVolumeQuantity": 270955,
-    "daysToCoverQuantity": 2.98,
+  "INCY": {
+    "currentShortPositionQuantity": 10246477,
+    "previousShortPositionQuantity": 10512123,
+    "changePercent": -2.53,
+    "averageDailyVolumeQuantity": 2134352,
+    "daysToCoverQuantity": 4.8,
     "settlementDate": "2026-07-31"
   },
   "INOD": {
@@ -2543,20 +2319,28 @@
     "daysToCoverQuantity": 4.72,
     "settlementDate": "2026-07-31"
   },
-  "INR": {
-    "currentShortPositionQuantity": 2970988,
-    "previousShortPositionQuantity": 2938178,
-    "changePercent": 1.12,
-    "averageDailyVolumeQuantity": 308034,
-    "daysToCoverQuantity": 9.65,
-    "settlementDate": "2026-07-31"
-  },
   "INSW": {
     "currentShortPositionQuantity": 2144051,
     "previousShortPositionQuantity": 2158671,
     "changePercent": -0.68,
     "averageDailyVolumeQuantity": 489760,
     "daysToCoverQuantity": 4.38,
+    "settlementDate": "2026-07-31"
+  },
+  "INTA": {
+    "currentShortPositionQuantity": 3807922,
+    "previousShortPositionQuantity": 4911931,
+    "changePercent": -22.48,
+    "averageDailyVolumeQuantity": 741875,
+    "daysToCoverQuantity": 5.13,
+    "settlementDate": "2026-07-31"
+  },
+  "INTC": {
+    "currentShortPositionQuantity": 125100834,
+    "previousShortPositionQuantity": 120963181,
+    "changePercent": 3.42,
+    "averageDailyVolumeQuantity": 124852102,
+    "daysToCoverQuantity": 1.0,
     "settlementDate": "2026-07-31"
   },
   "INTU": {
@@ -2575,28 +2359,28 @@
     "daysToCoverQuantity": 11.53,
     "settlementDate": "2026-07-31"
   },
-  "IP": {
-    "currentShortPositionQuantity": 47799778,
-    "previousShortPositionQuantity": 51676852,
-    "changePercent": -7.5,
-    "averageDailyVolumeQuantity": 6360475,
-    "daysToCoverQuantity": 7.52,
+  "IOT": {
+    "currentShortPositionQuantity": 35913947,
+    "previousShortPositionQuantity": 39918884,
+    "changePercent": -10.03,
+    "averageDailyVolumeQuantity": 5991428,
+    "daysToCoverQuantity": 5.99,
     "settlementDate": "2026-07-31"
   },
-  "IPI": {
-    "currentShortPositionQuantity": 310544,
-    "previousShortPositionQuantity": 255692,
-    "changePercent": 21.45,
-    "averageDailyVolumeQuantity": 148443,
-    "daysToCoverQuantity": 2.09,
+  "IRDM": {
+    "currentShortPositionQuantity": 3457705,
+    "previousShortPositionQuantity": 2826191,
+    "changePercent": 22.35,
+    "averageDailyVolumeQuantity": 1564086,
+    "daysToCoverQuantity": 2.21,
     "settlementDate": "2026-07-31"
   },
-  "IQV": {
-    "currentShortPositionQuantity": 4559177,
-    "previousShortPositionQuantity": 5260010,
-    "changePercent": -13.32,
-    "averageDailyVolumeQuantity": 1679132,
-    "daysToCoverQuantity": 2.72,
+  "IRM": {
+    "currentShortPositionQuantity": 8378595,
+    "previousShortPositionQuantity": 8256613,
+    "changePercent": 1.48,
+    "averageDailyVolumeQuantity": 1872859,
+    "daysToCoverQuantity": 4.47,
     "settlementDate": "2026-07-31"
   },
   "IRT": {
@@ -2607,52 +2391,60 @@
     "daysToCoverQuantity": 4.15,
     "settlementDate": "2026-07-31"
   },
-  "ISTR": {
-    "currentShortPositionQuantity": 197838,
-    "previousShortPositionQuantity": 166732,
-    "changePercent": 18.66,
-    "averageDailyVolumeQuantity": 205258,
-    "daysToCoverQuantity": 1.0,
+  "IT": {
+    "currentShortPositionQuantity": 9650138,
+    "previousShortPositionQuantity": 11490480,
+    "changePercent": -16.02,
+    "averageDailyVolumeQuantity": 1320913,
+    "daysToCoverQuantity": 7.31,
     "settlementDate": "2026-07-31"
   },
-  "IVT": {
-    "currentShortPositionQuantity": 4793573,
-    "previousShortPositionQuantity": 5380229,
-    "changePercent": -10.9,
-    "averageDailyVolumeQuantity": 561503,
-    "daysToCoverQuantity": 8.54,
+  "ITRI": {
+    "currentShortPositionQuantity": 5962964,
+    "previousShortPositionQuantity": 6124005,
+    "changePercent": -2.63,
+    "averageDailyVolumeQuantity": 1459609,
+    "daysToCoverQuantity": 4.09,
     "settlementDate": "2026-07-31"
   },
-  "JACK": {
-    "currentShortPositionQuantity": 6757448,
-    "previousShortPositionQuantity": 6917827,
-    "changePercent": -2.32,
-    "averageDailyVolumeQuantity": 722273,
-    "daysToCoverQuantity": 9.36,
+  "IVZ": {
+    "currentShortPositionQuantity": 16339881,
+    "previousShortPositionQuantity": 19476004,
+    "changePercent": -16.1,
+    "averageDailyVolumeQuantity": 5291832,
+    "daysToCoverQuantity": 3.09,
     "settlementDate": "2026-07-31"
   },
-  "JAKK": {
-    "currentShortPositionQuantity": 493384,
-    "previousShortPositionQuantity": 509412,
-    "changePercent": -3.15,
-    "averageDailyVolumeQuantity": 133175,
-    "daysToCoverQuantity": 3.7,
+  "JEF": {
+    "currentShortPositionQuantity": 5084740,
+    "previousShortPositionQuantity": 4659283,
+    "changePercent": 9.13,
+    "averageDailyVolumeQuantity": 1978152,
+    "daysToCoverQuantity": 2.57,
     "settlementDate": "2026-07-31"
   },
-  "JBTM": {
-    "currentShortPositionQuantity": 3422243,
-    "previousShortPositionQuantity": 3659656,
-    "changePercent": -6.49,
-    "averageDailyVolumeQuantity": 429917,
-    "daysToCoverQuantity": 7.96,
+  "JJSF": {
+    "currentShortPositionQuantity": 1059082,
+    "previousShortPositionQuantity": 1064695,
+    "changePercent": -0.53,
+    "averageDailyVolumeQuantity": 204949,
+    "daysToCoverQuantity": 5.17,
     "settlementDate": "2026-07-31"
   },
-  "JCAP": {
-    "currentShortPositionQuantity": 1213789,
-    "previousShortPositionQuantity": 1113555,
-    "changePercent": 9.0,
-    "averageDailyVolumeQuantity": 327178,
-    "daysToCoverQuantity": 3.71,
+  "JLL": {
+    "currentShortPositionQuantity": 968780,
+    "previousShortPositionQuantity": 1085778,
+    "changePercent": -10.78,
+    "averageDailyVolumeQuantity": 418114,
+    "daysToCoverQuantity": 2.32,
+    "settlementDate": "2026-07-31"
+  },
+  "JNJ": {
+    "currentShortPositionQuantity": 25408119,
+    "previousShortPositionQuantity": 27425456,
+    "changePercent": -7.36,
+    "averageDailyVolumeQuantity": 8495614,
+    "daysToCoverQuantity": 2.99,
     "settlementDate": "2026-07-31"
   },
   "JOE": {
@@ -2663,14 +2455,6 @@
     "daysToCoverQuantity": 4.46,
     "settlementDate": "2026-07-31"
   },
-  "JOUT": {
-    "currentShortPositionQuantity": 465119,
-    "previousShortPositionQuantity": 497321,
-    "changePercent": -6.48,
-    "averageDailyVolumeQuantity": 46202,
-    "daysToCoverQuantity": 10.07,
-    "settlementDate": "2026-07-31"
-  },
   "JXN": {
     "currentShortPositionQuantity": 3407215,
     "previousShortPositionQuantity": 3816451,
@@ -2679,20 +2463,12 @@
     "daysToCoverQuantity": 6.16,
     "settlementDate": "2026-07-31"
   },
-  "JYNT": {
-    "currentShortPositionQuantity": 461745,
-    "previousShortPositionQuantity": 472441,
-    "changePercent": -2.26,
-    "averageDailyVolumeQuantity": 53473,
-    "daysToCoverQuantity": 8.64,
-    "settlementDate": "2026-07-31"
-  },
-  "KD": {
-    "currentShortPositionQuantity": 29346999,
-    "previousShortPositionQuantity": 32379089,
-    "changePercent": -9.36,
-    "averageDailyVolumeQuantity": 4251353,
-    "daysToCoverQuantity": 6.9,
+  "KBH": {
+    "currentShortPositionQuantity": 7559290,
+    "previousShortPositionQuantity": 7399085,
+    "changePercent": 2.17,
+    "averageDailyVolumeQuantity": 1025429,
+    "daysToCoverQuantity": 7.37,
     "settlementDate": "2026-07-31"
   },
   "KDP": {
@@ -2703,36 +2479,52 @@
     "daysToCoverQuantity": 5.5,
     "settlementDate": "2026-07-31"
   },
-  "KE": {
-    "currentShortPositionQuantity": 1761318,
-    "previousShortPositionQuantity": 1801424,
-    "changePercent": -2.23,
-    "averageDailyVolumeQuantity": 191109,
-    "daysToCoverQuantity": 9.22,
+  "KGS": {
+    "currentShortPositionQuantity": 7569297,
+    "previousShortPositionQuantity": 7560488,
+    "changePercent": 0.12,
+    "averageDailyVolumeQuantity": 1833737,
+    "daysToCoverQuantity": 4.13,
     "settlementDate": "2026-07-31"
   },
-  "KHC": {
-    "currentShortPositionQuantity": 86080513,
-    "previousShortPositionQuantity": 92367931,
-    "changePercent": -6.81,
-    "averageDailyVolumeQuantity": 14139323,
-    "daysToCoverQuantity": 6.09,
+  "KMT": {
+    "currentShortPositionQuantity": 4957338,
+    "previousShortPositionQuantity": 5839160,
+    "changePercent": -15.1,
+    "averageDailyVolumeQuantity": 910930,
+    "daysToCoverQuantity": 5.44,
     "settlementDate": "2026-07-31"
   },
-  "KINS": {
-    "currentShortPositionQuantity": 329864,
-    "previousShortPositionQuantity": 328780,
-    "changePercent": 0.33,
-    "averageDailyVolumeQuantity": 105288,
-    "daysToCoverQuantity": 3.13,
+  "KMX": {
+    "currentShortPositionQuantity": 13797326,
+    "previousShortPositionQuantity": 11526450,
+    "changePercent": 19.7,
+    "averageDailyVolumeQuantity": 2859395,
+    "daysToCoverQuantity": 4.83,
     "settlementDate": "2026-07-31"
   },
-  "KRG": {
-    "currentShortPositionQuantity": 12887962,
-    "previousShortPositionQuantity": 13102588,
-    "changePercent": -1.64,
-    "averageDailyVolumeQuantity": 2545011,
-    "daysToCoverQuantity": 5.06,
+  "KNF": {
+    "currentShortPositionQuantity": 3301111,
+    "previousShortPositionQuantity": 3270972,
+    "changePercent": 0.92,
+    "averageDailyVolumeQuantity": 430846,
+    "daysToCoverQuantity": 7.66,
+    "settlementDate": "2026-07-31"
+  },
+  "KO": {
+    "currentShortPositionQuantity": 44821363,
+    "previousShortPositionQuantity": 47770310,
+    "changePercent": -6.17,
+    "averageDailyVolumeQuantity": 18760913,
+    "daysToCoverQuantity": 2.39,
+    "settlementDate": "2026-07-31"
+  },
+  "KRC": {
+    "currentShortPositionQuantity": 9469183,
+    "previousShortPositionQuantity": 8762883,
+    "changePercent": 8.06,
+    "averageDailyVolumeQuantity": 1545134,
+    "daysToCoverQuantity": 6.13,
     "settlementDate": "2026-07-31"
   },
   "KRUS": {
@@ -2743,12 +2535,12 @@
     "daysToCoverQuantity": 6.79,
     "settlementDate": "2026-07-31"
   },
-  "KSS": {
-    "currentShortPositionQuantity": 30858309,
-    "previousShortPositionQuantity": 30390317,
-    "changePercent": 1.54,
-    "averageDailyVolumeQuantity": 3241009,
-    "daysToCoverQuantity": 9.52,
+  "KRYS": {
+    "currentShortPositionQuantity": 3202260,
+    "previousShortPositionQuantity": 3496648,
+    "changePercent": -8.42,
+    "averageDailyVolumeQuantity": 770966,
+    "daysToCoverQuantity": 4.15,
     "settlementDate": "2026-07-31"
   },
   "KTB": {
@@ -2767,28 +2559,28 @@
     "daysToCoverQuantity": 12.57,
     "settlementDate": "2026-07-31"
   },
-  "LADR": {
-    "currentShortPositionQuantity": 5160381,
-    "previousShortPositionQuantity": 4194533,
-    "changePercent": 23.03,
-    "averageDailyVolumeQuantity": 1291724,
-    "daysToCoverQuantity": 3.99,
+  "L": {
+    "currentShortPositionQuantity": 4361297,
+    "previousShortPositionQuantity": 4416919,
+    "changePercent": -1.26,
+    "averageDailyVolumeQuantity": 787608,
+    "daysToCoverQuantity": 5.54,
     "settlementDate": "2026-07-31"
   },
-  "LAKE": {
-    "currentShortPositionQuantity": 1312388,
-    "previousShortPositionQuantity": 1389901,
-    "changePercent": -5.58,
-    "averageDailyVolumeQuantity": 60921,
-    "daysToCoverQuantity": 21.54,
+  "LAD": {
+    "currentShortPositionQuantity": 2160235,
+    "previousShortPositionQuantity": 2588008,
+    "changePercent": -16.53,
+    "averageDailyVolumeQuantity": 451914,
+    "daysToCoverQuantity": 4.78,
     "settlementDate": "2026-07-31"
   },
-  "LARK": {
-    "currentShortPositionQuantity": 122071,
-    "previousShortPositionQuantity": 128228,
-    "changePercent": -4.8,
-    "averageDailyVolumeQuantity": 9090,
-    "daysToCoverQuantity": 13.43,
+  "LAMR": {
+    "currentShortPositionQuantity": 3499125,
+    "previousShortPositionQuantity": 3761189,
+    "changePercent": -6.97,
+    "averageDailyVolumeQuantity": 593749,
+    "daysToCoverQuantity": 5.89,
     "settlementDate": "2026-07-31"
   },
   "LASR": {
@@ -2797,6 +2589,14 @@
     "changePercent": -0.03,
     "averageDailyVolumeQuantity": 870825,
     "daysToCoverQuantity": 3.3,
+    "settlementDate": "2026-07-31"
+  },
+  "LBRDK": {
+    "currentShortPositionQuantity": 4367337,
+    "previousShortPositionQuantity": 3981173,
+    "changePercent": 9.7,
+    "averageDailyVolumeQuantity": 1811586,
+    "daysToCoverQuantity": 2.41,
     "settlementDate": "2026-07-31"
   },
   "LBRT": {
@@ -2815,36 +2615,12 @@
     "daysToCoverQuantity": 12.28,
     "settlementDate": "2026-07-31"
   },
-  "LEGH": {
-    "currentShortPositionQuantity": 858132,
-    "previousShortPositionQuantity": 932097,
-    "changePercent": -7.94,
-    "averageDailyVolumeQuantity": 115771,
-    "daysToCoverQuantity": 7.41,
-    "settlementDate": "2026-07-31"
-  },
-  "LEGN": {
-    "currentShortPositionQuantity": 18114668,
-    "previousShortPositionQuantity": 14076444,
-    "changePercent": 28.69,
-    "averageDailyVolumeQuantity": 2996727,
-    "daysToCoverQuantity": 6.04,
-    "settlementDate": "2026-07-31"
-  },
-  "LEN": {
-    "currentShortPositionQuantity": 16759614,
-    "previousShortPositionQuantity": 16973791,
-    "changePercent": -1.26,
-    "averageDailyVolumeQuantity": 2596462,
-    "daysToCoverQuantity": 6.45,
-    "settlementDate": "2026-07-31"
-  },
-  "LFST": {
-    "currentShortPositionQuantity": 9571642,
-    "previousShortPositionQuantity": 9460426,
-    "changePercent": 1.18,
-    "averageDailyVolumeQuantity": 2731062,
-    "daysToCoverQuantity": 3.5,
+  "LEU": {
+    "currentShortPositionQuantity": 5094877,
+    "previousShortPositionQuantity": 4995257,
+    "changePercent": 1.99,
+    "averageDailyVolumeQuantity": 744577,
+    "daysToCoverQuantity": 6.84,
     "settlementDate": "2026-07-31"
   },
   "LGND": {
@@ -2855,12 +2631,28 @@
     "daysToCoverQuantity": 7.36,
     "settlementDate": "2026-07-31"
   },
-  "LMAT": {
-    "currentShortPositionQuantity": 1446289,
-    "previousShortPositionQuantity": 1479856,
-    "changePercent": -2.27,
-    "averageDailyVolumeQuantity": 258683,
-    "daysToCoverQuantity": 5.59,
+  "LIFE": {
+    "currentShortPositionQuantity": 1737234,
+    "previousShortPositionQuantity": 1888082,
+    "changePercent": -7.99,
+    "averageDailyVolumeQuantity": 539040,
+    "daysToCoverQuantity": 3.22,
+    "settlementDate": "2026-07-31"
+  },
+  "LINC": {
+    "currentShortPositionQuantity": 2930379,
+    "previousShortPositionQuantity": 3061982,
+    "changePercent": -4.3,
+    "averageDailyVolumeQuantity": 564361,
+    "daysToCoverQuantity": 5.19,
+    "settlementDate": "2026-07-31"
+  },
+  "LIND": {
+    "currentShortPositionQuantity": 5825482,
+    "previousShortPositionQuantity": 5752290,
+    "changePercent": 1.27,
+    "averageDailyVolumeQuantity": 792305,
+    "daysToCoverQuantity": 7.35,
     "settlementDate": "2026-07-31"
   },
   "LMB": {
@@ -2871,20 +2663,36 @@
     "daysToCoverQuantity": 6.69,
     "settlementDate": "2026-07-31"
   },
-  "LMNR": {
-    "currentShortPositionQuantity": 841566,
-    "previousShortPositionQuantity": 690039,
-    "changePercent": 21.96,
-    "averageDailyVolumeQuantity": 65389,
-    "daysToCoverQuantity": 12.87,
+  "LMT": {
+    "currentShortPositionQuantity": 2721239,
+    "previousShortPositionQuantity": 3113955,
+    "changePercent": -12.61,
+    "averageDailyVolumeQuantity": 1450897,
+    "daysToCoverQuantity": 1.88,
     "settlementDate": "2026-07-31"
   },
-  "LOVE": {
-    "currentShortPositionQuantity": 3027171,
-    "previousShortPositionQuantity": 3242845,
-    "changePercent": -6.65,
-    "averageDailyVolumeQuantity": 217670,
-    "daysToCoverQuantity": 13.91,
+  "LNC": {
+    "currentShortPositionQuantity": 10527973,
+    "previousShortPositionQuantity": 10568285,
+    "changePercent": -0.38,
+    "averageDailyVolumeQuantity": 2285437,
+    "daysToCoverQuantity": 4.61,
+    "settlementDate": "2026-07-31"
+  },
+  "LNT": {
+    "currentShortPositionQuantity": 27263556,
+    "previousShortPositionQuantity": 27969712,
+    "changePercent": -2.52,
+    "averageDailyVolumeQuantity": 2540579,
+    "daysToCoverQuantity": 10.73,
+    "settlementDate": "2026-07-31"
+  },
+  "LOPE": {
+    "currentShortPositionQuantity": 1791711,
+    "previousShortPositionQuantity": 1723576,
+    "changePercent": 3.95,
+    "averageDailyVolumeQuantity": 390346,
+    "daysToCoverQuantity": 4.59,
     "settlementDate": "2026-07-31"
   },
   "LOW": {
@@ -2911,20 +2719,20 @@
     "daysToCoverQuantity": 4.02,
     "settlementDate": "2026-07-31"
   },
+  "LPX": {
+    "currentShortPositionQuantity": 6638625,
+    "previousShortPositionQuantity": 6985539,
+    "changePercent": -4.97,
+    "averageDailyVolumeQuantity": 997024,
+    "daysToCoverQuantity": 6.66,
+    "settlementDate": "2026-07-31"
+  },
   "LQDA": {
     "currentShortPositionQuantity": 11962898,
     "previousShortPositionQuantity": 12333107,
     "changePercent": -3.0,
     "averageDailyVolumeQuantity": 1449810,
     "daysToCoverQuantity": 8.25,
-    "settlementDate": "2026-07-31"
-  },
-  "LQDT": {
-    "currentShortPositionQuantity": 1012903,
-    "previousShortPositionQuantity": 982299,
-    "changePercent": 3.12,
-    "averageDailyVolumeQuantity": 201725,
-    "daysToCoverQuantity": 5.02,
     "settlementDate": "2026-07-31"
   },
   "LRCX": {
@@ -2951,12 +2759,12 @@
     "daysToCoverQuantity": 2.65,
     "settlementDate": "2026-07-31"
   },
-  "LTC": {
-    "currentShortPositionQuantity": 2287237,
-    "previousShortPositionQuantity": 2647099,
-    "changePercent": -13.59,
-    "averageDailyVolumeQuantity": 547647,
-    "daysToCoverQuantity": 4.18,
+  "LUV": {
+    "currentShortPositionQuantity": 32904494,
+    "previousShortPositionQuantity": 31577502,
+    "changePercent": 4.2,
+    "averageDailyVolumeQuantity": 5801770,
+    "daysToCoverQuantity": 5.67,
     "settlementDate": "2026-07-31"
   },
   "LYFT": {
@@ -2975,6 +2783,14 @@
     "daysToCoverQuantity": 11.64,
     "settlementDate": "2026-07-31"
   },
+  "MA": {
+    "currentShortPositionQuantity": 8962947,
+    "previousShortPositionQuantity": 9060825,
+    "changePercent": -1.08,
+    "averageDailyVolumeQuantity": 3124355,
+    "daysToCoverQuantity": 2.87,
+    "settlementDate": "2026-07-31"
+  },
   "MAC": {
     "currentShortPositionQuantity": 22544265,
     "previousShortPositionQuantity": 22530498,
@@ -2983,12 +2799,28 @@
     "daysToCoverQuantity": 10.15,
     "settlementDate": "2026-07-31"
   },
-  "MAGN": {
-    "currentShortPositionQuantity": 2263573,
-    "previousShortPositionQuantity": 2655020,
-    "changePercent": -14.74,
-    "averageDailyVolumeQuantity": 356097,
-    "daysToCoverQuantity": 6.36,
+  "MAIN": {
+    "currentShortPositionQuantity": 9448175,
+    "previousShortPositionQuantity": 9919273,
+    "changePercent": -4.75,
+    "averageDailyVolumeQuantity": 570287,
+    "daysToCoverQuantity": 16.57,
+    "settlementDate": "2026-07-31"
+  },
+  "MAMA": {
+    "currentShortPositionQuantity": 2594601,
+    "previousShortPositionQuantity": 3226656,
+    "changePercent": -19.59,
+    "averageDailyVolumeQuantity": 470245,
+    "daysToCoverQuantity": 5.52,
+    "settlementDate": "2026-07-31"
+  },
+  "MANH": {
+    "currentShortPositionQuantity": 2421596,
+    "previousShortPositionQuantity": 2867109,
+    "changePercent": -15.54,
+    "averageDailyVolumeQuantity": 1023166,
+    "daysToCoverQuantity": 2.37,
     "settlementDate": "2026-07-31"
   },
   "MAT": {
@@ -2997,22 +2829,6 @@
     "changePercent": -1.42,
     "averageDailyVolumeQuantity": 4561426,
     "daysToCoverQuantity": 5.94,
-    "settlementDate": "2026-07-31"
-  },
-  "MATW": {
-    "currentShortPositionQuantity": 2654240,
-    "previousShortPositionQuantity": 3087690,
-    "changePercent": -14.04,
-    "averageDailyVolumeQuantity": 235251,
-    "daysToCoverQuantity": 11.28,
-    "settlementDate": "2026-07-31"
-  },
-  "MAX": {
-    "currentShortPositionQuantity": 2848781,
-    "previousShortPositionQuantity": 2714948,
-    "changePercent": 4.93,
-    "averageDailyVolumeQuantity": 1186422,
-    "daysToCoverQuantity": 2.4,
     "settlementDate": "2026-07-31"
   },
   "MBC": {
@@ -3031,30 +2847,6 @@
     "daysToCoverQuantity": 4.18,
     "settlementDate": "2026-07-31"
   },
-  "MCD": {
-    "currentShortPositionQuantity": 12255302,
-    "previousShortPositionQuantity": 11465084,
-    "changePercent": 6.89,
-    "averageDailyVolumeQuantity": 4330267,
-    "daysToCoverQuantity": 2.83,
-    "settlementDate": "2026-07-31"
-  },
-  "MCFT": {
-    "currentShortPositionQuantity": 937160,
-    "previousShortPositionQuantity": 1003108,
-    "changePercent": -6.57,
-    "averageDailyVolumeQuantity": 129853,
-    "daysToCoverQuantity": 7.22,
-    "settlementDate": "2026-07-31"
-  },
-  "MCHB": {
-    "currentShortPositionQuantity": 3466999,
-    "previousShortPositionQuantity": 3397993,
-    "changePercent": 2.03,
-    "averageDailyVolumeQuantity": 940134,
-    "daysToCoverQuantity": 3.69,
-    "settlementDate": "2026-07-31"
-  },
   "MCHP": {
     "currentShortPositionQuantity": 36265405,
     "previousShortPositionQuantity": 35231436,
@@ -3063,12 +2855,28 @@
     "daysToCoverQuantity": 3.21,
     "settlementDate": "2026-07-31"
   },
+  "MCO": {
+    "currentShortPositionQuantity": 3069888,
+    "previousShortPositionQuantity": 3187463,
+    "changePercent": -3.69,
+    "averageDailyVolumeQuantity": 1021294,
+    "daysToCoverQuantity": 3.01,
+    "settlementDate": "2026-07-31"
+  },
   "MCY": {
     "currentShortPositionQuantity": 1460067,
     "previousShortPositionQuantity": 1447241,
     "changePercent": 0.89,
     "averageDailyVolumeQuantity": 260447,
     "daysToCoverQuantity": 5.61,
+    "settlementDate": "2026-07-31"
+  },
+  "MD": {
+    "currentShortPositionQuantity": 4139091,
+    "previousShortPositionQuantity": 4908297,
+    "changePercent": -15.67,
+    "averageDailyVolumeQuantity": 623866,
+    "daysToCoverQuantity": 6.63,
     "settlementDate": "2026-07-31"
   },
   "MDB": {
@@ -3087,36 +2895,36 @@
     "daysToCoverQuantity": 4.84,
     "settlementDate": "2026-07-31"
   },
+  "MEC": {
+    "currentShortPositionQuantity": 2073434,
+    "previousShortPositionQuantity": 1403086,
+    "changePercent": 47.78,
+    "averageDailyVolumeQuantity": 627152,
+    "daysToCoverQuantity": 3.31,
+    "settlementDate": "2026-07-31"
+  },
+  "MEI": {
+    "currentShortPositionQuantity": 2344766,
+    "previousShortPositionQuantity": 2331931,
+    "changePercent": 0.55,
+    "averageDailyVolumeQuantity": 499287,
+    "daysToCoverQuantity": 4.7,
+    "settlementDate": "2026-07-31"
+  },
+  "MET": {
+    "currentShortPositionQuantity": 11289925,
+    "previousShortPositionQuantity": 12774912,
+    "changePercent": -11.62,
+    "averageDailyVolumeQuantity": 4413183,
+    "daysToCoverQuantity": 2.56,
+    "settlementDate": "2026-07-31"
+  },
   "METC": {
     "currentShortPositionQuantity": 13335719,
     "previousShortPositionQuantity": 12658994,
     "changePercent": 5.35,
     "averageDailyVolumeQuantity": 1801769,
     "daysToCoverQuantity": 7.4,
-    "settlementDate": "2026-07-31"
-  },
-  "MFIN": {
-    "currentShortPositionQuantity": 908743,
-    "previousShortPositionQuantity": 880139,
-    "changePercent": 3.25,
-    "averageDailyVolumeQuantity": 32557,
-    "daysToCoverQuantity": 27.91,
-    "settlementDate": "2026-07-31"
-  },
-  "MGNI": {
-    "currentShortPositionQuantity": 11638779,
-    "previousShortPositionQuantity": 13606133,
-    "changePercent": -14.46,
-    "averageDailyVolumeQuantity": 2093457,
-    "daysToCoverQuantity": 5.56,
-    "settlementDate": "2026-07-31"
-  },
-  "MGPI": {
-    "currentShortPositionQuantity": 881636,
-    "previousShortPositionQuantity": 946431,
-    "changePercent": -6.85,
-    "averageDailyVolumeQuantity": 161092,
-    "daysToCoverQuantity": 5.47,
     "settlementDate": "2026-07-31"
   },
   "MGY": {
@@ -3127,6 +2935,14 @@
     "daysToCoverQuantity": 2.22,
     "settlementDate": "2026-07-31"
   },
+  "MIAX": {
+    "currentShortPositionQuantity": 6225929,
+    "previousShortPositionQuantity": 7572771,
+    "changePercent": -17.79,
+    "averageDailyVolumeQuantity": 1157150,
+    "daysToCoverQuantity": 5.38,
+    "settlementDate": "2026-07-31"
+  },
   "MITK": {
     "currentShortPositionQuantity": 3319216,
     "previousShortPositionQuantity": 3416964,
@@ -3135,12 +2951,12 @@
     "daysToCoverQuantity": 4.76,
     "settlementDate": "2026-07-31"
   },
-  "MKTW": {
-    "currentShortPositionQuantity": 68726,
-    "previousShortPositionQuantity": 71033,
-    "changePercent": -3.25,
-    "averageDailyVolumeQuantity": 5767,
-    "daysToCoverQuantity": 11.92,
+  "MKL": {
+    "currentShortPositionQuantity": 246071,
+    "previousShortPositionQuantity": 296082,
+    "changePercent": -16.89,
+    "averageDailyVolumeQuantity": 63632,
+    "daysToCoverQuantity": 3.87,
     "settlementDate": "2026-07-31"
   },
   "MKTX": {
@@ -3151,20 +2967,20 @@
     "daysToCoverQuantity": 1.0,
     "settlementDate": "2026-07-31"
   },
-  "MLAB": {
-    "currentShortPositionQuantity": 324102,
-    "previousShortPositionQuantity": 274176,
-    "changePercent": 18.21,
-    "averageDailyVolumeQuantity": 129676,
-    "daysToCoverQuantity": 2.5,
+  "MLI": {
+    "currentShortPositionQuantity": 4603949,
+    "previousShortPositionQuantity": 4044056,
+    "changePercent": 13.84,
+    "averageDailyVolumeQuantity": 1556105,
+    "daysToCoverQuantity": 2.96,
     "settlementDate": "2026-07-31"
   },
-  "MMSI": {
-    "currentShortPositionQuantity": 3738225,
-    "previousShortPositionQuantity": 3439660,
-    "changePercent": 8.68,
-    "averageDailyVolumeQuantity": 1000802,
-    "daysToCoverQuantity": 3.74,
+  "MLM": {
+    "currentShortPositionQuantity": 2380633,
+    "previousShortPositionQuantity": 2445770,
+    "changePercent": -2.66,
+    "averageDailyVolumeQuantity": 648627,
+    "daysToCoverQuantity": 3.67,
     "settlementDate": "2026-07-31"
   },
   "MNRO": {
@@ -3175,20 +2991,12 @@
     "daysToCoverQuantity": 6.28,
     "settlementDate": "2026-07-31"
   },
-  "MO": {
-    "currentShortPositionQuantity": 50769586,
-    "previousShortPositionQuantity": 53134147,
-    "changePercent": -4.45,
-    "averageDailyVolumeQuantity": 9054922,
-    "daysToCoverQuantity": 5.61,
-    "settlementDate": "2026-07-31"
-  },
-  "MOD": {
-    "currentShortPositionQuantity": 3457872,
-    "previousShortPositionQuantity": 2826451,
-    "changePercent": 22.34,
-    "averageDailyVolumeQuantity": 1839168,
-    "daysToCoverQuantity": 1.88,
+  "MOH": {
+    "currentShortPositionQuantity": 2935657,
+    "previousShortPositionQuantity": 3334595,
+    "changePercent": -11.96,
+    "averageDailyVolumeQuantity": 2053569,
+    "daysToCoverQuantity": 1.43,
     "settlementDate": "2026-07-31"
   },
   "MOS": {
@@ -3199,12 +3007,20 @@
     "daysToCoverQuantity": 4.5,
     "settlementDate": "2026-07-31"
   },
-  "MPB": {
-    "currentShortPositionQuantity": 776684,
-    "previousShortPositionQuantity": 742091,
-    "changePercent": 4.66,
-    "averageDailyVolumeQuantity": 189915,
-    "daysToCoverQuantity": 4.09,
+  "MPC": {
+    "currentShortPositionQuantity": 6786536,
+    "previousShortPositionQuantity": 6412255,
+    "changePercent": 5.84,
+    "averageDailyVolumeQuantity": 2006212,
+    "daysToCoverQuantity": 3.38,
+    "settlementDate": "2026-07-31"
+  },
+  "MPTI": {
+    "currentShortPositionQuantity": 286825,
+    "previousShortPositionQuantity": 243549,
+    "changePercent": 17.77,
+    "averageDailyVolumeQuantity": 358790,
+    "daysToCoverQuantity": 1.0,
     "settlementDate": "2026-07-31"
   },
   "MPWR": {
@@ -3223,28 +3039,12 @@
     "daysToCoverQuantity": 4.35,
     "settlementDate": "2026-07-31"
   },
-  "MRCY": {
-    "currentShortPositionQuantity": 4952067,
-    "previousShortPositionQuantity": 4805548,
-    "changePercent": 3.05,
-    "averageDailyVolumeQuantity": 625141,
-    "daysToCoverQuantity": 7.92,
-    "settlementDate": "2026-07-31"
-  },
-  "MRK": {
-    "currentShortPositionQuantity": 28281375,
-    "previousShortPositionQuantity": 29359028,
-    "changePercent": -3.67,
-    "averageDailyVolumeQuantity": 8695853,
-    "daysToCoverQuantity": 3.25,
-    "settlementDate": "2026-07-31"
-  },
-  "MSBI": {
-    "currentShortPositionQuantity": 901833,
-    "previousShortPositionQuantity": 826511,
-    "changePercent": 9.11,
-    "averageDailyVolumeQuantity": 213752,
-    "daysToCoverQuantity": 4.22,
+  "MRSH": {
+    "currentShortPositionQuantity": 7498602,
+    "previousShortPositionQuantity": 6737059,
+    "changePercent": 11.3,
+    "averageDailyVolumeQuantity": 3112356,
+    "daysToCoverQuantity": 2.41,
     "settlementDate": "2026-07-31"
   },
   "MSCI": {
@@ -3263,12 +3063,28 @@
     "daysToCoverQuantity": 2.16,
     "settlementDate": "2026-07-31"
   },
-  "MTX": {
-    "currentShortPositionQuantity": 782992,
-    "previousShortPositionQuantity": 759244,
-    "changePercent": 3.13,
-    "averageDailyVolumeQuantity": 271443,
-    "daysToCoverQuantity": 2.88,
+  "MTDR": {
+    "currentShortPositionQuantity": 14758679,
+    "previousShortPositionQuantity": 13547981,
+    "changePercent": 8.94,
+    "averageDailyVolumeQuantity": 2171879,
+    "daysToCoverQuantity": 6.8,
+    "settlementDate": "2026-07-31"
+  },
+  "MTG": {
+    "currentShortPositionQuantity": 8566475,
+    "previousShortPositionQuantity": 9411269,
+    "changePercent": -8.98,
+    "averageDailyVolumeQuantity": 1852075,
+    "daysToCoverQuantity": 4.63,
+    "settlementDate": "2026-07-31"
+  },
+  "MTN": {
+    "currentShortPositionQuantity": 5835016,
+    "previousShortPositionQuantity": 6786994,
+    "changePercent": -14.03,
+    "averageDailyVolumeQuantity": 766548,
+    "daysToCoverQuantity": 7.61,
     "settlementDate": "2026-07-31"
   },
   "MU": {
@@ -3279,22 +3095,6 @@
     "daysToCoverQuantity": 1.0,
     "settlementDate": "2026-07-31"
   },
-  "NATL": {
-    "currentShortPositionQuantity": 3896303,
-    "previousShortPositionQuantity": 3442693,
-    "changePercent": 13.18,
-    "averageDailyVolumeQuantity": 650589,
-    "daysToCoverQuantity": 5.99,
-    "settlementDate": "2026-07-31"
-  },
-  "NATR": {
-    "currentShortPositionQuantity": 504929,
-    "previousShortPositionQuantity": 505740,
-    "changePercent": -0.16,
-    "averageDailyVolumeQuantity": 99303,
-    "daysToCoverQuantity": 5.08,
-    "settlementDate": "2026-07-31"
-  },
   "NAVN": {
     "currentShortPositionQuantity": 8864799,
     "previousShortPositionQuantity": 10006512,
@@ -3303,12 +3103,12 @@
     "daysToCoverQuantity": 2.86,
     "settlementDate": "2026-07-31"
   },
-  "NBBK": {
-    "currentShortPositionQuantity": 1668898,
-    "previousShortPositionQuantity": 1833785,
-    "changePercent": -8.99,
-    "averageDailyVolumeQuantity": 412338,
-    "daysToCoverQuantity": 4.05,
+  "NBHC": {
+    "currentShortPositionQuantity": 1641414,
+    "previousShortPositionQuantity": 1593159,
+    "changePercent": 3.03,
+    "averageDailyVolumeQuantity": 534185,
+    "daysToCoverQuantity": 3.07,
     "settlementDate": "2026-07-31"
   },
   "NBIX": {
@@ -3319,20 +3119,20 @@
     "daysToCoverQuantity": 3.01,
     "settlementDate": "2026-07-31"
   },
+  "NCLH": {
+    "currentShortPositionQuantity": 84066341,
+    "previousShortPositionQuantity": 81737353,
+    "changePercent": 2.85,
+    "averageDailyVolumeQuantity": 15674192,
+    "daysToCoverQuantity": 5.36,
+    "settlementDate": "2026-07-31"
+  },
   "NE": {
     "currentShortPositionQuantity": 15028185,
     "previousShortPositionQuantity": 13005119,
     "changePercent": 15.56,
     "averageDailyVolumeQuantity": 1920537,
     "daysToCoverQuantity": 7.82,
-    "settlementDate": "2026-07-31"
-  },
-  "NEO": {
-    "currentShortPositionQuantity": 15421614,
-    "previousShortPositionQuantity": 13764655,
-    "changePercent": 12.04,
-    "averageDailyVolumeQuantity": 3700667,
-    "daysToCoverQuantity": 4.17,
     "settlementDate": "2026-07-31"
   },
   "NEOG": {
@@ -3359,36 +3159,28 @@
     "daysToCoverQuantity": 2.84,
     "settlementDate": "2026-07-31"
   },
-  "NEWT": {
-    "currentShortPositionQuantity": 3217011,
-    "previousShortPositionQuantity": 3114882,
-    "changePercent": 3.28,
-    "averageDailyVolumeQuantity": 188082,
-    "daysToCoverQuantity": 17.1,
+  "NEU": {
+    "currentShortPositionQuantity": 581798,
+    "previousShortPositionQuantity": 671475,
+    "changePercent": -13.36,
+    "averageDailyVolumeQuantity": 130541,
+    "daysToCoverQuantity": 4.46,
     "settlementDate": "2026-07-31"
   },
-  "NHI": {
-    "currentShortPositionQuantity": 1495586,
-    "previousShortPositionQuantity": 2094689,
-    "changePercent": -28.6,
-    "averageDailyVolumeQuantity": 403656,
-    "daysToCoverQuantity": 3.71,
+  "NHC": {
+    "currentShortPositionQuantity": 747974,
+    "previousShortPositionQuantity": 713058,
+    "changePercent": 4.9,
+    "averageDailyVolumeQuantity": 102613,
+    "daysToCoverQuantity": 7.29,
     "settlementDate": "2026-07-31"
   },
-  "NI": {
-    "currentShortPositionQuantity": 13347093,
-    "previousShortPositionQuantity": 11548460,
-    "changePercent": 15.57,
-    "averageDailyVolumeQuantity": 4639583,
-    "daysToCoverQuantity": 2.88,
-    "settlementDate": "2026-07-31"
-  },
-  "NKE": {
-    "currentShortPositionQuantity": 57371605,
-    "previousShortPositionQuantity": 63943595,
-    "changePercent": -10.28,
-    "averageDailyVolumeQuantity": 17842750,
-    "daysToCoverQuantity": 3.22,
+  "NLY": {
+    "currentShortPositionQuantity": 20919794,
+    "previousShortPositionQuantity": 19600233,
+    "changePercent": 6.73,
+    "averageDailyVolumeQuantity": 7951303,
+    "daysToCoverQuantity": 2.63,
     "settlementDate": "2026-07-31"
   },
   "NMAX": {
@@ -3397,6 +3189,14 @@
     "changePercent": -10.99,
     "averageDailyVolumeQuantity": 716612,
     "daysToCoverQuantity": 9.42,
+    "settlementDate": "2026-07-31"
+  },
+  "NMIH": {
+    "currentShortPositionQuantity": 1829392,
+    "previousShortPositionQuantity": 2079996,
+    "changePercent": -12.05,
+    "averageDailyVolumeQuantity": 472605,
+    "daysToCoverQuantity": 3.87,
     "settlementDate": "2026-07-31"
   },
   "NMRK": {
@@ -3415,6 +3215,14 @@
     "daysToCoverQuantity": 6.41,
     "settlementDate": "2026-07-31"
   },
+  "NOW": {
+    "currentShortPositionQuantity": 36794698,
+    "previousShortPositionQuantity": 55711860,
+    "changePercent": -33.96,
+    "averageDailyVolumeQuantity": 29616817,
+    "daysToCoverQuantity": 1.24,
+    "settlementDate": "2026-07-31"
+  },
   "NPK": {
     "currentShortPositionQuantity": 306714,
     "previousShortPositionQuantity": 292627,
@@ -3423,20 +3231,12 @@
     "daysToCoverQuantity": 3.73,
     "settlementDate": "2026-07-31"
   },
-  "NRC": {
-    "currentShortPositionQuantity": 515170,
-    "previousShortPositionQuantity": 520821,
-    "changePercent": -1.09,
-    "averageDailyVolumeQuantity": 95968,
-    "daysToCoverQuantity": 5.37,
-    "settlementDate": "2026-07-31"
-  },
-  "NREF": {
-    "currentShortPositionQuantity": 436209,
-    "previousShortPositionQuantity": 410341,
-    "changePercent": 6.3,
-    "averageDailyVolumeQuantity": 47676,
-    "daysToCoverQuantity": 9.15,
+  "NSP": {
+    "currentShortPositionQuantity": 3400813,
+    "previousShortPositionQuantity": 3825435,
+    "changePercent": -11.1,
+    "averageDailyVolumeQuantity": 734433,
+    "daysToCoverQuantity": 4.63,
     "settlementDate": "2026-07-31"
   },
   "NTAP": {
@@ -3455,20 +3255,12 @@
     "daysToCoverQuantity": 6.57,
     "settlementDate": "2026-07-31"
   },
-  "NTGR": {
-    "currentShortPositionQuantity": 2218168,
-    "previousShortPositionQuantity": 2473196,
-    "changePercent": -10.31,
-    "averageDailyVolumeQuantity": 440335,
-    "daysToCoverQuantity": 5.04,
-    "settlementDate": "2026-07-31"
-  },
-  "NTST": {
-    "currentShortPositionQuantity": 31437400,
-    "previousShortPositionQuantity": 33134654,
-    "changePercent": -5.12,
-    "averageDailyVolumeQuantity": 1419649,
-    "daysToCoverQuantity": 22.14,
+  "NTNX": {
+    "currentShortPositionQuantity": 15061103,
+    "previousShortPositionQuantity": 26187342,
+    "changePercent": -42.49,
+    "averageDailyVolumeQuantity": 2585234,
+    "daysToCoverQuantity": 5.83,
     "settlementDate": "2026-07-31"
   },
   "NUTX": {
@@ -3495,20 +3287,20 @@
     "daysToCoverQuantity": 5.86,
     "settlementDate": "2026-07-31"
   },
-  "NWFL": {
-    "currentShortPositionQuantity": 125968,
-    "previousShortPositionQuantity": 146196,
-    "changePercent": -13.84,
-    "averageDailyVolumeQuantity": 39736,
-    "daysToCoverQuantity": 3.17,
+  "NXST": {
+    "currentShortPositionQuantity": 2233938,
+    "previousShortPositionQuantity": 2310798,
+    "changePercent": -3.33,
+    "averageDailyVolumeQuantity": 274479,
+    "daysToCoverQuantity": 8.14,
     "settlementDate": "2026-07-31"
   },
-  "O": {
-    "currentShortPositionQuantity": 45281460,
-    "previousShortPositionQuantity": 40024135,
-    "changePercent": 13.14,
-    "averageDailyVolumeQuantity": 4688156,
-    "daysToCoverQuantity": 9.66,
+  "NYT": {
+    "currentShortPositionQuantity": 13593862,
+    "previousShortPositionQuantity": 13771396,
+    "changePercent": -1.29,
+    "averageDailyVolumeQuantity": 1511121,
+    "daysToCoverQuantity": 9.0,
     "settlementDate": "2026-07-31"
   },
   "OCFC": {
@@ -3527,44 +3319,36 @@
     "daysToCoverQuantity": 4.71,
     "settlementDate": "2026-07-31"
   },
-  "OFIX": {
-    "currentShortPositionQuantity": 2123416,
-    "previousShortPositionQuantity": 2510464,
-    "changePercent": -15.42,
-    "averageDailyVolumeQuantity": 286081,
-    "daysToCoverQuantity": 7.42,
+  "OGE": {
+    "currentShortPositionQuantity": 9537110,
+    "previousShortPositionQuantity": 9464913,
+    "changePercent": 0.76,
+    "averageDailyVolumeQuantity": 1401772,
+    "daysToCoverQuantity": 6.8,
     "settlementDate": "2026-07-31"
   },
-  "OIS": {
-    "currentShortPositionQuantity": 2546707,
-    "previousShortPositionQuantity": 2458129,
-    "changePercent": 3.6,
-    "averageDailyVolumeQuantity": 649583,
-    "daysToCoverQuantity": 3.92,
+  "OII": {
+    "currentShortPositionQuantity": 6040613,
+    "previousShortPositionQuantity": 6556236,
+    "changePercent": -7.86,
+    "averageDailyVolumeQuantity": 1416958,
+    "daysToCoverQuantity": 4.26,
     "settlementDate": "2026-07-31"
   },
-  "OLP": {
-    "currentShortPositionQuantity": 278193,
-    "previousShortPositionQuantity": 276877,
-    "changePercent": 0.48,
-    "averageDailyVolumeQuantity": 80860,
-    "daysToCoverQuantity": 3.44,
+  "OLN": {
+    "currentShortPositionQuantity": 12323176,
+    "previousShortPositionQuantity": 14285125,
+    "changePercent": -13.73,
+    "averageDailyVolumeQuantity": 3315344,
+    "daysToCoverQuantity": 3.72,
     "settlementDate": "2026-07-31"
   },
-  "OMCL": {
-    "currentShortPositionQuantity": 3469061,
-    "previousShortPositionQuantity": 3587279,
-    "changePercent": -3.3,
-    "averageDailyVolumeQuantity": 906586,
-    "daysToCoverQuantity": 3.83,
-    "settlementDate": "2026-07-31"
-  },
-  "OMDA": {
-    "currentShortPositionQuantity": 7630720,
-    "previousShortPositionQuantity": 7980607,
-    "changePercent": -4.38,
-    "averageDailyVolumeQuantity": 1286739,
-    "daysToCoverQuantity": 5.93,
+  "OMF": {
+    "currentShortPositionQuantity": 5249930,
+    "previousShortPositionQuantity": 5885445,
+    "changePercent": -10.8,
+    "averageDailyVolumeQuantity": 1058205,
+    "daysToCoverQuantity": 4.96,
     "settlementDate": "2026-07-31"
   },
   "ON": {
@@ -3583,36 +3367,44 @@
     "daysToCoverQuantity": 3.33,
     "settlementDate": "2026-07-31"
   },
-  "ONEW": {
-    "currentShortPositionQuantity": 1436513,
-    "previousShortPositionQuantity": 1522360,
-    "changePercent": -5.64,
-    "averageDailyVolumeQuantity": 105040,
-    "daysToCoverQuantity": 13.68,
+  "OPCH": {
+    "currentShortPositionQuantity": 13020353,
+    "previousShortPositionQuantity": 13473260,
+    "changePercent": -3.36,
+    "averageDailyVolumeQuantity": 2749398,
+    "daysToCoverQuantity": 4.74,
     "settlementDate": "2026-07-31"
   },
-  "ONIT": {
-    "currentShortPositionQuantity": 331799,
-    "previousShortPositionQuantity": 325686,
-    "changePercent": 1.88,
-    "averageDailyVolumeQuantity": 50286,
-    "daysToCoverQuantity": 6.6,
+  "OPLN": {
+    "currentShortPositionQuantity": 1865868,
+    "previousShortPositionQuantity": 2225518,
+    "changePercent": -16.16,
+    "averageDailyVolumeQuantity": 809800,
+    "daysToCoverQuantity": 2.3,
     "settlementDate": "2026-07-31"
   },
-  "OPBK": {
-    "currentShortPositionQuantity": 163962,
-    "previousShortPositionQuantity": 155919,
-    "changePercent": 5.16,
-    "averageDailyVolumeQuantity": 48414,
-    "daysToCoverQuantity": 3.39,
+  "OPY": {
+    "currentShortPositionQuantity": 78803,
+    "previousShortPositionQuantity": 89307,
+    "changePercent": -11.76,
+    "averageDailyVolumeQuantity": 128772,
+    "daysToCoverQuantity": 1.0,
     "settlementDate": "2026-07-31"
   },
-  "ORN": {
-    "currentShortPositionQuantity": 2170870,
-    "previousShortPositionQuantity": 2118466,
-    "changePercent": 2.47,
-    "averageDailyVolumeQuantity": 874107,
-    "daysToCoverQuantity": 2.48,
+  "ORCL": {
+    "currentShortPositionQuantity": 50143917,
+    "previousShortPositionQuantity": 50068756,
+    "changePercent": 0.15,
+    "averageDailyVolumeQuantity": 35923608,
+    "daysToCoverQuantity": 1.4,
+    "settlementDate": "2026-07-31"
+  },
+  "ORLY": {
+    "currentShortPositionQuantity": 25064472,
+    "previousShortPositionQuantity": 23003971,
+    "changePercent": 8.96,
+    "averageDailyVolumeQuantity": 8639914,
+    "daysToCoverQuantity": 2.9,
     "settlementDate": "2026-07-31"
   },
   "OUT": {
@@ -3623,14 +3415,6 @@
     "daysToCoverQuantity": 4.6,
     "settlementDate": "2026-07-31"
   },
-  "OXM": {
-    "currentShortPositionQuantity": 3358313,
-    "previousShortPositionQuantity": 3288124,
-    "changePercent": 2.13,
-    "averageDailyVolumeQuantity": 366041,
-    "daysToCoverQuantity": 9.17,
-    "settlementDate": "2026-07-31"
-  },
   "PACS": {
     "currentShortPositionQuantity": 3822650,
     "previousShortPositionQuantity": 4528003,
@@ -3639,12 +3423,12 @@
     "daysToCoverQuantity": 4.67,
     "settlementDate": "2026-07-31"
   },
-  "PAHC": {
-    "currentShortPositionQuantity": 1193479,
-    "previousShortPositionQuantity": 1218445,
-    "changePercent": -2.05,
-    "averageDailyVolumeQuantity": 212386,
-    "daysToCoverQuantity": 5.62,
+  "PANW": {
+    "currentShortPositionQuantity": 21000807,
+    "previousShortPositionQuantity": 20423492,
+    "changePercent": 2.83,
+    "averageDailyVolumeQuantity": 6042200,
+    "daysToCoverQuantity": 3.48,
     "settlementDate": "2026-07-31"
   },
   "PAR": {
@@ -3671,12 +3455,12 @@
     "daysToCoverQuantity": 1.42,
     "settlementDate": "2026-07-31"
   },
-  "PAYS": {
-    "currentShortPositionQuantity": 1530760,
-    "previousShortPositionQuantity": 1554473,
-    "changePercent": -1.53,
-    "averageDailyVolumeQuantity": 509183,
-    "daysToCoverQuantity": 3.01,
+  "PATK": {
+    "currentShortPositionQuantity": 4270255,
+    "previousShortPositionQuantity": 3586740,
+    "changePercent": 19.06,
+    "averageDailyVolumeQuantity": 596206,
+    "daysToCoverQuantity": 7.16,
     "settlementDate": "2026-07-31"
   },
   "PBH": {
@@ -3687,28 +3471,20 @@
     "daysToCoverQuantity": 8.1,
     "settlementDate": "2026-07-31"
   },
+  "PCG": {
+    "currentShortPositionQuantity": 33124054,
+    "previousShortPositionQuantity": 38533995,
+    "changePercent": -14.04,
+    "averageDailyVolumeQuantity": 23404979,
+    "daysToCoverQuantity": 1.42,
+    "settlementDate": "2026-07-31"
+  },
   "PCRX": {
     "currentShortPositionQuantity": 7212032,
     "previousShortPositionQuantity": 6963375,
     "changePercent": 3.57,
     "averageDailyVolumeQuantity": 538752,
     "daysToCoverQuantity": 13.39,
-    "settlementDate": "2026-07-31"
-  },
-  "PCYO": {
-    "currentShortPositionQuantity": 428517,
-    "previousShortPositionQuantity": 411189,
-    "changePercent": 4.21,
-    "averageDailyVolumeQuantity": 52367,
-    "daysToCoverQuantity": 8.18,
-    "settlementDate": "2026-07-31"
-  },
-  "PDLB": {
-    "currentShortPositionQuantity": 292239,
-    "previousShortPositionQuantity": 291608,
-    "changePercent": 0.22,
-    "averageDailyVolumeQuantity": 67342,
-    "daysToCoverQuantity": 4.34,
     "settlementDate": "2026-07-31"
   },
   "PEBO": {
@@ -3727,12 +3503,28 @@
     "daysToCoverQuantity": 4.24,
     "settlementDate": "2026-07-31"
   },
-  "PESI": {
-    "currentShortPositionQuantity": 2100130,
-    "previousShortPositionQuantity": 2315207,
-    "changePercent": -9.29,
-    "averageDailyVolumeQuantity": 626365,
-    "daysToCoverQuantity": 3.35,
+  "PEN": {
+    "currentShortPositionQuantity": 1836046,
+    "previousShortPositionQuantity": 2123757,
+    "changePercent": -13.55,
+    "averageDailyVolumeQuantity": 438245,
+    "daysToCoverQuantity": 4.19,
+    "settlementDate": "2026-07-31"
+  },
+  "PFBC": {
+    "currentShortPositionQuantity": 1245129,
+    "previousShortPositionQuantity": 1156001,
+    "changePercent": 7.71,
+    "averageDailyVolumeQuantity": 126239,
+    "daysToCoverQuantity": 9.86,
+    "settlementDate": "2026-07-31"
+  },
+  "PFGC": {
+    "currentShortPositionQuantity": 3548372,
+    "previousShortPositionQuantity": 4516967,
+    "changePercent": -21.44,
+    "averageDailyVolumeQuantity": 1621514,
+    "daysToCoverQuantity": 2.19,
     "settlementDate": "2026-07-31"
   },
   "PFS": {
@@ -3741,14 +3533,6 @@
     "changePercent": 0.04,
     "averageDailyVolumeQuantity": 1175516,
     "daysToCoverQuantity": 5.07,
-    "settlementDate": "2026-07-31"
-  },
-  "PFSI": {
-    "currentShortPositionQuantity": 2630099,
-    "previousShortPositionQuantity": 2406730,
-    "changePercent": 9.28,
-    "averageDailyVolumeQuantity": 665127,
-    "daysToCoverQuantity": 3.95,
     "settlementDate": "2026-07-31"
   },
   "PGNY": {
@@ -3791,22 +3575,6 @@
     "daysToCoverQuantity": 6.41,
     "settlementDate": "2026-07-31"
   },
-  "PII": {
-    "currentShortPositionQuantity": 3608186,
-    "previousShortPositionQuantity": 3761775,
-    "changePercent": -4.08,
-    "averageDailyVolumeQuantity": 920406,
-    "daysToCoverQuantity": 3.92,
-    "settlementDate": "2026-07-31"
-  },
-  "PINE": {
-    "currentShortPositionQuantity": 380481,
-    "previousShortPositionQuantity": 408070,
-    "changePercent": -6.76,
-    "averageDailyVolumeQuantity": 185661,
-    "daysToCoverQuantity": 2.05,
-    "settlementDate": "2026-07-31"
-  },
   "PINS": {
     "currentShortPositionQuantity": 50504065,
     "previousShortPositionQuantity": 57443101,
@@ -3815,12 +3583,12 @@
     "daysToCoverQuantity": 4.96,
     "settlementDate": "2026-07-31"
   },
-  "PIPR": {
-    "currentShortPositionQuantity": 2500823,
-    "previousShortPositionQuantity": 3105213,
-    "changePercent": -19.46,
-    "averageDailyVolumeQuantity": 604877,
-    "daysToCoverQuantity": 4.13,
+  "PK": {
+    "currentShortPositionQuantity": 33085760,
+    "previousShortPositionQuantity": 36781265,
+    "changePercent": -10.05,
+    "averageDailyVolumeQuantity": 3637489,
+    "daysToCoverQuantity": 9.1,
     "settlementDate": "2026-07-31"
   },
   "PL": {
@@ -3829,22 +3597,6 @@
     "changePercent": -12.13,
     "averageDailyVolumeQuantity": 8422655,
     "daysToCoverQuantity": 3.38,
-    "settlementDate": "2026-07-31"
-  },
-  "PLBC": {
-    "currentShortPositionQuantity": 268771,
-    "previousShortPositionQuantity": 164664,
-    "changePercent": 63.22,
-    "averageDailyVolumeQuantity": 65044,
-    "daysToCoverQuantity": 4.13,
-    "settlementDate": "2026-07-31"
-  },
-  "PLD": {
-    "currentShortPositionQuantity": 18142268,
-    "previousShortPositionQuantity": 13453134,
-    "changePercent": 34.86,
-    "averageDailyVolumeQuantity": 5025662,
-    "daysToCoverQuantity": 3.61,
     "settlementDate": "2026-07-31"
   },
   "PLMR": {
@@ -3863,20 +3615,12 @@
     "daysToCoverQuantity": 4.83,
     "settlementDate": "2026-07-31"
   },
-  "PM": {
-    "currentShortPositionQuantity": 16127996,
-    "previousShortPositionQuantity": 17496016,
-    "changePercent": -7.82,
-    "averageDailyVolumeQuantity": 5745137,
-    "daysToCoverQuantity": 2.81,
-    "settlementDate": "2026-07-31"
-  },
-  "PMTS": {
-    "currentShortPositionQuantity": 332050,
-    "previousShortPositionQuantity": 304500,
-    "changePercent": 9.05,
-    "averageDailyVolumeQuantity": 31018,
-    "daysToCoverQuantity": 10.71,
+  "PNFP": {
+    "currentShortPositionQuantity": 5236543,
+    "previousShortPositionQuantity": 5941719,
+    "changePercent": -11.87,
+    "averageDailyVolumeQuantity": 1522932,
+    "daysToCoverQuantity": 3.44,
     "settlementDate": "2026-07-31"
   },
   "PNRG": {
@@ -3887,20 +3631,12 @@
     "daysToCoverQuantity": 1.0,
     "settlementDate": "2026-07-31"
   },
-  "POOL": {
-    "currentShortPositionQuantity": 3560399,
-    "previousShortPositionQuantity": 3474466,
-    "changePercent": 2.47,
-    "averageDailyVolumeQuantity": 1051969,
-    "daysToCoverQuantity": 3.38,
-    "settlementDate": "2026-07-31"
-  },
-  "POWI": {
-    "currentShortPositionQuantity": 5565877,
-    "previousShortPositionQuantity": 5476352,
-    "changePercent": 1.63,
-    "averageDailyVolumeQuantity": 671971,
-    "daysToCoverQuantity": 8.28,
+  "PNW": {
+    "currentShortPositionQuantity": 10307458,
+    "previousShortPositionQuantity": 9123610,
+    "changePercent": 12.98,
+    "averageDailyVolumeQuantity": 1411849,
+    "daysToCoverQuantity": 7.3,
     "settlementDate": "2026-07-31"
   },
   "PR": {
@@ -3909,6 +3645,22 @@
     "changePercent": -9.33,
     "averageDailyVolumeQuantity": 8358543,
     "daysToCoverQuantity": 2.64,
+    "settlementDate": "2026-07-31"
+  },
+  "PRAA": {
+    "currentShortPositionQuantity": 814016,
+    "previousShortPositionQuantity": 954492,
+    "changePercent": -14.72,
+    "averageDailyVolumeQuantity": 346756,
+    "daysToCoverQuantity": 2.35,
+    "settlementDate": "2026-07-31"
+  },
+  "PRDO": {
+    "currentShortPositionQuantity": 3600316,
+    "previousShortPositionQuantity": 3570106,
+    "changePercent": 0.85,
+    "averageDailyVolumeQuantity": 825008,
+    "daysToCoverQuantity": 4.36,
     "settlementDate": "2026-07-31"
   },
   "PRG": {
@@ -3927,12 +3679,12 @@
     "daysToCoverQuantity": 7.57,
     "settlementDate": "2026-07-31"
   },
-  "PRIM": {
-    "currentShortPositionQuantity": 4490057,
-    "previousShortPositionQuantity": 2988512,
-    "changePercent": 50.24,
-    "averageDailyVolumeQuantity": 1445998,
-    "daysToCoverQuantity": 3.11,
+  "PRK": {
+    "currentShortPositionQuantity": 701907,
+    "previousShortPositionQuantity": 690764,
+    "changePercent": 1.61,
+    "averageDailyVolumeQuantity": 131037,
+    "daysToCoverQuantity": 5.36,
     "settlementDate": "2026-07-31"
   },
   "PRM": {
@@ -3951,12 +3703,28 @@
     "daysToCoverQuantity": 6.44,
     "settlementDate": "2026-07-31"
   },
-  "PSA": {
-    "currentShortPositionQuantity": 5550034,
-    "previousShortPositionQuantity": 6608871,
-    "changePercent": -16.02,
-    "averageDailyVolumeQuantity": 1581534,
-    "daysToCoverQuantity": 3.51,
+  "PSIX": {
+    "currentShortPositionQuantity": 1963145,
+    "previousShortPositionQuantity": 1755134,
+    "changePercent": 11.85,
+    "averageDailyVolumeQuantity": 440927,
+    "daysToCoverQuantity": 4.45,
+    "settlementDate": "2026-07-31"
+  },
+  "PSKY": {
+    "currentShortPositionQuantity": 86885985,
+    "previousShortPositionQuantity": 83229448,
+    "changePercent": 4.39,
+    "averageDailyVolumeQuantity": 11890390,
+    "daysToCoverQuantity": 7.31,
+    "settlementDate": "2026-07-31"
+  },
+  "PSMT": {
+    "currentShortPositionQuantity": 1817531,
+    "previousShortPositionQuantity": 1757559,
+    "changePercent": 3.41,
+    "averageDailyVolumeQuantity": 246035,
+    "daysToCoverQuantity": 7.39,
     "settlementDate": "2026-07-31"
   },
   "PSX": {
@@ -3967,28 +3735,20 @@
     "daysToCoverQuantity": 3.1,
     "settlementDate": "2026-07-31"
   },
-  "PTCT": {
-    "currentShortPositionQuantity": 10566249,
-    "previousShortPositionQuantity": 9833980,
-    "changePercent": 7.45,
-    "averageDailyVolumeQuantity": 1404384,
-    "daysToCoverQuantity": 7.52,
-    "settlementDate": "2026-07-31"
-  },
-  "PTEN": {
-    "currentShortPositionQuantity": 30191174,
-    "previousShortPositionQuantity": 28450788,
-    "changePercent": 6.12,
-    "averageDailyVolumeQuantity": 9899309,
-    "daysToCoverQuantity": 3.05,
-    "settlementDate": "2026-07-31"
-  },
   "PUMP": {
     "currentShortPositionQuantity": 16340441,
     "previousShortPositionQuantity": 17136271,
     "changePercent": -4.64,
     "averageDailyVolumeQuantity": 5339686,
     "daysToCoverQuantity": 3.06,
+    "settlementDate": "2026-07-31"
+  },
+  "PWP": {
+    "currentShortPositionQuantity": 7287154,
+    "previousShortPositionQuantity": 8140708,
+    "changePercent": -10.49,
+    "averageDailyVolumeQuantity": 1312063,
+    "daysToCoverQuantity": 5.55,
     "settlementDate": "2026-07-31"
   },
   "PZZA": {
@@ -4007,20 +3767,20 @@
     "daysToCoverQuantity": 2.86,
     "settlementDate": "2026-07-31"
   },
-  "QDEL": {
-    "currentShortPositionQuantity": 13005131,
-    "previousShortPositionQuantity": 11802749,
-    "changePercent": 10.19,
-    "averageDailyVolumeQuantity": 1022227,
-    "daysToCoverQuantity": 12.72,
-    "settlementDate": "2026-07-31"
-  },
   "QNST": {
     "currentShortPositionQuantity": 4465715,
     "previousShortPositionQuantity": 4580183,
     "changePercent": -2.5,
     "averageDailyVolumeQuantity": 711846,
     "daysToCoverQuantity": 6.27,
+    "settlementDate": "2026-07-31"
+  },
+  "QXO": {
+    "currentShortPositionQuantity": 93573001,
+    "previousShortPositionQuantity": 105728316,
+    "changePercent": -11.5,
+    "averageDailyVolumeQuantity": 20370252,
+    "daysToCoverQuantity": 4.59,
     "settlementDate": "2026-07-31"
   },
   "RAMP": {
@@ -4031,28 +3791,20 @@
     "daysToCoverQuantity": 4.65,
     "settlementDate": "2026-07-31"
   },
+  "RARE": {
+    "currentShortPositionQuantity": 14963396,
+    "previousShortPositionQuantity": 13435087,
+    "changePercent": 11.38,
+    "averageDailyVolumeQuantity": 1807137,
+    "daysToCoverQuantity": 8.28,
+    "settlementDate": "2026-07-31"
+  },
   "RBRK": {
     "currentShortPositionQuantity": 12766557,
     "previousShortPositionQuantity": 13671392,
     "changePercent": -6.62,
     "averageDailyVolumeQuantity": 2039799,
     "daysToCoverQuantity": 6.26,
-    "settlementDate": "2026-07-31"
-  },
-  "RCL": {
-    "currentShortPositionQuantity": 11705504,
-    "previousShortPositionQuantity": 13080319,
-    "changePercent": -10.51,
-    "averageDailyVolumeQuantity": 2687135,
-    "daysToCoverQuantity": 4.36,
-    "settlementDate": "2026-07-31"
-  },
-  "RCMT": {
-    "currentShortPositionQuantity": 194403,
-    "previousShortPositionQuantity": 228433,
-    "changePercent": -14.9,
-    "averageDailyVolumeQuantity": 27381,
-    "daysToCoverQuantity": 7.1,
     "settlementDate": "2026-07-31"
   },
   "RDDT": {
@@ -4071,20 +3823,12 @@
     "daysToCoverQuantity": 4.94,
     "settlementDate": "2026-07-31"
   },
-  "RDVT": {
-    "currentShortPositionQuantity": 597564,
-    "previousShortPositionQuantity": 826426,
-    "changePercent": -27.69,
-    "averageDailyVolumeQuantity": 184496,
-    "daysToCoverQuantity": 3.24,
-    "settlementDate": "2026-07-31"
-  },
-  "REAL": {
-    "currentShortPositionQuantity": 15833996,
-    "previousShortPositionQuantity": 18054624,
-    "changePercent": -12.3,
-    "averageDailyVolumeQuantity": 2560199,
-    "daysToCoverQuantity": 6.18,
+  "RDNT": {
+    "currentShortPositionQuantity": 10425092,
+    "previousShortPositionQuantity": 10036994,
+    "changePercent": 3.87,
+    "averageDailyVolumeQuantity": 615848,
+    "daysToCoverQuantity": 16.93,
     "settlementDate": "2026-07-31"
   },
   "REGN": {
@@ -4103,44 +3847,36 @@
     "daysToCoverQuantity": 5.37,
     "settlementDate": "2026-07-31"
   },
-  "REPX": {
-    "currentShortPositionQuantity": 689535,
-    "previousShortPositionQuantity": 758875,
-    "changePercent": -9.14,
-    "averageDailyVolumeQuantity": 201935,
-    "daysToCoverQuantity": 3.41,
+  "REXR": {
+    "currentShortPositionQuantity": 8206671,
+    "previousShortPositionQuantity": 9360872,
+    "changePercent": -12.33,
+    "averageDailyVolumeQuantity": 3569292,
+    "daysToCoverQuantity": 2.3,
     "settlementDate": "2026-07-31"
   },
-  "RGCO": {
-    "currentShortPositionQuantity": 105588,
-    "previousShortPositionQuantity": 103212,
-    "changePercent": 2.3,
-    "averageDailyVolumeQuantity": 15957,
-    "daysToCoverQuantity": 6.62,
+  "RGA": {
+    "currentShortPositionQuantity": 800529,
+    "previousShortPositionQuantity": 1099980,
+    "changePercent": -27.22,
+    "averageDailyVolumeQuantity": 341951,
+    "daysToCoverQuantity": 2.34,
     "settlementDate": "2026-07-31"
   },
-  "RGR": {
-    "currentShortPositionQuantity": 499148,
-    "previousShortPositionQuantity": 543523,
-    "changePercent": -8.16,
-    "averageDailyVolumeQuantity": 113999,
-    "daysToCoverQuantity": 4.38,
+  "RGEN": {
+    "currentShortPositionQuantity": 6132499,
+    "previousShortPositionQuantity": 5811745,
+    "changePercent": 5.52,
+    "averageDailyVolumeQuantity": 1561230,
+    "daysToCoverQuantity": 3.93,
     "settlementDate": "2026-07-31"
   },
-  "RH": {
-    "currentShortPositionQuantity": 5173969,
-    "previousShortPositionQuantity": 5842532,
-    "changePercent": -11.44,
-    "averageDailyVolumeQuantity": 708050,
-    "daysToCoverQuantity": 7.31,
-    "settlementDate": "2026-07-31"
-  },
-  "RHP": {
-    "currentShortPositionQuantity": 1938630,
-    "previousShortPositionQuantity": 2040791,
-    "changePercent": -5.01,
-    "averageDailyVolumeQuantity": 496734,
-    "daysToCoverQuantity": 3.9,
+  "RHI": {
+    "currentShortPositionQuantity": 23403143,
+    "previousShortPositionQuantity": 22473850,
+    "changePercent": 4.13,
+    "averageDailyVolumeQuantity": 3039255,
+    "daysToCoverQuantity": 7.7,
     "settlementDate": "2026-07-31"
   },
   "RJF": {
@@ -4159,28 +3895,20 @@
     "daysToCoverQuantity": 2.42,
     "settlementDate": "2026-07-31"
   },
-  "RLGT": {
-    "currentShortPositionQuantity": 611345,
-    "previousShortPositionQuantity": 615632,
-    "changePercent": -0.7,
-    "averageDailyVolumeQuantity": 119296,
-    "daysToCoverQuantity": 5.12,
+  "RKT": {
+    "currentShortPositionQuantity": 98683807,
+    "previousShortPositionQuantity": 136439792,
+    "changePercent": -27.67,
+    "averageDailyVolumeQuantity": 30962370,
+    "daysToCoverQuantity": 3.19,
     "settlementDate": "2026-07-31"
   },
-  "RM": {
-    "currentShortPositionQuantity": 404005,
-    "previousShortPositionQuantity": 455354,
-    "changePercent": -11.28,
-    "averageDailyVolumeQuantity": 87328,
-    "daysToCoverQuantity": 4.63,
-    "settlementDate": "2026-07-31"
-  },
-  "RMAX": {
-    "currentShortPositionQuantity": 1665183,
-    "previousShortPositionQuantity": 1354277,
-    "changePercent": 22.96,
-    "averageDailyVolumeQuantity": 338730,
-    "daysToCoverQuantity": 4.92,
+  "RLI": {
+    "currentShortPositionQuantity": 7944489,
+    "previousShortPositionQuantity": 7648693,
+    "changePercent": 3.87,
+    "averageDailyVolumeQuantity": 1068542,
+    "daysToCoverQuantity": 7.43,
     "settlementDate": "2026-07-31"
   },
   "ROCK": {
@@ -4191,12 +3919,12 @@
     "daysToCoverQuantity": 4.04,
     "settlementDate": "2026-07-31"
   },
-  "ROKU": {
-    "currentShortPositionQuantity": 10637370,
-    "previousShortPositionQuantity": 8245711,
-    "changePercent": 29.0,
-    "averageDailyVolumeQuantity": 2449594,
-    "daysToCoverQuantity": 4.34,
+  "ROL": {
+    "currentShortPositionQuantity": 19112125,
+    "previousShortPositionQuantity": 13091162,
+    "changePercent": 45.99,
+    "averageDailyVolumeQuantity": 7472449,
+    "daysToCoverQuantity": 2.56,
     "settlementDate": "2026-07-31"
   },
   "ROOT": {
@@ -4207,20 +3935,28 @@
     "daysToCoverQuantity": 10.44,
     "settlementDate": "2026-07-31"
   },
-  "RPT": {
-    "currentShortPositionQuantity": 273130,
-    "previousShortPositionQuantity": 269785,
-    "changePercent": 1.24,
-    "averageDailyVolumeQuantity": 222392,
-    "daysToCoverQuantity": 1.23,
+  "RPRX": {
+    "currentShortPositionQuantity": 10667818,
+    "previousShortPositionQuantity": 12134646,
+    "changePercent": -12.09,
+    "averageDailyVolumeQuantity": 2620765,
+    "daysToCoverQuantity": 4.07,
     "settlementDate": "2026-07-31"
   },
-  "RSI": {
-    "currentShortPositionQuantity": 8224081,
-    "previousShortPositionQuantity": 9533531,
-    "changePercent": -13.74,
-    "averageDailyVolumeQuantity": 2999621,
-    "daysToCoverQuantity": 2.74,
+  "RRR": {
+    "currentShortPositionQuantity": 3091600,
+    "previousShortPositionQuantity": 3316301,
+    "changePercent": -6.78,
+    "averageDailyVolumeQuantity": 580766,
+    "daysToCoverQuantity": 5.32,
+    "settlementDate": "2026-07-31"
+  },
+  "RSG": {
+    "currentShortPositionQuantity": 3854610,
+    "previousShortPositionQuantity": 3490272,
+    "changePercent": 10.44,
+    "averageDailyVolumeQuantity": 1401986,
+    "daysToCoverQuantity": 2.75,
     "settlementDate": "2026-07-31"
   },
   "RTX": {
@@ -4231,6 +3967,14 @@
     "daysToCoverQuantity": 3.1,
     "settlementDate": "2026-07-31"
   },
+  "RUSHA": {
+    "currentShortPositionQuantity": 4664954,
+    "previousShortPositionQuantity": 4797319,
+    "changePercent": -2.76,
+    "averageDailyVolumeQuantity": 544780,
+    "daysToCoverQuantity": 8.56,
+    "settlementDate": "2026-07-31"
+  },
   "RVLV": {
     "currentShortPositionQuantity": 5083491,
     "previousShortPositionQuantity": 4759789,
@@ -4239,20 +3983,12 @@
     "daysToCoverQuantity": 6.69,
     "settlementDate": "2026-07-31"
   },
-  "RXO": {
-    "currentShortPositionQuantity": 14486044,
-    "previousShortPositionQuantity": 14801430,
-    "changePercent": -2.13,
-    "averageDailyVolumeQuantity": 2211271,
-    "daysToCoverQuantity": 6.55,
-    "settlementDate": "2026-07-31"
-  },
-  "RYAM": {
-    "currentShortPositionQuantity": 4367742,
-    "previousShortPositionQuantity": 4207526,
-    "changePercent": 3.81,
-    "averageDailyVolumeQuantity": 904674,
-    "daysToCoverQuantity": 4.83,
+  "RYN": {
+    "currentShortPositionQuantity": 11834930,
+    "previousShortPositionQuantity": 12756304,
+    "changePercent": -7.22,
+    "averageDailyVolumeQuantity": 2280323,
+    "daysToCoverQuantity": 5.19,
     "settlementDate": "2026-07-31"
   },
   "S": {
@@ -4271,6 +4007,22 @@
     "daysToCoverQuantity": 1.0,
     "settlementDate": "2026-07-31"
   },
+  "SAIA": {
+    "currentShortPositionQuantity": 1257103,
+    "previousShortPositionQuantity": 1309874,
+    "changePercent": -4.03,
+    "averageDailyVolumeQuantity": 548126,
+    "daysToCoverQuantity": 2.29,
+    "settlementDate": "2026-07-31"
+  },
+  "SAM": {
+    "currentShortPositionQuantity": 1394217,
+    "previousShortPositionQuantity": 1569751,
+    "changePercent": -11.18,
+    "averageDailyVolumeQuantity": 379491,
+    "daysToCoverQuantity": 3.67,
+    "settlementDate": "2026-07-31"
+  },
   "SANM": {
     "currentShortPositionQuantity": 1511968,
     "previousShortPositionQuantity": 1386517,
@@ -4279,12 +4031,12 @@
     "daysToCoverQuantity": 1.53,
     "settlementDate": "2026-07-31"
   },
-  "SBSI": {
-    "currentShortPositionQuantity": 740160,
-    "previousShortPositionQuantity": 729398,
-    "changePercent": 1.48,
-    "averageDailyVolumeQuantity": 170864,
-    "daysToCoverQuantity": 4.33,
+  "SBH": {
+    "currentShortPositionQuantity": 19832227,
+    "previousShortPositionQuantity": 20051448,
+    "changePercent": -1.09,
+    "averageDailyVolumeQuantity": 1248598,
+    "daysToCoverQuantity": 15.88,
     "settlementDate": "2026-07-31"
   },
   "SBUX": {
@@ -4295,14 +4047,6 @@
     "daysToCoverQuantity": 4.51,
     "settlementDate": "2026-07-31"
   },
-  "SCHL": {
-    "currentShortPositionQuantity": 1536152,
-    "previousShortPositionQuantity": 1666302,
-    "changePercent": -7.81,
-    "averageDailyVolumeQuantity": 421879,
-    "daysToCoverQuantity": 3.64,
-    "settlementDate": "2026-07-31"
-  },
   "SCHW": {
     "currentShortPositionQuantity": 20477875,
     "previousShortPositionQuantity": 22669193,
@@ -4311,28 +4055,36 @@
     "daysToCoverQuantity": 2.3,
     "settlementDate": "2026-07-31"
   },
-  "SEG": {
-    "currentShortPositionQuantity": 866392,
-    "previousShortPositionQuantity": 878610,
-    "changePercent": -1.39,
-    "averageDailyVolumeQuantity": 48047,
-    "daysToCoverQuantity": 18.03,
+  "SCSC": {
+    "currentShortPositionQuantity": 974132,
+    "previousShortPositionQuantity": 989408,
+    "changePercent": -1.54,
+    "averageDailyVolumeQuantity": 184359,
+    "daysToCoverQuantity": 5.28,
     "settlementDate": "2026-07-31"
   },
-  "SEZL": {
-    "currentShortPositionQuantity": 4010007,
-    "previousShortPositionQuantity": 4034380,
-    "changePercent": -0.6,
-    "averageDailyVolumeQuantity": 514101,
-    "daysToCoverQuantity": 7.8,
+  "SDRL": {
+    "currentShortPositionQuantity": 4610712,
+    "previousShortPositionQuantity": 4840270,
+    "changePercent": -4.74,
+    "averageDailyVolumeQuantity": 678442,
+    "daysToCoverQuantity": 6.8,
     "settlementDate": "2026-07-31"
   },
-  "SFNC": {
-    "currentShortPositionQuantity": 5773739,
-    "previousShortPositionQuantity": 5481781,
-    "changePercent": 5.33,
-    "averageDailyVolumeQuantity": 1937596,
-    "daysToCoverQuantity": 2.98,
+  "SEIC": {
+    "currentShortPositionQuantity": 2070528,
+    "previousShortPositionQuantity": 2388271,
+    "changePercent": -13.3,
+    "averageDailyVolumeQuantity": 895682,
+    "daysToCoverQuantity": 2.31,
+    "settlementDate": "2026-07-31"
+  },
+  "SF": {
+    "currentShortPositionQuantity": 4654667,
+    "previousShortPositionQuantity": 4882081,
+    "changePercent": -4.66,
+    "averageDailyVolumeQuantity": 1284839,
+    "daysToCoverQuantity": 3.62,
     "settlementDate": "2026-07-31"
   },
   "SGRY": {
@@ -4343,12 +4095,12 @@
     "daysToCoverQuantity": 8.88,
     "settlementDate": "2026-07-31"
   },
-  "SHBI": {
-    "currentShortPositionQuantity": 811638,
-    "previousShortPositionQuantity": 780377,
-    "changePercent": 4.01,
-    "averageDailyVolumeQuantity": 233592,
-    "daysToCoverQuantity": 3.47,
+  "SHAK": {
+    "currentShortPositionQuantity": 3718451,
+    "previousShortPositionQuantity": 4043365,
+    "changePercent": -8.04,
+    "averageDailyVolumeQuantity": 1663634,
+    "daysToCoverQuantity": 2.24,
     "settlementDate": "2026-07-31"
   },
   "SHO": {
@@ -4359,12 +4111,28 @@
     "daysToCoverQuantity": 5.63,
     "settlementDate": "2026-07-31"
   },
+  "SJM": {
+    "currentShortPositionQuantity": 5634296,
+    "previousShortPositionQuantity": 5577001,
+    "changePercent": 1.03,
+    "averageDailyVolumeQuantity": 1582983,
+    "daysToCoverQuantity": 3.56,
+    "settlementDate": "2026-07-31"
+  },
   "SKWD": {
     "currentShortPositionQuantity": 1800942,
     "previousShortPositionQuantity": 2056705,
     "changePercent": -12.44,
     "averageDailyVolumeQuantity": 470144,
     "daysToCoverQuantity": 3.83,
+    "settlementDate": "2026-07-31"
+  },
+  "SKY": {
+    "currentShortPositionQuantity": 2735465,
+    "previousShortPositionQuantity": 4566369,
+    "changePercent": -40.1,
+    "averageDailyVolumeQuantity": 571530,
+    "daysToCoverQuantity": 4.79,
     "settlementDate": "2026-07-31"
   },
   "SLAB": {
@@ -4383,12 +4151,12 @@
     "daysToCoverQuantity": 6.08,
     "settlementDate": "2026-07-31"
   },
-  "SLVM": {
-    "currentShortPositionQuantity": 2290863,
-    "previousShortPositionQuantity": 2417591,
-    "changePercent": -5.24,
-    "averageDailyVolumeQuantity": 285291,
-    "daysToCoverQuantity": 8.03,
+  "SLM": {
+    "currentShortPositionQuantity": 20262204,
+    "previousShortPositionQuantity": 19102650,
+    "changePercent": 6.07,
+    "averageDailyVolumeQuantity": 3074569,
+    "daysToCoverQuantity": 6.59,
     "settlementDate": "2026-07-31"
   },
   "SM": {
@@ -4399,6 +4167,14 @@
     "daysToCoverQuantity": 4.21,
     "settlementDate": "2026-07-31"
   },
+  "SMA": {
+    "currentShortPositionQuantity": 4326114,
+    "previousShortPositionQuantity": 4103930,
+    "changePercent": 5.41,
+    "averageDailyVolumeQuantity": 925443,
+    "daysToCoverQuantity": 4.67,
+    "settlementDate": "2026-07-31"
+  },
   "SMCI": {
     "currentShortPositionQuantity": 91425714,
     "previousShortPositionQuantity": 97146633,
@@ -4407,20 +4183,12 @@
     "daysToCoverQuantity": 1.76,
     "settlementDate": "2026-07-31"
   },
-  "SMTC": {
-    "currentShortPositionQuantity": 7309139,
-    "previousShortPositionQuantity": 6517355,
-    "changePercent": 12.15,
-    "averageDailyVolumeQuantity": 2124657,
-    "daysToCoverQuantity": 3.44,
-    "settlementDate": "2026-07-31"
-  },
-  "SMTI": {
-    "currentShortPositionQuantity": 216090,
-    "previousShortPositionQuantity": 377539,
-    "changePercent": -42.76,
-    "averageDailyVolumeQuantity": 401044,
-    "daysToCoverQuantity": 1.0,
+  "SMPL": {
+    "currentShortPositionQuantity": 7383061,
+    "previousShortPositionQuantity": 6912240,
+    "changePercent": 6.81,
+    "averageDailyVolumeQuantity": 2598243,
+    "daysToCoverQuantity": 2.84,
     "settlementDate": "2026-07-31"
   },
   "SNDK": {
@@ -4447,6 +4215,38 @@
     "daysToCoverQuantity": 3.89,
     "settlementDate": "2026-07-31"
   },
+  "SO": {
+    "currentShortPositionQuantity": 36366279,
+    "previousShortPositionQuantity": 36593870,
+    "changePercent": -0.62,
+    "averageDailyVolumeQuantity": 4949230,
+    "daysToCoverQuantity": 7.35,
+    "settlementDate": "2026-07-31"
+  },
+  "SOFI": {
+    "currentShortPositionQuantity": 190758849,
+    "previousShortPositionQuantity": 185956377,
+    "changePercent": 2.58,
+    "averageDailyVolumeQuantity": 88240121,
+    "daysToCoverQuantity": 2.16,
+    "settlementDate": "2026-07-31"
+  },
+  "SOLV": {
+    "currentShortPositionQuantity": 3512330,
+    "previousShortPositionQuantity": 4297389,
+    "changePercent": -18.27,
+    "averageDailyVolumeQuantity": 1163085,
+    "daysToCoverQuantity": 3.02,
+    "settlementDate": "2026-07-31"
+  },
+  "SONO": {
+    "currentShortPositionQuantity": 9695191,
+    "previousShortPositionQuantity": 11121984,
+    "changePercent": -12.83,
+    "averageDailyVolumeQuantity": 2428128,
+    "daysToCoverQuantity": 3.99,
+    "settlementDate": "2026-07-31"
+  },
   "SPB": {
     "currentShortPositionQuantity": 3397428,
     "previousShortPositionQuantity": 3586500,
@@ -4455,12 +4255,28 @@
     "daysToCoverQuantity": 11.63,
     "settlementDate": "2026-07-31"
   },
-  "SRBK": {
-    "currentShortPositionQuantity": 254656,
-    "previousShortPositionQuantity": 301170,
-    "changePercent": -15.44,
-    "averageDailyVolumeQuantity": 29208,
-    "daysToCoverQuantity": 8.72,
+  "SPGI": {
+    "currentShortPositionQuantity": 8818887,
+    "previousShortPositionQuantity": 5061368,
+    "changePercent": 74.24,
+    "averageDailyVolumeQuantity": 2188233,
+    "daysToCoverQuantity": 4.03,
+    "settlementDate": "2026-07-31"
+  },
+  "SPSC": {
+    "currentShortPositionQuantity": 2876235,
+    "previousShortPositionQuantity": 2946546,
+    "changePercent": -2.39,
+    "averageDailyVolumeQuantity": 590660,
+    "daysToCoverQuantity": 4.87,
+    "settlementDate": "2026-07-31"
+  },
+  "SPT": {
+    "currentShortPositionQuantity": 4128378,
+    "previousShortPositionQuantity": 4460811,
+    "changePercent": -7.45,
+    "averageDailyVolumeQuantity": 886216,
+    "daysToCoverQuantity": 4.66,
     "settlementDate": "2026-07-31"
   },
   "SRCE": {
@@ -4471,20 +4287,20 @@
     "daysToCoverQuantity": 3.61,
     "settlementDate": "2026-07-31"
   },
-  "SRPT": {
-    "currentShortPositionQuantity": 27566969,
-    "previousShortPositionQuantity": 28489470,
-    "changePercent": -3.24,
-    "averageDailyVolumeQuantity": 3142381,
-    "daysToCoverQuantity": 8.77,
-    "settlementDate": "2026-07-31"
-  },
   "SSNC": {
     "currentShortPositionQuantity": 5930200,
     "previousShortPositionQuantity": 6181675,
     "changePercent": -4.07,
     "averageDailyVolumeQuantity": 2086952,
     "daysToCoverQuantity": 2.84,
+    "settlementDate": "2026-07-31"
+  },
+  "STAG": {
+    "currentShortPositionQuantity": 7333978,
+    "previousShortPositionQuantity": 7714459,
+    "changePercent": -4.93,
+    "averageDailyVolumeQuantity": 1919553,
+    "daysToCoverQuantity": 3.82,
     "settlementDate": "2026-07-31"
   },
   "STGW": {
@@ -4527,14 +4343,6 @@
     "daysToCoverQuantity": 9.51,
     "settlementDate": "2026-07-31"
   },
-  "SVV": {
-    "currentShortPositionQuantity": 7576996,
-    "previousShortPositionQuantity": 7382417,
-    "changePercent": 2.64,
-    "averageDailyVolumeQuantity": 709025,
-    "daysToCoverQuantity": 10.69,
-    "settlementDate": "2026-07-31"
-  },
   "SXC": {
     "currentShortPositionQuantity": 3422628,
     "previousShortPositionQuantity": 4250792,
@@ -4543,12 +4351,28 @@
     "daysToCoverQuantity": 1.77,
     "settlementDate": "2026-07-31"
   },
-  "SYNA": {
-    "currentShortPositionQuantity": 2882267,
-    "previousShortPositionQuantity": 3443920,
-    "changePercent": -16.31,
-    "averageDailyVolumeQuantity": 694449,
-    "daysToCoverQuantity": 4.15,
+  "SYF": {
+    "currentShortPositionQuantity": 18945815,
+    "previousShortPositionQuantity": 19367244,
+    "changePercent": -2.18,
+    "averageDailyVolumeQuantity": 4264442,
+    "daysToCoverQuantity": 4.44,
+    "settlementDate": "2026-07-31"
+  },
+  "TAP": {
+    "currentShortPositionQuantity": 28063901,
+    "previousShortPositionQuantity": 28220235,
+    "changePercent": -0.55,
+    "averageDailyVolumeQuantity": 3082632,
+    "daysToCoverQuantity": 9.1,
+    "settlementDate": "2026-07-31"
+  },
+  "TARS": {
+    "currentShortPositionQuantity": 6016830,
+    "previousShortPositionQuantity": 5783063,
+    "changePercent": 4.04,
+    "averageDailyVolumeQuantity": 914420,
+    "daysToCoverQuantity": 6.58,
     "settlementDate": "2026-07-31"
   },
   "TBBK": {
@@ -4559,28 +4383,12 @@
     "daysToCoverQuantity": 6.72,
     "settlementDate": "2026-07-31"
   },
-  "TCBI": {
-    "currentShortPositionQuantity": 4137980,
-    "previousShortPositionQuantity": 4152657,
-    "changePercent": -0.35,
-    "averageDailyVolumeQuantity": 550328,
-    "daysToCoverQuantity": 7.52,
-    "settlementDate": "2026-07-31"
-  },
-  "TCMD": {
-    "currentShortPositionQuantity": 2351515,
-    "previousShortPositionQuantity": 2449398,
-    "changePercent": -4.0,
-    "averageDailyVolumeQuantity": 204931,
-    "daysToCoverQuantity": 11.47,
-    "settlementDate": "2026-07-31"
-  },
-  "TDS": {
-    "currentShortPositionQuantity": 5030856,
-    "previousShortPositionQuantity": 4851251,
-    "changePercent": 3.7,
-    "averageDailyVolumeQuantity": 799634,
-    "daysToCoverQuantity": 6.29,
+  "TDW": {
+    "currentShortPositionQuantity": 6463672,
+    "previousShortPositionQuantity": 6293878,
+    "changePercent": 2.7,
+    "averageDailyVolumeQuantity": 535787,
+    "daysToCoverQuantity": 12.06,
     "settlementDate": "2026-07-31"
   },
   "TER": {
@@ -4607,6 +4415,14 @@
     "daysToCoverQuantity": 6.91,
     "settlementDate": "2026-07-31"
   },
+  "TFSL": {
+    "currentShortPositionQuantity": 7521731,
+    "previousShortPositionQuantity": 7859632,
+    "changePercent": -4.3,
+    "averageDailyVolumeQuantity": 932593,
+    "daysToCoverQuantity": 8.07,
+    "settlementDate": "2026-07-31"
+  },
   "TGLS": {
     "currentShortPositionQuantity": 1490520,
     "previousShortPositionQuantity": 1676629,
@@ -4623,12 +4439,20 @@
     "daysToCoverQuantity": 5.01,
     "settlementDate": "2026-07-31"
   },
-  "TGTX": {
-    "currentShortPositionQuantity": 29317926,
-    "previousShortPositionQuantity": 30686240,
-    "changePercent": -4.46,
-    "averageDailyVolumeQuantity": 2152474,
-    "daysToCoverQuantity": 13.62,
+  "TH": {
+    "currentShortPositionQuantity": 3872990,
+    "previousShortPositionQuantity": 3892175,
+    "changePercent": -0.49,
+    "averageDailyVolumeQuantity": 918400,
+    "daysToCoverQuantity": 4.22,
+    "settlementDate": "2026-07-31"
+  },
+  "THO": {
+    "currentShortPositionQuantity": 5207480,
+    "previousShortPositionQuantity": 5244241,
+    "changePercent": -0.7,
+    "averageDailyVolumeQuantity": 609811,
+    "daysToCoverQuantity": 8.54,
     "settlementDate": "2026-07-31"
   },
   "THRM": {
@@ -4639,12 +4463,12 @@
     "daysToCoverQuantity": 2.66,
     "settlementDate": "2026-07-31"
   },
-  "TMDX": {
-    "currentShortPositionQuantity": 7672830,
-    "previousShortPositionQuantity": 7715332,
-    "changePercent": -0.55,
-    "averageDailyVolumeQuantity": 807866,
-    "daysToCoverQuantity": 9.5,
+  "TJX": {
+    "currentShortPositionQuantity": 19458498,
+    "previousShortPositionQuantity": 17974454,
+    "changePercent": 8.26,
+    "averageDailyVolumeQuantity": 4760352,
+    "daysToCoverQuantity": 4.09,
     "settlementDate": "2026-07-31"
   },
   "TNDM": {
@@ -4653,6 +4477,22 @@
     "changePercent": -14.28,
     "averageDailyVolumeQuantity": 1708562,
     "daysToCoverQuantity": 6.58,
+    "settlementDate": "2026-07-31"
+  },
+  "TNL": {
+    "currentShortPositionQuantity": 7009513,
+    "previousShortPositionQuantity": 6530636,
+    "changePercent": 7.33,
+    "averageDailyVolumeQuantity": 1021124,
+    "daysToCoverQuantity": 6.86,
+    "settlementDate": "2026-07-31"
+  },
+  "TOWN": {
+    "currentShortPositionQuantity": 2393172,
+    "previousShortPositionQuantity": 2540121,
+    "changePercent": -5.79,
+    "averageDailyVolumeQuantity": 727081,
+    "daysToCoverQuantity": 3.29,
     "settlementDate": "2026-07-31"
   },
   "TPC": {
@@ -4679,22 +4519,6 @@
     "daysToCoverQuantity": 7.71,
     "settlementDate": "2026-07-31"
   },
-  "TRAK": {
-    "currentShortPositionQuantity": 1308653,
-    "previousShortPositionQuantity": 1263271,
-    "changePercent": 3.59,
-    "averageDailyVolumeQuantity": 63419,
-    "daysToCoverQuantity": 20.64,
-    "settlementDate": "2026-07-31"
-  },
-  "TRC": {
-    "currentShortPositionQuantity": 1227684,
-    "previousShortPositionQuantity": 1092693,
-    "changePercent": 12.35,
-    "averageDailyVolumeQuantity": 108274,
-    "daysToCoverQuantity": 11.34,
-    "settlementDate": "2026-07-31"
-  },
   "TREE": {
     "currentShortPositionQuantity": 1651293,
     "previousShortPositionQuantity": 1725168,
@@ -4703,28 +4527,20 @@
     "daysToCoverQuantity": 4.79,
     "settlementDate": "2026-07-31"
   },
-  "TRIP": {
-    "currentShortPositionQuantity": 29294656,
-    "previousShortPositionQuantity": 32680502,
-    "changePercent": -10.36,
-    "averageDailyVolumeQuantity": 2499466,
-    "daysToCoverQuantity": 11.72,
+  "TRGP": {
+    "currentShortPositionQuantity": 4596420,
+    "previousShortPositionQuantity": 4162578,
+    "changePercent": 10.42,
+    "averageDailyVolumeQuantity": 1148680,
+    "daysToCoverQuantity": 4.0,
     "settlementDate": "2026-07-31"
   },
-  "TRN": {
-    "currentShortPositionQuantity": 3681145,
-    "previousShortPositionQuantity": 5177931,
-    "changePercent": -28.91,
-    "averageDailyVolumeQuantity": 832555,
-    "daysToCoverQuantity": 4.42,
-    "settlementDate": "2026-07-31"
-  },
-  "TRNO": {
-    "currentShortPositionQuantity": 6254633,
-    "previousShortPositionQuantity": 6629042,
-    "changePercent": -5.65,
-    "averageDailyVolumeQuantity": 751448,
-    "daysToCoverQuantity": 8.32,
+  "TRNS": {
+    "currentShortPositionQuantity": 517549,
+    "previousShortPositionQuantity": 515073,
+    "changePercent": 0.48,
+    "averageDailyVolumeQuantity": 106080,
+    "daysToCoverQuantity": 4.88,
     "settlementDate": "2026-07-31"
   },
   "TROW": {
@@ -4735,20 +4551,12 @@
     "daysToCoverQuantity": 12.38,
     "settlementDate": "2026-07-31"
   },
-  "TRST": {
-    "currentShortPositionQuantity": 795185,
-    "previousShortPositionQuantity": 819765,
-    "changePercent": -3.0,
-    "averageDailyVolumeQuantity": 124966,
-    "daysToCoverQuantity": 6.36,
-    "settlementDate": "2026-07-31"
-  },
-  "TRU": {
-    "currentShortPositionQuantity": 8549216,
-    "previousShortPositionQuantity": 10822787,
-    "changePercent": -21.01,
-    "averageDailyVolumeQuantity": 2566136,
-    "daysToCoverQuantity": 3.33,
+  "TSCO": {
+    "currentShortPositionQuantity": 28974573,
+    "previousShortPositionQuantity": 30016883,
+    "changePercent": -3.47,
+    "averageDailyVolumeQuantity": 11549301,
+    "daysToCoverQuantity": 2.51,
     "settlementDate": "2026-07-31"
   },
   "TSLA": {
@@ -4759,12 +4567,12 @@
     "daysToCoverQuantity": 1.55,
     "settlementDate": "2026-07-31"
   },
-  "TSSI": {
-    "currentShortPositionQuantity": 3962476,
-    "previousShortPositionQuantity": 4281821,
-    "changePercent": -7.46,
-    "averageDailyVolumeQuantity": 722295,
-    "daysToCoverQuantity": 5.49,
+  "TTD": {
+    "currentShortPositionQuantity": 75368761,
+    "previousShortPositionQuantity": 73633275,
+    "changePercent": 2.36,
+    "averageDailyVolumeQuantity": 15031665,
+    "daysToCoverQuantity": 5.01,
     "settlementDate": "2026-07-31"
   },
   "TTMI": {
@@ -4791,14 +4599,6 @@
     "daysToCoverQuantity": 2.17,
     "settlementDate": "2026-07-31"
   },
-  "TWO": {
-    "currentShortPositionQuantity": 4343914,
-    "previousShortPositionQuantity": 3898757,
-    "changePercent": 11.42,
-    "averageDailyVolumeQuantity": 2439569,
-    "daysToCoverQuantity": 1.78,
-    "settlementDate": "2026-07-31"
-  },
   "TXG": {
     "currentShortPositionQuantity": 15625594,
     "previousShortPositionQuantity": 16252519,
@@ -4815,12 +4615,20 @@
     "daysToCoverQuantity": 1.86,
     "settlementDate": "2026-07-31"
   },
-  "TXNM": {
-    "currentShortPositionQuantity": 5819139,
-    "previousShortPositionQuantity": 6115652,
-    "changePercent": -4.85,
-    "averageDailyVolumeQuantity": 911453,
-    "daysToCoverQuantity": 6.38,
+  "TXRH": {
+    "currentShortPositionQuantity": 2082848,
+    "previousShortPositionQuantity": 2644856,
+    "changePercent": -21.25,
+    "averageDailyVolumeQuantity": 799211,
+    "daysToCoverQuantity": 2.61,
+    "settlementDate": "2026-07-31"
+  },
+  "U": {
+    "currentShortPositionQuantity": 34345045,
+    "previousShortPositionQuantity": 33891131,
+    "changePercent": 1.34,
+    "averageDailyVolumeQuantity": 7471199,
+    "daysToCoverQuantity": 4.6,
     "settlementDate": "2026-07-31"
   },
   "UCTT": {
@@ -4847,20 +4655,12 @@
     "daysToCoverQuantity": 4.14,
     "settlementDate": "2026-07-31"
   },
-  "UFPT": {
-    "currentShortPositionQuantity": 1178774,
-    "previousShortPositionQuantity": 1243417,
-    "changePercent": -5.2,
-    "averageDailyVolumeQuantity": 177685,
-    "daysToCoverQuantity": 6.63,
-    "settlementDate": "2026-07-31"
-  },
-  "ULH": {
-    "currentShortPositionQuantity": 338536,
-    "previousShortPositionQuantity": 387016,
-    "changePercent": -12.53,
-    "averageDailyVolumeQuantity": 41463,
-    "daysToCoverQuantity": 8.16,
+  "UGI": {
+    "currentShortPositionQuantity": 12666748,
+    "previousShortPositionQuantity": 12203595,
+    "changePercent": 3.8,
+    "averageDailyVolumeQuantity": 1252042,
+    "daysToCoverQuantity": 10.12,
     "settlementDate": "2026-07-31"
   },
   "UMBF": {
@@ -4871,30 +4671,6 @@
     "daysToCoverQuantity": 5.01,
     "settlementDate": "2026-07-31"
   },
-  "UMH": {
-    "currentShortPositionQuantity": 3601078,
-    "previousShortPositionQuantity": 3647479,
-    "changePercent": -1.27,
-    "averageDailyVolumeQuantity": 456728,
-    "daysToCoverQuantity": 7.88,
-    "settlementDate": "2026-07-31"
-  },
-  "UNF": {
-    "currentShortPositionQuantity": 758293,
-    "previousShortPositionQuantity": 876952,
-    "changePercent": -13.53,
-    "averageDailyVolumeQuantity": 168046,
-    "daysToCoverQuantity": 4.51,
-    "settlementDate": "2026-07-31"
-  },
-  "UNFI": {
-    "currentShortPositionQuantity": 2513791,
-    "previousShortPositionQuantity": 2664406,
-    "changePercent": -5.65,
-    "averageDailyVolumeQuantity": 460085,
-    "daysToCoverQuantity": 5.46,
-    "settlementDate": "2026-07-31"
-  },
   "UPBD": {
     "currentShortPositionQuantity": 6709705,
     "previousShortPositionQuantity": 6341816,
@@ -4903,36 +4679,28 @@
     "daysToCoverQuantity": 5.56,
     "settlementDate": "2026-07-31"
   },
-  "URGN": {
-    "currentShortPositionQuantity": 4589109,
-    "previousShortPositionQuantity": 5689384,
-    "changePercent": -19.34,
-    "averageDailyVolumeQuantity": 691634,
-    "daysToCoverQuantity": 6.64,
+  "URI": {
+    "currentShortPositionQuantity": 1395597,
+    "previousShortPositionQuantity": 1402901,
+    "changePercent": -0.52,
+    "averageDailyVolumeQuantity": 577147,
+    "daysToCoverQuantity": 2.42,
     "settlementDate": "2026-07-31"
   },
-  "USCB": {
-    "currentShortPositionQuantity": 227748,
-    "previousShortPositionQuantity": 224211,
-    "changePercent": 1.58,
-    "averageDailyVolumeQuantity": 68336,
-    "daysToCoverQuantity": 3.33,
+  "USFD": {
+    "currentShortPositionQuantity": 10705069,
+    "previousShortPositionQuantity": 10430703,
+    "changePercent": 2.63,
+    "averageDailyVolumeQuantity": 2236371,
+    "daysToCoverQuantity": 4.79,
     "settlementDate": "2026-07-31"
   },
-  "USNA": {
-    "currentShortPositionQuantity": 690318,
-    "previousShortPositionQuantity": 753031,
-    "changePercent": -8.33,
-    "averageDailyVolumeQuantity": 92322,
-    "daysToCoverQuantity": 7.48,
-    "settlementDate": "2026-07-31"
-  },
-  "USPH": {
-    "currentShortPositionQuantity": 1106151,
-    "previousShortPositionQuantity": 1015175,
-    "changePercent": 8.96,
-    "averageDailyVolumeQuantity": 261758,
-    "daysToCoverQuantity": 4.23,
+  "UTHR": {
+    "currentShortPositionQuantity": 2322601,
+    "previousShortPositionQuantity": 2088748,
+    "changePercent": 11.2,
+    "averageDailyVolumeQuantity": 420429,
+    "daysToCoverQuantity": 5.52,
     "settlementDate": "2026-07-31"
   },
   "UTI": {
@@ -4943,20 +4711,28 @@
     "daysToCoverQuantity": 4.68,
     "settlementDate": "2026-07-31"
   },
-  "UVSP": {
-    "currentShortPositionQuantity": 695422,
-    "previousShortPositionQuantity": 744903,
-    "changePercent": -6.64,
-    "averageDailyVolumeQuantity": 300452,
-    "daysToCoverQuantity": 2.31,
+  "UUUU": {
+    "currentShortPositionQuantity": 50753115,
+    "previousShortPositionQuantity": 48993940,
+    "changePercent": 3.59,
+    "averageDailyVolumeQuantity": 6950386,
+    "daysToCoverQuantity": 7.3,
     "settlementDate": "2026-07-31"
   },
-  "UVV": {
-    "currentShortPositionQuantity": 1709494,
-    "previousShortPositionQuantity": 1675507,
-    "changePercent": 2.03,
-    "averageDailyVolumeQuantity": 230930,
-    "daysToCoverQuantity": 7.4,
+  "V": {
+    "currentShortPositionQuantity": 20789298,
+    "previousShortPositionQuantity": 23581970,
+    "changePercent": -11.84,
+    "averageDailyVolumeQuantity": 7384543,
+    "daysToCoverQuantity": 2.82,
+    "settlementDate": "2026-07-31"
+  },
+  "VCEL": {
+    "currentShortPositionQuantity": 4433745,
+    "previousShortPositionQuantity": 4603010,
+    "changePercent": -3.68,
+    "averageDailyVolumeQuantity": 520404,
+    "daysToCoverQuantity": 8.52,
     "settlementDate": "2026-07-31"
   },
   "VCTR": {
@@ -4967,28 +4743,28 @@
     "daysToCoverQuantity": 6.86,
     "settlementDate": "2026-07-31"
   },
-  "VCYT": {
-    "currentShortPositionQuantity": 6858686,
-    "previousShortPositionQuantity": 6674331,
-    "changePercent": 2.76,
-    "averageDailyVolumeQuantity": 1426852,
-    "daysToCoverQuantity": 4.81,
+  "VIA": {
+    "currentShortPositionQuantity": 6838681,
+    "previousShortPositionQuantity": 6471047,
+    "changePercent": 5.68,
+    "averageDailyVolumeQuantity": 830720,
+    "daysToCoverQuantity": 8.23,
     "settlementDate": "2026-07-31"
   },
-  "VECO": {
-    "currentShortPositionQuantity": 5922732,
-    "previousShortPositionQuantity": 7192970,
-    "changePercent": -17.66,
-    "averageDailyVolumeQuantity": 953984,
-    "daysToCoverQuantity": 6.21,
+  "VIRT": {
+    "currentShortPositionQuantity": 4623473,
+    "previousShortPositionQuantity": 4771548,
+    "changePercent": -3.1,
+    "averageDailyVolumeQuantity": 1075077,
+    "daysToCoverQuantity": 4.3,
     "settlementDate": "2026-07-31"
   },
-  "VEEV": {
-    "currentShortPositionQuantity": 7300157,
-    "previousShortPositionQuantity": 7918041,
-    "changePercent": -7.8,
-    "averageDailyVolumeQuantity": 1448324,
-    "daysToCoverQuantity": 5.04,
+  "VISN": {
+    "currentShortPositionQuantity": 18210962,
+    "previousShortPositionQuantity": 17143913,
+    "changePercent": 6.22,
+    "averageDailyVolumeQuantity": 5102765,
+    "daysToCoverQuantity": 3.57,
     "settlementDate": "2026-07-31"
   },
   "VITL": {
@@ -4999,6 +4775,14 @@
     "daysToCoverQuantity": 6.12,
     "settlementDate": "2026-07-31"
   },
+  "VLO": {
+    "currentShortPositionQuantity": 9101692,
+    "previousShortPositionQuantity": 10973199,
+    "changePercent": -17.06,
+    "averageDailyVolumeQuantity": 2549280,
+    "daysToCoverQuantity": 3.57,
+    "settlementDate": "2026-07-31"
+  },
   "VLY": {
     "currentShortPositionQuantity": 43966536,
     "previousShortPositionQuantity": 43184360,
@@ -5007,12 +4791,28 @@
     "daysToCoverQuantity": 5.72,
     "settlementDate": "2026-07-31"
   },
-  "VMD": {
-    "currentShortPositionQuantity": 671738,
-    "previousShortPositionQuantity": 747076,
-    "changePercent": -10.08,
-    "averageDailyVolumeQuantity": 270103,
-    "daysToCoverQuantity": 2.49,
+  "VMC": {
+    "currentShortPositionQuantity": 6124440,
+    "previousShortPositionQuantity": 6549851,
+    "changePercent": -6.49,
+    "averageDailyVolumeQuantity": 1142767,
+    "daysToCoverQuantity": 5.36,
+    "settlementDate": "2026-07-31"
+  },
+  "VPG": {
+    "currentShortPositionQuantity": 1270198,
+    "previousShortPositionQuantity": 1314297,
+    "changePercent": -3.36,
+    "averageDailyVolumeQuantity": 499710,
+    "daysToCoverQuantity": 2.54,
+    "settlementDate": "2026-07-31"
+  },
+  "VREX": {
+    "currentShortPositionQuantity": 1235190,
+    "previousShortPositionQuantity": 1209036,
+    "changePercent": 2.16,
+    "averageDailyVolumeQuantity": 317629,
+    "daysToCoverQuantity": 3.89,
     "settlementDate": "2026-07-31"
   },
   "VRNS": {
@@ -5023,20 +4823,20 @@
     "daysToCoverQuantity": 3.62,
     "settlementDate": "2026-07-31"
   },
-  "VRSK": {
-    "currentShortPositionQuantity": 4311764,
-    "previousShortPositionQuantity": 6313063,
-    "changePercent": -31.7,
-    "averageDailyVolumeQuantity": 1932035,
-    "daysToCoverQuantity": 2.23,
+  "VRSN": {
+    "currentShortPositionQuantity": 1897590,
+    "previousShortPositionQuantity": 1831555,
+    "changePercent": 3.61,
+    "averageDailyVolumeQuantity": 937085,
+    "daysToCoverQuantity": 2.02,
     "settlementDate": "2026-07-31"
   },
-  "VRT": {
-    "currentShortPositionQuantity": 12335478,
-    "previousShortPositionQuantity": 11209855,
-    "changePercent": 10.04,
-    "averageDailyVolumeQuantity": 7298191,
-    "daysToCoverQuantity": 1.69,
+  "VRTS": {
+    "currentShortPositionQuantity": 443548,
+    "previousShortPositionQuantity": 426311,
+    "changePercent": 4.04,
+    "averageDailyVolumeQuantity": 149412,
+    "daysToCoverQuantity": 2.97,
     "settlementDate": "2026-07-31"
   },
   "VSAT": {
@@ -5055,20 +4855,12 @@
     "daysToCoverQuantity": 5.81,
     "settlementDate": "2026-07-31"
   },
-  "VST": {
-    "currentShortPositionQuantity": 8680253,
-    "previousShortPositionQuantity": 12604861,
-    "changePercent": -31.14,
-    "averageDailyVolumeQuantity": 4235104,
-    "daysToCoverQuantity": 2.05,
-    "settlementDate": "2026-07-31"
-  },
-  "VTS": {
-    "currentShortPositionQuantity": 7132723,
-    "previousShortPositionQuantity": 6959125,
-    "changePercent": 2.49,
-    "averageDailyVolumeQuantity": 407715,
-    "daysToCoverQuantity": 17.49,
+  "VTR": {
+    "currentShortPositionQuantity": 23665480,
+    "previousShortPositionQuantity": 24736618,
+    "changePercent": -4.33,
+    "averageDailyVolumeQuantity": 3662484,
+    "daysToCoverQuantity": 6.46,
     "settlementDate": "2026-07-31"
   },
   "W": {
@@ -5079,28 +4871,12 @@
     "daysToCoverQuantity": 3.87,
     "settlementDate": "2026-07-31"
   },
-  "WABC": {
-    "currentShortPositionQuantity": 864818,
-    "previousShortPositionQuantity": 748347,
-    "changePercent": 15.56,
-    "averageDailyVolumeQuantity": 208030,
-    "daysToCoverQuantity": 4.16,
-    "settlementDate": "2026-07-31"
-  },
-  "WAFD": {
-    "currentShortPositionQuantity": 3725646,
-    "previousShortPositionQuantity": 3453638,
-    "changePercent": 7.88,
-    "averageDailyVolumeQuantity": 665002,
-    "daysToCoverQuantity": 5.6,
-    "settlementDate": "2026-07-31"
-  },
-  "WAY": {
-    "currentShortPositionQuantity": 14585787,
-    "previousShortPositionQuantity": 13593276,
-    "changePercent": 7.3,
-    "averageDailyVolumeQuantity": 2932853,
-    "daysToCoverQuantity": 4.97,
+  "WAL": {
+    "currentShortPositionQuantity": 6302163,
+    "previousShortPositionQuantity": 5570519,
+    "changePercent": 13.13,
+    "averageDailyVolumeQuantity": 1071912,
+    "daysToCoverQuantity": 5.88,
     "settlementDate": "2026-07-31"
   },
   "WBD": {
@@ -5119,12 +4895,12 @@
     "daysToCoverQuantity": 2.67,
     "settlementDate": "2026-07-31"
   },
-  "WBTN": {
-    "currentShortPositionQuantity": 4559885,
-    "previousShortPositionQuantity": 4709401,
-    "changePercent": -3.17,
-    "averageDailyVolumeQuantity": 335861,
-    "daysToCoverQuantity": 13.58,
+  "WD": {
+    "currentShortPositionQuantity": 1181059,
+    "previousShortPositionQuantity": 1272337,
+    "changePercent": -7.17,
+    "averageDailyVolumeQuantity": 250459,
+    "daysToCoverQuantity": 4.72,
     "settlementDate": "2026-07-31"
   },
   "WDC": {
@@ -5143,20 +4919,12 @@
     "daysToCoverQuantity": 5.92,
     "settlementDate": "2026-07-31"
   },
-  "WERN": {
-    "currentShortPositionQuantity": 4051986,
-    "previousShortPositionQuantity": 4427239,
-    "changePercent": -8.48,
-    "averageDailyVolumeQuantity": 1774970,
-    "daysToCoverQuantity": 2.28,
-    "settlementDate": "2026-07-31"
-  },
-  "WEYS": {
-    "currentShortPositionQuantity": 93401,
-    "previousShortPositionQuantity": 96291,
-    "changePercent": -3.0,
-    "averageDailyVolumeQuantity": 17149,
-    "daysToCoverQuantity": 5.45,
+  "WEX": {
+    "currentShortPositionQuantity": 2592178,
+    "previousShortPositionQuantity": 2487941,
+    "changePercent": 4.19,
+    "averageDailyVolumeQuantity": 1028711,
+    "daysToCoverQuantity": 2.52,
     "settlementDate": "2026-07-31"
   },
   "WFC": {
@@ -5175,20 +4943,20 @@
     "daysToCoverQuantity": 8.58,
     "settlementDate": "2026-07-31"
   },
+  "WHR": {
+    "currentShortPositionQuantity": 13715981,
+    "previousShortPositionQuantity": 12387273,
+    "changePercent": 10.73,
+    "averageDailyVolumeQuantity": 2074078,
+    "daysToCoverQuantity": 6.61,
+    "settlementDate": "2026-07-31"
+  },
   "WING": {
     "currentShortPositionQuantity": 4241597,
     "previousShortPositionQuantity": 4598134,
     "changePercent": -7.75,
     "averageDailyVolumeQuantity": 1289918,
     "daysToCoverQuantity": 3.29,
-    "settlementDate": "2026-07-31"
-  },
-  "WKC": {
-    "currentShortPositionQuantity": 6708475,
-    "previousShortPositionQuantity": 6500204,
-    "changePercent": 3.2,
-    "averageDailyVolumeQuantity": 1742170,
-    "daysToCoverQuantity": 3.85,
     "settlementDate": "2026-07-31"
   },
   "WLDN": {
@@ -5207,12 +4975,12 @@
     "daysToCoverQuantity": 7.99,
     "settlementDate": "2026-07-31"
   },
-  "WLTH": {
-    "currentShortPositionQuantity": 7461163,
-    "previousShortPositionQuantity": 7435448,
-    "changePercent": 0.35,
-    "averageDailyVolumeQuantity": 765261,
-    "daysToCoverQuantity": 9.75,
+  "WLK": {
+    "currentShortPositionQuantity": 4833608,
+    "previousShortPositionQuantity": 5275584,
+    "changePercent": -8.38,
+    "averageDailyVolumeQuantity": 998082,
+    "daysToCoverQuantity": 4.84,
     "settlementDate": "2026-07-31"
   },
   "WLY": {
@@ -5223,6 +4991,22 @@
     "daysToCoverQuantity": 9.34,
     "settlementDate": "2026-07-31"
   },
+  "WMB": {
+    "currentShortPositionQuantity": 26476801,
+    "previousShortPositionQuantity": 20455181,
+    "changePercent": 29.44,
+    "averageDailyVolumeQuantity": 6643273,
+    "daysToCoverQuantity": 3.99,
+    "settlementDate": "2026-07-31"
+  },
+  "WMG": {
+    "currentShortPositionQuantity": 9594511,
+    "previousShortPositionQuantity": 11068308,
+    "changePercent": -13.32,
+    "averageDailyVolumeQuantity": 2019383,
+    "daysToCoverQuantity": 4.75,
+    "settlementDate": "2026-07-31"
+  },
   "WMT": {
     "currentShortPositionQuantity": 72040994,
     "previousShortPositionQuantity": 74400164,
@@ -5231,52 +5015,12 @@
     "daysToCoverQuantity": 3.22,
     "settlementDate": "2026-07-31"
   },
-  "WNC": {
-    "currentShortPositionQuantity": 4532123,
-    "previousShortPositionQuantity": 3792053,
-    "changePercent": 19.52,
-    "averageDailyVolumeQuantity": 1786652,
-    "daysToCoverQuantity": 2.54,
-    "settlementDate": "2026-07-31"
-  },
-  "WNEB": {
-    "currentShortPositionQuantity": 270780,
-    "previousShortPositionQuantity": 257074,
-    "changePercent": 5.33,
-    "averageDailyVolumeQuantity": 50161,
-    "daysToCoverQuantity": 5.4,
-    "settlementDate": "2026-07-31"
-  },
-  "WRB": {
-    "currentShortPositionQuantity": 15608018,
-    "previousShortPositionQuantity": 17721972,
-    "changePercent": -11.93,
-    "averageDailyVolumeQuantity": 2146584,
-    "daysToCoverQuantity": 7.27,
-    "settlementDate": "2026-07-31"
-  },
   "WRBY": {
     "currentShortPositionQuantity": 17297875,
     "previousShortPositionQuantity": 17862372,
     "changePercent": -3.16,
     "averageDailyVolumeQuantity": 2395830,
     "daysToCoverQuantity": 7.22,
-    "settlementDate": "2026-07-31"
-  },
-  "WSBF": {
-    "currentShortPositionQuantity": 326899,
-    "previousShortPositionQuantity": 317146,
-    "changePercent": 3.08,
-    "averageDailyVolumeQuantity": 66116,
-    "daysToCoverQuantity": 4.94,
-    "settlementDate": "2026-07-31"
-  },
-  "WSC": {
-    "currentShortPositionQuantity": 16895990,
-    "previousShortPositionQuantity": 18422658,
-    "changePercent": -8.29,
-    "averageDailyVolumeQuantity": 2163818,
-    "daysToCoverQuantity": 7.81,
     "settlementDate": "2026-07-31"
   },
   "WY": {
@@ -5295,12 +5039,12 @@
     "daysToCoverQuantity": 2.96,
     "settlementDate": "2026-07-31"
   },
-  "XHR": {
-    "currentShortPositionQuantity": 4020031,
-    "previousShortPositionQuantity": 4113458,
-    "changePercent": -2.27,
-    "averageDailyVolumeQuantity": 714030,
-    "daysToCoverQuantity": 5.63,
+  "XERS": {
+    "currentShortPositionQuantity": 9221405,
+    "previousShortPositionQuantity": 10078469,
+    "changePercent": -8.5,
+    "averageDailyVolumeQuantity": 1366174,
+    "daysToCoverQuantity": 6.75,
     "settlementDate": "2026-07-31"
   },
   "XMTR": {
@@ -5311,20 +5055,12 @@
     "daysToCoverQuantity": 3.09,
     "settlementDate": "2026-07-31"
   },
-  "XRAY": {
-    "currentShortPositionQuantity": 23604124,
-    "previousShortPositionQuantity": 29935825,
-    "changePercent": -21.15,
-    "averageDailyVolumeQuantity": 4970100,
-    "daysToCoverQuantity": 4.75,
-    "settlementDate": "2026-07-31"
-  },
-  "XZO": {
-    "currentShortPositionQuantity": 599238,
-    "previousShortPositionQuantity": 641656,
-    "changePercent": -6.61,
-    "averageDailyVolumeQuantity": 126840,
-    "daysToCoverQuantity": 4.72,
+  "XPEL": {
+    "currentShortPositionQuantity": 2439432,
+    "previousShortPositionQuantity": 2521797,
+    "changePercent": -3.27,
+    "averageDailyVolumeQuantity": 208692,
+    "daysToCoverQuantity": 11.69,
     "settlementDate": "2026-07-31"
   },
   "YELP": {
@@ -5367,6 +5103,30 @@
     "daysToCoverQuantity": 2.75,
     "settlementDate": "2026-07-31"
   },
+  "ZBH": {
+    "currentShortPositionQuantity": 11180764,
+    "previousShortPositionQuantity": 12054804,
+    "changePercent": -7.25,
+    "averageDailyVolumeQuantity": 2295615,
+    "daysToCoverQuantity": 4.87,
+    "settlementDate": "2026-07-31"
+  },
+  "ZBRA": {
+    "currentShortPositionQuantity": 2673844,
+    "previousShortPositionQuantity": 3139345,
+    "changePercent": -14.83,
+    "averageDailyVolumeQuantity": 743344,
+    "daysToCoverQuantity": 3.6,
+    "settlementDate": "2026-07-31"
+  },
+  "ZD": {
+    "currentShortPositionQuantity": 5071490,
+    "previousShortPositionQuantity": 4406557,
+    "changePercent": 15.09,
+    "averageDailyVolumeQuantity": 515610,
+    "daysToCoverQuantity": 9.84,
+    "settlementDate": "2026-07-31"
+  },
   "ZION": {
     "currentShortPositionQuantity": 5473018,
     "previousShortPositionQuantity": 7005706,
@@ -5381,14 +5141,6 @@
     "changePercent": -7.83,
     "averageDailyVolumeQuantity": 2041487,
     "daysToCoverQuantity": 3.63,
-    "settlementDate": "2026-07-31"
-  },
-  "ZTS": {
-    "currentShortPositionQuantity": 21352028,
-    "previousShortPositionQuantity": 18794854,
-    "changePercent": 13.61,
-    "averageDailyVolumeQuantity": 5536252,
-    "daysToCoverQuantity": 3.86,
     "settlementDate": "2026-07-31"
   },
   "ZVRA": {

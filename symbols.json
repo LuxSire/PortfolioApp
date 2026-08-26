@@ -2469,7 +2469,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "REIT - Residential"
   },
   {
@@ -5928,7 +5928,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Biotechnology"
   },
   {
@@ -7655,7 +7655,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Electronic Gaming & Multimedia"
   },
   {
@@ -13730,7 +13730,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Telecom Services"
   },
   {
@@ -16853,7 +16853,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "REIT - Industrial"
   },
   {
@@ -24104,7 +24104,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "REIT - Mortgage"
   },
   {
@@ -25230,7 +25230,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Software - Infrastructure"
   },
   {

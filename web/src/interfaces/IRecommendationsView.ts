@@ -71,6 +71,20 @@ export interface Candidate {
   // own tickerForecast state/effect). null/undefined for a ticker that
   // simulation had no data for, same as every other optional factor here.
   forecastReturn?: number | null
+  // data/output/target_portfolio.json's own longs/shorts membership (see
+  // modules/portfolio_optimizer.py) -- which side, if either, the
+  // Sharpe-maximising optimizer actually selected this ticker for. A
+  // separate fetch/merge, same "own file, own state, spread into each
+  // Candidate" pattern as forecastReturn above (see RecommendationsView's
+  // own tickerTargetSide state/effect). null/undefined for a ticker the
+  // optimizer didn't select on either side.
+  targetPortfolioSide?: 'Long' | 'Short' | null
+  // data/output/target_portfolio.json also carries the full optimizer
+  // pre-screen pools, so cards can show where a ticker ranked before the
+  // final Sharpe/covariance pass selected the target portfolio.
+  targetPoolSide?: 'Long' | 'Short' | null
+  targetPoolRank?: number | null
+  targetPoolSize?: number | null
 }
 
 export interface RecommendationsData {

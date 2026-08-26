@@ -25,20 +25,13 @@ export interface RawSimResult {
     confidence: number
     ownPe: number
     industryMedianPe: number | null
-    blendedPe: number | null
     peerCount: number
     peLevel: 'industry' | 'sector' | null
   }
-  priceAtCurrentMultiple?: SimPriceStats
-  priceAtBlendedMultiple?: SimPriceStats | null
-  comparison?: {
-    medianDiff: number
-    medianDiffPct: number | null
-    peMultipleRatio: number
-    confidence: number
-    discountedMedianDiff: number
-    discountedMedianDiffPct: number | null
-  } | null
+  // The single priced scenario (at industryMedianPe) -- null/absent when
+  // even the broad sector didn't clear MIN_PEERS (no peer multiple to
+  // price against at all; see modules/simulations.py's own docstring).
+  priceAtIndustryMultiple?: SimPriceStats | null
 }
 
 export interface SimPriceStats {
@@ -54,10 +47,10 @@ export interface SimPriceStats {
 }
 
 // Flattened, sortable shape SimulationsView.tsx actually renders -- one
-// row per ticker that simulated successfully (error rows are dropped
-// entirely, see that page's own parse step). Null fields are the
-// industry-median half of the model when a ticker didn't have enough
-// same-industry peers (see modules/simulations.py's MIN_PEERS).
+// row per ticker that both simulated successfully AND had an industry/
+// sector peer group to price against (error rows, and rows with no
+// priceAtIndustryMultiple, are dropped entirely -- see that page's own
+// parse step).
 export interface SimRow {
   t: string
   n: string
@@ -72,20 +65,12 @@ export interface SimRow {
   industryPe: number | null
   peerCount: number
   peLevel: 'industry' | 'sector' | null
-  peRatio: number | null
   epsTrend: number | null
   revenueGrowth: number | null
   confidence: number
-  curMedian: number
-  curReturn: number
-  curProbAbove: number
-  indMedian: number | null
-  indReturn: number | null
-  indP5: number | null
-  indP95: number | null
-  indProbAbove: number | null
-  medianDiff: number | null
-  medianDiffPct: number | null
-  discountedMedianDiff: number | null
-  discountedMedianDiffPct: number | null
+  industryMedian: number
+  industryReturn: number
+  industryP5: number
+  industryP95: number
+  industryProbAbove: number
 }

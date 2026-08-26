@@ -163,8 +163,17 @@ export default function PortfolioView() {
   // dev (variance is shift-invariant), so this is identical whether
   // computed from excess or raw daily returns.
   let annualizedVol: number | null = null
+  // Annualized performance: mean RAW daily return (not excess-of-risk-free)
+  // × √252's own counterpart for a mean, × TRADING_DAYS_PER_YEAR -- same
+  // arithmetic-mean annualization convention Sharpe/Sortino's own
+  // meanExcess numerator already uses below, just without subtracting the
+  // risk-free rate, since this stat answers "how did the account actually
+  // perform," not "how did it perform net of a risk-free alternative."
+  let annualizedReturn: number | null = null
   if (dailyReturns.length > 1) {
     const n = dailyReturns.length
+    const meanReturn = dailyReturns.reduce((a, b) => a + b, 0) / n
+    annualizedReturn = meanReturn * TRADING_DAYS_PER_YEAR
     const excess = dailyReturns.map((r) => r - RISK_FREE_RATE_DAILY)
     const meanExcess = excess.reduce((a, b) => a + b, 0) / n
 
@@ -220,6 +229,15 @@ export default function PortfolioView() {
                 {fmtMoney(totalDepositsWithdrawals)}
               </span>
               <span className="l">Flows</span>
+            </div>
+            <div
+              className="stat"
+              title="Annualized performance: mean daily (Total P&L / prior-day NAV) return × 252 trading days/year — the raw return this track record annualizes to, before any risk adjustment."
+            >
+              <span className={`n num${annualizedReturn === null ? '' : annualizedReturn >= 0 ? ' good' : ' bad'}`}>
+                {fmtPct(annualizedReturn)}
+              </span>
+              <span className="l">Ann. Perf.</span>
             </div>
             <div
               className="stat"

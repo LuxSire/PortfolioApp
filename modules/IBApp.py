@@ -39,6 +39,7 @@ from ib_insync import (
     IB, ContFuture, ExecutionFilter, Forex, Future, Index,
     LimitOrder, MarketOrder, Stock, WshEventData, util,
 )
+from modules.scoring import clamp_eps_revision
 
 load_dotenv()
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -181,13 +182,14 @@ def _html_article_to_text(html_text):
 
 
 def _eps_revision(current, baseline):
-    """(current - baseline) / abs(baseline) -- how much a consensus EPS
+    """Capped (current - baseline) / abs(baseline) -- how much a consensus EPS
     estimate has moved relative to some earlier snapshot of itself (see
     get_forward_pe's use against yfinance's get_eps_trend(), comparing
     "current" to "30daysAgo" for a given period). Positive means
     analysts have been raising the estimate (bullish revision trend),
     negative means cuts. None for a missing/NaN input or a zero baseline
-    (nothing to compute a meaningful ratio against)."""
+    (nothing to compute a meaningful ratio against). The cap prevents
+    near-zero prior estimates from becoming huge percentage artifacts."""
     if current is None or baseline is None:
         return None
     try:
@@ -197,7 +199,7 @@ def _eps_revision(current, baseline):
         return None
     if math.isnan(current) or math.isnan(baseline) or baseline == 0:
         return None
-    return (current - baseline) / abs(baseline)
+    return clamp_eps_revision((current - baseline) / abs(baseline))
 
 
 def _eps_volatility(values):
@@ -1130,7 +1132,7 @@ class IBApp:
 
     def get_forward_pe(self, tickers, usa_only=True, max_workers=2, raw_out=None, country_overrides=None):
         """
-        Returns {ticker: {name, forwardPE, forwardEps, trailingPE, trailingPS,
+        Returns {ticker: {name, forwardPE, forwardEps, epsCurrentYear, trailingPE, trailingPS,
         pegRatio, priceToFCF, enterpriseToEbitda, beta, debtToEquity, quickRatio,
         currentRatio, shortRatio, shortPercentOfFloat, price, sector,
         country, targetMeanPrice, targetHighPrice, targetLowPrice,
@@ -1257,6 +1259,7 @@ class IBApp:
                         "name": info.get("shortName"),
                         "forwardPE": info.get("forwardPE"),
                         "forwardEps": info.get("forwardEps"),
+                        "epsCurrentYear": info.get("epsCurrentYear"),
                         "trailingPE": trailing_pe,
                         "trailingPS": info.get("priceToSalesTrailing12Months"),
                         "pegRatio": info.get("pegRatio"),
@@ -1304,6 +1307,7 @@ class IBApp:
                         # skin in the game, the other is recent discretionary
                         # buying/selling. scoring.insiders_rank blends both.
                         "heldPercentInsiders": info.get("heldPercentInsiders"),
+                        "yearReturn": info.get("52WeekChange"),
                         "lastDownload": now,
                     }
                 except Exception as e:
@@ -1346,6 +1350,37 @@ class IBApp:
                     return symbol, _eps_volatility(annual.loc["Diluted EPS"].dropna().tolist())
             except Exception as e:
                 logging.info(f"get_eps_volatility: {symbol} failed: {e}")
+            return symbol, None
+
+        results = {}
+        with ThreadPoolExecutor(max_workers=max_workers) as ex:
+            futures = {ex.submit(fetch, s): s for s in tickers}
+            for sym, value in (f.result() for f in as_completed(futures)):
+                results[sym] = value
+        return results
+
+    def get_eps_current_year(self, tickers, max_workers=2):
+        """Returns {ticker: epsCurrentYear} (current-fiscal-year consensus
+        EPS estimate) from yfinance's get_info() alone -- still lighter than
+        get_forward_pe's full bundle since it skips get_eps_trend(),
+        income_stmt, and get_shares_full() (and the 3-retry loop), even
+        though epsCurrentYear itself comes from the same get_info() call
+        get_forward_pe already makes. For refreshing just this one figure
+        (e.g. right after adding/changing the factor itself, or backfilling
+        tickers a FRESH_HOURS-skipped `all`/`prices` run left without it)
+        without redoing the whole forward-PE/momentum pipeline. Same best-
+        effort-per-ticker contract as get_eps_volatility -- a ticker that
+        fails still comes back with None, not omitted from the returned
+        dict, since the caller is merging this into rows that already
+        exist."""
+
+        def fetch(symbol):
+            print(f"Fetching {symbol}...")
+            try:
+                info = yf.Ticker(symbol).get_info()
+                return symbol, info.get("epsCurrentYear")
+            except Exception as e:
+                logging.info(f"get_eps_current_year: {symbol} failed: {e}")
             return symbol, None
 
         results = {}
@@ -1749,13 +1784,16 @@ class IBApp:
 
     async def get_news_article_async(self, provider_code, article_id, timeout=15):
         """Fetches ONE article's full body via reqNewsArticle — the
-        lazy, on-demand counterpart to get_news_headlines_async's
-        headline-only bulk fetch. Never called across the whole
-        screener; ib_server.py's GET /api/news/article calls this
-        only when a user actually expands a specific headline in the
-        UI, since body text is both far larger than a headline and
-        subject to the same undocumented per-account news pacing limits
-        get_news_headlines_async already has to budget for.
+        counterpart to get_news_headlines_async's headline-only bulk
+        fetch. Two callers in ib_server.py: GET /api/news/article, when a
+        user actually expands a specific headline in the UI; and
+        _fetch_article_bodies, which calls this (its own sliding-window
+        pacing budget, separate from get_news_headlines_async's) for
+        every newly-seen article news_sentiment.fast_path_score can't
+        already short-circuit, so FinBERT scores headline + body together
+        (news_sentiment.score_articles) rather than the headline alone —
+        the fetched body is cached in news_bodies_by_id/news_bodies.json
+        for reuse, never persisted here.
 
         Returns plain text, or None if the article has no body / the
         request times out. articleType 0 is plain text already;

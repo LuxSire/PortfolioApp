@@ -5,7 +5,7 @@ import { earningsUrgencyClass, fmtEarningsDate, useNowTick } from '../earnings'
 import { IB_NEWS_ARTICLE_URL, IB_NEWS_URL } from '../ibStream'
 import type { AssetInfo, CandlePoint, Holder, MonteCarloResult, NewsArticle, PricePoint } from '../interfaces/IAssetView'
 import { SENTIMENT_LABEL, fmtNewsTime, sentimentClass } from '../news'
-import { toNum } from '../screenerFactors'
+import { ratingClass, toNum } from '../screenerFactors'
 import CandlestickChart from '../components/CandlestickChart'
 import PriceChart from '../components/PriceChart'
 import SimPriceRangeChart from '../components/SimPriceRangeChart'
@@ -317,6 +317,7 @@ export default function AssetView({ ticker }: { ticker: string }) {
   // urgency color (earningsUrgencyClass) stays accurate as real time
   // passes, not just when raw_data.json happens to be refetched.
   const now = useNowTick()
+  const [tab, setTab] = useState<'overview' | 'holders' | 'news' | 'properties'>('overview')
 
   useEffect(() => {
     let cancelled = false
@@ -356,16 +357,22 @@ export default function AssetView({ ticker }: { ticker: string }) {
   // different (absolute, cross-origin) URL.
   const news = useTickerSeries<NewsArticle[]>(IB_NEWS_URL, ticker)
 
-  // momentum/meanReversion (see scoring.py's momentum_rank/
-  // mean_reversion_rank) only live in sorted_screen.csv, not
-  // raw_data.json's yfinance payload -- a separate CSV fetch, same
-  // best-effort "missing just means missing" contract as the JSON
-  // series above via useTickerSeries, just not that hook since this
-  // file is CSV, not a {ticker: T} JSON map.
-  const [momentum, setMomentum] = useState<{ ticker: string | null; momentum: number | null; meanReversion: number | null }>({
+  // momentum/meanReversion/rating (see scoring.py's momentum_rank/
+  // mean_reversion_rank and score_rows' own rating bucketing) only live
+  // in sorted_screen.csv, not raw_data.json's yfinance payload -- a
+  // separate CSV fetch, same best-effort "missing just means missing"
+  // contract as the JSON series above via useTickerSeries, just not that
+  // hook since this file is CSV, not a {ticker: T} JSON map.
+  const [momentum, setMomentum] = useState<{
+    ticker: string | null
+    momentum: number | null
+    meanReversion: number | null
+    rating: string | null
+  }>({
     ticker: null,
     momentum: null,
     meanReversion: null,
+    rating: null,
   })
   useEffect(() => {
     let cancelled = false
@@ -374,16 +381,25 @@ export default function AssetView({ ticker }: { ticker: string }) {
       .then((text) => {
         if (cancelled) return
         const row = parseCSV(text).find((r) => r.ticker === ticker)
-        setMomentum({ ticker, momentum: toNum(row?.momentum), meanReversion: toNum(row?.meanReversion) })
+        setMomentum({
+          ticker,
+          momentum: toNum(row?.momentum),
+          meanReversion: toNum(row?.meanReversion),
+          rating: row?.rating || null,
+        })
       })
       .catch(() => {
-        if (!cancelled) setMomentum({ ticker, momentum: null, meanReversion: null })
+        if (!cancelled) setMomentum({ ticker, momentum: null, meanReversion: null, rating: null })
       })
     return () => {
       cancelled = true
     }
   }, [ticker])
-  const { momentum: ltMomentum, meanReversion: stMomentum } = momentum.ticker === ticker ? momentum : { momentum: null, meanReversion: null }
+  const {
+    momentum: ltMomentum,
+    meanReversion: stMomentum,
+    rating,
+  } = momentum.ticker === ticker ? momentum : { momentum: null, meanReversion: null, rating: null }
 
   // data/output/simulations.json's own per-ticker simulation result (see
   // modules/simulations.py) -- an ARRAY (one entry per attempted ticker,
@@ -443,18 +459,33 @@ export default function AssetView({ ticker }: { ticker: string }) {
               <span className="n num">{fmtPrice(lastPrice)}</span>
               <span className="l">Last Price</span>
             </div>
-            <div
-              className={`stat earnings-stat ${earningsUrgencyClass(info.earningsTimestampStart as number, now)}`}
-            >
-              <span className="n">
-                {fmtEarningsDate(info.earningsTimestampStart as number)}
-                {info.isEarningsDateEstimate ? ' (est.)' : ''}
-              </span>
-              <span className="l">Next Earnings</span>
+            <div className="stat">
+              <span className={`rec-badge ${ratingClass(rating)}`}>{rating || '—'}</span>
+              <span className="l">Rating</span>
             </div>
           </div>
         )}
       </header>
+
+      <div className="tab-bar">
+        {(
+          [
+            { key: 'overview', label: 'Overview' },
+            { key: 'holders', label: 'Holders' },
+            { key: 'news', label: 'News' },
+            { key: 'properties', label: 'Properties' },
+          ] as const
+        ).map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            className={`tab-btn${tab === t.key ? ' active' : ''}`}
+            onClick={() => setTab(t.key)}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
 
       {error && <div className="asset-card">Couldn't load raw_data.json: {error}</div>}
       {!error && info === null && <div className="asset-card">Loading…</div>}
@@ -464,7 +495,7 @@ export default function AssetView({ ticker }: { ticker: string }) {
         </div>
       )}
 
-      {loaded && (
+      {loaded && tab === 'overview' && (
         <>
           {(Boolean(info.longBusinessSummary) || (priceHistory && priceHistory.length > 1)) && (
             <div className="asset-two-col-row">
@@ -479,48 +510,22 @@ export default function AssetView({ ticker }: { ticker: string }) {
             </div>
           )}
 
-          {sim && sim.priceAtCurrentMultiple && (
+          {sim && sim.priceAtIndustryMultiple && (
             <SimPriceRangeChart
-              title="Simulated Price Distribution — Own Multiple"
-              currentPrice={sim.currentPrice ?? (lastPrice as number)}
-              forecastPrice={sim.priceAtCurrentMultiple.median}
-              forecastReturn={(sim.priceAtCurrentMultiple.median / (sim.currentPrice ?? (lastPrice as number))) - 1}
-              p5={sim.priceAtCurrentMultiple.p5}
-              p25={sim.priceAtCurrentMultiple.p25}
-              median={sim.priceAtCurrentMultiple.median}
-              p75={sim.priceAtCurrentMultiple.p75}
-              p95={sim.priceAtCurrentMultiple.p95}
-              probAboveCurrentPrice={sim.priceAtCurrentMultiple.probAboveCurrentPrice}
-              priceFloor={sim.priceFloor}
-              priceCap={sim.priceCap}
-            />
-          )}
-
-          {sim && sim.priceAtBlendedMultiple && sim.forecastPrice != null && sim.forecastReturn != null && (
-            <SimPriceRangeChart
-              title="Simulated Price Distribution — Blended Multiple"
+              title="Simulated Price Distribution — Industry Multiple"
               currentPrice={sim.currentPrice ?? (lastPrice as number)}
               forecastPrice={sim.forecastPrice}
               forecastReturn={sim.forecastReturn}
-              p5={sim.priceAtBlendedMultiple.p5}
-              p25={sim.priceAtBlendedMultiple.p25}
-              median={sim.priceAtBlendedMultiple.median}
-              p75={sim.priceAtBlendedMultiple.p75}
-              p95={sim.priceAtBlendedMultiple.p95}
-              probAboveCurrentPrice={sim.priceAtBlendedMultiple.probAboveCurrentPrice}
-              priceFloor={sim.priceFloor}
-              priceCap={sim.priceCap}
+              p5={sim.forecastPriceP5 ?? sim.priceAtIndustryMultiple.p5}
+              p25={sim.forecastPriceP25 ?? sim.priceAtIndustryMultiple.p25}
+              median={sim.priceAtIndustryMultiple.median}
+              p75={sim.forecastPriceP75 ?? sim.priceAtIndustryMultiple.p75}
+              p95={sim.forecastPriceP95 ?? sim.priceAtIndustryMultiple.p95}
+              probAboveCurrentPrice={sim.priceAtIndustryMultiple.probAboveCurrentPrice}
+              analystLow={sim.analystTargets?.low}
+              analystMean={sim.analystTargets?.mean}
+              analystHigh={sim.analystTargets?.high}
             />
-          )}
-
-          {((holders && holders.length > 0) || (news && news.length > 0)) && (
-            <div className="asset-two-col-row">
-              {holders && holders.length > 0 && (
-                <HoldersPanel holders={holders} sharesOutstanding={info.sharesOutstanding} />
-              )}
-
-              {news && news.length > 0 && <NewsPanel ticker={ticker} articles={news} />}
-            </div>
           )}
 
           {hourlyHistory && hourlyHistory.length > 1 && (
@@ -547,6 +552,14 @@ export default function AssetView({ ticker }: { ticker: string }) {
             <Stat label="Current Year EPS" value={fmtPrice(info.epsCurrentYear)} />
             <Stat label="Trailing EPS" value={fmtPrice(info.trailingEps)} />
             <Stat label="Revenue/Share" value={fmtPrice(info.revenuePerShare)} />
+            <Stat
+              label="Next Earnings"
+              value={
+                fmtEarningsDate(info.earningsTimestampStart as number) +
+                (info.isEarningsDateEstimate ? ' (est.)' : '')
+              }
+              valueClass={earningsUrgencyClass(info.earningsTimestampStart as number, now)}
+            />
           </Section>
 
           <Section title="PE">
@@ -667,7 +680,23 @@ export default function AssetView({ ticker }: { ticker: string }) {
         </>
       )}
 
-      {fields && (
+      {loaded && tab === 'holders' && (
+        holders && holders.length > 0 ? (
+          <HoldersPanel holders={holders} sharesOutstanding={info.sharesOutstanding} />
+        ) : (
+          <div className="asset-card">No institutional holder data for {ticker}.</div>
+        )
+      )}
+
+      {loaded && tab === 'news' && (
+        news && news.length > 0 ? (
+          <NewsPanel ticker={ticker} articles={news} />
+        ) : (
+          <div className="asset-card">No cached news for {ticker}.</div>
+        )
+      )}
+
+      {tab === 'properties' && fields && (
         <div className="table-wrap">
           <table>
             <thead>

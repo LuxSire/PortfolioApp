@@ -12,18 +12,17 @@ import type { RawSimResult, SimRow } from '../interfaces/ISimulationsView'
 const PAGE_SIZE = 100
 
 // Columns shown, in order -- deliberately as many of simulations.json's
-// own fields as make sense on one row (explicit instruction), spanning
-// both scenarios (own multiple / industry-median multiple) plus the
-// comparison and analyst-target cross-check. sortable defaults to true;
-// only Name is excluded (free text, not a meaningful sort key here, same
-// as ScreenerView's own Name column).
-// Order: identity, then Price/Forecast Price side by side (explicit
-// instruction), then the PE/EPS model inputs, then the headline diff/
-// confidence-discount summary (the actual "is this attractive" numbers),
-// then the full distributional detail for each scenario last, for anyone
-// who wants to dig past the headline. No analyst-target columns (explicit
-// instruction) -- analystTargets stays in simulations.json itself as a
-// backend cross-check, just not surfaced on this page.
+// own fields as make sense on one row, covering the single priced scenario
+// (at industryMedianPe -- see modules/simulations.py's own docstring; the
+// earlier own-multiple/blended-multiple comparison has been retired).
+// sortable defaults to true; only Name is excluded (free text, not a
+// meaningful sort key here, same as ScreenerView's own Name column).
+// Order: identity, then Price/Forecast Price side by side, then the PE/EPS
+// model inputs, then the headline forecast-return/probability numbers (the
+// actual "is this attractive" numbers), then the full distributional
+// detail last, for anyone who wants to dig past the headline. No
+// analyst-target columns -- analystTargets stays in simulations.json
+// itself as a backend cross-check, just not surfaced on this page.
 const COLUMNS: { key: keyof SimRow | 'position'; label: string; className?: string; sortable?: boolean }[] = [
   { key: 't', label: 'Ticker', className: 'col-left col-ticker' },
   { key: 'n', label: 'Name', className: 'col-left col-name', sortable: false },
@@ -32,18 +31,14 @@ const COLUMNS: { key: keyof SimRow | 'position'; label: string; className?: stri
   { key: 'price', label: 'Price' },
   { key: 'forecastPrice', label: 'Forecast Price' },
   { key: 'forecastReturn', label: 'Forecast Return' },
-  { key: 'curProbAbove', label: 'P(above)' },
+  { key: 'industryProbAbove', label: 'P(above)' },
   { key: 'ownPe', label: 'Own PE' },
   { key: 'industryPe', label: 'Industry Median PE' },
 
-  { key: 'curMedian', label: 'Median @ Own PE' },
-  { key: 'curReturn', label: 'Return @ Own PE' },
-  { key: 'curProbAbove', label: 'P(Above) @ Own PE' },
-  { key: 'indMedian', label: 'Median @ Blended PE' },
-  { key: 'indReturn', label: 'Return @ Blended PE' },
-  { key: 'indP5', label: 'P5 @ Blended PE' },
-  { key: 'indP95', label: 'P95 @ Blended PE' },
-  { key: 'indProbAbove', label: 'P(Above) @ Blended PE' },
+  { key: 'industryMedian', label: 'Median @ Industry PE' },
+  { key: 'industryReturn', label: 'Return @ Industry PE' },
+  { key: 'industryP5', label: 'P5 @ Industry PE' },
+  { key: 'industryP95', label: 'P95 @ Industry PE' },
 ]
 
 function fmtShares(v: number | null): string {
@@ -72,10 +67,10 @@ function probClass(v: number | null): string {
   return ''
 }
 
-// Positive median-diff-% (industry multiple implies more upside than
-// today's own multiple) is the page's core "attractive for a long"
-// signal -- green/red on sign alone, same as ScreenerView's own
-// epsTrend/sentiment/etc. perf-pos/perf-neg cells.
+// Positive forecastReturn (the confidence-weighted fair-value-vs-current
+// signal) is the page's core "attractive for a long" signal -- green/red
+// on sign alone, same as ScreenerView's own epsTrend/sentiment/etc.
+// perf-pos/perf-neg cells.
 function signClass(v: number | null): string {
   if (v === null || v === undefined) return ''
   return v >= 0 ? 'perf-pos' : 'perf-neg'
@@ -127,15 +122,16 @@ export default function SimulationsView() {
   }, [])
 
   // Error entries (missing forwardEps/price/forwardPE for that ticker --
-  // see simulate_ticker) carry nothing to show, so they're dropped here
-  // rather than rendered as an empty/dashed row.
+  // see simulate_ticker), and tickers with no industry/sector peer group
+  // to price against (priceAtIndustryMultiple null -- too few peers even
+  // at the broad-sector fallback), carry nothing to show, so they're
+  // dropped here rather than rendered as an empty/dashed row.
   const rows: SimRow[] | null = useMemo(() => {
     if (!raw) return null
     const out: SimRow[] = []
     for (const r of raw) {
-      if (r.error || !r.inputs || !r.priceAtCurrentMultiple) continue
-      const cur = r.priceAtCurrentMultiple
-      const ind = r.priceAtBlendedMultiple ?? null
+      if (r.error || !r.inputs || !r.priceAtIndustryMultiple) continue
+      const ind = r.priceAtIndustryMultiple
       out.push({
         t: r.ticker,
         n: r.name || r.ticker,
@@ -150,22 +146,14 @@ export default function SimulationsView() {
         industryPe: r.inputs.industryMedianPe,
         peerCount: r.inputs.peerCount,
         peLevel: r.inputs.peLevel,
-        peRatio: r.comparison?.peMultipleRatio ?? null,
         epsTrend: r.inputs.epsTrend,
         revenueGrowth: r.inputs.revenueGrowth,
         confidence: r.inputs.confidence,
-        curMedian: cur.median,
-        curReturn: r.currentPrice ? cur.median / (r.currentPrice as number) - 1 : 0,
-        curProbAbove: cur.probAboveCurrentPrice,
-        indMedian: ind?.median ?? null,
-        indReturn: (ind && r.currentPrice) ? ind.median / (r.currentPrice as number) - 1 : null,
-        indP5: ind?.p5 ?? null,
-        indP95: ind?.p95 ?? null,
-        indProbAbove: ind?.probAboveCurrentPrice ?? null,
-        medianDiff: r.comparison?.medianDiff ?? null,
-        medianDiffPct: r.comparison?.medianDiffPct ?? null,
-        discountedMedianDiff: r.comparison?.discountedMedianDiff ?? null,
-        discountedMedianDiffPct: r.comparison?.discountedMedianDiffPct ?? null,
+        industryMedian: ind.median,
+        industryReturn: r.currentPrice ? ind.median / (r.currentPrice as number) - 1 : 0,
+        industryP5: ind.p5,
+        industryP95: ind.p95,
+        industryProbAbove: ind.probAboveCurrentPrice,
       })
     }
     return out
@@ -173,12 +161,9 @@ export default function SimulationsView() {
 
   // Fixed rank (best = 1) on the page's own "attractive for a long"
   // signal, independent of sort/filter -- same "doesn't move around"
-  // convention ScreenerView's own subranks use. Tickers with no industry
-  // comparison (forecastReturn null) never get a rank here. Explicit
-  // instruction: ranked on forecastReturn (forecastPrice vs. current
-  // price), not discountedMedianDiffPct -- that percentage is
-  // mathematically invariant to mu_eps (see modules/simulations.py's own
-  // docstring), so it never actually reflected the EPS projection.
+  // convention ScreenerView's own subranks use. Ranked on forecastReturn
+  // (forecastPrice vs. current price -- see modules/simulations.py's own
+  // docstring), the model's single confidence-weighted ranking signal.
   const diffPctRank = useMemo(
     () => (rows ? rankDescending(rows, 'forecastReturn') : new Map<string, number>()),
     [rows]
@@ -230,7 +215,11 @@ export default function SimulationsView() {
   const currentPage = Math.min(page, pageCount - 1)
   const paged = useMemo(() => sorted.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE), [sorted, currentPage])
 
-  const withIndustryCount = useMemo(() => (rows ? rows.filter((r) => r.indMedian !== null).length : 0), [rows])
+  // Every row here already has a priceAtIndustryMultiple (see the rows
+  // useMemo's own filter), so this counts the subset that fell back to
+  // the broad-sector peer group rather than a granular-industry one --
+  // see modules/simulations.py's MIN_INDUSTRY_PEERS.
+  const sectorFallbackCount = useMemo(() => (rows ? rows.filter((r) => r.peLevel === 'sector').length : 0), [rows])
 
   function handleSort(key: string) {
     if (sortKey === key) {
@@ -266,8 +255,8 @@ export default function SimulationsView() {
             <span className="l">simulated</span>
           </div>
           <div className="stat">
-            <span className="n num">{withIndustryCount}</span>
-            <span className="l">with industry comparison</span>
+            <span className="n num">{sectorFallbackCount}</span>
+            <span className="l">sector-fallback peer group</span>
           </div>
         </div>
       </header>
@@ -400,13 +389,7 @@ export default function SimulationsView() {
                     <td className={`num ${signClass(r.forecastReturn)}`}>
                       {fmtPct(r.forecastReturn)} <Subrank rank={diffPctRank.get(r.t)} />
                     </td>
-                    {(() => {
-                      const pa =
-                        r.curProbAbove !== null && r.indProbAbove !== null
-                          ? (r.curProbAbove + r.indProbAbove) / 2
-                          : r.curProbAbove
-                      return <td className={`num ${probClass(pa)}`}>{fmtProb(pa)}</td>
-                    })()}
+                    <td className={`num ${probClass(r.industryProbAbove)}`}>{fmtProb(r.industryProbAbove)}</td>
                     <td className="num">{fmtNum(r.ownPe)}</td>
                     <td
                       className="num"
@@ -418,14 +401,10 @@ export default function SimulationsView() {
                     >
                       {fmtNum(r.industryPe)}
                     </td>
-                    <td className="num">{fmtPrice(r.curMedian)}</td>
-                    <td className={`num ${signClass(r.curReturn)}`}>{fmtPct(r.curReturn)}</td>
-                    <td className={`num ${probClass(r.curProbAbove)}`}>{fmtProb(r.curProbAbove)}</td>
-                    <td className="num">{fmtPrice(r.indMedian)}</td>
-                    <td className={`num ${signClass(r.indReturn)}`}>{fmtPct(r.indReturn)}</td>
-                    <td className="num">{fmtPrice(r.indP5)}</td>
-                    <td className="num">{fmtPrice(r.indP95)}</td>
-                    <td className={`num ${probClass(r.indProbAbove)}`}>{fmtProb(r.indProbAbove)}</td>
+                    <td className="num">{fmtPrice(r.industryMedian)}</td>
+                    <td className={`num ${signClass(r.industryReturn)}`}>{fmtPct(r.industryReturn)}</td>
+                    <td className="num">{fmtPrice(r.industryP5)}</td>
+                    <td className="num">{fmtPrice(r.industryP95)}</td>
                   </tr>
                 )
               })}

@@ -4,7 +4,8 @@ import { earningsUrgencyClass } from '../earnings'
 import { getSectorGroup, sectorGroupLabel } from '../sectorGroups'
 import { getSectorIcon } from '../sectorIcons'
 import { IB_STREAM_URL } from '../ibStream'
-import { avgInsiderScore, avgNewsSentiment, rankTo100, ratingClass, toNum } from '../screenerFactors'
+import { avgInsiderScore, avgNewsSentiment, fmtNum, fmtPct as fmtPctFactor, rankTo100, ratingClass, toNum } from '../screenerFactors'
+import { rangeClass } from '../colorRules'
 import { FACTOR_COLUMNS, computeFactorAverages } from '../components/factorTable'
 import FactorCells from '../components/FactorCells'
 import type {
@@ -24,6 +25,12 @@ import type {
   TradesByTicker,
   WeightedSideFactor,
 } from '../interfaces/IPositionsView'
+
+// Same 3.5%/yr risk-free rate modules/portfolio_optimizer.py's own RF
+// constant uses, for the Expected Portfolio Performance container's
+// Sharpe ratio below -- same rate, same formula, applied to the actual
+// held book instead of the optimizer-selected target portfolio.
+const RF = 0.035
 
 // Same curated tags + order as IBApp.ACCOUNT_STATUS_TAGS; PnL fields get
 // the good/bad sign coloring the rest of the app uses.
@@ -441,6 +448,12 @@ export default function PositionsView() {
   // average is only meaningful over the whole universe, not the handful of
   // names actually held in it.
   const [sectorAvgPE, setSectorAvgPE] = useState<Map<string, number>>(new Map())
+  // data/output/simulations.json's own forecastReturn (see
+  // modules/simulations.py) per ticker -- feeds the "Expected Portfolio
+  // Performance" container's Expected Return/Sharpe below, same "own
+  // file, own state" fetch pattern as RecommendationsView.tsx's own
+  // tickerForecast.
+  const [tickerForecast, setTickerForecast] = useState<Record<string, number | null>>({})
 
   useEffect(() => {
     Promise.all([
@@ -559,6 +572,23 @@ export default function PositionsView() {
     fetch('/price_history.json')
       .then((r) => (r.ok ? r.json() : {}))
       .then(setMonthlyHistory)
+      .catch(() => {})
+    // data/output/simulations.json -- an array (not the {ticker: ...}
+    // shape the two fetches above use), one entry per attempted ticker,
+    // either a full simulate_ticker() result or just {ticker, error}
+    // when required input data was missing (see modules/simulations.py)
+    // -- those are skipped here, same "no data, no line" convention
+    // every other optional factor across this app follows.
+    fetch('/simulations.json')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((rows: { ticker: string; error?: string; forecastReturn?: number | null }[]) => {
+        const forecast: Record<string, number | null> = {}
+        for (const row of rows) {
+          if (row.error) continue
+          forecast[row.ticker] = row.forecastReturn ?? null
+        }
+        setTickerForecast(forecast)
+      })
       .catch(() => {})
   }, [])
 
@@ -884,8 +914,64 @@ export default function PositionsView() {
   // portfolioVolatilityDecomposition's own comment on why that answers a
   // different question).
   const volOfNetLiqPct = netLiq && portfolioVol.volDollar !== null ? portfolioVol.volDollar / netLiq : null
+  // Annualised (× √252, standard sqrt-time scaling -- same ANNUALIZE
+  // convention modules/portfolio_optimizer.py uses) for comparability
+  // with an annual expected return/risk-free rate below -- volOfNetLiqPct
+  // itself is a DAILY figure (stdev of day-to-day $ change / NetLiquidation,
+  // see portfolioVolatilityDecomposition's own comment), not annualised.
+  const annualizedVolPct = volOfNetLiqPct !== null ? volOfNetLiqPct * Math.sqrt(252) : null
+
+  // Expected Portfolio Performance -- the SAME expected-return/Sharpe
+  // framing modules/portfolio_optimizer.py computes for the (static,
+  // optimizer-selected) target portfolio, applied instead to today's
+  // actual held positions and their real dollar weights. forecastReturn
+  // (see modules/simulations.py) is a stock-price-return expectation, so
+  // a short position's contribution is sign-flipped -- same convention
+  // as perfClass above (a short profits when the stock falls).
+  //
+  // Weighted against netLiq (the WHOLE account), not against the covered
+  // positions' own gross value -- same "how big is this next to my
+  // actual account" basis netValuePct/grossValuePct/volOfNetLiqPct above
+  // already use. Normalizing against covered-positions-only would
+  // silently assume 100% of the account is deployed into simulated
+  // positions, overstating the account's real expected return whenever
+  // gross exposure is well under net liquidation (idle cash, or coverage
+  // gaps) -- and would leave this return on a DIFFERENT basis than
+  // annualizedVolPct above (already netLiq-relative), corrupting the
+  // Sharpe ratio below by mixing two denominators in one ratio. Tickers
+  // with no simulation coverage are excluded from the numerator (see
+  // coveredValue's own tooltip use) rather than silently dragging the
+  // average toward 0 -- "no data, no line" convention every other
+  // optional factor across this app already follows; uncovered/uninvested
+  // dollars implicitly contribute 0 to the sum, same as idle cash itself
+  // would.
+  const { expectedReturn, coveredValue } = useMemo(() => {
+    let weightedReturn = 0
+    let covered = 0
+    for (const r of rows) {
+      if (!r.shares || !r.value) continue
+      const fr = tickerForecast[r.ticker]
+      if (fr === null || fr === undefined) continue
+      const signedReturn = r.shares >= 0 ? fr : -fr
+      const weight = Math.abs(r.value)
+      weightedReturn += signedReturn * weight
+      covered += weight
+    }
+    return { expectedReturn: netLiq ? weightedReturn / netLiq : null, coveredValue: covered }
+  }, [rows, tickerForecast, netLiq])
+
+  const sharpe =
+    expectedReturn !== null && annualizedVolPct ? (expectedReturn - RF) / annualizedVolPct : null
 
   const portfolioBeta = useMemo(() => portfolioBetaExposure(rows), [rows])
+
+  // Same tab-bar convention as AssetView.tsx: page-level headers (Account,
+  // masthead, Expected Portfolio Performance) always visible above the tab
+  // bar, tab switches only the body content below -- Positions is the
+  // Portfolio Factors + open-positions table, Trades is today's Closed/
+  // Opened activity (previously both always shown stacked above the
+  // positions table; explicit instruction to split them out).
+  const [tab, setTab] = useState<'positions' | 'trades'>('positions')
 
   return (
     <div className="positions-page positions-view">
@@ -982,7 +1068,59 @@ export default function PositionsView() {
         </div>
       </header>
 
-      {(closedTodayRows.length > 0 || openedTodayRows.length > 0) && (
+      {rows.length > 0 && (
+        <header className="masthead">
+          <div className="title-block">
+            <h2>Expected Portfolio Performance</h2>
+          </div>
+          <div className="stat-row">
+            <div
+              className="stat"
+              title={
+                coveredValue > 0
+                  ? `Σ(forecastReturn × |value|) / NetLiquidation — simulate_ticker's own forecastReturn (see modules/simulations.py), sign-flipped for shorts, weighted against the WHOLE account rather than just invested capital (idle cash and uncovered positions implicitly contribute 0) — priced from ${fmtMoney(coveredValue)} of ${fmtMoney(grossValue)} gross exposure with simulation coverage`
+                  : 'None of the currently held positions have simulation coverage'
+              }
+            >
+              <span className={`n num${expectedReturn === null ? '' : expectedReturn >= 0 ? ' good' : ' bad'}`}>
+                {fmtPct(expectedReturn)}
+              </span>
+              <span className="l">Expected Return</span>
+            </div>
+            <div className="stat" title="Portfolio Vol., annualised (× √252) for comparability with an annual expected return">
+              <span className="n num">{fmtVol(annualizedVolPct)}</span>
+              <span className="l">Volatility</span>
+            </div>
+            <div
+              className="stat"
+              title={`(Expected Return − ${(RF * 100).toFixed(1)}% risk-free) / Volatility — same formula and risk-free rate modules/portfolio_optimizer.py uses for the Target Portfolio's own Sharpe`}
+            >
+              <span className={`n num${sharpe === null ? '' : sharpe >= 0 ? ' good' : ' bad'}`}>{fmtRatio(sharpe)}</span>
+              <span className="l">Sharpe</span>
+            </div>
+          </div>
+        </header>
+      )}
+
+      <div className="tab-bar">
+        {(
+          [
+            { key: 'positions', label: 'Positions' },
+            { key: 'trades', label: 'Trades' },
+          ] as const
+        ).map((t) => (
+          <button
+            key={t.key}
+            type="button"
+            className={`tab-btn${tab === t.key ? ' active' : ''}`}
+            onClick={() => setTab(t.key)}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'trades' && (closedTodayRows.length > 0 || openedTodayRows.length > 0) && (
         <div className="asset-two-col-row">
           {closedTodayRows.length > 0 && (
             <div className="asset-card">
@@ -1066,7 +1204,11 @@ export default function PositionsView() {
         </div>
       )}
 
-      {weightedSideFactors.length > 0 && (
+      {tab === 'trades' && closedTodayRows.length === 0 && openedTodayRows.length === 0 && (
+        <div className="asset-card">No trades today.</div>
+      )}
+
+      {tab === 'positions' && weightedSideFactors.length > 0 && (
         <div className="asset-card asset-card-table-overflow-visible">
           <h2>Portfolio Factors (Value-Weighted)</h2>
           <div className="table-wrap">
@@ -1100,6 +1242,7 @@ export default function PositionsView() {
         </div>
       )}
 
+      {tab === 'positions' && (
       <div className="table-wrap positions-table-wrap">
         <table>
           <thead>
@@ -1129,12 +1272,16 @@ export default function PositionsView() {
               <th title="This position's own beta (yfinance) — how much it tends to move per 1 unit of market move, independent of position size. See Portfolio Beta above for the whole book's value-weighted figure.">
                 Beta
               </th>
+              <th>Fwd PE</th>
+              <th title="Average of the next 0y/+1y analyst EPS revision ratios (see screenerFactors.js) — positive means analysts have been raising estimates.">
+                EPS Trend
+              </th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 && (
               <tr className="status-row">
-                <td colSpan={17}>
+                <td colSpan={19}>
                   No open positions — or ib_server.py isn't running / hasn't reported positions yet.
                 </td>
               </tr>
@@ -1215,6 +1362,10 @@ export default function PositionsView() {
                       <td className={`num ${pnlClass}`}>{fmtPct(r.pnlPct)}</td>
                       <td className="num">{fmtDollars(portfolioVol.cvolByTicker.get(r.ticker) ?? null)}</td>
                       <td className="num">{fmtRatio(r.beta ?? null)}</td>
+                      <td className={`num ${rangeClass(r.fpe ?? null, 10, 50)}`}>{fmtNum(r.fpe ?? null)}</td>
+                      <td className={`num ${r.epsTrend === null || r.epsTrend === undefined ? '' : r.epsTrend >= 0 ? 'good' : 'bad'}`}>
+                        {fmtPctFactor(r.epsTrend ?? null)}
+                      </td>
                     </tr>
                   )
                 })
@@ -1223,6 +1374,7 @@ export default function PositionsView() {
           </tbody>
         </table>
       </div>
+      )}
     </div>
   )
 }

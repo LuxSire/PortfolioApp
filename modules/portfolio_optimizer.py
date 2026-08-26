@@ -11,8 +11,9 @@ loads and displays.
 INPUTS (both must be fresh before running this module)
 ------------------------------------------------------
   data/output/recommendations.json   ratings, screener scores, analyst data
-  data/output/simulations.json       1-year EPS-DCF forecast returns, beta,
-                                     sector, simulation probabilities
+  data/output/simulations.json       confidence-weighted EPS-DCF forecast
+                                     returns, beta, sector, simulation
+                                     probabilities
 
 ALGORITHM
 ---------
@@ -20,14 +21,19 @@ ALGORITHM
    Longs  : Strong Buy / Buy  AND forecastReturn > 0
    Shorts : Strong Sell / Sell AND forecastReturn < 0
 
-2. COMPOSITE CANDIDATE SCORE  (3 equally-weighted rank-percentile signals)
+2. COMPOSITE CANDIDATE SCORE  (4 equally-weighted rank-percentile signals)
    For each candidate compute a quality score independent of correlation:
      a. Individual Sharpe  = (positionReturn − rf) / vol
      b. Screener rank      = − scorePercentile  (lower pct = better screener rank)
      c. Rating strength    = Strong Buy/Sell → 1.0, Buy/Sell → 0.5  (already
                              filtered to rated candidates; this promotes conviction)
+     d. Short interest     = shortInterest for a long, −shortInterest for a short
+                             -- high short interest favors a long (squeeze/contrarian
+                             upside against an already-crowded short) and penalizes a
+                             short (piling onto a crowded trade is squeeze risk, not
+                             thesis confirmation)
    Each signal is rank-percentile-normalised within the pool (0=worst, 1=best),
-   then the three percentiles are averaged.
+   then the four percentiles are averaged.
 
    Pre-screen: keep top CANDIDATE_POOL (default 80) per side by composite
    score before entering the optimiser.
@@ -47,7 +53,11 @@ ALGORITHM
    Forward-selection: at each step add the candidate whose inclusion most
    increases the equal-weight portfolio Sharpe (expected return / portfolio
    vol). Runs in O(POOL × N²) — ≈ 32 000 evaluations for pool=80, N=20;
-   completes in < 1 s on any modern machine.
+   completes in < 1 s on any modern machine. The 2nd/3rd-best candidate
+   evaluated at that same step (i.e. what would have been added instead,
+   had the winner not been available — typically a correlated name from
+   the same sector, crowded out by SECTOR_CORR) is kept as that position's
+   "alternates" for the frontend.
 
 5. PORTFOLIO STATS
    Equal-weight (1/N) within each leg. Combined portfolio stats use the
@@ -253,10 +263,14 @@ def _load_screener_signals():
 def _composite_score(candidates, side):
     """Compute composite quality score for each candidate (list of dicts).
 
-    Three equally-weighted rank-percentile signals:
-      a. Individual Sharpe  — risk-adjusted 1-year forecast return
+    Four equally-weighted rank-percentile signals:
+      a. Individual Sharpe  — risk-adjusted forecast return
       b. Screener rank      — scorePercentile (lower = better for longs)
       c. Rating strength    — Strong Buy/Sell = 1.0, Buy/Sell = 0.5
+      d. Short interest     — favors high short interest for a long
+         (squeeze/contrarian upside against an already-crowded short)
+         and penalizes it for a short (piling onto a crowded trade is
+         squeeze risk, not confirmation of the thesis)
     """
     # Signal a: individual Sharpe
     sharpe_pct = _rank_percentile([c["indivSharpe"] for c in candidates])
@@ -273,9 +287,21 @@ def _composite_score(candidates, side):
     rating_raw = [1.0 if c.get("rating") in strong else 0.5 for c in candidates]
     rating_pct = _rank_percentile(rating_raw)
 
+    # Signal d: short interest — high short interest ranks BEST for a long
+    # (raw = shortInterest itself) and WORST for a short (raw =
+    # -shortInterest, so low short interest ranks best instead). Missing
+    # data ranks worst on either side via _rank_percentile's own None
+    # handling, same "no data, ranks worst" convention scorePercentile's
+    # own missing-value default above already follows.
+    if side == "Long":
+        short_int_raw = [c.get("shortInterest") for c in candidates]
+    else:
+        short_int_raw = [-c["shortInterest"] if c.get("shortInterest") is not None else None for c in candidates]
+    short_int_pct = _rank_percentile(short_int_raw)
+
     scores = []
     for i in range(len(candidates)):
-        scores.append((sharpe_pct[i] + screen_pct[i] + rating_pct[i]) / 3)
+        scores.append((sharpe_pct[i] + screen_pct[i] + rating_pct[i] + short_int_pct[i]) / 4)
     return scores
 
 
@@ -398,16 +424,26 @@ def _greedy_max_sharpe(cov, position_returns, n_select):
 
     At each step, adds the candidate that most improves the portfolio Sharpe:
       Sharpe = (mean(returns[selected]) − rf) / sqrt(w^T cov[sel,sel] w)
-    Returns selected indices and the final Sharpe.
+    Returns (selected indices, final Sharpe, runners_up) where runners_up[i]
+    is the list of up to 2 candidate indices that were evaluated at the same
+    step selected[i] was chosen but scored lower — i.e. what the optimizer
+    would have picked into that slot next, had selected[i] not been
+    available. This is the trial-Sharpe ranking already computed at that
+    step, just not discarded after finding the max — every remaining
+    candidate is evaluated against the SAME already-selected set each step,
+    so "runner-up at step i" is a well-defined, order-consistent notion of
+    2nd/3rd choice for that specific slot (not just "next-best composite
+    score," which ignores how a candidate would actually interact with the
+    portfolio already built).
     """
     n_total = len(position_returns)
     rets = np.array(position_returns)
     selected = []
     remaining = list(range(n_total))
+    runners_up = []
 
     for _ in range(n_select):
-        best_sharpe = -math.inf
-        best_k = None
+        step_scores = []
         for k in remaining:
             trial = selected + [k]
             m = len(trial)
@@ -417,15 +453,16 @@ def _greedy_max_sharpe(cov, position_returns, n_select):
             port_var = float(w @ sub_cov @ w)
             port_ret = float(w @ sub_rets)
             sharpe = (port_ret - RF) / math.sqrt(port_var) if port_var > 1e-12 else -math.inf
-            if sharpe > best_sharpe:
-                best_sharpe = sharpe
-                best_k = k
-        if best_k is None:
+            step_scores.append((sharpe, k))
+        if not step_scores:
             break
+        step_scores.sort(key=lambda x: x[0], reverse=True)
+        best_sharpe, best_k = step_scores[0]
         selected.append(best_k)
         remaining.remove(best_k)
+        runners_up.append([k for _, k in step_scores[1:3]])
 
-    return selected, best_sharpe
+    return selected, best_sharpe, runners_up
 
 
 # ── main entry point ──────────────────────────────────────────────────────────
@@ -462,12 +499,14 @@ def build_target_portfolio(rec_file, sim_file):
         vol = beta * MARKET_VOL
         position_return = fr if side == "Long" else -fr
         indiv_sharpe = (position_return - RF) / vol
-        prob_current = (sim.get("priceAtCurrentMultiple") or {}).get("probAboveCurrentPrice")
-        prob_blended = (sim.get("priceAtBlendedMultiple") or {}).get("probAboveCurrentPrice")
-        if prob_current is not None and prob_blended is not None:
-            prob_above = (prob_current + prob_blended) / 2
-        else:
-            prob_above = prob_current or prob_blended
+        prob_above = (sim.get("priceAtIndustryMultiple") or {}).get("probAboveCurrentPrice")
+        # FINRA's fresher biweekly-settlement figure preferred over
+        # yfinance's staler month-end one -- same preference order as
+        # RecommendationsView.tsx's own crowded-short gate (see
+        # recommendations.py's own shortPctOfFloatFinra comment).
+        short_interest = rec.get("shortPctOfFloatFinra")
+        if short_interest is None:
+            short_interest = rec.get("shortPercentOfFloat")
         return {
             "ticker": ticker,
             "name": sim.get("name") or rec.get("name"),
@@ -485,6 +524,7 @@ def build_target_portfolio(rec_file, sim_file):
             "analysts": rec.get("numberOfAnalystOpinions"),
             "targetUpside": rec.get("targetUpside"),
             "probAbove": prob_above,
+            "shortInterest": short_interest,
             **screener_signals.get(ticker, {}),
         }
 
@@ -507,10 +547,12 @@ def build_target_portfolio(rec_file, sim_file):
         return raw
 
     results = {}
+    candidate_pools = {}
     for side in ("Long", "Short"):
         pool = _build_pool(side)
         if not pool:
             results[side] = []
+            candidate_pools[side] = []
             continue
 
         # Composite pre-screening: keep top CANDIDATE_POOL
@@ -518,14 +560,46 @@ def build_target_portfolio(rec_file, sim_file):
         for c, s in zip(pool, scores):
             c["compositeScore"] = round(s, 4)
         pool.sort(key=lambda c: c["compositeScore"], reverse=True)
+        pool_size = len(pool)
+        for rank, c in enumerate(pool, start=1):
+            c["poolRank"] = rank
+            c["poolSize"] = pool_size
+        candidate_pools[side] = [
+            {
+                "ticker": c["ticker"],
+                "poolRank": c["poolRank"],
+                "poolSize": c["poolSize"],
+                "compositeScore": c["compositeScore"],
+            }
+            for c in pool
+        ]
         pool = pool[:CANDIDATE_POOL]
 
         # Build covariance and run greedy optimiser
         cov = _build_cov(pool, hist_returns)
         position_returns = [c["positionReturn"] for c in pool]
-        selected_idx, _ = _greedy_max_sharpe(cov, position_returns, POSITIONS)
+        selected_idx, _, runners_up_idx = _greedy_max_sharpe(cov, position_returns, POSITIONS)
 
-        results[side] = [pool[i] for i in selected_idx]
+        selected = [pool[i] for i in selected_idx]
+        # 2nd/3rd choice for each slot -- see _greedy_max_sharpe's own
+        # docstring for why this is the runner-up at THAT step, not just
+        # "next-best composite score somewhere in the pool" (explicit
+        # instruction: what got discarded specifically because this pick
+        # was already in the portfolio).
+        for c, ru_idx in zip(selected, runners_up_idx):
+            c["alternates"] = [
+                {
+                    "ticker": pool[i]["ticker"],
+                    "name": pool[i]["name"],
+                    "rating": pool[i]["rating"],
+                    "forecastReturn": pool[i]["forecastReturn"],
+                    "compositeScore": pool[i]["compositeScore"],
+                    "poolRank": pool[i]["poolRank"],
+                }
+                for i in ru_idx
+            ]
+
+        results[side] = selected
 
     longs = results.get("Long", [])
     shorts = results.get("Short", [])
@@ -557,6 +631,8 @@ def build_target_portfolio(rec_file, sim_file):
     return {
         "longs": longs,
         "shorts": shorts,
+        "longPool": candidate_pools.get("Long", []),
+        "shortPool": candidate_pools.get("Short", []),
         "stats": stats,
         "generatedAt": datetime.datetime.utcnow().isoformat(timespec="seconds") + "Z",
     }

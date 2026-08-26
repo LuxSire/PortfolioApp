@@ -3,12 +3,35 @@ import { getSectorIcon } from '../sectorIcons'
 import { momentumClass, meanReversionClass } from '../colorRules'
 import { fmtIndex100, fmtNum } from '../screenerFactors'
 import { IB_STREAM_URL } from '../ibStream'
+import type { HistoryByTicker, LivePricesByTicker } from '../interfaces/IScreenerView'
 
 // ─── constants ────────────────────────────────────────────────────────────────
 const MARKET_VOL = 0.20          // same value used in portfolio_optimizer.py
 const RISK_FREE_ANNUAL = 0.035   // same 3.5 %/yr used in portfolio_optimizer.py
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
+// The last close strictly before today, comparing BOTH bar series -- same
+// helper, same two files, same fallback order as ScreenerView.tsx's own
+// copy (see there for the fuller history of why this matters and isn't
+// just a plain ?? fallback chain).
+function previousClose(
+  dailyHistory3mo: { date: string; close: number }[] | undefined,
+  monthlyHistory: { date: string; close: number }[] | undefined
+): number | null {
+  const lastBarBeforeToday = (series: { date: string; close: number }[] | undefined) => {
+    if (!series || series.length === 0) return null
+    const today = new Date().toISOString().slice(0, 10)
+    for (let i = series.length - 1; i >= 0; i--) {
+      const date = series[i].date.slice(0, 10)
+      if (date < today) return { date, close: series[i].close }
+    }
+    return null
+  }
+  const fromDaily = lastBarBeforeToday(dailyHistory3mo)
+  if (fromDaily) return fromDaily.close
+  return lastBarBeforeToday(monthlyHistory)?.close ?? null
+}
+
 function fmtPct(v: number | null | undefined): string {
   if (v == null) return '—'
   return (v >= 0 ? '+' : '') + (v * 100).toFixed(1) + '%'
@@ -29,6 +52,50 @@ function signClass(v: number | null | undefined): string {
   if (v == null) return ''
   return v > 0 ? 'good' : v < 0 ? 'bad' : ''
 }
+// High short interest is favorable for a long (squeeze/contrarian upside
+// against an already-crowded short) and unfavorable for a short (piling
+// onto a crowded trade is squeeze risk) -- same direction
+// portfolio_optimizer.py's own composite-score signal uses, just as a
+// simple display threshold rather than a rank-percentile.
+function shortInterestClass(si: number | null | undefined, side: 'Long' | 'Short'): string {
+  if (si == null) return ''
+  if (side === 'Long') return si >= 0.1 ? 'good' : ''
+  return si >= 0.1 ? 'bad' : si <= 0.03 ? 'good' : ''
+}
+
+// A candidate that was evaluated at the same greedy-selection step as this
+// row's own ticker but scored lower -- see portfolio_optimizer.py's own
+// _greedy_max_sharpe docstring: this is what the optimizer would have
+// picked into THIS slot instead, had the row's own ticker not been
+// available, not just "the next-best composite score somewhere in the
+// pool" (which ignores how a candidate would actually interact with the
+// portfolio already built at that point).
+interface Alternate {
+  ticker: string
+  name: string | null
+  rating: string | null
+  forecastReturn: number | null
+  compositeScore: number
+  poolRank: number
+}
+
+// One "Nth Choice" cell -- ticker (linked) + name, with forecastReturn as a
+// signed subvalue so a runner-up's own directional thesis is visible at a
+// glance without opening its own asset page. '—' when this slot ran out of
+// candidates (a thin pool, e.g. a niche sector with few Strong Buy/Sell names).
+function AlternateCell({ alt }: { alt: Alternate | undefined }) {
+  if (!alt) return <td className="col-left col-name">—</td>
+  return (
+    <td className="col-left col-name" title={alt.name ?? undefined}>
+      <a href={`#/asset/${encodeURIComponent(alt.ticker)}`} target="_blank" rel="noopener noreferrer" className="ticker-link">
+        {alt.ticker}
+      </a>
+      {alt.forecastReturn != null && (
+        <span className={`live-price ${signClass(alt.forecastReturn)}`}>{fmtPct(alt.forecastReturn)}</span>
+      )}
+    </td>
+  )
+}
 
 // ─── types ────────────────────────────────────────────────────────────────────
 interface TargetRow {
@@ -40,15 +107,17 @@ interface TargetRow {
   rating: string | null
   score: number | null
   scorePercentile: number | null
-  forecastReturn: number    // 1-year return from simulation (simulations.py step 5)
+  forecastReturn: number    // confidence-weighted fair-value-vs-current return from simulation (simulations.py step 5)
   positionReturn: number    // +forecastReturn for longs, −forecastReturn for shorts
   vol: number               // β × MARKET_VOL (annualised price vol proxy)
   beta: number
   indivSharpe: number       // (positionReturn − rf) / vol
   analysts: number | null   // numberOfAnalystOpinions (conviction signal)
   targetUpside: number | null // analyst consensus price target upside
-  probAbove: number | null  // P(price > current) at blended PE from simulation
-  compositeScore: number    // average of 3 rank-percentile signals
+  probAbove: number | null  // P(price > current) at industry-median PE from simulation
+  shortInterest: number | null // FINRA pctOfFloat (fresher), else yfinance shortPercentOfFloat
+  compositeScore: number    // average of 4 rank-percentile signals (see portfolio_optimizer.py's _composite_score)
+  alternates: Alternate[]   // 2nd/3rd choice for this slot -- see Alternate's own comment
   // screener signals
   mom: number | null        // MSI — momentum index [0, 100]
   mr: number | null         // ST-MSI — mean reversion index [0, 100]
@@ -68,15 +137,33 @@ export default function TargetView() {
   } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [positions, setPositions] = useState<Record<string, { shares: number }>>({})
+  const [livePrices, setLivePrices] = useState<LivePricesByTicker>({})
+  // Daily-close series for the Price column's daily-% badge -- see
+  // previousClose. Same two files, same fallback order, as
+  // ScreenerView.tsx/PositionsView.jsx.
+  const [dailyHistory3mo, setDailyHistory3mo] = useState<HistoryByTicker>({})
+  const [monthlyHistory, setMonthlyHistory] = useState<HistoryByTicker>({})
 
   useEffect(() => {
     const source = new EventSource(IB_STREAM_URL)
     source.onmessage = (e) => {
-      const { positions: pos } = JSON.parse(e.data)
+      const { prices, positions: pos } = JSON.parse(e.data)
+      if (prices) setLivePrices(prices)
       if (pos) setPositions(pos)
     }
     source.onerror = () => {}
     return () => source.close()
+  }, [])
+
+  useEffect(() => {
+    fetch('/price_history_daily_3mo.json')
+      .then((r) => (r.ok ? r.json() : {}))
+      .then(setDailyHistory3mo)
+      .catch(() => {})
+    fetch('/price_history.json')
+      .then((r) => (r.ok ? r.json() : {}))
+      .then(setMonthlyHistory)
+      .catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -109,19 +196,45 @@ export default function TargetView() {
                 <th className="col-left">Sector</th>
                 <th>Rating</th>
                 <th>Price</th>
-                <th title="1-year forecast return from 5-year DCF simulation">Fcst (1y)</th>
+                <th title="Confidence-weighted fair value vs. current price, from 5-year DCF simulation">Forecast</th>
                 <th title={`Annualised vol proxy: β × ${(MARKET_VOL * 100).toFixed(0)}%`}>Vol</th>
-                <th title="Average of own-PE and blended-PE simulation probabilities of price being above current">P(↑)</th>
+                <th title="Simulation probability of price being above current, at the industry-median PE">P(↑)</th>
+                <th title="FINRA pctOfFloat (fresher), else yfinance shortPercentOfFloat -- high short interest favors a long (squeeze/contrarian upside) and penalizes a short (crowded-trade squeeze risk)">Short Int.</th>
                 <th title="Screener percentile rank (0 = top of screener, 100 = bottom)">Screener %</th>
-                <th title="Average of 3 rank-percentile signals: Sharpe · screener · rating strength">Composite</th>
+                <th title="Average of 4 rank-percentile signals: Sharpe · screener · rating strength · short interest">Composite</th>
                 <th title="MSI: Money Flow / RSI momentum index [0=oversold, 100=overbought]">MSI</th>
                 <th title="ST-MSI: short-term mean-reversion index [0=oversold, 100=overbought]">ST-MSI</th>
+                <th
+                  className="col-left"
+                  title="The candidate the optimizer would have picked into this slot instead, had this ticker not been available -- evaluated against the SAME already-selected portfolio at that step, not just the next-best composite score in the pool"
+                >
+                  2nd Choice
+                </th>
+                <th
+                  className="col-left"
+                  title="The next candidate after 2nd Choice, same slot, same step"
+                >
+                  3rd Choice
+                </th>
               </tr>
             </thead>
             <tbody>
               {rows.map((r) => {
                 const Icon = getSectorIcon(r.sector ?? '')
                 const isHeld = (positions[r.ticker]?.shares ?? 0) !== 0
+                // Live IB Gateway price vs. yesterday's close -- same
+                // price-cell badge as ScreenerView.tsx's own copy.
+                const live = livePrices[r.ticker]
+                const referencePrice = previousClose(dailyHistory3mo[r.ticker], monthlyHistory[r.ticker]) ?? r.price
+                const liveRatio = live?.last != null && referencePrice ? live.last / referencePrice - 1 : null
+                const liveClass =
+                  liveRatio === null
+                    ? ''
+                    : Math.abs(liveRatio) <= 0.005
+                      ? 'perf-neutral'
+                      : liveRatio >= 0
+                        ? 'perf-pos'
+                        : 'perf-neg'
                 return (
                   <tr key={r.ticker} className={isHeld ? 'row-held' : undefined}>
                     <td className="col-left col-ticker num">
@@ -144,20 +257,35 @@ export default function TargetView() {
                       </span>
                     </td>
                     <td className="num">{r.rating}</td>
-                    <td className="num">{fmtPrice(r.price)}</td>
+                    <td className="num price-cell">
+                      <span className="price-value">{live?.last != null ? fmtPrice(live.last) : fmtPrice(r.price)}</span>
+                      {liveRatio !== null && live && (
+                        <span
+                          className={`live-price ${liveClass}`}
+                          title={`IB Gateway ${fmtPrice(live.last ?? null)} at ${live.timestamp} vs. yesterday's close ${fmtPrice(referencePrice)}`}
+                        >
+                          {fmtPct(liveRatio)}
+                        </span>
+                      )}
+                    </td>
                     <td className={`num ${signClass(r.forecastReturn)}`}>{fmtPct(r.forecastReturn)}</td>
                     <td className="num">{fmtVol(r.vol)}</td>
                     <td className={`num ${r.probAbove != null ? r.probAbove > 0.66 ? 'good' : r.probAbove < 0.33 ? 'bad' : '' : ''}`}>{r.probAbove != null ? (r.probAbove * 100).toFixed(0) + '%' : '—'}</td>
+                    <td className={`num ${shortInterestClass(r.shortInterest, r.side)}`}>
+                      {r.shortInterest != null ? (r.shortInterest * 100).toFixed(1) + '%' : '—'}
+                    </td>
                     <td className="num">{r.scorePercentile != null ? r.scorePercentile.toFixed(1) + '%' : '—'}</td>
                     <td className={`num ${signClass(r.compositeScore - 0.5)}`}>{(r.compositeScore * 100).toFixed(0)}%</td>
                     <td className={`num ${momentumClass(r.mom)}`}>{fmtNum(r.mom)}</td>
                     <td className={`num ${meanReversionClass(r.mr)}`}>{fmtNum(r.mr)}</td>
+                    <AlternateCell alt={r.alternates?.[0]} />
+                    <AlternateCell alt={r.alternates?.[1]} />
                   </tr>
                 )
               })}
               {rows.length === 0 && (
                 <tr className="empty-row">
-                  <td colSpan={11}>
+                  <td colSpan={14}>
                     No {side.toLowerCase()} candidates with{' '}
                     {side === 'Long' ? 'positive' : 'negative'} forecast return found.
                   </td>

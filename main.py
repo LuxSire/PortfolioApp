@@ -138,6 +138,17 @@ download_eps_volatility(): refresh just epsVolatility (see
                     indefinitely otherwise). Doesn't add tickers that
                     aren't already in forward_pe.csv. Run via `python
                     main.py epsvol`.
+download_eps_current_year(): refresh just epsCurrentYear (see
+                    IBApp.get_eps_current_year) for every ticker already
+                    in forward_pe.csv -- same "backfill one factor" role
+                    download_eps_volatility plays for that field, for
+                    backfilling this newly-added column into tickers
+                    already in forward_pe.csv from before it existed
+                    (modules/simulations.py's anchorEps blends it into
+                    the fallback chain when no industry-median-PE anchor
+                    is available). Doesn't add tickers that aren't
+                    already in forward_pe.csv. Run via `python main.py
+                    epscurrentyear`.
 download_revenue_growth(): refresh just revenueGrowth (see
                     IBApp.get_revenue_per_share_growth), dilution-
                     adjusting it in place -- same "backfill one factor"
@@ -394,6 +405,7 @@ from modules.scoring import (
     RATING_NA,
     add_avg_liquidity_ratio,
     add_target_upside,
+    clamp_eps_revision,
     load_insider_scores,
     load_sentiment_scores,
     load_short_interest_scores,
@@ -524,12 +536,12 @@ RATED_FOR_EXTRAS = {"Strong Buy", "Buy", "Sell", "Strong Sell"}
 COUNTRY_OVERRIDE_TICKERS = {"ARM", "ASML", "BIRK", "CRSP", "NBIS", "ONON"}
 
 FIELDNAMES = [
-    "ticker", "name", "sector", "forwardPE", "forwardEps", "trailingPE", "trailingPS", "pegRatio", "priceToFCF",
+    "ticker", "name", "sector", "forwardPE", "forwardEps", "epsCurrentYear", "trailingPE", "trailingPS", "pegRatio", "priceToFCF",
     "enterpriseToEbitda", "beta", "debtToEquity", "LiqRatio", "quickRatio", "currentRatio", "shortRatio", "shortPercentOfFloat",
     "revenueGrowth", "returnOnEquity", "profitMargins", "operatingMargins", "grossMargins", "price",
     "targetMeanPrice", "targetHighPrice", "targetLowPrice", "targetUpside", "recommendationKey",
     "recommendationMean", "numberOfAnalystOpinions", "momentum", "meanReversion", "epsRevision0y",
-    "epsRevision1y", "epsVolatility", "heldPercentInsiders", "earningsTimestampStart", "lastDownload",
+    "epsRevision1y", "epsVolatility", "heldPercentInsiders", "earningsTimestampStart", "yearReturn", "lastDownload",
 ]
 # sorted_screen.csv shows sector last instead of right after name.
 SCREEN_FIELDNAMES = [f for f in FIELDNAMES if f != "sector"] + ["sector"]
@@ -570,7 +582,16 @@ def load_pe_data(path):
     with open(path, newline="") as f:
         for row in csv.DictReader(f):
             data[row["ticker"]] = dict(row)
+    normalize_eps_revisions(data)
     return data
+
+
+def normalize_eps_revisions(data):
+    """Clamp cached EPS-revision ratios before scoring or rewriting them."""
+    for d in data.values():
+        for field in ("epsRevision0y", "epsRevision1y"):
+            revision = clamp_eps_revision(d.get(field))
+            d[field] = revision if revision is not None else None
 
 
 def load_top_tickers(path, n=None):
@@ -1217,6 +1238,32 @@ def download_eps_volatility():
     print(f"Updated epsVolatility for {updated}/{len(data)} tickers")
 
 
+def download_eps_current_year():
+    """Refreshes just epsCurrentYear (see IBApp.get_eps_current_year) for
+    every ticker already in forward_pe.csv, merging it into that file and
+    re-deriving sorted_screen.csv's score/rating from the result -- via
+    `python main.py epscurrentyear`. Same "backfill one factor without
+    redoing the whole pipeline" role download_eps_volatility plays for
+    that field; exists specifically for backfilling this newly-added
+    column into tickers already in forward_pe.csv from before it existed
+    (modules/simulations.py's anchorEps now blends it into the fallback
+    chain when no industry-median-PE anchor is available). Tickers not
+    already in forward_pe.csv are left alone, same as
+    download_eps_volatility."""
+    app = IBApp()
+    data = load_pe_data(OUTPUT_CSV)
+    print(f"Loaded {len(data)} tickers from {OUTPUT_CSV}")
+    eps_current_year = app.get_eps_current_year(list(data.keys()))
+    updated = 0
+    for ticker, value in eps_current_year.items():
+        if ticker in data and value is not None:
+            data[ticker]["epsCurrentYear"] = value
+            updated += 1
+    write_full_csv(data)
+    write_sorted_screen_csv(data)
+    print(f"Updated epsCurrentYear for {updated}/{len(data)} tickers")
+
+
 def download_revenue_growth():
     """Refreshes just revenueGrowth (see IBApp.get_revenue_per_share_growth)
     for every ticker already in forward_pe.csv, dilution-adjusting it in
@@ -1360,6 +1407,7 @@ def write_csv(path, fieldnames, rows):
 
 
 def write_full_csv(data):
+    normalize_eps_revisions(data)
     rows = sorted(
         data.items(),
         key=lambda item: (
@@ -1399,36 +1447,28 @@ def write_sorted_screen_csv(data):
     to special-case every factor that touches forwardPE. load_top_tickers
     skips these blank-score rows, so they also never enter the live/
     snapshot IB price universe ib_server.py builds from this file."""
+    normalize_eps_revisions(data)
     rows = [(s, d) for s, d in screen_rows(data) if (to_float(d.get("price")) or 0) >= MIN_PRICE]
     sentiment_scores = load_sentiment_scores(SENTIMENT_FILE, NEWS_SENTIMENT_FILE, THIRTEENF_FILE)
     insider_scores = load_insider_scores(FORM4_FILE)
     short_interest_scores = load_short_interest_scores(SHORT_INTEREST_FILE, RAW_DATA_FILE)
 
-    # Inject simReturn (average of median return at own-multiple and at
-    # blended-multiple) from simulations.json into each row dict so
-    # forecast_return_rank can read it directly. When only the own-multiple
-    # scenario is available (ticker had too few peers for a blended PE),
-    # simReturn falls back to that scenario's return alone. Tickers not
-    # present in the file (not yet simulated, or simulated with an error)
-    # are simply left without the field -- forecast_return_rank ranks them
-    # worst, same treatment as every other factor's missing data.
+    # Inject simReturn (forecastReturn, simulate_ticker's own confidence-
+    # weighted fair value vs. currentPrice) from simulations.json into
+    # each row dict so forecast_return_rank can read it directly.
+    # Tickers not present in the file (not yet simulated, simulated with an
+    # error, or with no industry-multiple scenario to derive a forecast
+    # from) are simply left without the field -- forecast_return_rank ranks
+    # them worst, same treatment as every other factor's missing data.
     try:
         with open(SIMULATIONS_FILE) as _mcf:
             _mc_data = {}
             for entry in json.load(_mcf):
                 if "ticker" not in entry or entry.get("error"):
                     continue
-                _price = entry.get("currentPrice") or 0
-                if not _price:
-                    continue
-                _cur = (entry.get("priceAtCurrentMultiple") or {}).get("median")
-                _ind = (entry.get("priceAtBlendedMultiple") or {}).get("median")
-                _cur_ret = (_cur / _price - 1) if _cur is not None else None
-                _ind_ret = (_ind / _price - 1) if _ind is not None else None
-                if _cur_ret is not None and _ind_ret is not None:
-                    _mc_data[entry["ticker"]] = (_cur_ret + _ind_ret) / 2
-                elif _cur_ret is not None:
-                    _mc_data[entry["ticker"]] = _cur_ret
+                _ret = entry.get("forecastReturn")
+                if _ret is not None:
+                    _mc_data[entry["ticker"]] = _ret
     except (FileNotFoundError, json.JSONDecodeError):
         _mc_data = {}
     rows = [(s, {**d, "simReturn": _mc_data[s]} if s in _mc_data else d) for s, d in rows]
@@ -1896,7 +1936,7 @@ def download_simulations(tickers=None):
 
     errored = [r for r in results if "error" in r]
     ok = [r for r in results if "error" not in r]
-    with_industry = [r for r in ok if r["priceAtBlendedMultiple"] is not None]
+    with_industry = [r for r in ok if r["priceAtIndustryMultiple"] is not None]
     print(f"{len(ok)}/{len(results)} simulated OK ({len(errored)} skipped -- missing data); "
           f"{len(with_industry)} had enough peers for an industry-median comparison")
 
@@ -1950,6 +1990,8 @@ if __name__ == "__main__":
         download_yfinance_prices()
     elif mode == "epsvol":
         download_eps_volatility()
+    elif mode == "epscurrentyear":
+        download_eps_current_year()
     elif mode == "revgrowth":
         download_revenue_growth()
     elif mode == "grossmargin":
@@ -1975,6 +2017,6 @@ if __name__ == "__main__":
     else:
         sys.exit(
             f"Unknown mode {mode!r}, expected 'all', 'prices', 'rescore', 'form4', 'xbrl', '13f', 'shortinterest', "
-            "'ibprices', 'ibhprices', 'yfprices', 'epsvol', 'revgrowth', 'grossmargin', 'insiderown', 'themes', 'recommendations', 'chat', "
+            "'ibprices', 'ibhprices', 'yfprices', 'epsvol', 'epscurrentyear', 'revgrowth', 'grossmargin', 'insiderown', 'themes', 'recommendations', 'chat', "
             "'symbol', 'simulations', or 'target'"
         )

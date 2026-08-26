@@ -145,6 +145,16 @@ output lives under data/, see main.py's DATA_DIR):
                                 PeTable.jsx's screener column to average
                                 per ticker itself, same rolling
                                 NEWS_WINDOW_DAYS window as news.json.
+  data/IB/news_bodies.json          {articleId: bodyText} -- a backend-only
+                                scoring-input cache (see NEWS_BODIES_FILE's
+                                own comment) of each article's full body,
+                                fetched once via reqNewsArticle and reused
+                                for FinBERT (headline + body together, see
+                                news_sentiment.score_articles) rather than
+                                scoring the headline alone. NOT synced into
+                                web/public/ -- the frontend never reads
+                                this file; a single body is fetched lazily
+                                on demand instead (GET /api/news/article).
 Both cover the top CANDLESTICK_TOP_N ranked tickers, every RATED_FOR_EXTRAS
 ticker (Strong Buy/Buy/Sell/Strong Sell -- CANDLESTICK_TOP_N alone only
 ever reaches the best-scoring/Buy end, since it's a top-N slice of a file
@@ -209,8 +219,9 @@ import re
 import subprocess
 import sys
 import threading
+import time
 import xml.etree.ElementTree as ET
-from collections import Counter
+from collections import Counter, deque
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
@@ -233,7 +244,7 @@ from main import (
 )
 from modules.finra import SHORT_INTEREST_FILE
 from main import PRICE_HISTORY_FILE as YAHOO_PRICE_HISTORY_FILE
-from modules.news_sentiment import clean_headline, score_headlines
+from modules.news_sentiment import clean_headline, fast_path_score, score_articles
 from modules.scoring import FACTOR_WEIGHTS, most_recent_completed_trading_day
 from modules.sec_edgar import FORM4_FILE, THIRTEENF_FILE, THIRTEENF_HOLDERS_FILE, XBRL_FACTS_FILE
 from modules.social_sentiment import SENTIMENT_FILE
@@ -262,6 +273,18 @@ PORTFOLIO_PERFORMANCE_FILE = os.path.join(DATA_DIR, "portfolio_performance.json"
 TRADES_FILE = os.path.join(IB_DIR, "trades.json")
 NEWS_FILE = os.path.join(IB_DIR, "news.json")
 NEWS_SENTIMENT_FILE = os.path.join(OUTPUT_DIR, "news_sentiment.json")
+# {articleId: bodyText} -- a backend-only scoring-input cache for
+# news_sentiment.score_articles (see _fetch_article_bodies), deliberately
+# separate from NEWS_FILE: the frontend never needs bulk article bodies
+# (News tab/GET /api/news show headlines only; a single body is fetched
+# lazily via GET /api/news/article only when a user expands one), so this
+# is never added to the sync-data copy into web/public/. Pruned in lockstep
+# with news_by_ticker (see _prune_and_write_news) -- bounded by the same
+# NEWS_WINDOW_DAYS rolling window, not kept forever. Exists so a future
+# scoring-algorithm change (like fast_path_score's own market-recap rule)
+# can re-score an already-fetched article's real body text without
+# spending reqNewsArticle's paced budget on IB a second time.
+NEWS_BODIES_FILE = os.path.join(IB_DIR, "news_bodies.json")
 RECOMMENDATIONS_FILE = os.path.join(OUTPUT_DIR, "recommendations.json")
 # See export_daily_history_on_demand -- a one-off multi-year backtest
 # export, IB-derived like everything else under IB_DIR, but -- unlike
@@ -1339,6 +1362,11 @@ _FILES_8K_RE = re.compile(r"\bFiles 8K\b", re.I)
 # (read or write) must hold `lock`.
 news_by_ticker = {}
 
+# {articleId: bodyText} -- see NEWS_BODIES_FILE's own comment for what
+# this is and why it's kept separate from news_by_ticker. Same locking
+# rule as news_by_ticker: every access (read or write) holds `lock`.
+news_bodies_by_id = {}
+
 
 def _load_news_file():
     """Seeds news_by_ticker from an existing news.json on startup, so a
@@ -1357,6 +1385,21 @@ def _load_news_file():
     seeded = {ticker: {a["articleId"]: a for a in articles} for ticker, articles in raw.items()}
     with lock:
         news_by_ticker = seeded
+
+
+def _load_news_bodies_file():
+    """Seeds news_bodies_by_id from an existing news_bodies.json on
+    startup -- same reasoning as _load_news_file, just for the body cache:
+    a restart shouldn't force re-fetching (and re-spending IB's paced
+    reqNewsArticle budget on) a body already fetched last run."""
+    global news_bodies_by_id
+    try:
+        with open(NEWS_BODIES_FILE) as f:
+            seeded = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return
+    with lock:
+        news_bodies_by_id = seeded
 
 
 def _news_snapshot():
@@ -1389,7 +1432,10 @@ def _prune_and_write_news():
     writes news.json (newest headline first per ticker) and
     news_sentiment.json (per-article FinBERT scores, for the screener's
     averaged column) -- keeps both files a rolling window instead of
-    growing forever."""
+    growing forever. news_bodies_by_id (see NEWS_BODIES_FILE) is pruned in
+    lockstep -- any articleId no longer present in news_by_ticker after
+    this pass is dropped from the body cache too, so it stays bounded by
+    the same window rather than accumulating forever on its own."""
     cutoff = datetime.now(timezone.utc) - timedelta(days=NEWS_WINDOW_DAYS)
     with lock:
         for ticker in list(news_by_ticker):
@@ -1407,12 +1453,85 @@ def _prune_and_write_news():
                 news_by_ticker[ticker] = kept
             else:
                 news_by_ticker.pop(ticker, None)
+        live_article_ids = {aid for articles in news_by_ticker.values() for aid in articles}
+        stale_body_ids = [aid for aid in news_bodies_by_id if aid not in live_article_ids]
+        for aid in stale_body_ids:
+            news_bodies_by_id.pop(aid, None)
         snapshot = _news_snapshot()
         sentiment_snapshot = _news_sentiment_snapshot()
+        bodies_snapshot = dict(news_bodies_by_id)
     with open(NEWS_FILE, "w") as f:
         json.dump(snapshot, f)
     with open(NEWS_SENTIMENT_FILE, "w") as f:
         json.dump(sentiment_snapshot, f)
+    with open(NEWS_BODIES_FILE, "w") as f:
+        json.dump(bodies_snapshot, f)
+
+
+# reqNewsArticle (article body) shares the same undocumented per-account
+# news pacing IB doesn't publish a limit for (see IBApp.
+# get_news_headlines_async's own docstring on reqHistoricalNews) -- own
+# independent sliding-window budget here, same conservative
+# 55-requests-per-10-minutes assumption in the absence of documented
+# guidance otherwise, separate from get_news_headlines_async's own budget
+# (a different IB request kind, no evidence they share one account-wide
+# bucket).
+_ARTICLE_BODY_MAX_REQUESTS_PER_10MIN = 55
+_article_body_request_times = deque()
+
+
+async def _fetch_article_bodies(articles):
+    """Fetches each article's full body (IBApp.get_news_article_async) for
+    news_sentiment.score_articles to combine with the headline -- see
+    NEWS_BODIES_FILE's own comment for why the result is cached in
+    news_bodies_by_id (and written to NEWS_BODIES_FILE by
+    _prune_and_write_news) rather than fetched-and-discarded every time.
+
+    Skips the fetch entirely for an article news_sentiment.fast_path_score
+    would short-circuit anyway (its four recurring-template cases are
+    decided from the headline alone, see that function's own docstring),
+    so the paced reqNewsArticle budget is only spent on articles that
+    actually need real classification. Checks news_bodies_by_id before
+    hitting IB at all -- a cache hit (e.g. re-scoring after a
+    news_sentiment.py change, or a retry after a previous run only got
+    partway through a batch) costs nothing.
+
+    Returns a list[str | None] aligned 1:1 with `articles` -- None
+    wherever the fast-path applies, the article has no provider/articleId,
+    or the fetch itself fails/times out (get_news_article_async's own
+    fallback); score_articles falls back to headline-only scoring for
+    those rather than dropping the article."""
+    bodies = [None] * len(articles)
+    for i, article in enumerate(articles):
+        if fast_path_score(article.get("headline")) is not None:
+            continue
+        provider = article.get("provider")
+        article_id = article.get("articleId")
+        if not provider or not article_id:
+            continue
+        with lock:
+            cached = news_bodies_by_id.get(article_id)
+        if cached is not None:
+            bodies[i] = cached
+            continue
+        now = time.monotonic()
+        while _article_body_request_times and now - _article_body_request_times[0] > 600:
+            _article_body_request_times.popleft()
+        if len(_article_body_request_times) >= _ARTICLE_BODY_MAX_REQUESTS_PER_10MIN:
+            sleep_for = 600 - (now - _article_body_request_times[0]) + 1
+            print(f"News: article-body pacing limit reached, sleeping {sleep_for:.0f}s")
+            await asyncio.sleep(sleep_for)
+        _article_body_request_times.append(time.monotonic())
+        try:
+            body = await app.get_news_article_async(provider, article_id)
+        except Exception as e:
+            print(f"News: body fetch failed for {article_id}: {e}")
+            continue
+        if body:
+            bodies[i] = body
+            with lock:
+                news_bodies_by_id[article_id] = body
+    return bodies
 
 
 async def _backfill_news_sentiment():
@@ -1431,10 +1550,11 @@ async def _backfill_news_sentiment():
             article["headline"] = clean_headline(article.get("headline"))
     if unscored:
         print(f"News: backfilling FinBERT sentiment for {len(unscored)} cached article(s) without one...")
-        # Same as news_loop's own scoring: CPU-bound, offloaded to a worker
-        # thread, and done without `lock` held so it doesn't block ticks,
+        bodies = await _fetch_article_bodies(unscored)
+        # CPU-bound (see news_sentiment.py), offloaded to a worker thread,
+        # and done without `lock` held so it doesn't block ticks,
         # snapshots, or GET /api/news for however long this takes.
-        scores = await asyncio.to_thread(score_headlines, [a["headline"] for a in unscored])
+        scores = await asyncio.to_thread(score_articles, [a["headline"] for a in unscored], bodies)
         with lock:
             for article, score in zip(unscored, scores):
                 article["sentiment"] = score
@@ -1454,10 +1574,12 @@ async def news_loop():
     merged into news_by_ticker keyed by articleId (see
     IBApp.get_news_headlines_async), so re-seeing an already-known
     headline on a later pass is a no-op, not a duplicate. Each new
-    article is run through FinBERT (news_sentiment.score_headlines) once,
-    on first sight, and gets a `sentiment` field (1 very bearish - 5 very
-    bullish); _prune_and_write_news then drops anything older than
-    NEWS_WINDOW_DAYS and rewrites news.json after every chunk.
+    article has its full body fetched (_fetch_article_bodies) and is run
+    through FinBERT on headline + body together (news_sentiment.
+    score_articles) once, on first sight, and gets a `sentiment` field (1
+    very bearish - 5 very bullish); _prune_and_write_news then drops
+    anything older than NEWS_WINDOW_DAYS and rewrites news.json after
+    every chunk.
 
     load_top_tickers is re-read fresh at the start of each full pass (not
     cached once at startup) since sorted_screen.csv's ranking, and the
@@ -1497,13 +1619,14 @@ async def news_loop():
                             bucket[article_id] = article
                             new_articles.append(article)
             if new_articles:
+                bodies = await _fetch_article_bodies(new_articles)
                 # FinBERT inference is CPU-bound (see news_sentiment.py) --
                 # offloaded to a worker thread (and run without `lock` held,
                 # unlike the merge above) so it doesn't stall this
                 # connection's shared event loop, or block GET /api/news,
                 # for however long a batch of ~40 tickers' worth of
                 # headlines takes.
-                scores = await asyncio.to_thread(score_headlines, [a["headline"] for a in new_articles])
+                scores = await asyncio.to_thread(score_articles, [a["headline"] for a in new_articles], bodies)
                 with lock:
                     for article, score in zip(new_articles, scores):
                         article["sentiment"] = score
@@ -3161,6 +3284,7 @@ def run_ib_client(tickers, no_news=False):
     # would leave news_sentiment.json permanently empty, since no_news
     # skips the only other thing (news_loop) that would ever score them.
     _load_news_file()
+    _load_news_bodies_file()
     asyncio.ensure_future(_backfill_news_sentiment())
     if not no_news:
         asyncio.ensure_future(news_loop())

@@ -63,17 +63,16 @@ export interface MonteCarloResult {
   currentPrice?: number
   forecastPrice?: number | null
   forecastReturn?: number | null
-  priceFloor?: number | null
-  priceCap?: number | null
-  priceAtCurrentMultiple?: {
-    p5: number
-    p25: number
-    median: number
-    p75: number
-    p95: number
-    probAboveCurrentPrice: number
-  }
-  priceAtBlendedMultiple?: {
+  // The SAME confidence-weighted transform behind forecastPrice, applied
+  // to priceAtIndustryMultiple's own percentiles instead of its median --
+  // an "adjusted" band on forecastPrice's own scale (P5/P95 double as the
+  // bear/bull case), NOT the raw (much wider, unadjusted)
+  // priceAtIndustryMultiple percentiles.
+  forecastPriceP5?: number | null
+  forecastPriceP25?: number | null
+  forecastPriceP75?: number | null
+  forecastPriceP95?: number | null
+  priceAtIndustryMultiple?: {
     p5: number
     p25: number
     median: number
