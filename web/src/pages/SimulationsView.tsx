@@ -30,6 +30,9 @@ const COLUMNS: { key: keyof SimRow | 'position'; label: string; className?: stri
   { key: 'position', label: 'Position', sortable: false },
   { key: 'price', label: 'Price' },
   { key: 'forecastPrice', label: 'Forecast Price' },
+  { key: 'simPrice', label: 'SimPrice' },
+  { key: 'simVol', label: 'Sim Vol' },
+  { key: 'simSharpe', label: 'Sim Sharpe' },
   { key: 'forecastReturn', label: 'Forecast Return' },
   { key: 'industryProbAbove', label: 'P(above)' },
   { key: 'ownPe', label: 'Own PE' },
@@ -139,6 +142,9 @@ export default function SimulationsView() {
         price: r.currentPrice as number,
         forecastPrice: r.forecastPrice ?? null,
         forecastReturn: r.forecastReturn ?? null,
+        simPrice: r.simPrice ?? null,
+        simVol: r.simPriceDistribution?.stdev ?? null,
+        simSharpe: r.simSharpe ?? null,
         muEps: r.inputs.muEps,
         sigmaEpsPct: r.inputs.muEps ? r.inputs.sigmaEps / Math.abs(r.inputs.muEps) : null,
         epsVolSource: r.inputs.epsVolatilitySource,
@@ -386,6 +392,11 @@ export default function SimulationsView() {
                     <td className={`num ${signClass(r.forecastPrice !== null ? r.forecastPrice - r.price : null)}`}>
                       {fmtPrice(r.forecastPrice)}
                     </td>
+                    <td className={`num ${signClass(r.simPrice !== null ? r.simPrice - r.price : null)}`}>
+                      {fmtPrice(r.simPrice)}
+                    </td>
+                    <td className="num">{fmtPrice(r.simVol)}</td>
+                    <td className={`num ${signClass(r.simSharpe)}`}>{fmtNum(r.simSharpe)}</td>
                     <td className={`num ${signClass(r.forecastReturn)}`}>
                       {fmtPct(r.forecastReturn)} <Subrank rank={diffPctRank.get(r.t)} />
                     </td>

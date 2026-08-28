@@ -5,7 +5,7 @@ import { getSectorGroup, sectorGroupLabel } from '../sectorGroups'
 import { getSectorIcon } from '../sectorIcons'
 import { IB_STREAM_URL } from '../ibStream'
 import { avgInsiderScore, avgNewsSentiment, fmtNum, fmtPct as fmtPctFactor, rankTo100, ratingClass, toNum } from '../screenerFactors'
-import { rangeClass } from '../colorRules'
+import { assetPnlClass, rangeClass } from '../colorRules'
 import { FACTOR_COLUMNS, computeFactorAverages } from '../components/factorTable'
 import FactorCells from '../components/FactorCells'
 import type {
@@ -1261,6 +1261,9 @@ export default function PositionsView() {
               <th>Avg Price</th>
               <th>Price</th>
               <th>Daily $</th>
+              <th title="Daily $ P&amp;L divided by the account's Net Liquidation value — this position's actual contribution to today's whole-portfolio return, not just its own price move (see Asset / Security column's own red/green rule).">
+                Daily % (NAV)
+              </th>
               <th>Bid</th>
               <th>Ask</th>
               <th>Yesterday</th>
@@ -1281,7 +1284,7 @@ export default function PositionsView() {
           <tbody>
             {rows.length === 0 && (
               <tr className="status-row">
-                <td colSpan={19}>
+                <td colSpan={20}>
                   No open positions — or ib_server.py isn't running / hasn't reported positions yet.
                 </td>
               </tr>
@@ -1305,6 +1308,10 @@ export default function PositionsView() {
                   // Name cell (see earnings.js) — blank for a ticker outside
                   // the screener universe, like ARKK, since it has no ern/upd.
                   const earningsClass = earningsUrgencyClass(r.ern, r.upd)
+                  // Explicit instruction: Asset/Security column font color
+                  // mirrors the Daily % (NAV) column -- green above +0.1%,
+                  // red below -0.1% -- see assetPnlClass in colorRules.js.
+                  const namePnlClass = assetPnlClass(r.dayPnl, netLiq)
                   return (
                     <tr key={r.ticker}>
                       {groupIndex === 0 && i === 0 && (
@@ -1331,7 +1338,7 @@ export default function PositionsView() {
                           </span>
                         </td>
                       )}
-                      <td className={`col-left col-name pos-name-cell ${earningsClass}`}>
+                      <td className={`col-left col-name pos-name-cell ${earningsClass} ${namePnlClass}`}>
                         <span className="pos-asset">
                           <a
                             href={`#/asset/${encodeURIComponent(r.ticker)}`}
@@ -1355,6 +1362,9 @@ export default function PositionsView() {
                       <td className="num">{fmtPrice(r.avgCost)}</td>
                       <td className="num"><FlashCell value={r.price} format={fmtPrice} /></td>
                       <td className={`num ${dailyPnlClass}`}>{fmtDollars(r.dayPnl)}</td>
+                      <td className={`num ${dailyPnlClass}`}>
+                        {fmtPct(netLiq && r.dayPnl !== null ? r.dayPnl / netLiq : null)}
+                      </td>
                       <td className="num"><FlashCell value={r.bid} format={fmtPrice} /></td>
                       <td className="num"><FlashCell value={r.ask} format={fmtPrice} /></td>
                       <td className="num">{fmtPrice(r.referencePrice)}</td>

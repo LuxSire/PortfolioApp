@@ -75,3 +75,21 @@ export function meanReversionClass(v) {
   if (v > 70) return 'bad'
   return ''
 }
+
+// Positions page: Asset/Security column font color, based solely on the
+// Daily % (NAV) column -- green above +0.1%, red below -0.1% -- explicit
+// correction, replacing an earlier version keyed off overall gain
+// (pnlPct) instead. dayPnl (IBKR's own reqPnLSingle figure) divided by
+// the whole account's Net Liquidation value answers "how much did this
+// position move MY WHOLE PORTFOLIO today", robust to a position opened
+// intraday (unlike a plain day-over-day PRICE % change, which has no
+// valid prior-close to compare against for a same-day open). Already
+// correctly signed by IBKR for either side (a short's loss is already
+// negative), so no Long/Short sign flip needed here.
+export function assetPnlClass(dayPnl, netLiq) {
+  if (typeof dayPnl !== 'number' || typeof netLiq !== 'number' || netLiq <= 0) return ''
+  const ratio = dayPnl / netLiq
+  if (ratio > 0.001) return 'good'
+  if (ratio < -0.001) return 'bad'
+  return ''
+}

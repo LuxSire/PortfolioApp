@@ -58,6 +58,20 @@ def to_float(value):
         return None
 
 
+# EPS estimate revisions are ratios against the estimate from 30 days ago.
+# When that prior estimate is near zero, the raw percentage can explode into
+# multi-thousand-percent values that are denominator artifacts, not a useful
+# trend signal. +/-100% is already the strongest signal this factor needs.
+EPS_REVISION_CAP = 1.0
+
+
+def clamp_eps_revision(value):
+    revision = to_float(value)
+    if revision is None:
+        return None
+    return max(-EPS_REVISION_CAP, min(EPS_REVISION_CAP, revision))
+
+
 def rank_ascending(rows, value_fn, missing=1.0):
     """Percentile rank (0 = best/lowest, 1 = worst) of rows by value_fn(d);
     rows where value_fn returns None get `missing` (default the worst
@@ -95,6 +109,13 @@ def neg_if_positive(field):
     def key(d):
         value = to_float(d.get(field))
         return -value if value is not None and value > 0 else None
+    return key
+
+
+def neg_eps_revision(field):
+    def key(d):
+        revision = clamp_eps_revision(d.get(field))
+        return -revision if revision is not None else None
     return key
 
 
@@ -627,9 +648,9 @@ def mean_reversion_rank(rows):
 def eps_trend_rank(rows):
     """Average of high epsRevision0y and high epsRevision1y ranks;
     missing ranked worst. Each is the consensus EPS estimate's 30-day
-    revision trend -- (current estimate - the estimate 30 days ago) /
-    abs(30-days-ago estimate), for the current ("0y") and next ("+1y")
-    fiscal year respectively (see IBApp.get_forward_pe /
+    revision trend -- the capped (current estimate - the estimate 30 days
+    ago) / abs(30-days-ago estimate), for the current ("0y") and next
+    ("+1y") fiscal year respectively (see IBApp.get_forward_pe /
     IBApp._eps_revision, from yfinance's get_eps_trend()). Positive means
     analysts have been raising the estimate over the last month (a
     bullish signal distinct from analyst_conviction_rank's point-in-time
@@ -641,8 +662,8 @@ def eps_trend_rank(rows):
     by that period's missing-ranked-worst contribution to the average,
     the same partial penalty every other averaged-rank factor here
     applies."""
-    rev_0y_ranks = rank_ascending(rows, neg_perf("epsRevision0y"))
-    rev_1y_ranks = rank_ascending(rows, neg_perf("epsRevision1y"))
+    rev_0y_ranks = rank_ascending(rows, neg_eps_revision("epsRevision0y"))
+    rev_1y_ranks = rank_ascending(rows, neg_eps_revision("epsRevision1y"))
     return {symbol: (rev_0y_ranks[symbol] + rev_1y_ranks[symbol]) / 2 for symbol, _ in rows}
 
 
@@ -968,17 +989,71 @@ def is_real_estate_sector(sector):
 # comparability-across-sectors factor the way pe/margin/debt/etc. are),
 # corrects that without re-introducing a missing-data problem.
 #
+# Revisited again after confirming live that forecast_return (the
+# Monte Carlo simulation's own forecastReturn, see modules/simulations.py)
+# was the single largest driver of Financials' Buy-side rating skew --
+# median forecastReturn for Financials names was 4.7% vs. 2.7% market-
+# wide, and this factor already carried the largest weight in the whole
+# column (15%, standard 10%). Traced the elevation to the same
+# operatingMargin distortion described above leaking into the
+# simulation's OWN growth-rate math (marginAdjustedRevenueGrowth =
+# revenueGrowth * operatingMargin, feeding the projected EPS path) for
+# Banks/Insurance/REIT - Mortgage specifically -- fixed at the source in
+# modules/simulations.py (see _MARGIN_DISTORTED_SECTORS there), not by
+# discounting this factor's weight here, since forecast_return itself is
+# a genuinely valuable signal once its own input isn't distorted.
+# Explicit instruction on top of that source fix: also trim
+# forecast_return's own weight back to the 10% standard (from 15%) and
+# move that 5% onto eps_trend (10% -> 15%) -- a second, independent
+# rebalancing toward a signal Financials names report cleanly (see the
+# original 22%-zeroing rationale above for why eps_trend was already
+# favored for this sector) and away from over-concentrating the column
+# in the one factor that had just needed a source-level correction.
+#
 # The Utilities column zeroes out liquidity (2% -- see
-# is_utilities_sector's own docstring for why just this one, not the
-# broader growth/momentum/PEG tilt also observed for this sector, which
-# reads more like real signal than a bug) and redistributes that 2% onto
-# sector_pe alone; fcf is zeroed out entirely (standard 5% -> 0%, same
-# not-comparable-for-this-sector reasoning as Financials' fcf zeroing --
-# a capital-intensive, heavily-regulated-capex sector's negative free
-# cash flow isn't a real quality signal) with 2% of that landing on
-# short_interest (standard 8% -> 10%) and the remaining 3% on eps_trend
-# (standard 5% -> 8%, same "Yahoo reports this cleanly for the sector"
-# reasoning Financials' own eps_trend boost uses).
+# is_utilities_sector's own docstring for why just this one) and fcf
+# entirely (standard 5% -> 0%, same not-comparable-for-this-sector
+# reasoning as Financials' fcf zeroing -- a capital-intensive, heavily-
+# regulated-capex sector's negative free cash flow isn't a real quality
+# signal).
+#
+# Revisited after confirming live that Utilities' Buy-side ratings had
+# collapsed to ~0% under the forced-distribution rating (RATING_THRESHOLDS
+# below is a GLOBAL percentile ladder, not sector-relative -- any sector
+# whose typical score sits worse than the market median gets mechanically
+# under-represented in Buy no matter how fair its own internal ranking
+# is). Checked each factor's own median reading for Utilities names
+# specifically against the rest of the universe (sorted_screen.csv, same
+# methodology as the Financials pe_rank/sector_pe investigation above) and
+# found three factors an EARLIER version of this column had pushed the
+# WRONG direction -- amplifying exactly the sector's structural
+# weaknesses instead of correcting for them:
+#   short_interest (contrarian -- high short interest scores WELL): an
+#     earlier version boosted this to 10% (standard 8%) on the theory
+#     Utilities' short-interest data was reliable, but confirmed median
+#     short interest for Utilities is 5.4% of float vs. 8.0% market-wide
+#     -- a defensive, low-volatility sector structurally attracts less
+#     shorting, so boosting this factor's weight was punishing Utilities
+#     for being Utilities. Cut to 6%, below standard.
+#   eps_trend: an earlier version boosted this to 8% (standard 5%) on
+#     the same "Yahoo reports this cleanly" reasoning Financials' own
+#     eps_trend boost uses, but confirmed median analyst-revision trend
+#     for Utilities sits at ~0.000 (flat) vs. ~0.01 for the rest of the
+#     universe -- regulated utilities don't get meaningful revision
+#     momentum either way, so this isn't a quality signal here, just
+#     sector noise weighted above standard. Cut to 4%, below standard.
+#   growth: already at the standard 4% (never boosted for this sector,
+#     unlike Financials/Real Estate's 6%), but confirmed median revenue
+#     growth for Utilities is 2.1% vs. 13.1% market-wide -- roughly a 6x
+#     gap driven by rate-capped, regulated revenue, not a quality
+#     differentiator between one utility and another. Cut to 2%.
+# That freed 8% (short_interest+eps_trend) plus 2% (growth) = 10% lands
+# on sector_pe (7% -> 14%, close to Financials' own 15% -- a utility CAN
+# meaningfully differ from other utilities on relative valuation, unlike
+# the three factors just cut) and roe (3% -> 6% -- return on equity is a
+# genuine profitability differentiator for a sector whose ALLOWED return
+# is what regulators actually negotiate over, so it's one of the few
+# quality signals this sector can meaningfully spread on).
 #
 # The Real Estate column is otherwise IDENTICAL to the ORIGINAL
 # Financials treatment (same debt/liquidity/ev_ebitda/margin zeroing,
@@ -1001,27 +1076,43 @@ def is_real_estate_sector(sector):
 # just above, still described as relative deltas over the standard
 # column) land on top of this trim, e.g. Financials' sector_pe is
 # STANDARD_WEIGHTS["sector_pe"] (0.05) + 0.05 = 0.10, not the old 0.15.
+# News/social/institutional sentiment raised from 5% to 8% in EVERY
+# column, per explicit instruction after this session's news-
+# classification work (the fast_path_score regex system, headline-
+# importance stars, etc.) meaningfully improved what that factor actually
+# measures -- worth weighting more now that the underlying signal is more
+# trustworthy. Funded two different ways per column, both explicit:
+#   Financials/Utilities/Real Estate: the full 3% comes from sector_pe
+#     alone (Financials 15% -> 12%, Utilities 14% -> 11%, Real Estate
+#     10% -> 7%) -- all three still sit well above the 5% standard
+#     sector_pe weight even after the cut, so this doesn't undo the
+#     earlier Financials/Utilities rebalances above, just trims their
+#     margin.
+#   Standard: the 3% is split three ways, 1% each, from peg (5% -> 4%),
+#     ev_ebitda (5% -> 4%), and insiders (5% -> 4%) -- deliberately NOT
+#     from sector_pe here (Standard's own sector_pe is already at the
+#     baseline 5%, no room to trim without a disproportionate cut).
 FACTOR_WEIGHTS = {
     "pe": ("Forward P/E", 0.03, 0.03, 0.03, 0.03),
-    "sector_pe": ("Forward P/E vs. sector average", 0.05, 0.15, 0.07, 0.10),
+    "sector_pe": ("Forward P/E vs. sector average", 0.05, 0.12, 0.11, 0.07),
     "eps_volatility": ("Yearly EPS volatility", 0.05, 0.05, 0.05, 0.05),
     "fcf": ("Price/FCF", 0.05, 0.0, 0.0, 0.05),
-    "ev_ebitda": ("EV/EBITDA", 0.05, 0.0, 0.05, 0.0),
+    "ev_ebitda": ("EV/EBITDA", 0.04, 0.0, 0.05, 0.0),
     "momentum": ("Daily-timeframe strength (MFI/RSI)", 0.05, 0.05, 0.05, 0.05),
     "mean_reversion": ("Hourly-timeframe overbought/oversold (MFI)", 0.05, 0.05, 0.05, 0.05),
-    "eps_trend": ("EPS-estimate revision trend", 0.05, 0.10, 0.08, 0.10),
+    "eps_trend": ("EPS-estimate revision trend", 0.05, 0.15, 0.04, 0.10),
     "analyst": ("Analyst conviction", 0.05, 0.05, 0.05, 0.05),
-    "forecast_return": ("Simulations", 0.10, 0.15, 0.10, 0.10),
+    "forecast_return": ("Simulations", 0.10, 0.10, 0.10, 0.10),
     "pe_vs_trailing": ("Forward P/E vs. Trailing P/E", 0.03, 0.03, 0.03, 0.03),
-    "peg": ("PEG ratio", 0.05, 0.08, 0.05, 0.05),
+    "peg": ("PEG ratio", 0.04, 0.08, 0.05, 0.05),
     "trailing_ps": ("Trailing P/S", 0.02, 0.02, 0.02, 0.02),
-    "growth": ("Revenue growth", 0.04, 0.06, 0.04, 0.06),
+    "growth": ("Revenue growth", 0.04, 0.06, 0.02, 0.06),
     "debt": ("Debt/equity vs. sector average", 0.05, 0.0, 0.05, 0.0),
     "liquidity": ("Quick/current ratio", 0.02, 0.0, 0.0, 0.0),
-    "roe": ("Return on equity", 0.03, 0.03, 0.03, 0.03),
-    "short_interest": ("Short interest (contrarian)", 0.08, 0.05, 0.10, 0.08),
-    "sentiment": ("News/social/institutional sentiment", 0.05, 0.05, 0.05, 0.05),
-    "insiders": ("Insider open-market buy/sell activity", 0.05, 0.05, 0.05, 0.05),
+    "roe": ("Return on equity", 0.03, 0.03, 0.06, 0.03),
+    "short_interest": ("Short interest (contrarian)", 0.08, 0.05, 0.06, 0.08),
+    "sentiment": ("News/social/institutional sentiment", 0.08, 0.08, 0.08, 0.08),
+    "insiders": ("Insider open-market buy/sell activity", 0.04, 0.05, 0.05, 0.05),
     "margin": ("Profit/operating margins", 0.05, 0.0, 0.05, 0.05),
 }
 STANDARD_WEIGHTS = {factor: v[1] for factor, v in FACTOR_WEIGHTS.items()}

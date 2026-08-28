@@ -107,6 +107,25 @@ ANNUALIZE = 252        # trading days per year
 _HIST_IB_FILE = os.path.join("data", "IB", "price_history_daily_3mo.json")
 _HIST_YF_FILE = os.path.join("data", "yfinance", "price_history.json")
 
+# Hard overbought/oversold gate on the Long/Short pools, matching
+# RecommendationsView.tsx's own MOMENTUM_OVERBOUGHT/OVERSOLD and
+# MEAN_REVERSION_OVERBOUGHT/OVERSOLD zone thresholds exactly (MSI/ST-MSI
+# in that page's own column labels -- "mom"/"mr" here, same raw [0, 100]
+# values, no rescaling). Explicit instruction: don't let the optimizer
+# select an already-overbought stock for the Long side or an already-
+# oversold stock for the Short side, regardless of how well it otherwise
+# scores -- a stock at a momentum/mean-reversion extreme in the wrong
+# direction for its side is exactly the "chasing the move" entry the
+# Recommendations page's own eligibleToBuy/eligibleToSell gates already
+# warn against for live trade signals, and the target portfolio shouldn't
+# recommend building a fresh position into that same risk. Missing mom/mr
+# data does NOT exclude a candidate -- only an actual extreme reading
+# does.
+MOMENTUM_OVERBOUGHT = 70
+MOMENTUM_OVERSOLD = 30
+MEAN_REVERSION_OVERBOUGHT = 80
+MEAN_REVERSION_OVERSOLD = 20
+
 LONG_RATINGS = {"Strong Buy", "Buy"}
 SHORT_RATINGS = {"Strong Sell", "Sell"}
 
@@ -417,52 +436,99 @@ def _build_cov(pool, hist_returns=None):
         return cov
 
 
-# ── greedy optimiser ──────────────────────────────────────────────────────────
+# ── local-search optimiser ────────────────────────────────────────────────────
 
-def _greedy_max_sharpe(cov, position_returns, n_select):
-    """Forward greedy selection maximising equal-weight portfolio Sharpe.
+def _portfolio_sharpe(cov, rets, idx):
+    """Equal-weight portfolio Sharpe over the position indices in idx (a
+    list or set) -- shared by _local_search_max_sharpe's initial score,
+    its swap evaluation, and its post-convergence alternates pass, so all
+    three use the exact same math."""
+    idx = list(idx)
+    m = len(idx)
+    w = np.full(m, 1.0 / m)
+    sub_rets = rets[idx]
+    sub_cov = cov[np.ix_(idx, idx)]
+    port_var = float(w @ sub_cov @ w)
+    port_ret = float(w @ sub_rets)
+    return (port_ret - RF) / math.sqrt(port_var) if port_var > 1e-12 else -math.inf
 
-    At each step, adds the candidate that most improves the portfolio Sharpe:
-      Sharpe = (mean(returns[selected]) − rf) / sqrt(w^T cov[sel,sel] w)
-    Returns (selected indices, final Sharpe, runners_up) where runners_up[i]
-    is the list of up to 2 candidate indices that were evaluated at the same
-    step selected[i] was chosen but scored lower — i.e. what the optimizer
-    would have picked into that slot next, had selected[i] not been
-    available. This is the trial-Sharpe ranking already computed at that
-    step, just not discarded after finding the max — every remaining
-    candidate is evaluated against the SAME already-selected set each step,
-    so "runner-up at step i" is a well-defined, order-consistent notion of
-    2nd/3rd choice for that specific slot (not just "next-best composite
-    score," which ignores how a candidate would actually interact with the
-    portfolio already built).
-    """
+
+# Hard cap on local-search passes -- pure safety net, not expected to bind:
+# each accepted swap strictly increases Sharpe (only a swap that improves
+# on the current best is ever taken), and there are finitely many n_select-
+# subsets of a pool this size, so the loop is mathematically guaranteed to
+# terminate on its own; this just guards against a pathological floating-
+# point oscillation at the convergence boundary rather than a real
+# non-termination risk.
+_LOCAL_SEARCH_MAX_PASSES = 50
+
+
+def _local_search_max_sharpe(cov, position_returns, n_select):
+    """Pairwise-exchange local search maximising equal-weight portfolio
+    Sharpe -- explicit instruction, replacing an earlier forward-greedy
+    version: start from the top n_select candidates by composite score
+    (pool is already sorted that way by the caller, so this is just
+    range(n_select)), then repeatedly swap a held position out for a
+    benched one whenever it improves the WHOLE portfolio's Sharpe, until
+    no swap improves it anymore.
+
+    Each pass evaluates every (held, benched) pair -- up to n_select ×
+    (n_total − n_select) swaps -- and applies only the single
+    best-improving one before starting a new pass (explicit instruction:
+    best-improvement per pass, not first-improvement), so the result
+    doesn't depend on scan order the way first-improvement would.
+    Fixes forward-greedy's real structural weakness: once greedy picked
+    something, it could never reconsider that pick once more of the
+    portfolio was built around it; this can undo an early pick once a
+    later swap makes it look worse relative to the set it's now part of.
+
+    Returns (selected indices, final Sharpe, alternates) where
+    alternates[i] is the up-to-2 benched candidates that would have come
+    closest to displacing selected[i] specifically, evaluated once at
+    convergence (not during the swap search itself, which only tracks the
+    single best swap each pass) -- the natural analog of forward-greedy's
+    old "runner-up at the step this was picked" for an algorithm that
+    doesn't select sequentially."""
     n_total = len(position_returns)
     rets = np.array(position_returns)
-    selected = []
-    remaining = list(range(n_total))
-    runners_up = []
+    selected = set(range(min(n_select, n_total)))
+    bench = set(range(n_total)) - selected
 
-    for _ in range(n_select):
-        step_scores = []
-        for k in remaining:
-            trial = selected + [k]
-            m = len(trial)
-            w = np.full(m, 1.0 / m)
-            sub_rets = rets[trial]
-            sub_cov = cov[np.ix_(trial, trial)]
-            port_var = float(w @ sub_cov @ w)
-            port_ret = float(w @ sub_rets)
-            sharpe = (port_ret - RF) / math.sqrt(port_var) if port_var > 1e-12 else -math.inf
-            step_scores.append((sharpe, k))
-        if not step_scores:
+    current_sharpe = _portfolio_sharpe(cov, rets, selected)
+    for _ in range(_LOCAL_SEARCH_MAX_PASSES):
+        best_swap = None
+        best_sharpe = current_sharpe
+        for out_idx in selected:
+            trial_base = selected - {out_idx}
+            for in_idx in bench:
+                s = _portfolio_sharpe(cov, rets, trial_base | {in_idx})
+                if s > best_sharpe:
+                    best_sharpe = s
+                    best_swap = (out_idx, in_idx)
+        if best_swap is None:
             break
-        step_scores.sort(key=lambda x: x[0], reverse=True)
-        best_sharpe, best_k = step_scores[0]
-        selected.append(best_k)
-        remaining.remove(best_k)
-        runners_up.append([k for _, k in step_scores[1:3]])
+        out_idx, in_idx = best_swap
+        selected.discard(out_idx)
+        selected.add(in_idx)
+        bench.discard(in_idx)
+        bench.add(out_idx)
+        current_sharpe = best_sharpe
 
-    return selected, best_sharpe, runners_up
+    selected_list = sorted(selected)
+    # Alternates: for each held position, which benched candidates would
+    # have produced the highest Sharpe if swapped in for THAT specific
+    # position (not the single best swap overall) -- "who almost took
+    # your spot," evaluated fresh at the final, converged portfolio.
+    alternates = []
+    for out_idx in selected_list:
+        trial_base = selected - {out_idx}
+        trial_scores = sorted(
+            ((_portfolio_sharpe(cov, rets, trial_base | {in_idx}), in_idx) for in_idx in bench),
+            reverse=True,
+        )
+        alternates.append([k for _, k in trial_scores[:2]])
+
+    return selected_list, current_sharpe, alternates
 
 
 # ── main entry point ──────────────────────────────────────────────────────────
@@ -542,8 +608,20 @@ def build_target_portfolio(rec_file, sim_file):
             if fr is None or not direction(fr):
                 continue
             c = _make_candidate(ticker, side)
-            if c:
-                raw.append(c)
+            if not c:
+                continue
+            mom, mr = c.get("mom"), c.get("mr")
+            if side == "Long":
+                if (mom is not None and mom > MOMENTUM_OVERBOUGHT) or (
+                    mr is not None and mr >= MEAN_REVERSION_OVERBOUGHT
+                ):
+                    continue
+            else:
+                if (mom is not None and mom < MOMENTUM_OVERSOLD) or (
+                    mr is not None and mr <= MEAN_REVERSION_OVERSOLD
+                ):
+                    continue
+            raw.append(c)
         return raw
 
     results = {}
@@ -575,17 +653,18 @@ def build_target_portfolio(rec_file, sim_file):
         ]
         pool = pool[:CANDIDATE_POOL]
 
-        # Build covariance and run greedy optimiser
+        # Build covariance and run the local-search optimiser
         cov = _build_cov(pool, hist_returns)
         position_returns = [c["positionReturn"] for c in pool]
-        selected_idx, _, runners_up_idx = _greedy_max_sharpe(cov, position_returns, POSITIONS)
+        selected_idx, _, runners_up_idx = _local_search_max_sharpe(cov, position_returns, POSITIONS)
 
         selected = [pool[i] for i in selected_idx]
-        # 2nd/3rd choice for each slot -- see _greedy_max_sharpe's own
-        # docstring for why this is the runner-up at THAT step, not just
+        # 2nd/3rd choice for each slot -- see _local_search_max_sharpe's
+        # own docstring for why this is "who almost displaced this
+        # specific holding" at the converged portfolio, not just
         # "next-best composite score somewhere in the pool" (explicit
-        # instruction: what got discarded specifically because this pick
-        # was already in the portfolio).
+        # instruction: what would have taken this exact spot, not a
+        # generic runner-up).
         for c, ru_idx in zip(selected, runners_up_idx):
             c["alternates"] = [
                 {

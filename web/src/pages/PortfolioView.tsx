@@ -294,7 +294,9 @@ export default function PortfolioView() {
                 <th>NAV</th>
                 <th title="Stock Long / NAV">Stock Long %</th>
                 <th title="Stock Short / NAV">Stock Short %</th>
+                <th>Net $</th>
                 <th title="Net / NAV">Net %</th>
+                <th>Gross $</th>
                 <th title="Gross / NAV">Gross %</th>
                 <th>Flows</th>
                 <th>Commissions</th>
@@ -311,7 +313,7 @@ export default function PortfolioView() {
             <tbody>
               {rows.length === 0 && (
                 <tr className="status-row">
-                  <td colSpan={17}>No daily rows in the query response.</td>
+                  <td colSpan={19}>No daily rows in the query response.</td>
                 </tr>
               )}
               {[...rows].reverse().map((r) => {
@@ -326,7 +328,9 @@ export default function PortfolioView() {
                     <td className="num">{fmtLevel(r.nav)}</td>
                     <td className="num">{fmtExposurePct(r.stockLong, r.nav)}</td>
                     <td className="num">{fmtExposurePct(r.stockShort, r.nav)}</td>
+                    <td className="num">{fmtMoneyPlain(r.stockNet)}</td>
                     <td className="num">{fmtExposurePct(r.stockNet, r.nav)}</td>
+                    <td className="num">{fmtMoneyPlain(r.stockGross)}</td>
                     <td className="num">{fmtExposurePct(r.stockGross, r.nav)}</td>
                     <td className="num">{fmtMoneyPlain(r.depositsWithdrawals)}</td>
                     <td className="num">{fmtMoneyPlain(r.commissions)}</td>

@@ -71,6 +71,16 @@ export interface Candidate {
   // own tickerForecast state/effect). null/undefined for a ticker that
   // simulation had no data for, same as every other optional factor here.
   forecastReturn?: number | null
+  // data/output/simulations.json's own simReturn/simSharpe (see modules/
+  // simulations.py's "SIMULATED-PATH FORMULA" section) -- the per-path
+  // Monte Carlo's own mean simulated return and its Modified (Israelsen)
+  // Sharpe ratio, a DIFFERENT number from forecastReturn above (that one
+  // is the confidence-pulled-toward-currentPrice deterministic case;
+  // these are the un-pulled simulated-path distribution's own stats).
+  // Same fetch/merge pattern as forecastReturn -- see RecommendationsView's
+  // own tickerSimPerf state/effect.
+  simReturn?: number | null
+  simSharpe?: number | null
   // data/output/target_portfolio.json's own longs/shorts membership (see
   // modules/portfolio_optimizer.py) -- which side, if either, the
   // Sharpe-maximising optimizer actually selected this ticker for. A

@@ -166,36 +166,79 @@ falls back to for a ticker IB Gateway's bars don't cover.
 
 ## Score formula
 
-`data/output/sorted_screen.csv`'s `score` column (lower is better) blends 18 factors —
-see `modules/scoring.py` for the exact ranking rule and edge-case handling behind
-each one:
+`data/output/sorted_screen.csv`'s `score` column (lower is better) blends 20 factors.
+The weights aren't one fixed formula: `modules/scoring.py`'s `FACTOR_WEIGHTS` defines
+four columns — a **Standard** one plus three sector-specific overrides for
+**Financials**, **Utilities**, and **Real Estate** — since several factors either don't
+mean the same thing for these sectors (a bank's balance sheet doesn't map onto
+debt/liquidity/EV-EBITDA/FCF/margin the way a normal company's does — Yahoo simply
+doesn't populate several of those fields for banks at all) or read structurally
+different for a reason that isn't a quality signal (Utilities' rate-capped revenue
+growth, regulated-utility low quick/current ratios, near-zero short interest). See
+that module's own comments above `FACTOR_WEIGHTS` for the full live-data evidence
+behind each override — this table is just the resulting numbers:
 
-| Weight | Factor |
-|---|---|
-| 5% | Low forward P/E |
-| 10% | Low forward P/E relative to sector average |
-| 5% | Low price/FCF (negative or missing FCF ranked worst) |
-| 5% | Low EV/EBITDA (negative EBITDA ranked worst) |
-| 2.5% | Low trailing P/S (price / trailing-12-month revenue — a separate valuation lens that stays meaningful for unprofitable/negative-FCF names) |
-| 5% | High daily-timeframe momentum (regression-slope trend / its own volatility) |
-| 5% | High hourly-timeframe mean reversion (negated regression-slope trend on the hourly series — a short-term reversal signal, independent of the daily momentum factor above) |
-| 5% | EPS trend (current- + next-fiscal-year 30-day consensus estimate revision, from yfinance's `get_eps_trend()`) |
-| 7.5% | High revenue growth |
-| 7.5% | Analyst conviction (target upside + recommendation + low target-price dispersion) |
-| 5% | Forward P/E vs. trailing P/E (more negative is better) |
-| 5% | Low PEG ratio |
-| 5% | Low debt/equity relative to sector average |
-| 2.5% | Liquidity (quick + current ratio) |
-| 5% | High return on equity |
-| 5% | Short interest (deliberately contrarian — more shorted scores better) |
-| 5% | Combined news + social + institutional sentiment (QoQ institutional share-change from SEC 13F, clipped to ±50%) |
-| 5% | Insiders (SEC Form 4 open-market buys minus sells, as a share of both; missing ranked worst) |
-| 5% | Margins (profit + operating) |
+| Factor | Standard | Financials | Utilities | Real Estate |
+|---|---|---|---|---|
+| Low forward P/E | 3% | 3% | 3% | 3% |
+| Low forward P/E vs. sector average | 5% | 12% | 11% | 7% |
+| Low yearly EPS volatility | 5% | 5% | 5% | 5% |
+| Low price/FCF (negative/missing ranked worst) | 5% | 0% | 0% | 5% |
+| Low EV/EBITDA (negative EBITDA ranked worst) | 4% | 0% | 5% | 0% |
+| High daily-timeframe momentum (MFI/RSI) | 5% | 5% | 5% | 5% |
+| High hourly-timeframe mean reversion (MFI) | 5% | 5% | 5% | 5% |
+| EPS-estimate revision trend | 5% | 15% | 4% | 10% |
+| Analyst conviction | 5% | 5% | 5% | 5% |
+| Simulations (Monte Carlo forecastReturn) | 10% | 10% | 10% | 10% |
+| Forward P/E vs. trailing P/E | 3% | 3% | 3% | 3% |
+| Low PEG ratio | 4% | 8% | 5% | 5% |
+| Low trailing P/S | 2% | 2% | 2% | 2% |
+| High revenue growth | 4% | 6% | 2% | 6% |
+| Low debt/equity vs. sector average | 5% | 0% | 5% | 0% |
+| Liquidity (quick + current ratio) | 2% | 0% | 0% | 0% |
+| High return on equity | 3% | 3% | 6% | 3% |
+| Short interest (deliberately contrarian) | 8% | 5% | 6% | 8% |
+| Combined news/social/institutional sentiment | 8% | 8% | 8% | 8% |
+| Insiders (SEC Form 4 buys minus sells) | 4% | 5% | 5% | 5% |
+| Margins (profit + operating) | 5% | 0% | 5% | 5% |
 
-The Screener's "Score formula" info popup shows this same breakdown in the
-UI. `rating_for_percentile` then buckets the score into a forced
+Each column sums to exactly 100%. The Screener's "Score formula" info popup
+(`GET /api/scoring-formula`) reads this same `FACTOR_WEIGHTS` dict directly, so it
+can never drift from what `score_rows` actually computes — only this README copy
+can go stale.
+
+Two corrections worth calling out, both found by comparing each sector's actual
+`sorted_screen.csv` distribution against the rest of the universe rather than
+assumption: **Utilities** was showing ~0% Buy-rated names (short interest/eps_trend
+had been weighted *above* standard for a sector that structurally runs low on both —
+now cut below standard, with the freed weight moved to sector_pe/ROE, factors a
+utility can actually differentiate on). **Financials'** simulation-forecast weight
+was trimmed back to the 10% standard (from 15%) after tracing *why* its
+`forecastReturn` ran structurally high: Yahoo's `operatingMargins` reads ~3x inflated
+for banks/insurers (net interest income/premiums-net-of-claims as the denominator,
+not gross revenue — the same distortion already excluded from the `margin` factor
+above), and that same raw value was still feeding `modules/simulations.py`'s own
+`marginAdjustedRevenueGrowth = revenueGrowth × operatingMargin` growth-rate input,
+inflating the projected EPS path for every Financials name, not just the genuinely
+fast-growing ones. Fixed at the source (`_MARGIN_DISTORTED_SECTORS` in
+`modules/simulations.py` excludes Banks/Insurance/REIT - Mortgage specifically from
+that margin adjustment — not Asset Management or Financial Data & Stock Exchanges,
+whose own elevated margins reflect real fee-business economics, not a denominator
+artifact); the freed 5% of scoring weight moved to `eps_trend`, a signal this sector
+already reports cleanly.
+
+**Combined news/social/institutional sentiment** was raised from 5% to 8% in every
+column after this session's news-classification work (the `fast_path_score` regex
+system, headline-importance stars) meaningfully improved what that factor actually
+measures. Funded two different ways: Financials/Utilities/Real Estate each give up
+the full 3% from `sector_pe` alone (still well above the 5% standard weight even
+after the cut); Standard instead splits its 3% three ways, 1% each from `peg`,
+`ev_ebitda`, and `insiders` — `sector_pe` was left alone there since it's already at
+the 5% baseline with no comparable margin to trim.
+
+`rating_for_percentile` then buckets the score into a forced
 Strong Buy/Buy/Hold/Sell/Strong Sell distribution shaped like Zacks Rank
-(top/bottom 5% = Strong Buy/Strong Sell), independent of the `Rec` column's
+(top/bottom 6% = Strong Buy/Strong Sell), independent of the `Rec` column's
 raw analyst consensus.
 
 ## Monte Carlo EPS forecast (prototype)
@@ -219,10 +262,20 @@ value TODAY at the industry's own median valuation multiple?
   ticker's own signals. `marginAdjustedRevenueGrowth = revenueGrowth ×
   operatingMargin` converts raw revenue growth to its earnings-equivalent.
   `epsTrend` is the 30-day consensus estimate revision (avg of
-  `epsRevision0y`/`1y`, whichever present).
+  `epsRevision0y`/`1y`, whichever present). For Banks, Insurance, and
+  REIT - Mortgage specifically (`_MARGIN_DISTORTED_SECTORS` in
+  `modules/simulations.py`), `marginAdjustedRevenueGrowth` is skipped
+  entirely (falls back to `epsTrend` alone) — Yahoo's `operatingMargins`
+  reads structurally ~3x inflated for these sub-industries (net interest
+  income/premiums-net-of-claims as the ratio's denominator, not gross
+  revenue), which was otherwise inflating the projected EPS path
+  sector-wide. Asset Management and Financial Data & Stock Exchanges are
+  deliberately *not* excluded — their own elevated margins reflect real
+  fee-business economics, not the same denominator artifact.
 - `industryGrowthRate` = the same combination built from the peer group's
   **median** `epsTrend`/`revenueGrowth`/`operatingMargin` (granular
-  industry ≥ 20 peers, otherwise widened to the broad GICS-style sector).
+  industry ≥ 10 peers, otherwise widened to the broad GICS-style sector);
+  same exclusion applies to the peer-median `operatingMargin` too.
 - `w_t = sqrt((N−t) / N)`, N = 4 — concave weight decaying from ~0.87
   at year 1 to 0 at year 4.
 - All growth rates are clamped to [−99%, +100%].

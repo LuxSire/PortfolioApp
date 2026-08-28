@@ -2891,7 +2891,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1
+    "active": 0
   },
   {
     "symbol": "BBCP",
@@ -3517,7 +3517,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Engineering & Construction"
   },
   {
@@ -8414,7 +8414,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Drug Manufacturers - Specialty & Generic"
   },
   {
@@ -9015,7 +9015,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1
+    "active": 0
   },
   {
     "symbol": "FDS",
@@ -9578,7 +9578,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Entertainment"
   },
   {
@@ -13838,7 +13838,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Furnishings, Fixtures & Appliances"
   },
   {
@@ -17024,7 +17024,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Biotechnology"
   },
   {
@@ -17536,7 +17536,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Specialty Retail"
   },
   {
@@ -21640,7 +21640,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Semiconductors"
   },
   {
@@ -22902,7 +22902,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Health Information Services"
   },
   {
@@ -23583,7 +23583,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Medical Care Facilities"
   },
   {
@@ -25577,7 +25577,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Banks - Regional"
   },
   {

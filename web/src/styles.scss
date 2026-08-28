@@ -895,6 +895,16 @@ header.masthead .title-block p {
   color: var(--ink);
 }
 
+/* headline_importance's 0/1/3-star rating -- see news.js's own comment on
+   why this is a separate signal from .news-sentiment above. --warn is
+   already the gold/amber tone this palette uses elsewhere (e.g. the
+   Short side-group band), reused here rather than a fourth accent color
+   just for stars. */
+.news-importance-stars {
+  color: var(--warn);
+  letter-spacing: 0.02em;
+}
+
 .news-headline-expandable {
   cursor: pointer;
 }
@@ -2021,6 +2031,30 @@ tr.row-held {
   color: var(--ink);
 }
 
+/* In the target portfolio on this card's own side (see target_portfolio.json's
+   longs/shorts -- modules/portfolio_optimizer.py's final selected picks, not
+   just the "Optimizer pool" rationale line's broader pool) -- explicit
+   instruction: the same decisive dark green recommendation-card-held.
+   recommendation-card-goodsign already uses. Standalone (not compounded with
+   -held) since a target-portfolio pick doesn't require an existing position
+   -- RecommendationCard applies this independently of `held`. Two-class
+   selector (0,2,0 specificity) so it wins over the plain single-class
+   -held brown regardless of source order when a card happens to be both
+   held and target-portfolio-selected -- the optimizer's own current pick is
+   a stronger, more actionable read than merely "you already hold this." */
+.recommendation-card.recommendation-card-target-portfolio {
+  --surface: #0f3d24;
+  --surface-2: #164d2d;
+  --line: #1f6640;
+  --ink: #e3f3e8;
+  --muted: #a9cdb6;
+  --good: #4cbd86;
+  --bad: #e2685c;
+  --warn: #d6b542;
+  background: var(--surface);
+  color: var(--ink);
+}
+
 /* Sits right above the rationale bullets, right-aligned -- explicit
    instruction: an up/down tally before scanning the individual factor
    lines below. */
@@ -2222,6 +2256,32 @@ tr.row-held {
   font-weight: 600;
   color: var(--muted);
   letter-spacing: 0.02em;
+}
+
+/* Groups the percentile badge with the target-portfolio label (see
+   recommendation-target-portfolio-label below) into one right-aligned
+   column, stacked on top of each other, instead of both trying to share
+   the footer row's own single right-hand baseline slot. */
+.recommendation-footer-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+/* Explicit instruction: "Target portfolio" sits above the percentile
+   badge, bottom right of the card -- --good (this app's own green token,
+   already re-pinned to a brighter shade on the dark-green
+   recommendation-card-target-portfolio surface, see its own comment)
+   rather than --muted, so the label reads as a positive callout even on a
+   card that ISN'T itself green (e.g. a held position whose MSI condition
+   makes it -badsign red, but that's still an optimizer target-portfolio
+   pick). */
+.recommendation-target-portfolio-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--good);
 }
 
 .score-cell {
@@ -2506,9 +2566,20 @@ footer.note {
   outline-offset: 1px;
 }
 
+/* Also the "no command" fallback text in the Regenerate-with column (see
+   DatasetTable.tsx) for a row with no CLI command of its own (e.g. News
+   sentiment's own notes, which can run just as long as any other row's) --
+   same single-line ellipsis treatment as .dataset-notes below, and the
+   same reason: unbounded wrapped text was pushing this column far wider
+   than the table's other columns needed. */
 .dataset-missing {
+  display: block;
   color: var(--muted);
   font-style: italic;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 280px;
 }
 
 /* DatasetView.tsx -- the file was written recently (mtime), but its most
@@ -2522,11 +2593,21 @@ footer.note {
   vertical-align: -2px;
 }
 
+/* Explicit instruction: some rows' own notes (see ib_server.py's DATASETS)
+   run several sentences long, wrapping (white-space: normal, the previous
+   rule here) into a tall multi-line block that pushed the whole "Regenerate
+   with" column far wider/taller than the command line above it actually
+   needs. Single line, ellipsis-truncated, capped at a fixed width instead
+   -- the full text is never lost, just collapsed to a hover tooltip (see
+   DatasetTable.tsx's own title attribute on this element). */
 .dataset-notes {
   margin-top: 2px;
   font-size: 11px;
   color: var(--muted);
-  white-space: normal;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 280px;
 }
 
 .dataset-label {

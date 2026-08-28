@@ -7,6 +7,7 @@ export interface Article {
   provider: string
   headline: string
   sentiment: number | null
+  importance: number | null
 }
 
 // The raw {ticker: [article, ...]} payload GET /api/news returns.

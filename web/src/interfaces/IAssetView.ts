@@ -33,6 +33,7 @@ export interface NewsArticle {
   provider: string
   headline: string
   sentiment: number | null
+  importance: number | null
 }
 
 // One point of data/price_history.json (yfinance daily closes).

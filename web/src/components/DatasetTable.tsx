@@ -225,10 +225,14 @@ export default function DatasetTable() {
                       {f.command ? (
                         <>
                           <code>{f.command}</code>
-                          {f.notes && <div className="dataset-notes">{f.notes}</div>}
+                          {f.notes && (
+                            <div className="dataset-notes" title={f.notes}>
+                              {f.notes}
+                            </div>
+                          )}
                         </>
                       ) : (
-                        <span className="dataset-missing">
+                        <span className="dataset-missing" title={f.notes || undefined}>
                           {f.notes || 'no command — hand-maintained'}
                         </span>
                       )}

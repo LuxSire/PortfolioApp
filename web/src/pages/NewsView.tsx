@@ -1,17 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Search } from 'lucide-react'
 import { IB_NEWS_ARTICLE_URL, IB_NEWS_URL, IB_STREAM_URL } from '../ibStream'
-import { SENTIMENT_LABEL, fmtNewsTime, sentimentClass } from '../news'
+import { SENTIMENT_LABEL, fmtNewsTime, importanceStars, importanceTitle, sentimentClass } from '../news'
 import type { Article, ArticlesByTicker, FlatArticle, PositionsByTicker } from '../interfaces/INewsView'
 
 const PAGE_SIZE = 100
 
 // Flattens {ticker: [article, ...]} (GET /api/news, newest first per
 // ticker -- see ib_server.py's _news_snapshot) into one flat
-// [{ticker, articleId, time, provider, headline, sentiment}, ...] list
-// across every ticker, re-sorted newest first globally -- per-ticker
-// order alone doesn't give one combined chronological order across
-// tickers.
+// [{ticker, articleId, time, provider, headline, sentiment, importance},
+// ...] list across every ticker, re-sorted newest first globally --
+// per-ticker order alone doesn't give one combined chronological order
+// across tickers.
 function flattenNews(byTicker: ArticlesByTicker): FlatArticle[] {
   const rows: FlatArticle[] = []
   for (const [ticker, articles] of Object.entries(byTicker)) {
@@ -79,6 +79,11 @@ function NewsRow({ article }: { article: FlatArticle }) {
         </td>
         <td className="col-left">{article.provider}</td>
         <td className="col-left news-headline-expandable" onClick={toggle}>
+          {article.importance ? (
+            <span className="news-importance-stars" title={importanceTitle(article.importance)}>
+              {importanceStars(article.importance)}{' '}
+            </span>
+          ) : null}
           {article.headline}
         </td>
       </tr>
@@ -121,6 +126,17 @@ export default function NewsView() {
   // rest of this page's news fetch already uses.
   const [positions, setPositions] = useState<PositionsByTicker>({})
   const [positionsOnly, setPositionsOnly] = useState(false)
+  // S Bullish (5) / S Bearish (1) only -- explicit instruction: a flag to
+  // cut straight to the most extreme reads, skipping plain Bullish/
+  // Bearish/Neutral entirely. Independent of showNeutral (irrelevant once
+  // this is on -- neither extreme is ever neutral) and positionsOnly
+  // (composes with it via the same AND-of-filters pattern below).
+  const [extremesOnly, setExtremesOnly] = useState(false)
+  // 3-star (High) importance only -- explicit instruction: cut straight
+  // to earnings/guidance/FDA/recall-class news, skipping Medium/Low
+  // entirely. Independent of and composes with the other filters the
+  // same AND-of-filters way, same as extremesOnly above.
+  const [highImportanceOnly, setHighImportanceOnly] = useState(false)
 
   useEffect(() => {
     const source = new EventSource(IB_STREAM_URL)
@@ -159,16 +175,19 @@ export default function NewsView() {
     return result
   }, [rows, tickerQuery, positionsOnly, positions])
   const neutralCount = useMemo(() => (byTicker ? byTicker.filter((a) => a.sentiment === 3).length : 0), [byTicker])
-  const filtered = useMemo(
-    () => (byTicker ? (showNeutral ? byTicker : byTicker.filter((a) => a.sentiment !== 3)) : null),
-    [byTicker, showNeutral]
-  )
+  const filtered = useMemo(() => {
+    if (!byTicker) return null
+    let result = showNeutral ? byTicker : byTicker.filter((a) => a.sentiment !== 3)
+    if (extremesOnly) result = result.filter((a) => a.sentiment === 1 || a.sentiment === 5)
+    if (highImportanceOnly) result = result.filter((a) => a.importance === 3)
+    return result
+  }, [byTicker, showNeutral, extremesOnly, highImportanceOnly])
 
-  // Resets to page 0 whenever the ticker filter or showNeutral changes —
-  // the result set just changed size out from under whatever page was
-  // showing, same "detect the filter changed mid-render" convention as
-  // PeTable.jsx's lastFilterKey.
-  const filterKey = JSON.stringify([tickerQuery, showNeutral, positionsOnly])
+  // Resets to page 0 whenever the ticker filter or showNeutral/extremesOnly
+  // changes — the result set just changed size out from under whatever
+  // page was showing, same "detect the filter changed mid-render"
+  // convention as PeTable.jsx's lastFilterKey.
+  const filterKey = JSON.stringify([tickerQuery, showNeutral, positionsOnly, extremesOnly, highImportanceOnly])
   const [lastFilterKey, setLastFilterKey] = useState(filterKey)
   if (filterKey !== lastFilterKey) {
     setLastFilterKey(filterKey)
@@ -213,6 +232,20 @@ export default function NewsView() {
           <label className="position-filter">
             <input type="checkbox" checked={positionsOnly} onChange={(e) => setPositionsOnly(e.target.checked)} />
             Positions only{Object.keys(positions).length > 0 ? ` (${Object.keys(positions).length})` : ''}
+          </label>
+
+          <label className="position-filter">
+            <input type="checkbox" checked={extremesOnly} onChange={(e) => setExtremesOnly(e.target.checked)} />
+            S Bullish / S Bearish only
+          </label>
+
+          <label className="position-filter">
+            <input
+              type="checkbox"
+              checked={highImportanceOnly}
+              onChange={(e) => setHighImportanceOnly(e.target.checked)}
+            />
+            ★★★ only
           </label>
         </div>
       )}

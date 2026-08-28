@@ -1,0 +1,278 @@
+{
+  "generated": "2026-08-26",
+  "context": "Follow-up to the SMTC news-classification inconsistency review. Scanned modules/news_sentiment.py's fast_path_score against the full cached corpus (data/IB/news.json, 54916 headlines / 43508 distinct) for additional recurring auto-generated templates carrying a deterministic bull/bear (not just neutral) signal that FinBERT reads inconsistently or wrong, matching the standard already set by the existing 8 fast_path_score rules (each justified by a systematic corpus scan, not a single flagged example).",
+  "candidates_ranked_by_confidence": [
+    {
+      "name": "index_contribution_recap",
+      "regex": "Share (?:Gains|Losses) Contribute To (?:Dow|S&P ?500|Nasdaq)'?s? [\\d,]+-Point",
+      "flags": "IGNORECASE",
+      "scoring": "force 3 (Neutral)",
+      "corpus_distinct_headlines_matched": 6,
+      "current_finbert_score_distribution": {
+        "Bullish": 18,
+        "Bearish": 5,
+        "S Bearish": 6
+      },
+      "sample_headlines": [
+        "Nike, Merck Share Losses Contribute To Dow's 150-Point Drop",
+        "Caterpillar, Cisco Share Gains Contribute To Dow's 909-Point Rally",
+        "Goldman Sachs, Merck Share Gains Contribute To Dow's 500-Point Jump",
+        "Honeywell, Alphabet Inc. Cl A Share Losses Contribute To Dow's 162-Point Drop",
+        "Merck, Amgen Share Gains Contribute To Dow's 161-Point Climb",
+        "Sherwin-Williams Co., Coca-Cola Share Gains Contribute To Dow's 300-Point Jump"
+      ],
+      "confidence": "high",
+      "status": "IMPLEMENTED as _INDEX_CONTRIBUTION_RE in modules/news_sentiment.py -- awaiting a rescore to take effect on the live cache.",
+      "notes": "User-flagged: a MarketWatch article (often literally 'Automated Insights'-branded auto-generated content) analyzing the Dow's own point move, namechecking 2 companies as incidental contributors -- attributed identically to BOTH companies regardless of their own individual moves (e.g. 'Caterpillar, Cisco Share Gains Contribute To Dow's 909-Point Rally' reads Bullish for both, no distinction). Same class of problem as _MARKET_RECAP_RE/_FUTURES_RECAP_RE/_SP500_FUTURES_RECAP_RE/_STOCKS_EXPLAIN_MARKET_RE -- explicit instruction: 'completely ignore the news like this where it is just an analysis of the contribution to an index.' Low sample size (6) but a genuine, identifiable recurring provider template, same standard _IBD_EARNINGS_REACTION_RE was justified on with only 4."
+    },
+    {
+      "name": "guidance_dividend_fda_recall_directional",
+      "regex_guidance_raise": "\\bRaises?\\s+.*Guidance\\b",
+      "regex_guidance_hypothetical_exclude": "\\b(?:Expected|Set|Poised|Likely|May|Could|Should|Seen)\\s+to\\s+Raise",
+      "regex_guidance_contradicts_price_exclude": "\\bBut\\s+Shares?\\s+(?:Fall|Fell|Drop|Dip|Decline|Slide|Tumble)",
+      "regex_dividend_raise": "\\b(?:Boosts?|Raises?|Hikes?)\\s+.*Dividend\\b",
+      "regex_fda_approves": "\\bFDA\\s+Approv",
+      "regex_recalls": "\\bRecalls?\\b",
+      "flags": "IGNORECASE",
+      "scoring": "guidance_raise (after exclusions) -> 4; dividend_raise -> 4; fda_approves -> 4; recalls -> 2",
+      "corpus_distinct_headlines_matched": {"guidance_raise_post_exclusion": 109, "dividend_raise": 100, "fda_approves": 26, "recalls": 17},
+      "current_finbert_score_distribution": {
+        "raises_guidance": {"Bull": 93, "Neutral": 18, "Bear": 3},
+        "boosts_dividend": {"Bull": 95, "Neutral": 4, "Bear": 1},
+        "fda_approves": {"Bull": 25, "Neutral": 3},
+        "recalls": {"Bear": 15, "Neutral": 4}
+      },
+      "confidence": "high",
+      "status": "IMPLEMENTED as _GUIDANCE_RAISE_RE/_DIVIDEND_RAISE_RE/_FDA_APPROVES_RE/_RECALLS_RE in modules/news_sentiment.py -- awaiting a rescore to take effect on the live cache.",
+      "notes": "Lower-value than the earlier fixes (FinBERT already got the clear majority right), but per instruction to close residual error rates rather than leave them to chance. Two real traps found and excluded on the guidance side, both confirmed against actual cached headlines: 'Raises Guidance, But Shares Fall/Dip For One Key Reason' (the headline's own clause states the actual market reaction was negative -- left to FinBERT, which already reads it correctly as Bearish) and 'Had Been Expected to Raise Annual Guidance' (hypothetical/anticipatory framing, not something that already happened -- the verb doesn't describe a real event here). No equivalent traps found for dividends/FDA/recalls after the same check. cuts_guidance and cuts_dividend were checked too and deliberately NOT forced -- see their own entries below, each has exactly one miss and it's a genuinely ambiguous headline, not a template error."
+    },
+    {
+      "name": "lead_plaintiff_solicitation",
+      "regex": "Opportunity to Lead",
+      "flags": "IGNORECASE",
+      "scoring": "force 3 (Neutral)",
+      "corpus_distinct_headlines_matched": 107,
+      "current_finbert_score_distribution": {
+        "Bull": 61,
+        "Neutral": 146,
+        "Bear": 51
+      },
+      "sample_headlines": [
+        "Press Release: ADMA Biologics, Inc. (ADMA) Shareholders Who Lost Money Have Opportunity to Lead Securities Fraud Lawsuit",
+        "Press Release: ADMA Biologics, Inc. Investor Alert: Contact SBS by August 10, 2026 for Opportunity to Lead Securities Fraud Lawsuit",
+        "Press Release: BE Investors Have Opportunity to Lead Bloom Energy Corporation Securities Fraud Lawsuit"
+      ],
+      "confidence": "high",
+      "status": "IMPLEMENTED as _LEAD_PLAINTIFF_SOLICITATION_RE in modules/news_sentiment.py -- awaiting a rescore to take effect on the live cache.",
+      "notes": "Found on the same follow-up full-corpus audit as rating_maintained_no_change. A different law firm's lead-plaintiff solicitation template from shareholder_alert_class_action_solicitation below (that one solicits around an M&A deal; this one solicits around a stock that already had a real decline -- by the time the ad runs, the underlying bad news is already stale/priced-in, not fresh company-specific information, same boilerplate-ad reasoning). FinBERT is badly inconsistent on it -- 61 Bull / 146 Neutral / 51 Bear instances for the same underlying case reworded across near-identical press releases as a deadline approaches. Zero false positives checked against non-lawsuit content."
+    },
+    {
+      "name": "rating_maintained_no_change",
+      "regex": "\\bIs Maintained at\\s+[\\w \\-]+?\\s+by\\b",
+      "flags": "IGNORECASE",
+      "scoring": "force 3 (Neutral), regardless of which rating tier is being maintained",
+      "corpus_distinct_headlines_matched": 4039,
+      "current_finbert_score_distribution": {
+        "Neutral": 3004,
+        "Bull": 435,
+        "Bear": 24
+      },
+      "sample_headlines": [
+        "AAON Is Maintained at Outperform by Baird",
+        "10x Genomics Is Maintained at Overweight by Stephens & Co.",
+        "10x Genomics Is Maintained at Neutral by Citigroup",
+        "ACADIA Pharmaceuticals Is Maintained at Buy by Citigroup",
+        "ACADIA Pharmaceuticals Is Maintained at Outperform by RBC Capital"
+      ],
+      "confidence": "high",
+      "status": "IMPLEMENTED as _RATING_MAINTAINED_RE in modules/news_sentiment.py -- awaiting a rescore (via the Dataset tab's Run button) to take effect on the live cache.",
+      "notes": "Found on a follow-up full-corpus audit after the first round of fixes landed -- the largest single recurring template in the whole cache (4,039 headline instances, dwarfing analyst_rating_action's 457), missed on the first pass because it uses a different trigger verb ('Maintained' vs. 'Raised to'/'Cut to'/'Initiated at'). Unlike analyst_rating_action, the fix here is NOT to read the rating tier -- 'Maintained' is a no-change reaffirmation of an EXISTING rating, not a real revision, matching this module's own already-established principle for _PRICE_TARGET_MAINTAINED_RE ('Maintained... structurally a NO-CHANGE signal, an analyst reiterating an existing view, not revising it') -- confirmed with the user (who said explicitly: 'maintained at buy is neutral') that the same logic extends from price-targets to ratings. ~87% of cached occurrences already happened to read Neutral by luck; this closes the remaining ~13% leak (435 Bull + 24 Bear) for every rating tier, not just the ones FinBERT happened to get right."
+    },
+    {
+      "name": "analyst_rating_action",
+      "regex": "\\b(?:Raised to|Cut to|Initiated at|Upgraded to|Downgraded to)\\s+(Strong Buy|Buy|Outperform|Overweight|Accumulate|Market Outperform|Sector Outperform|Positive|Neutral|Hold|Equal-Weight|Market Perform|Sector Perform|Peer Perform|Perform|In-Line|Sector Weight|Underweight|Underperform|Sell|Reduce)\\b",
+      "flags": "IGNORECASE",
+      "scoring": "read directly from the captured rating-tier word: Strong Buy/Buy/Outperform/Overweight/Accumulate/Market Outperform/Sector Outperform/Positive -> 4 (Bullish); Underweight/Underperform/Sell/Reduce -> 2 (Bearish); everything else (Neutral/Hold/Equal-Weight/Market Perform/Sector Perform/Peer Perform/Perform/In-Line/Sector Weight) -> 3 (Neutral)",
+      "corpus_distinct_headlines_matched": 457,
+      "current_finbert_score_distribution": {
+        "Bull": 196,
+        "Neutral": 220,
+        "Bear": 55
+      },
+      "sample_headlines": [
+        "* Flutter Entertainment Raised to Neutral From Sell by Citi",
+        "* Interparfums Cut to Hold From Buy by Berenberg",
+        "ACV Auctions Cut to Underweight From Equal-Weight by Barclays",
+        "AMD Stock Upgraded To Strong Buy. Here's Why. -- IBD",
+        "APA Raised to Buy From Hold by Argus Research",
+        "AXT Raised to Buy From Hold by Needham"
+      ],
+      "confidence": "high",
+      "status": "IMPLEMENTED as _ANALYST_RATING_ACTION_RE in modules/news_sentiment.py -- awaiting a rescore (via the Dataset tab's Run button) to take effect on the live cache.",
+      "notes": "Unifies 'Raised to X From Y by Firm', 'Cut to X From Y by Firm', 'Initiated at X by Firm', and the rarer 'Stock Upgraded/Downgraded to X' phrasing under one rating-tier vocabulary (confirmed via a full scan of every distinct rating word appearing in this template across the cached corpus -- 21 distinct tier words, all accounted for above). Highest-value fix found: FinBERT gets Initiated-at-Buy right only ~21% of the time (23/108 Bull, rest Neutral), and for Cut-to-Underweight/Underperform it is actually BACKWARDS 9/23 times (scored Bullish on a downgrade). The rating tier itself is the ground truth here, not the Raised/Cut/Initiated verb -- reading it directly removes the ambiguity FinBERT is failing on. A naive 50/50 average with FinBERT's own read was considered and rejected -- confirmed on this exact candidate that it disagrees with the regex's ground-truth tier read on 91/471 (19%) of matched articles, the same kind of dilution the project's earlier headline+body A/B test already found and rejected -- so this stays a full override, same as every other fast_path_score rule."
+    },
+    {
+      "name": "stocks_explain_market_listicle",
+      "regex": "stocks that explains? today'?s? market",
+      "flags": "IGNORECASE",
+      "scoring": "force 3 (Neutral)",
+      "corpus_distinct_headlines_matched": 73,
+      "current_finbert_score_distribution": {
+        "Bear": 13,
+        "Neutral": 389,
+        "Bull": 4
+      },
+      "sample_headlines": [
+        "AMD, Nvidia, Intel, Booking, and More Stocks That Explain Today's Market -- Barrons.com",
+        "ASML, Sandisk, Apple, and More Stocks That Explain Today's Market -- Barrons.com",
+        "AST SpaceMobile, Intel, On, Hims, and More Stocks That Explain Today's Market -- Barrons.com",
+        "Akamai, Atlassian, Cloudflare, JFrog, and More Stocks That Explain Today's Market -- Barrons.com",
+        "Amazon, Apple, Boeing, Micron, Bristol Myers, GameStop, SpaceX, and More Stocks That Explain Today's Market -- Barrons.com",
+        "Amazon, Apple, Micron, Bristol Myers, GameStop, Corning, SpaceX, and More Stocks That Explain Today's Market -- Barrons.com"
+      ],
+      "confidence": "high",
+      "status": "IMPLEMENTED this turn as _STOCKS_EXPLAIN_MARKET_RE in modules/news_sentiment.py -- awaiting a rescore (via the Dataset tab's Run button) to take effect on the live cache.",
+      "notes": "Barron's version of the multi-company namecheck roundup _MARKET_RECAP_RE/_FUTURES_RECAP_RE already handle for IBD/MarketWatch."
+    },
+    {
+      "name": "ibd_earnings_reaction_verb",
+      "regex_bullish": "\\bstock\\s+(rises?|climbs?|advances?|gains?|jumps?|rall(?:y|ies)|surges?|soars?)\\.\\s*--\\s*ibd\\s*$",
+      "regex_bearish": "\\bstock\\s+(falls?|declines?|slides?|slips?|drops?|sinks?|plunges?|sheds?|skids?|tumbles?)\\.\\s*--\\s*ibd\\s*$",
+      "flags": "IGNORECASE",
+      "scoring": "bullish verb match -> 4 (Bullish); bearish verb match -> 2 (Bearish)",
+      "corpus_distinct_headlines_matched": 4,
+      "current_finbert_score_distribution": {
+        "bullish_verb_headlines": {
+          "Bull": 2,
+          "Bear": 1
+        },
+        "bearish_verb_headlines": {
+          "Bear": 1
+        }
+      },
+      "sample_headlines": [
+        "Chipmaker Semtech Smashes Sales, Earnings Targets. Stock Rises. -- IBD",
+        "CoreWeave Earnings Beat Amid Operating Margin Upside. AI Stock Jumps. -- IBD",
+        "Qualys Earnings, Revenue Top Estimates. Cybersecurity Stock Climbs. -- IBD",
+        "Take-Two Sticks To Its Guns On Full-Year Outlook. TTWO Stock Falls. -- IBD"
+      ],
+      "confidence": "high",
+      "status": "IMPLEMENTED this turn as _IBD_EARNINGS_REACTION_RE in modules/news_sentiment.py -- awaiting a rescore (via the Dataset tab's Run button) to take effect on the live cache.",
+      "notes": "Only 4 cached occurrences, but this is the exact template behind the originally-flagged SMTC miss (Chipmaker Semtech Smashes Sales, Earnings Targets. Stock Rises. -- IBD, scored Bearish)."
+    },
+    {
+      "name": "data_talk_mechanical_stat",
+      "regex": "--\\s*data talk\\s*$",
+      "flags": "IGNORECASE",
+      "scoring": "force 3 (Neutral)",
+      "corpus_distinct_headlines_matched": 269,
+      "current_finbert_score_distribution": {
+        "Bear": 119,
+        "Bull": 137,
+        "Neutral": 13
+      },
+      "sample_headlines": [
+        "ATI Inc. Up Over 13%, On Pace for Record High Close -- Data Talk",
+        "Advance Auto Parts Down Nearly 23%, on Pace for Largest Percent Decrease Since May 2023 -- Data Talk",
+        "Aflac on Pace for Largest Percent Decrease Since May 2025 -- Data Talk",
+        "Airbnb Up Nearly 15%, on Track for Highest Close Since April 2022 -- Data Talk",
+        "Akami Technologies Up Over 6%, Snaps Three-Day Losing Streak -- Data Talk",
+        "Albany International Down Over 17%, On Track for Largest Percent Decrease Since July 2025 -- Data Talk"
+      ],
+      "confidence": "high",
+      "status": "IMPLEMENTED this turn as _DATA_TALK_RE in modules/news_sentiment.py -- awaiting a rescore (via the Dataset tab's Run button) to take effect on the live cache.",
+      "notes": "Confirmed zero embedded reasons across all 269 distinct cached occurrences -- pure price/streak statistics."
+    },
+    {
+      "name": "shareholder_alert_class_action_solicitation",
+      "regex": "(?:\\$?HAREHOLDER|Shareholder) ALERT.*Class Action Firm",
+      "flags": "IGNORECASE",
+      "scoring": "force 3 (Neutral)",
+      "corpus_distinct_headlines_matched": 21,
+      "current_finbert_score_distribution": {
+        "Bear": 10,
+        "Neutral": 21
+      },
+      "sample_headlines": [
+        "Press Release: $HAREHOLDER ALERT: The M&A Class Action Firm Announce the Investigation of the Merger - CHMI, VREX, HHS and ARX",
+        "Press Release: $HAREHOLDER ALERT: The M&A Class Action Firm Announce the Investigation of the Merger - HOWL, HZO, TYFG and FULC",
+        "Press Release: $HAREHOLDER ALERT: The M&A Class Action Firm Announces An Investigation of Atkore Inc. (NYSE: ATKR)",
+        "Press Release: $HAREHOLDER ALERT: The M&A Class Action Firm Announces An Investigation of Bowhead Specialty Holdings Inc. (NYSE: BOW)",
+        "Press Release: $HAREHOLDER ALERT: The M&A Class Action Firm Announces An Investigation of CBIZ, Inc. (NYSE: CBZ)",
+        "Press Release: $HAREHOLDER ALERT: The M&A Class Action Firm Announces An Investigation of Indivior Pharmaceuticals, Inc. (NASDAQ: INDV)"
+      ],
+      "confidence": "medium",
+      "status": "IMPLEMENTED as _SHAREHOLDER_ALERT_RE in modules/news_sentiment.py -- awaiting a rescore (via the Dataset tab's Run button) to take effect on the live cache.",
+      "notes": "Recurring auto-generated law-firm solicitation template ('The M&A Class Action Firm Announces An Investigation of the Merger Between X and Y') -- boilerplate advertising for a securities-law firm's own client search, filed on essentially every M&A deal regardless of merit, not company-specific bad news. FinBERT is inconsistent on it (21 Neutral / 10 Bear across the same template). NOT the same as a genuine securities-fraud class-action headline (e.g. 'Primoris Services Faces Securities Class Action After Second Major Selloff') -- that one IS real, company-specific bad news and should stay off this rule; the regex is scoped narrowly to the 'ALERT...Class Action Firm' solicitation phrasing specifically, not bare 'class action'."
+    },
+    {
+      "name": "beats_estimates_GENERIC (not recommended as-is)",
+      "regex": "\\b(?:beats?|tops?)\\s+.*(?:estimates?|expectations?|views?|consensus)\\b",
+      "flags": "IGNORECASE",
+      "scoring": "NOT proposed as a fixed-score rule",
+      "corpus_distinct_headlines_matched": 98,
+      "current_finbert_score_distribution": {
+        "Neutral": 51,
+        "Bull": 35,
+        "Bear": 24
+      },
+      "sample_headlines": [
+        "!McDonald's Second-Quarter Profit Tops Street Views Despite Revenue Miss",
+        "* Life360's 2Q Earnings Beat Consensus Forecasts",
+        "Amgen FY Outlook Above Consensus; 2Q Adj EPS Beats Estimates",
+        "Amphenol 3Q Outlook Above Consensus; 2Q Adj EPS Beats Estimates",
+        "Analog Devices Stock Rises as Earnings Beat Expectations. Are AI-Stock Jitters Dissipating? -- Barrons.com",
+        "Analog Devices Tops Views On Strong Data Center, Industrial Chip Sales -- IBD"
+      ],
+      "confidence": "low -- do not implement as a blanket rule",
+      "notes": "Heterogeneous: many 'beats estimates' headlines also carry a SECOND, sometimes contradicting fact in the same sentence (e.g. 'Block Earnings Top Views. Guidance Underwhelms. Shares Fall. -- IBD', correctly scored Bear -- guidance underwhelming outweighs the beat). Forcing this whole family to Bullish would break those correctly-scored combined headlines. Would need a narrower sub-pattern (e.g. only a bare '<Company> <period> Adj EPS Beats Estimates' single-fact wire blurb with nothing else in the sentence) rather than the broad 'beats...estimates' match tested here."
+    }
+  ],
+  "already_adequate_no_fix_needed": [
+    {
+      "name": "cuts_guidance",
+      "corpus_distinct_headlines_matched": 16,
+      "current_finbert_score_distribution": {
+        "Bear": 18,
+        "Bull": 1
+      },
+      "note": "Left un-forced -- 94% already correct, and the one miss ('Entain: Sees Net Revenue and Adjusted EBITDA Towards Lower End of Guidance') is itself genuinely ambiguous wording, not a clean template error."
+    },
+    {
+      "name": "cuts_dividend",
+      "corpus_distinct_headlines_matched": 14,
+      "current_finbert_score_distribution": {
+        "Bear": 14,
+        "Bull": 1
+      },
+      "note": "Left un-forced -- the one miss is a CEO-spin quote ('Wendy's CEO Says Decision to Cut Dividend Will Create Additional Flexibility...'), genuinely ambiguous, correctly left to FinBERT."
+    },
+    {
+      "name": "ibd_stock_upgraded_downgraded_to",
+      "corpus_distinct_headlines_matched": 3,
+      "current_finbert_score_distribution": {
+        "Bull": 9,
+        "Bear": 2
+      }
+    },
+    {
+      "name": "form4_sells_buys (per-transaction Form 4, e.g. 'CEO X Sells/Buys N Of Company >TICKER')",
+      "corpus_distinct_headlines_matched": 5662,
+      "current_finbert_score_distribution": {
+        "Neutral": 5890,
+        "Bull": 5
+      },
+      "note": "Largest volume category checked in this whole audit -- already ~99.9% correctly Neutral. Confirms the existing design choice (fast-path only fires on the AGGREGATE 'Substantial Insider Sales: Afternoon Report' summary template, not individual Form 4 filings) is working as intended -- a single officer's routine transaction isn't the same signal as an aggregated report."
+    },
+    {
+      "name": "bare_reports_results ('<Company> Reports/Announces Second Quarter 2026 (Financial) Results', no beat/miss language)",
+      "corpus_distinct_headlines_matched": 745,
+      "current_finbert_score_distribution": {
+        "Neutral": 666,
+        "Bull": 80,
+        "Bear": 2
+      },
+      "note": "89% already correctly Neutral -- checked, NOT recommended as a blanket force-neutral rule: most of the 80 Bull instances carry a genuine second fact in the same headline (e.g. '...And Board Of Directors Authorizes...', '...Reaffirms Full Year 2026...') that legitimately is positive, same reason beats_estimates_GENERIC above was rejected."
+    }
+  ]
+}

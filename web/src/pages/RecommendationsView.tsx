@@ -213,6 +213,7 @@ type RationaleFactor =
   | 'institutions'
   | 'targetUpside'
   | 'simulationForecast'
+  | 'simPerf'
 type RationaleLine = { text: string; signal: Signal; factor?: RationaleFactor }
 
 // Catalog for the thumb-factor filter's own dropdown (see
@@ -611,6 +612,22 @@ function rationaleLines(
       text: `Simulation forecast ${fmtPct(c.forecastReturn)}`,
       signal: sidedSignal(c.forecastReturn, side),
       factor: 'simulationForecast',
+    })
+  }
+
+  // data/output/simulations.json's own simReturn/simSharpe -- the
+  // simulated-path Monte Carlo's own mean return and Modified (Israelsen)
+  // Sharpe ratio (see modules/simulations.py's "SIMULATED-PATH FORMULA"
+  // section), a DIFFERENT number from forecastReturn above (that one is
+  // confidence-pulled toward currentPrice; this is the un-pulled
+  // simulated distribution's own stats). Shown next to the forecast line
+  // above rather than replacing it.
+  if (c.simReturn !== null && c.simReturn !== undefined) {
+    const sharpeText = c.simSharpe !== null && c.simSharpe !== undefined ? ` - Sharpe ${c.simSharpe.toFixed(1)}` : ''
+    lines.push({
+      text: `Sim Perf ${fmtPct(c.simReturn)}${sharpeText}`,
+      signal: sidedSignal(c.simReturn, side),
+      factor: 'simPerf',
     })
   }
 
@@ -1418,12 +1435,12 @@ function buildCloseReasons({ shares, c, now }: { shares: number; c: Candidate; n
     if (isLong && c.momentum > MOMENTUM_OVERBOUGHT) {
       reasons.push({
         type: 'momentum',
-        text: `MSI has reached overbought (${c.momentum.toFixed(0)}) — the reversion this long was entered on may be done.`,
+        text: `MSI overbought (${c.momentum.toFixed(0)}).`,
       })
     } else if (!isLong && c.momentum < MOMENTUM_OVERSOLD) {
       reasons.push({
         type: 'momentum',
-        text: `MSI has reached oversold (${c.momentum.toFixed(0)}) — the reversion this short was entered on may be done.`,
+        text: `MSI oversold (${c.momentum.toFixed(0)}).`,
       })
     }
   }
@@ -1752,6 +1769,12 @@ export default function RecommendationsView() {
   // itself since it's a different source file with a different (much
   // narrower -- only successfully-simulated tickers) scope.
   const [tickerForecast, setTickerForecast] = useState<Record<string, number | null>>({})
+  // data/output/simulations.json's own simReturn/simSharpe per ticker --
+  // same fetch/merge pattern as tickerForecast above, a separate state
+  // since it's a distinct pair of fields (the simulated-path Monte
+  // Carlo's own mean return + Modified Sharpe, not the deterministic
+  // forecastReturn tickerForecast carries).
+  const [tickerSimPerf, setTickerSimPerf] = useState<Record<string, { simReturn: number | null; simSharpe: number | null }>>({})
   // data/output/target_portfolio.json's own longs/shorts membership (see
   // modules/portfolio_optimizer.py) per ticker -- same "own file, own
   // state, spread into each Candidate at the same points tickerForecast
@@ -1905,14 +1928,27 @@ export default function RecommendationsView() {
     // no line" convention rationaleLines' other optional factors follow.
     fetch('/simulations.json')
       .then((r) => (r.ok ? r.json() : []))
-      .then((rows: { ticker: string; error?: string; forecastReturn?: number | null }[]) => {
-        const forecast: Record<string, number | null> = {}
-        for (const row of rows) {
-          if (row.error) continue
-          forecast[row.ticker] = row.forecastReturn ?? null
+      .then(
+        (
+          rows: {
+            ticker: string
+            error?: string
+            forecastReturn?: number | null
+            simReturn?: number | null
+            simSharpe?: number | null
+          }[]
+        ) => {
+          const forecast: Record<string, number | null> = {}
+          const simPerf: Record<string, { simReturn: number | null; simSharpe: number | null }> = {}
+          for (const row of rows) {
+            if (row.error) continue
+            forecast[row.ticker] = row.forecastReturn ?? null
+            simPerf[row.ticker] = { simReturn: row.simReturn ?? null, simSharpe: row.simSharpe ?? null }
+          }
+          setTickerForecast(forecast)
+          setTickerSimPerf(simPerf)
         }
-        setTickerForecast(forecast)
-      })
+      )
       .catch(() => {})
     // data/output/target_portfolio.json (see modules/portfolio_optimizer.py)
     // -- {longs, shorts, longPool, shortPool, stats, generatedAt}. The
@@ -2005,6 +2041,8 @@ export default function RecommendationsView() {
           revenueGrowth: tickerScreener[c.ticker]?.revenueGrowth,
           heldPercentInsiders: tickerScreener[c.ticker]?.heldPercentInsiders,
           forecastReturn: tickerForecast[c.ticker] ?? null,
+          simReturn: tickerSimPerf[c.ticker]?.simReturn ?? null,
+          simSharpe: tickerSimPerf[c.ticker]?.simSharpe ?? null,
           targetPortfolioSide: tickerTargetSide[c.ticker] ?? null,
           targetPoolSide: targetPool?.side ?? null,
           targetPoolRank: targetPool?.rank ?? null,
@@ -2046,6 +2084,8 @@ export default function RecommendationsView() {
           revenueGrowth: tickerScreener[c.ticker]?.revenueGrowth,
           heldPercentInsiders: tickerScreener[c.ticker]?.heldPercentInsiders,
           forecastReturn: tickerForecast[c.ticker] ?? null,
+          simReturn: tickerSimPerf[c.ticker]?.simReturn ?? null,
+          simSharpe: tickerSimPerf[c.ticker]?.simSharpe ?? null,
           targetPortfolioSide: tickerTargetSide[c.ticker] ?? null,
           targetPoolSide: targetPool?.side ?? null,
           targetPoolRank: targetPool?.rank ?? null,
@@ -2115,6 +2155,8 @@ export default function RecommendationsView() {
           ...tickerScreener[ticker],
           ticker,
           forecastReturn: tickerForecast[ticker] ?? null,
+          simReturn: tickerSimPerf[ticker]?.simReturn ?? null,
+          simSharpe: tickerSimPerf[ticker]?.simSharpe ?? null,
           targetPortfolioSide: tickerTargetSide[ticker] ?? null,
           targetPoolSide: tickerTargetPool[ticker]?.side ?? null,
           targetPoolRank: tickerTargetPool[ticker]?.rank ?? null,
@@ -2149,31 +2191,46 @@ export default function RecommendationsView() {
     return rows.sort((a, b) => b._severity - a._severity)
   }, [heldMerged, now])
 
-  // Every held position whose daily MSI is currently overbought/oversold
-  // -- explicit instruction: a Portfolio-wide momentum-extremes read,
-  // independent of (and can overlap with) the close-reason flags above.
-  // Not conditioned on side the way eligibleToBuy/Sell's BLOCK is --
-  // "overbought" here just means the raw MSI reading itself is past
-  // MOMENTUM_OVERBOUGHT, regardless of whether that's good or bad news
-  // for whichever side actually holds it (a held Short sitting
-  // overbought is a GOOD sign for that position, a held Long sitting
-  // overbought is a warning -- rationaleLines' own thumb icon still
-  // shows that distinction on the card, this list just surfaces "worth
-  // a look" candidates on shape alone). reasons/hasRatingReason/
-  // _severity are CloseRow-shaped (so these can reuse CloseCard) but
-  // carry no actual close-worthiness here -- always "Review", never
-  // "Close".
+  // Every held position whose daily MSI OR hourly ST-MSI is currently
+  // overbought/oversold -- explicit instruction: either reading alone is
+  // enough to list a position here (a held name can be genuinely
+  // overbought/oversold on one timeframe and neutral on the other; OR,
+  // not AND, so a position isn't silently missed just because only one
+  // of the two timeframes has caught the extreme). A Portfolio-wide
+  // momentum-extremes read, independent of (and can overlap with) the
+  // close-reason flags above. Not conditioned on side the way
+  // eligibleToBuy/Sell's BLOCK is -- "overbought" here just means the
+  // raw MSI/ST-MSI reading itself is past its own threshold, regardless
+  // of whether that's good or bad news for whichever side actually
+  // holds it (a held Short sitting overbought is a GOOD sign for that
+  // position, a held Long sitting overbought is a warning --
+  // rationaleLines' own thumb icon still shows that distinction on the
+  // card, this list just surfaces "worth a look" candidates on shape
+  // alone). reasons/hasRatingReason/_severity are CloseRow-shaped (so
+  // these can reuse CloseCard) but carry no actual close-worthiness
+  // here -- always "Review", never "Close". _severity is the more
+  // extreme of the two triggering readings (both are 0-100 oscillators
+  // on the same scale, so directly comparable for ranking) -- when only
+  // one triggers, that's the one used.
   const overboughtPositions: CloseRow[] = useMemo(() => {
     const rows: CloseRow[] = []
     for (const { shares, c } of heldMerged) {
-      if (c.momentum === null || c.momentum === undefined || c.momentum <= MOMENTUM_OVERBOUGHT) continue
+      const momOver = c.momentum !== null && c.momentum !== undefined && c.momentum > MOMENTUM_OVERBOUGHT
+      const mrOver =
+        c.meanReversion !== null && c.meanReversion !== undefined && c.meanReversion >= MEAN_REVERSION_OVERBOUGHT
+      if (!momOver && !mrOver) continue
+      const reasons: Reason[] = []
+      if (momOver) reasons.push({ type: 'momentum', text: `MSI ${(c.momentum as number).toFixed(0)} — overbought.` })
+      if (mrOver) {
+        reasons.push({ type: 'mean-reversion', text: `ST-MSI ${(c.meanReversion as number).toFixed(0)} — overbought.` })
+      }
       rows.push({
         ...c,
         closeSide: shares > 0 ? 'Long' : 'Short',
         shares,
-        reasons: [{ type: 'momentum', text: `MSI ${c.momentum.toFixed(0)} — overbought.` }],
+        reasons,
         hasRatingReason: false,
-        _severity: c.momentum,
+        _severity: Math.max(momOver ? (c.momentum as number) : -Infinity, mrOver ? (c.meanReversion as number) : -Infinity),
       })
     }
     return rows.sort((a, b) => b._severity - a._severity)
@@ -2182,14 +2239,22 @@ export default function RecommendationsView() {
   const oversoldPositions: CloseRow[] = useMemo(() => {
     const rows: CloseRow[] = []
     for (const { shares, c } of heldMerged) {
-      if (c.momentum === null || c.momentum === undefined || c.momentum >= MOMENTUM_OVERSOLD) continue
+      const momUnder = c.momentum !== null && c.momentum !== undefined && c.momentum < MOMENTUM_OVERSOLD
+      const mrUnder =
+        c.meanReversion !== null && c.meanReversion !== undefined && c.meanReversion <= MEAN_REVERSION_OVERSOLD
+      if (!momUnder && !mrUnder) continue
+      const reasons: Reason[] = []
+      if (momUnder) reasons.push({ type: 'momentum', text: `MSI ${(c.momentum as number).toFixed(0)} — oversold.` })
+      if (mrUnder) {
+        reasons.push({ type: 'mean-reversion', text: `ST-MSI ${(c.meanReversion as number).toFixed(0)} — oversold.` })
+      }
       rows.push({
         ...c,
         closeSide: shares > 0 ? 'Long' : 'Short',
         shares,
-        reasons: [{ type: 'momentum', text: `MSI ${c.momentum.toFixed(0)} — oversold.` }],
+        reasons,
         hasRatingReason: false,
-        _severity: -c.momentum,
+        _severity: -Math.min(momUnder ? (c.momentum as number) : Infinity, mrUnder ? (c.meanReversion as number) : Infinity),
       })
     }
     return rows.sort((a, b) => b._severity - a._severity)
@@ -2240,6 +2305,8 @@ export default function RecommendationsView() {
         ...tickerScreener[raw.ticker],
         ticker: raw.ticker,
         forecastReturn: tickerForecast[raw.ticker] ?? null,
+        simReturn: tickerSimPerf[raw.ticker]?.simReturn ?? null,
+        simSharpe: tickerSimPerf[raw.ticker]?.simSharpe ?? null,
         targetPortfolioSide: tickerTargetSide[raw.ticker] ?? null,
         targetPoolSide: tickerTargetPool[raw.ticker]?.side ?? null,
         targetPoolRank: tickerTargetPool[raw.ticker]?.rank ?? null,
@@ -2343,7 +2410,7 @@ export default function RecommendationsView() {
           </div>
           <div className="stat">
             <span className="n num">{closes.length}</span>
-            <span className="l">To close</span>
+            <span className="l">To review</span>
           </div>
           <div className="stat">
             <span className="n num">{heldCount}</span>
@@ -2444,7 +2511,7 @@ export default function RecommendationsView() {
           {activeSection === 'toClose' && (
           <>
           <RecommendationSection
-            title="To close"
+            title="To review"
             titleInfo={
               <RulesInfo
                 label="Closing rules"
@@ -2468,7 +2535,7 @@ export default function RecommendationsView() {
           />
           <RecommendationSection
             title="Overbought"
-            subtitle={`Held positions with a daily MSI above ${MOMENTUM_OVERBOUGHT} — not itself a close signal, just a shape worth a look (a held Short sitting here is a good sign, a held Long is a warning)`}
+            subtitle={`Held positions with a daily MSI above ${MOMENTUM_OVERBOUGHT} OR an hourly ST-MSI at/above ${MEAN_REVERSION_OVERBOUGHT} — not itself a close signal, just a shape worth a look (a held Short sitting here is a good sign, a held Long is a warning)`}
             rows={filterByThumbs(filterBySector(filterBySymbol(overboughtPositions)), (c) => c.closeSide)}
             renderCard={(c) => (
               <CloseCard
@@ -2481,11 +2548,11 @@ export default function RecommendationsView() {
                 badSign={c.closeSide === 'Long'}
               />
             )}
-            emptyMessage="No held position currently has an overbought daily MSI."
+            emptyMessage="No held position currently has an overbought MSI or ST-MSI."
           />
           <RecommendationSection
             title="Oversold"
-            subtitle={`Held positions with a daily MSI below ${MOMENTUM_OVERSOLD} — not itself a close signal, just a shape worth a look (a held Long sitting here is a good sign, a held Short is a warning)`}
+            subtitle={`Held positions with a daily MSI below ${MOMENTUM_OVERSOLD} OR an hourly ST-MSI at/below ${MEAN_REVERSION_OVERSOLD} — not itself a close signal, just a shape worth a look (a held Long sitting here is a good sign, a held Short is a warning)`}
             rows={filterByThumbs(filterBySector(filterBySymbol(oversoldPositions)), (c) => c.closeSide)}
             renderCard={(c) => (
               <CloseCard
@@ -2498,11 +2565,11 @@ export default function RecommendationsView() {
                 badSign={c.closeSide === 'Short'}
               />
             )}
-            emptyMessage="No held position currently has an oversold daily MSI."
+            emptyMessage="No held position currently has an oversold MSI or ST-MSI."
           />
           <RecommendationSection
             title="Stay"
-            subtitle="Held positions not flagged To close, Overbought, or Oversold — nothing here needs attention right now"
+            subtitle="Held positions not flagged To review, Overbought, or Oversold — nothing here needs attention right now"
             rows={filterByThumbs(filterBySector(filterBySymbol(stayPositions)), (c) => c.closeSide)}
             renderCard={(c) => (
               <CloseCard

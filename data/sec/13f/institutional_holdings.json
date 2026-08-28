@@ -7,13 +7,29 @@
     "holderCount": 4135,
     "pctShareChangeQoQ": -0.07785539602567469
   },
-  "AAPL": {
-    "totalValueUsd": 2222873688908,
-    "totalShares": 9188513555,
-    "putShares": 156339636,
-    "callShares": 201509426,
-    "holderCount": 6027,
-    "pctShareChangeQoQ": -0.02500013121917985
+  "WELL": {
+    "totalValueUsd": 118800382076,
+    "totalShares": 663149960,
+    "putShares": 1209786,
+    "callShares": 2355150,
+    "holderCount": 1311,
+    "pctShareChangeQoQ": -0.02419254680032202
+  },
+  "ADBE": {
+    "totalValueUsd": 77075438905,
+    "totalShares": 320044633,
+    "putShares": 17510041,
+    "callShares": 19205716,
+    "holderCount": 1993,
+    "pctShareChangeQoQ": -0.050730838729598576
+  },
+  "BANR": {
+    "totalValueUsd": 1879107428,
+    "totalShares": 31193495,
+    "putShares": 0,
+    "callShares": 0,
+    "holderCount": 249,
+    "pctShareChangeQoQ": 0.021629056709059905
   },
   "AVGO": {
     "totalValueUsd": 1030610701471,
@@ -23,6 +39,30 @@
     "holderCount": 4524,
     "pctShareChangeQoQ": -0.03544615051299443
   },
+  "CME": {
+    "totalValueUsd": 86095434840,
+    "totalShares": 301768237,
+    "putShares": 1897283,
+    "callShares": 1709435,
+    "holderCount": 1635,
+    "pctShareChangeQoQ": -0.049762051337943446
+  },
+  "ECL": {
+    "totalValueUsd": 54363401730,
+    "totalShares": 210077206,
+    "putShares": 179800,
+    "callShares": 786700,
+    "holderCount": 1582,
+    "pctShareChangeQoQ": -0.08606679332663965
+  },
+  "IP": {
+    "totalValueUsd": 15789197403,
+    "totalShares": 502803571,
+    "putShares": 3035600,
+    "callShares": 2425400,
+    "holderCount": 764,
+    "pctShareChangeQoQ": -0.05165512589636745
+  },
   "JNJ": {
     "totalValueUsd": 403993651662,
     "totalShares": 1804564474,
@@ -30,6 +70,38 @@
     "callShares": 18655570,
     "holderCount": 4470,
     "pctShareChangeQoQ": 0.025622420022326113
+  },
+  "LMT": {
+    "totalValueUsd": 100740585725,
+    "totalShares": 170493592,
+    "putShares": 3337901,
+    "callShares": 3690139,
+    "holderCount": 2817,
+    "pctShareChangeQoQ": 0.004753298188354644
+  },
+  "MKL": {
+    "totalValueUsd": 17265709175,
+    "totalShares": 9482092,
+    "putShares": 12300,
+    "callShares": 52400,
+    "holderCount": 910,
+    "pctShareChangeQoQ": -0.027602908548694502
+  },
+  "MCD": {
+    "totalValueUsd": 145803168038,
+    "totalShares": 495753029,
+    "putShares": 6031436,
+    "callShares": 6312424,
+    "holderCount": 3446,
+    "pctShareChangeQoQ": -0.054139649155208296
+  },
+  "MRK": {
+    "totalValueUsd": 219655065862,
+    "totalShares": 1917682900,
+    "putShares": 20945168,
+    "callShares": 25622016,
+    "holderCount": 3647,
+    "pctShareChangeQoQ": -0.017217951787649798
   },
   "NKE": {
     "totalValueUsd": 46685361519,
@@ -55,29 +127,21 @@
     "holderCount": 3432,
     "pctShareChangeQoQ": 0.2828246034358495
   },
-  "PSX": {
-    "totalValueUsd": 54937544445,
-    "totalShares": 317965377,
-    "putShares": 2602969,
-    "callShares": 3304248,
-    "holderCount": 2006,
-    "pctShareChangeQoQ": 0.025661142682155046
+  "O": {
+    "totalValueUsd": 41524995426,
+    "totalShares": 695670109,
+    "putShares": 4188863,
+    "callShares": 6475150,
+    "holderCount": 1299,
+    "pctShareChangeQoQ": -0.04087833736013539
   },
-  "SYK": {
-    "totalValueUsd": 89118169785,
-    "totalShares": 290607741,
-    "putShares": 681931,
-    "callShares": 816850,
-    "holderCount": 2209,
-    "pctShareChangeQoQ": -0.036378440700507816
-  },
-  "TMUS": {
-    "totalValueUsd": 83739646099,
-    "totalShares": 431300490,
-    "putShares": 5061067,
-    "callShares": 5886115,
-    "holderCount": 1572,
-    "pctShareChangeQoQ": -0.042748720599496345
+  "SBUX": {
+    "totalValueUsd": 81433687670,
+    "totalShares": 936775896,
+    "putShares": 20858363,
+    "callShares": 30357016,
+    "holderCount": 2265,
+    "pctShareChangeQoQ": 0.011469163420315613
   },
   "GDDY": {
     "totalValueUsd": 9328072379,
@@ -95,37 +159,13 @@
     "holderCount": 1786,
     "pctShareChangeQoQ": -0.036163791086017354
   },
-  "IPAR": {
-    "totalValueUsd": 1788572738,
-    "totalShares": 20446744,
-    "putShares": 15400,
-    "callShares": 0,
-    "holderCount": 273,
-    "pctShareChangeQoQ": 0.03885578614148929
-  },
-  "NFLX": {
-    "totalValueUsd": 293141124957,
-    "totalShares": 3182491287,
-    "putShares": 191481146,
-    "callShares": 211904858,
-    "holderCount": 3443,
-    "pctShareChangeQoQ": -0.025310647730848894
-  },
-  "ABT": {
-    "totalValueUsd": 130000117951,
-    "totalShares": 1304783155,
-    "putShares": 9450883,
-    "callShares": 7312149,
-    "holderCount": 2520,
-    "pctShareChangeQoQ": 6.197027963054059
-  },
-  "LNT": {
-    "totalValueUsd": 15423183850,
-    "totalShares": 242409173,
-    "putShares": 61018,
-    "callShares": 261100,
-    "holderCount": 785,
-    "pctShareChangeQoQ": -0.694331067537566
+  "IT": {
+    "totalValueUsd": 11668812535,
+    "totalShares": 74325700,
+    "putShares": 304600,
+    "callShares": 687800,
+    "holderCount": 686,
+    "pctShareChangeQoQ": 0.008587288448688352
   },
   "ADI": {
     "totalValueUsd": 120157870912,
@@ -143,13 +183,13 @@
     "holderCount": 1349,
     "pctShareChangeQoQ": 0.02519549607252028
   },
-  "CHD": {
-    "totalValueUsd": 18213694780,
-    "totalShares": 198541900,
-    "putShares": 103000,
-    "callShares": 275400,
-    "holderCount": 972,
-    "pctShareChangeQoQ": -0.019270788920142164
+  "CVX": {
+    "totalValueUsd": 278414008838,
+    "totalShares": 1392394855,
+    "putShares": 23618970,
+    "callShares": 25510114,
+    "holderCount": 3638,
+    "pctShareChangeQoQ": 7.767880893149621
   },
   "TSLA": {
     "totalValueUsd": 552672783504,
@@ -159,21 +199,13 @@
     "holderCount": 3940,
     "pctShareChangeQoQ": -0.05161114679044934
   },
-  "CBSH": {
-    "totalValueUsd": 4935982505,
-    "totalShares": 101442283,
-    "putShares": 2650,
-    "callShares": 24130,
-    "holderCount": 411,
-    "pctShareChangeQoQ": 0.04188679932840897
-  },
-  "STZ": {
-    "totalValueUsd": 18954498790,
-    "totalShares": 130639762,
-    "putShares": 3634489,
-    "callShares": 3936400,
-    "holderCount": 864,
-    "pctShareChangeQoQ": -0.03247849127039834
+  "VLO": {
+    "totalValueUsd": 56803882213,
+    "totalShares": 244696573,
+    "putShares": 3859936,
+    "callShares": 3823860,
+    "holderCount": 1688,
+    "pctShareChangeQoQ": -0.04473027817843886
   },
   "CPNG": {
     "totalValueUsd": 25197616485,
@@ -199,6 +231,22 @@
     "holderCount": 2428,
     "pctShareChangeQoQ": -0.08461101593774095
   },
+  "FANG": {
+    "totalValueUsd": 35043803567,
+    "totalShares": 182419607,
+    "putShares": 2071473,
+    "callShares": 4078915,
+    "holderCount": 1097,
+    "pctShareChangeQoQ": 0.04595646875987001
+  },
+  "SHAK": {
+    "totalValueUsd": 3523494963,
+    "totalShares": 262643774,
+    "putShares": 1439885,
+    "callShares": 783100,
+    "holderCount": 327,
+    "pctShareChangeQoQ": -0.009929121495975902
+  },
   "SNOW": {
     "totalValueUsd": 37839625656,
     "totalShares": 2297834782,
@@ -206,6 +254,14 @@
     "callShares": 22753810,
     "holderCount": 1186,
     "pctShareChangeQoQ": -0.0905500038862983
+  },
+  "SOLV": {
+    "totalValueUsd": 8202979447,
+    "totalShares": 127892567,
+    "putShares": 157000,
+    "callShares": 372700,
+    "holderCount": 747,
+    "pctShareChangeQoQ": 0.013465242774335568
   },
   "LRN": {
     "totalValueUsd": 4315290171,
@@ -215,13 +271,21 @@
     "holderCount": 414,
     "pctShareChangeQoQ": 0.02588173584019132
   },
-  "SNPS": {
-    "totalValueUsd": 63148955507,
-    "totalShares": 167775648,
-    "putShares": 2937667,
-    "callShares": 2782974,
-    "holderCount": 1323,
-    "pctShareChangeQoQ": -0.007318080240162126
+  "SLVM": {
+    "totalValueUsd": 1593407668,
+    "totalShares": 39413131,
+    "putShares": 60600,
+    "callShares": 44700,
+    "holderCount": 304,
+    "pctShareChangeQoQ": -0.004291639591706613
+  },
+  "SYF": {
+    "totalValueUsd": 22913373688,
+    "totalShares": 344614622,
+    "putShares": 1439632,
+    "callShares": 2344815,
+    "holderCount": 857,
+    "pctShareChangeQoQ": -0.04845220211938366
   },
   "TPR": {
     "totalValueUsd": 26061255228,
@@ -231,45 +295,21 @@
     "holderCount": 1008,
     "pctShareChangeQoQ": -0.027418623236349145
   },
-  "TGT": {
-    "totalValueUsd": 38229581010,
-    "totalShares": 323038696,
-    "putShares": 20708933,
-    "callShares": 23489688,
-    "holderCount": 1699,
-    "pctShareChangeQoQ": -0.1505138178831122
+  "TMDX": {
+    "totalValueUsd": 4070812349,
+    "totalShares": 471770944,
+    "putShares": 564185,
+    "callShares": 712601,
+    "holderCount": 423,
+    "pctShareChangeQoQ": 0.07270458674302768
   },
-  "TTD": {
-    "totalValueUsd": 7568491217,
-    "totalShares": 335645130,
-    "putShares": 27079320,
-    "callShares": 32831226,
-    "holderCount": 610,
-    "pctShareChangeQoQ": 0.04298652482565038
-  },
-  "TOST": {
-    "totalValueUsd": 10486832399,
-    "totalShares": 397035373,
-    "putShares": 10271200,
-    "callShares": 16492602,
-    "holderCount": 657,
-    "pctShareChangeQoQ": -0.039766465987111976
-  },
-  "TRUP": {
-    "totalValueUsd": 834358081,
-    "totalShares": 32876925,
-    "putShares": 46900,
-    "callShares": 5400,
-    "holderCount": 186,
-    "pctShareChangeQoQ": -0.07892891490143282
-  },
-  "TRMK": {
-    "totalValueUsd": 1909956987,
-    "totalShares": 45896152,
-    "putShares": 12736,
-    "callShares": 7400,
-    "holderCount": 246,
-    "pctShareChangeQoQ": 0.03977247961354012
+  "URI": {
+    "totalValueUsd": 38942963632,
+    "totalShares": 54616454,
+    "putShares": 982332,
+    "callShares": 957891,
+    "holderCount": 1382,
+    "pctShareChangeQoQ": -0.06153119185200853
   },
   "KDP": {
     "totalValueUsd": 31231778728,
@@ -287,13 +327,21 @@
     "holderCount": 2439,
     "pctShareChangeQoQ": -0.06615917542830282
   },
-  "MAS": {
-    "totalValueUsd": 10807623519,
-    "totalShares": 190496068,
-    "putShares": 195500,
-    "callShares": 310502,
-    "holderCount": 785,
-    "pctShareChangeQoQ": -0.08641421361262094
+  "LAMR": {
+    "totalValueUsd": 9153768070,
+    "totalShares": 76806947,
+    "putShares": 45300,
+    "callShares": 118600,
+    "holderCount": 536,
+    "pctShareChangeQoQ": 15.823989671705595
+  },
+  "L": {
+    "totalValueUsd": 11112038661,
+    "totalShares": 110198322,
+    "putShares": 10100,
+    "callShares": 82600,
+    "holderCount": 707,
+    "pctShareChangeQoQ": -0.09894993526077472
   },
   "MU": {
     "totalValueUsd": 269341246471,
@@ -311,14 +359,6 @@
     "holderCount": 1316,
     "pctShareChangeQoQ": 0.002273259314058206
   },
-  "MSI": {
-    "totalValueUsd": 58791249190,
-    "totalShares": 139584852,
-    "putShares": 486212,
-    "callShares": 294828,
-    "holderCount": 1378,
-    "pctShareChangeQoQ": -0.030130837736468262
-  },
   "MSCI": {
     "totalValueUsd": 32956343077,
     "totalShares": 63946334,
@@ -326,6 +366,14 @@
     "callShares": 118392,
     "holderCount": 967,
     "pctShareChangeQoQ": -0.02422004847592592
+  },
+  "NDAQ": {
+    "totalValueUsd": 38357542205,
+    "totalShares": 462915087,
+    "putShares": 745758,
+    "callShares": 1541800,
+    "holderCount": 995,
+    "pctShareChangeQoQ": -0.030187606156716486
   },
   "NMAX": {
     "totalValueUsd": 48530668,
@@ -351,6 +399,14 @@
     "holderCount": 194,
     "pctShareChangeQoQ": -0.13065827589062387
   },
+  "PANW": {
+    "totalValueUsd": 97274776994,
+    "totalShares": 617062404,
+    "putShares": 22140761,
+    "callShares": 21322571,
+    "holderCount": 2342,
+    "pctShareChangeQoQ": 0.12735467054354632
+  },
   "MD": {
     "totalValueUsd": 1718553622,
     "totalShares": 82082224,
@@ -359,6 +415,14 @@
     "holderCount": 258,
     "pctShareChangeQoQ": 0.017756745369567863
   },
+  "PEGA": {
+    "totalValueUsd": 3671405915,
+    "totalShares": 90106798,
+    "putShares": 170900,
+    "callShares": 137300,
+    "holderCount": 448,
+    "pctShareChangeQoQ": -0.05431198158874894
+  },
   "PII": {
     "totalValueUsd": 3020543854,
     "totalShares": 120484760,
@@ -366,6 +430,14 @@
     "callShares": 598700,
     "holderCount": 424,
     "pctShareChangeQoQ": 1.121436190070849
+  },
+  "PLD": {
+    "totalValueUsd": 104336042847,
+    "totalShares": 843135979,
+    "putShares": 1842200,
+    "callShares": 2557400,
+    "holderCount": 1533,
+    "pctShareChangeQoQ": -0.032787937492725856
   },
   "RDDT": {
     "totalValueUsd": 14215195173,
@@ -399,14 +471,6 @@
     "holderCount": 952,
     "pctShareChangeQoQ": 0.033850257824093906
   },
-  "HUBB": {
-    "totalValueUsd": 23964140074,
-    "totalShares": 50150019,
-    "putShares": 109278,
-    "callShares": 98800,
-    "holderCount": 904,
-    "pctShareChangeQoQ": -0.015858468295259696
-  },
   "HUBS": {
     "totalValueUsd": 10048974452,
     "totalShares": 46271400,
@@ -422,6 +486,14 @@
     "callShares": 4820062,
     "holderCount": 756,
     "pctShareChangeQoQ": -0.06927260016381803
+  },
+  "ILMN": {
+    "totalValueUsd": 18618026729,
+    "totalShares": 153406280,
+    "putShares": 480224,
+    "callShares": 871123,
+    "holderCount": 805,
+    "pctShareChangeQoQ": -0.01501665703019133
   },
   "INTU": {
     "totalValueUsd": 92753182006,
@@ -439,13 +511,21 @@
     "holderCount": 278,
     "pctShareChangeQoQ": 0.018046169512065474
   },
-  "AMD": {
-    "totalValueUsd": 200832141383,
-    "totalShares": 1060280040,
-    "putShares": 150188038,
-    "callShares": 104162625,
-    "holderCount": 2919,
-    "pctShareChangeQoQ": -0.024017079549502288
+  "AYI": {
+    "totalValueUsd": 7630024519,
+    "totalShares": 28562315,
+    "putShares": 36600,
+    "callShares": 37200,
+    "holderCount": 504,
+    "pctShareChangeQoQ": -0.01572547472664732
+  },
+  "AMG": {
+    "totalValueUsd": 6358739932,
+    "totalShares": 24201624,
+    "putShares": 43400,
+    "callShares": 38000,
+    "holderCount": 483,
+    "pctShareChangeQoQ": 4.918393278721478
   },
   "AFL": {
     "totalValueUsd": 37360467330,
@@ -455,21 +535,21 @@
     "holderCount": 1593,
     "pctShareChangeQoQ": 0.005290125796644874
   },
-  "ALNY": {
-    "totalValueUsd": 37812233042,
-    "totalShares": 396588456,
-    "putShares": 606100,
-    "callShares": 1344488,
-    "holderCount": 751,
-    "pctShareChangeQoQ": -0.4195225627894528
+  "ALB": {
+    "totalValueUsd": 20691770438,
+    "totalShares": 144209314,
+    "putShares": 10065331,
+    "callShares": 7571901,
+    "holderCount": 957,
+    "pctShareChangeQoQ": -0.00035011134527887706
   },
-  "AEE": {
-    "totalValueUsd": 21463567989,
-    "totalShares": 230647812,
-    "putShares": 23700,
-    "callShares": 116200,
-    "holderCount": 857,
-    "pctShareChangeQoQ": 0.024070866429491706
+  "AXP": {
+    "totalValueUsd": 164547212260,
+    "totalShares": 558199208,
+    "putShares": 6209696,
+    "callShares": 7333415,
+    "holderCount": 2730,
+    "pctShareChangeQoQ": -0.05085631475397236
   },
   "AHR": {
     "totalValueUsd": 8661300709,
@@ -487,22 +567,6 @@
     "holderCount": 395,
     "pctShareChangeQoQ": -0.061751115357173474
   },
-  "APH": {
-    "totalValueUsd": 119884185288,
-    "totalShares": 989606015,
-    "putShares": 8248988,
-    "callShares": 4359912,
-    "holderCount": 1639,
-    "pctShareChangeQoQ": 5.724128728829808
-  },
-  "APP": {
-    "totalValueUsd": 75404904530,
-    "totalShares": 197215749,
-    "putShares": 12054693,
-    "callShares": 13796398,
-    "holderCount": 1198,
-    "pctShareChangeQoQ": -0.12675742914555552
-  },
   "ACA": {
     "totalValueUsd": 4365290806,
     "totalShares": 44259595,
@@ -519,14 +583,6 @@
     "holderCount": 1090,
     "pctShareChangeQoQ": 0.0008642634386312312
   },
-  "WEC": {
-    "totalValueUsd": 32178432377,
-    "totalShares": 1812147629,
-    "putShares": 258530,
-    "callShares": 611700,
-    "holderCount": 1270,
-    "pctShareChangeQoQ": 0.03969250542292306
-  },
   "WDC": {
     "totalValueUsd": 92333205363,
     "totalShares": 1802532291,
@@ -535,6 +591,22 @@
     "holderCount": 1341,
     "pctShareChangeQoQ": -0.1805539172168118
   },
+  "WEX": {
+    "totalValueUsd": 5862654981,
+    "totalShares": 38674220,
+    "putShares": 471403,
+    "callShares": 30200,
+    "holderCount": 443,
+    "pctShareChangeQoQ": 0.004581007760405182
+  },
+  "WY": {
+    "totalValueUsd": 14371952178,
+    "totalShares": 625933634,
+    "putShares": 1282500,
+    "callShares": 2096300,
+    "holderCount": 747,
+    "pctShareChangeQoQ": 5.505530058195122
+  },
   "WDAY": {
     "totalValueUsd": 24020809584,
     "totalShares": 197531651,
@@ -542,14 +614,6 @@
     "callShares": 6224021,
     "holderCount": 819,
     "pctShareChangeQoQ": 0.08252079144021197
-  },
-  "XEL": {
-    "totalValueUsd": 40507113897,
-    "totalShares": 524179124,
-    "putShares": 1101101,
-    "callShares": 1330201,
-    "holderCount": 1181,
-    "pctShareChangeQoQ": -0.04018897772735373
   },
   "ZBH": {
     "totalValueUsd": 15824567927,
@@ -567,22 +631,6 @@
     "holderCount": 734,
     "pctShareChangeQoQ": -0.03260856166046005
   },
-  "D": {
-    "totalValueUsd": 40520590156,
-    "totalShares": 669888680,
-    "putShares": 1683189,
-    "callShares": 5272609,
-    "holderCount": 1331,
-    "pctShareChangeQoQ": -0.07592306716963326
-  },
-  "DTE": {
-    "totalValueUsd": 23469901420,
-    "totalShares": 164299814,
-    "putShares": 39000,
-    "callShares": 364500,
-    "holderCount": 880,
-    "pctShareChangeQoQ": 0.020143713513716265
-  },
   "EQT": {
     "totalValueUsd": 33250514625,
     "totalShares": 551226872,
@@ -591,13 +639,13 @@
     "holderCount": 1085,
     "pctShareChangeQoQ": -0.03992548512919948
   },
-  "EXC": {
-    "totalValueUsd": 43212642303,
-    "totalShares": 896961900,
-    "putShares": 1978400,
-    "callShares": 3800921,
-    "holderCount": 1196,
-    "pctShareChangeQoQ": 0.009383582210277285
+  "EQIX": {
+    "totalValueUsd": 82993055014,
+    "totalShares": 90338340,
+    "putShares": 783650,
+    "callShares": 494213,
+    "holderCount": 1164,
+    "pctShareChangeQoQ": -0.020950080823497336
   },
   "EXTR": {
     "totalValueUsd": 1830934337,
@@ -615,14 +663,6 @@
     "holderCount": 926,
     "pctShareChangeQoQ": -0.06388338394036917
   },
-  "FE": {
-    "totalValueUsd": 25713436206,
-    "totalShares": 655422289,
-    "putShares": 2615573,
-    "callShares": 3954041,
-    "holderCount": 874,
-    "pctShareChangeQoQ": -0.14080206158124178
-  },
   "FOXA": {
     "totalValueUsd": 18691612795,
     "totalShares": 344094716,
@@ -630,14 +670,6 @@
     "callShares": 452400,
     "holderCount": 710,
     "pctShareChangeQoQ": -0.05634822166201251
-  },
-  "FTAI": {
-    "totalValueUsd": 22931172599,
-    "totalShares": 94643166,
-    "putShares": 1521180,
-    "callShares": 2530401,
-    "holderCount": 561,
-    "pctShareChangeQoQ": -0.011462731882388682
   },
   "GE": {
     "totalValueUsd": 202512840624,
@@ -663,21 +695,13 @@
     "holderCount": 1014,
     "pctShareChangeQoQ": -0.03071023226771758
   },
-  "HQY": {
-    "totalValueUsd": 6885683007,
-    "totalShares": 84678343,
-    "putShares": 167600,
-    "callShares": 188000,
-    "holderCount": 452,
-    "pctShareChangeQoQ": -0.04792159172815214
-  },
-  "HWM": {
-    "totalValueUsd": 73004248381,
-    "totalShares": 341735585,
-    "putShares": 2808100,
-    "callShares": 1716557,
-    "holderCount": 1341,
-    "pctShareChangeQoQ": -0.07426354890797608
+  "HLI": {
+    "totalValueUsd": 7177679473,
+    "totalShares": 52697560,
+    "putShares": 6500,
+    "callShares": 25300,
+    "holderCount": 479,
+    "pctShareChangeQoQ": 0.010871961364257703
   },
   "ADSK": {
     "totalValueUsd": 44353123394,
@@ -695,37 +719,29 @@
     "holderCount": 1205,
     "pctShareChangeQoQ": -0.10285521190676274
   },
-  "BLKB": {
-    "totalValueUsd": 1739426701,
-    "totalShares": 45616734,
-    "putShares": 5200,
-    "callShares": 500,
-    "holderCount": 311,
-    "pctShareChangeQoQ": -0.029344328132853762
+  "AXON": {
+    "totalValueUsd": 27634151156,
+    "totalShares": 66743880,
+    "putShares": 1978620,
+    "callShares": 1483404,
+    "holderCount": 983,
+    "pctShareChangeQoQ": -0.5394298833629476
   },
-  "XYZ": {
-    "totalValueUsd": 23534344515,
-    "totalShares": 1453575177,
-    "putShares": 17436113,
-    "callShares": 16948532,
-    "holderCount": 910,
-    "pctShareChangeQoQ": -0.013376086200712855
+  "BKR": {
+    "totalValueUsd": 50742528647,
+    "totalShares": 881427255,
+    "putShares": 3383200,
+    "callShares": 3781329,
+    "holderCount": 1028,
+    "pctShareChangeQoQ": -0.11923926685013629
   },
-  "BE": {
-    "totalValueUsd": 26913400046,
-    "totalShares": 357046556,
-    "putShares": 28921683,
-    "callShares": 28537764,
-    "holderCount": 828,
-    "pctShareChangeQoQ": -0.00037451111108796685
-  },
-  "BRO": {
-    "totalValueUsd": 17081882480,
-    "totalShares": 265267768,
-    "putShares": 176000,
-    "callShares": 508900,
-    "holderCount": 769,
-    "pctShareChangeQoQ": 0.014810955199661632
+  "BFH": {
+    "totalValueUsd": 3381706440,
+    "totalShares": 46159373,
+    "putShares": 63900,
+    "callShares": 56700,
+    "holderCount": 351,
+    "pctShareChangeQoQ": 0.015335402217297397
   },
   "BBW": {
     "totalValueUsd": 333613383,
@@ -743,13 +759,21 @@
     "holderCount": 681,
     "pctShareChangeQoQ": -0.022458319033578422
   },
-  "CTAS": {
-    "totalValueUsd": 41101240380,
-    "totalShares": 252069840,
-    "putShares": 623795,
-    "callShares": 931277,
-    "holderCount": 1335,
-    "pctShareChangeQoQ": -0.005232043930736181
+  "CHTR": {
+    "totalValueUsd": 19174541833,
+    "totalShares": 89421832,
+    "putShares": 3932300,
+    "callShares": 5063600,
+    "holderCount": 601,
+    "pctShareChangeQoQ": 4.271789740665919
+  },
+  "C": {
+    "totalValueUsd": 146574933552,
+    "totalShares": 1409058768,
+    "putShares": 63509393,
+    "callShares": 56707020,
+    "holderCount": 2395,
+    "pctShareChangeQoQ": 0.01125842816629144
   },
   "NET": {
     "totalValueUsd": 53340726383,
@@ -766,14 +790,6 @@
     "callShares": 43389746,
     "holderCount": 1049,
     "pctShareChangeQoQ": -0.010782118792498145
-  },
-  "AVPT": {
-    "totalValueUsd": 1215715632,
-    "totalShares": 128365671,
-    "putShares": 47900,
-    "callShares": 399200,
-    "holderCount": 224,
-    "pctShareChangeQoQ": -0.006415435145038284
   },
   "CRCL": {
     "totalValueUsd": 10514930776,
@@ -839,53 +855,53 @@
     "holderCount": 1278,
     "pctShareChangeQoQ": -0.04967874749278497
   },
-  "BALL": {
-    "totalValueUsd": 11586147936,
-    "totalShares": 224447671,
-    "putShares": 447550,
-    "callShares": 937075,
-    "holderCount": 752,
-    "pctShareChangeQoQ": -0.008803948121677903
+  "IVZ": {
+    "totalValueUsd": 10152011716,
+    "totalShares": 426897034,
+    "putShares": 394912,
+    "callShares": 7509587,
+    "holderCount": 607,
+    "pctShareChangeQoQ": 0.013010382778373526
   },
-  "CDW": {
-    "totalValueUsd": 13460609025,
-    "totalShares": 114351842,
-    "putShares": 269962,
-    "callShares": 402400,
-    "holderCount": 664,
-    "pctShareChangeQoQ": 0.01435283029996161
+  "JLL": {
+    "totalValueUsd": 12613103240,
+    "totalShares": 43133551,
+    "putShares": 339100,
+    "callShares": 55300,
+    "holderCount": 658,
+    "pctShareChangeQoQ": -0.09281775664413697
   },
-  "EQR": {
-    "totalValueUsd": 17218178633,
-    "totalShares": 317887265,
-    "putShares": 763270,
-    "callShares": 261100,
-    "holderCount": 645,
-    "pctShareChangeQoQ": -0.08879294801023577
+  "BLD": {
+    "totalValueUsd": 822387656,
+    "totalShares": 2593952,
+    "putShares": 10700,
+    "callShares": 0,
+    "holderCount": 143,
+    "pctShareChangeQoQ": -0.914146925527633
   },
-  "TRU": {
-    "totalValueUsd": 14703168980,
-    "totalShares": 216939402,
-    "putShares": 136557,
-    "callShares": 158700,
-    "holderCount": 552,
-    "pctShareChangeQoQ": 0.06048124941871105
+  "ATRC": {
+    "totalValueUsd": 1419153471,
+    "totalShares": 49891289,
+    "putShares": 5000,
+    "callShares": 9800,
+    "holderCount": 224,
+    "pctShareChangeQoQ": 0.026979932807729704
   },
-  "VRT": {
-    "totalValueUsd": 68770791888,
-    "totalShares": 289213274,
-    "putShares": 19015594,
-    "callShares": 17243248,
-    "holderCount": 1595,
-    "pctShareChangeQoQ": 0.0520341337688254
+  "AXSM": {
+    "totalValueUsd": 6054833144,
+    "totalShares": 37404110,
+    "putShares": 729900,
+    "callShares": 822100,
+    "holderCount": 394,
+    "pctShareChangeQoQ": -0.00795719216852881
   },
-  "ALG": {
-    "totalValueUsd": 1901020866,
-    "totalShares": 12015573,
-    "putShares": 0,
-    "callShares": 45600,
-    "holderCount": 244,
-    "pctShareChangeQoQ": 0.0239722501839909
+  "BOX": {
+    "totalValueUsd": 3273269638,
+    "totalShares": 488771903,
+    "putShares": 297100,
+    "callShares": 3428142,
+    "holderCount": 388,
+    "pctShareChangeQoQ": -0.28522949383067875
   },
   "BBIO": {
     "totalValueUsd": 15200702332,
@@ -927,6 +943,14 @@
     "holderCount": 484,
     "pctShareChangeQoQ": -0.034427109142260874
   },
+  "WRBY": {
+    "totalValueUsd": 1833853901,
+    "totalShares": 89417037,
+    "putShares": 2621100,
+    "callShares": 1788800,
+    "holderCount": 258,
+    "pctShareChangeQoQ": -0.056011017356237994
+  },
   "DRH": {
     "totalValueUsd": 1865541695,
     "totalShares": 215923118,
@@ -943,6 +967,22 @@
     "holderCount": 128,
     "pctShareChangeQoQ": -0.8277512520573367
   },
+  "FSS": {
+    "totalValueUsd": 5901246707,
+    "totalShares": 58744183,
+    "putShares": 6600,
+    "callShares": 24500,
+    "holderCount": 434,
+    "pctShareChangeQoQ": 7.468531215191827e-05
+  },
+  "GKOS": {
+    "totalValueUsd": 6050531111,
+    "totalShares": 57174804,
+    "putShares": 1333600,
+    "callShares": 170700,
+    "holderCount": 311,
+    "pctShareChangeQoQ": 0.009802295310121195
+  },
   "HALO": {
     "totalValueUsd": 8097079083,
     "totalShares": 705056007,
@@ -951,13 +991,21 @@
     "holderCount": 639,
     "pctShareChangeQoQ": -0.33686166291900527
   },
-  "HUBG": {
-    "totalValueUsd": 2077460410,
-    "totalShares": 57884481,
-    "putShares": 47800,
-    "callShares": 150000,
-    "holderCount": 257,
-    "pctShareChangeQoQ": 0.04970691996181814
+  "HLNE": {
+    "totalValueUsd": 3559513522,
+    "totalShares": 38141081,
+    "putShares": 49300,
+    "callShares": 8600,
+    "holderCount": 358,
+    "pctShareChangeQoQ": 0.056360760849554756
+  },
+  "INSM": {
+    "totalValueUsd": 30002865807,
+    "totalShares": 191841590,
+    "putShares": 1404700,
+    "callShares": 2003001,
+    "holderCount": 634,
+    "pctShareChangeQoQ": -0.09839246880838132
   },
   "INSW": {
     "totalValueUsd": 2757709560,
@@ -966,14 +1014,6 @@
     "callShares": 117900,
     "holderCount": 295,
     "pctShareChangeQoQ": 0.05225659785885322
-  },
-  "JJSF": {
-    "totalValueUsd": 1119283519,
-    "totalShares": 14207787,
-    "putShares": 26200,
-    "callShares": 3300,
-    "holderCount": 237,
-    "pctShareChangeQoQ": 0.03479348612206638
   },
   "KBH": {
     "totalValueUsd": 3056086785,
@@ -1007,6 +1047,14 @@
     "holderCount": 342,
     "pctShareChangeQoQ": 0.03108365577668232
   },
+  "NEO": {
+    "totalValueUsd": 1280320493,
+    "totalShares": 477512406,
+    "putShares": 87000,
+    "callShares": 839600,
+    "holderCount": 254,
+    "pctShareChangeQoQ": 0.006410720314499837
+  },
   "PTEN": {
     "totalValueUsd": 4240049635,
     "totalShares": 408525938,
@@ -1039,6 +1087,14 @@
     "holderCount": 229,
     "pctShareChangeQoQ": 0.01367561764115289
   },
+  "SMTC": {
+    "totalValueUsd": 7383687620,
+    "totalShares": 189494009,
+    "putShares": 1439800,
+    "callShares": 792700,
+    "holderCount": 444,
+    "pctShareChangeQoQ": 0.0018058398721073792
+  },
   "SLAB": {
     "totalValueUsd": 5939234277,
     "totalShares": 29337927,
@@ -1063,21 +1119,13 @@
     "holderCount": 260,
     "pctShareChangeQoQ": -0.01726135112746243
   },
-  "RPD": {
-    "totalValueUsd": 1070170797,
-    "totalShares": 905636214,
-    "putShares": 371900,
-    "callShares": 1760800,
-    "holderCount": 282,
-    "pctShareChangeQoQ": 0.030375955806002497
-  },
-  "CNMD": {
-    "totalValueUsd": 1661928737,
-    "totalShares": 620230254,
-    "putShares": 38900,
-    "callShares": 107000,
-    "holderCount": 258,
-    "pctShareChangeQoQ": -0.010651766662687188
+  "WERN": {
+    "totalValueUsd": 1872608719,
+    "totalShares": 64332973,
+    "putShares": 52000,
+    "callShares": 8300,
+    "holderCount": 241,
+    "pctShareChangeQoQ": 0.02409661358218872
   },
   "PR": {
     "totalValueUsd": 13703551365,
@@ -1087,6 +1135,14 @@
     "holderCount": 527,
     "pctShareChangeQoQ": 0.028573459561026415
   },
+  "AMRC": {
+    "totalValueUsd": 725226215,
+    "totalShares": 28817453,
+    "putShares": 24600,
+    "callShares": 236000,
+    "holderCount": 172,
+    "pctShareChangeQoQ": -0.06835153899330593
+  },
   "RXO": {
     "totalValueUsd": 2671490517,
     "totalShares": 183297117,
@@ -1094,6 +1150,14 @@
     "callShares": 34600,
     "holderCount": 249,
     "pctShareChangeQoQ": 0.04634685027889978
+  },
+  "SPT": {
+    "totalValueUsd": 261263701,
+    "totalShares": 47449559,
+    "putShares": 1385700,
+    "callShares": 202697,
+    "holderCount": 185,
+    "pctShareChangeQoQ": 0.009580379175105801
   },
   "XMTR": {
     "totalValueUsd": 1819854825,
@@ -1103,6 +1167,38 @@
     "holderCount": 232,
     "pctShareChangeQoQ": 0.03259810417252074
   },
+  "ZD": {
+    "totalValueUsd": 1983292909,
+    "totalShares": 370942848,
+    "putShares": 183000,
+    "callShares": 41300,
+    "holderCount": 277,
+    "pctShareChangeQoQ": -0.03913143080261533
+  },
+  "DECK": {
+    "totalValueUsd": 12986974234,
+    "totalShares": 130955958,
+    "putShares": 2081840,
+    "callShares": 1842601,
+    "holderCount": 845,
+    "pctShareChangeQoQ": -0.023823373247711294
+  },
+  "HSIC": {
+    "totalValueUsd": 1143022326,
+    "totalShares": 15919805,
+    "putShares": 0,
+    "callShares": 262500,
+    "holderCount": 155,
+    "pctShareChangeQoQ": -0.8666236086879094
+  },
+  "HUN": {
+    "totalValueUsd": 2078073631,
+    "totalShares": 167016473,
+    "putShares": 6176800,
+    "callShares": 5202200,
+    "holderCount": 329,
+    "pctShareChangeQoQ": 0.08997055744752663
+  },
   "PCRX": {
     "totalValueUsd": 1092551002,
     "totalShares": 197736886,
@@ -1111,13 +1207,37 @@
     "holderCount": 236,
     "pctShareChangeQoQ": -0.058919787858504366
   },
-  "ALGT": {
-    "totalValueUsd": 1409373562,
-    "totalShares": 18723275,
-    "putShares": 250400,
-    "callShares": 175600,
-    "holderCount": 228,
-    "pctShareChangeQoQ": 0.15189311464973287
+  "PTCT": {
+    "totalValueUsd": 6566375921,
+    "totalShares": 324419474,
+    "putShares": 148200,
+    "callShares": 817700,
+    "holderCount": 345,
+    "pctShareChangeQoQ": 0.012883109131450764
+  },
+  "KMPR": {
+    "totalValueUsd": 1576741866,
+    "totalShares": 53044849,
+    "putShares": 58600,
+    "callShares": 100,
+    "holderCount": 239,
+    "pctShareChangeQoQ": 0.04719652875818721
+  },
+  "ELV": {
+    "totalValueUsd": 6561544638,
+    "totalShares": 22403645,
+    "putShares": 47,
+    "callShares": 0,
+    "holderCount": 325,
+    "pctShareChangeQoQ": -0.144869018301406
+  },
+  "NXST": {
+    "totalValueUsd": 4579987590,
+    "totalShares": 27822627,
+    "putShares": 40600,
+    "callShares": 135700,
+    "holderCount": 461,
+    "pctShareChangeQoQ": -0.0011260504418899812
   },
   "DKS": {
     "totalValueUsd": 12440833664,
@@ -1127,13 +1247,13 @@
     "holderCount": 670,
     "pctShareChangeQoQ": -0.029439331350214454
   },
-  "WABC": {
-    "totalValueUsd": 919951111,
-    "totalShares": 18020755,
-    "putShares": 100,
-    "callShares": 19000,
-    "holderCount": 176,
-    "pctShareChangeQoQ": -0.05807931288039823
+  "LEA": {
+    "totalValueUsd": 5920169929,
+    "totalShares": 50546434,
+    "putShares": 26100,
+    "callShares": 88300,
+    "holderCount": 465,
+    "pctShareChangeQoQ": -0.06378633811762696
   },
   "BDC": {
     "totalValueUsd": 3928553515,
@@ -1142,6 +1262,14 @@
     "callShares": 55300,
     "holderCount": 344,
     "pctShareChangeQoQ": -0.01774112215939451
+  },
+  "AMN": {
+    "totalValueUsd": 66432493,
+    "totalShares": 3634083,
+    "putShares": 0,
+    "callShares": 0,
+    "holderCount": 50,
+    "pctShareChangeQoQ": 0.08024066760558858
   },
   "SXC": {
     "totalValueUsd": 426165932,
@@ -1159,14 +1287,6 @@
     "holderCount": 319,
     "pctShareChangeQoQ": 0.0062504530234550664
   },
-  "BUSE": {
-    "totalValueUsd": 1315878284,
-    "totalShares": 53913165,
-    "putShares": 100,
-    "callShares": 100,
-    "holderCount": 227,
-    "pctShareChangeQoQ": -0.048703386136577174
-  },
   "HOMB": {
     "totalValueUsd": 3599428499,
     "totalShares": 142477692,
@@ -1174,14 +1294,6 @@
     "callShares": 10500,
     "holderCount": 314,
     "pctShareChangeQoQ": 0.03929604963212131
-  },
-  "NTGR": {
-    "totalValueUsd": 553858929,
-    "totalShares": 26436750,
-    "putShares": 394900,
-    "callShares": 430500,
-    "holderCount": 175,
-    "pctShareChangeQoQ": 0.026870411822549272
   },
   "RDN": {
     "totalValueUsd": 3653073531,
@@ -1191,13 +1303,13 @@
     "holderCount": 350,
     "pctShareChangeQoQ": -0.053557708798366084
   },
-  "AMSF": {
-    "totalValueUsd": 610170423,
-    "totalShares": 34491583,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 171,
-    "pctShareChangeQoQ": 0.94073774358545
+  "CUBI": {
+    "totalValueUsd": 2144980518,
+    "totalShares": 32501587,
+    "putShares": 50900,
+    "callShares": 27800,
+    "holderCount": 269,
+    "pctShareChangeQoQ": 0.0745292114025059
   },
   "SANM": {
     "totalValueUsd": 6662518833,
@@ -1215,6 +1327,14 @@
     "holderCount": 667,
     "pctShareChangeQoQ": 0.4133788482481107
   },
+  "MTN": {
+    "totalValueUsd": 5670425241,
+    "totalShares": 44567003,
+    "putShares": 1113100,
+    "callShares": 1385700,
+    "holderCount": 411,
+    "pctShareChangeQoQ": -0.9150786883922503
+  },
   "W": {
     "totalValueUsd": 9453922097,
     "totalShares": 791146386,
@@ -1223,45 +1343,13 @@
     "holderCount": 429,
     "pctShareChangeQoQ": -0.3055795795046633
   },
-  "BKU": {
-    "totalValueUsd": 3167351556,
-    "totalShares": 72222599,
-    "putShares": 900,
-    "callShares": 3905800,
-    "holderCount": 303,
-    "pctShareChangeQoQ": -0.03934043983003934
-  },
-  "DAR": {
-    "totalValueUsd": 9698701300,
-    "totalShares": 161334569,
-    "putShares": 2322366,
-    "callShares": 4777095,
-    "holderCount": 583,
-    "pctShareChangeQoQ": -0.03519758244691793
-  },
-  "GIII": {
-    "totalValueUsd": 60161752,
-    "totalShares": 3525253,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 39,
-    "pctShareChangeQoQ": 0.008574124448828765
-  },
-  "HTLD": {
-    "totalValueUsd": 370425670,
-    "totalShares": 35913824,
-    "putShares": 47000,
-    "callShares": 6500,
-    "holderCount": 168,
-    "pctShareChangeQoQ": -0.018670839235095063
-  },
-  "HAE": {
-    "totalValueUsd": 171117702,
-    "totalShares": 32024974,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 48,
-    "pctShareChangeQoQ": -0.3075192443315188
+  "MOH": {
+    "totalValueUsd": 6979097844,
+    "totalShares": 55667459,
+    "putShares": 1242600,
+    "callShares": 702200,
+    "holderCount": 497,
+    "pctShareChangeQoQ": 0.05997101141140297
   },
   "INOD": {
     "totalValueUsd": 573738029,
@@ -1271,6 +1359,14 @@
     "holderCount": 198,
     "pctShareChangeQoQ": -0.013268302635732766
   },
+  "JXN": {
+    "totalValueUsd": 5891719355,
+    "totalShares": 59395020,
+    "putShares": 226337,
+    "callShares": 271765,
+    "holderCount": 437,
+    "pctShareChangeQoQ": 0.10500169233849814
+  },
   "CBRE": {
     "totalValueUsd": 34180788286,
     "totalShares": 260305401,
@@ -1279,21 +1375,29 @@
     "holderCount": 921,
     "pctShareChangeQoQ": -0.04261328138007827
   },
-  "FHN": {
-    "totalValueUsd": 8510887302,
-    "totalShares": 394974495,
-    "putShares": 2992900,
-    "callShares": 13244270,
-    "holderCount": 562,
-    "pctShareChangeQoQ": -0.041477839865145714
+  "LEG": {
+    "totalValueUsd": 1121877093,
+    "totalShares": 115871230,
+    "putShares": 251100,
+    "callShares": 418900,
+    "holderCount": 314,
+    "pctShareChangeQoQ": 0.020816371849564575
   },
-  "BBY": {
-    "totalValueUsd": 12106530181,
-    "totalShares": 193644315,
-    "putShares": 5117236,
-    "callShares": 6042195,
-    "holderCount": 832,
-    "pctShareChangeQoQ": -0.058365040796505056
+  "PEN": {
+    "totalValueUsd": 10462550837,
+    "totalShares": 32584418,
+    "putShares": 360100,
+    "callShares": 209900,
+    "holderCount": 462,
+    "pctShareChangeQoQ": -0.1071645535941687
+  },
+  "HOOD": {
+    "totalValueUsd": 1356137798,
+    "totalShares": 20652985,
+    "putShares": 120280,
+    "callShares": 32950,
+    "holderCount": 92,
+    "pctShareChangeQoQ": 0.1762111757626855
   },
   "CALM": {
     "totalValueUsd": 350963386,
@@ -1319,37 +1423,45 @@
     "holderCount": 250,
     "pctShareChangeQoQ": 0.0031135233609748624
   },
-  "AGNC": {
-    "totalValueUsd": 340304385,
-    "totalShares": 38735718,
+  "AMP": {
+    "totalValueUsd": 3072726238,
+    "totalShares": 8204601,
     "putShares": 0,
-    "callShares": 145900,
-    "holderCount": 72,
-    "pctShareChangeQoQ": -0.14127775280222357
+    "callShares": 0,
+    "holderCount": 199,
+    "pctShareChangeQoQ": 0.0448778057543283
   },
-  "AEP": {
-    "totalValueUsd": 6685653311,
-    "totalShares": 54662960,
-    "putShares": 984,
-    "callShares": 441,
-    "holderCount": 214,
-    "pctShareChangeQoQ": 0.012370981314580877
-  },
-  "JPM": {
-    "totalValueUsd": 4980315060,
-    "totalShares": 18791209,
+  "MTG": {
+    "totalValueUsd": 367833413,
+    "totalShares": 26669362,
     "putShares": 0,
-    "callShares": 4200,
-    "holderCount": 155,
-    "pctShareChangeQoQ": -0.13993548512298543
+    "callShares": 0,
+    "holderCount": 63,
+    "pctShareChangeQoQ": -0.057202287797388736
   },
-  "ALK": {
-    "totalValueUsd": 3664745763,
-    "totalShares": 101397405,
-    "putShares": 3266000,
-    "callShares": 2610810,
-    "holderCount": 423,
-    "pctShareChangeQoQ": -0.014273337391636921
+  "PRU": {
+    "totalValueUsd": 1984456400,
+    "totalShares": 21898723,
+    "putShares": 3070,
+    "callShares": 0,
+    "holderCount": 194,
+    "pctShareChangeQoQ": 0.0659203069562219
+  },
+  "KMT": {
+    "totalValueUsd": 2710531917,
+    "totalShares": 77003386,
+    "putShares": 76100,
+    "callShares": 320900,
+    "holderCount": 283,
+    "pctShareChangeQoQ": 0.0010500423191546766
+  },
+  "LUV": {
+    "totalValueUsd": 1286935872,
+    "totalShares": 34976475,
+    "putShares": 39300,
+    "callShares": 16900,
+    "holderCount": 126,
+    "pctShareChangeQoQ": 0.0077195989148376425
   },
   "TEX": {
     "totalValueUsd": 412263776,
@@ -1359,6 +1471,14 @@
     "holderCount": 73,
     "pctShareChangeQoQ": -0.03221914848110416
   },
+  "WM": {
+    "totalValueUsd": 10125719354,
+    "totalShares": 45601393,
+    "putShares": 29600,
+    "callShares": 39672,
+    "holderCount": 352,
+    "pctShareChangeQoQ": -0.004929898034397257
+  },
   "CTRE": {
     "totalValueUsd": 7322032132,
     "totalShares": 226005391,
@@ -1367,13 +1487,21 @@
     "holderCount": 440,
     "pctShareChangeQoQ": 0.005079001105160286
   },
-  "AMAT": {
-    "totalValueUsd": 22645766389,
-    "totalShares": 79631976,
-    "putShares": 7542,
-    "callShares": 2287,
-    "holderCount": 391,
-    "pctShareChangeQoQ": -0.07391218491059746
+  "ESS": {
+    "totalValueUsd": 1017410216,
+    "totalShares": 9214925,
+    "putShares": 0,
+    "callShares": 0,
+    "holderCount": 79,
+    "pctShareChangeQoQ": -0.2084963773919988
+  },
+  "ARW": {
+    "totalValueUsd": 861227347,
+    "totalShares": 8382612,
+    "putShares": 0,
+    "callShares": 0,
+    "holderCount": 79,
+    "pctShareChangeQoQ": -0.15591988047199787
   },
   "CSCO": {
     "totalValueUsd": 24607086159,
@@ -1423,29 +1551,53 @@
     "holderCount": 135,
     "pctShareChangeQoQ": 0.21988939236494964
   },
-  "AKAM": {
-    "totalValueUsd": 19477434771,
-    "totalShares": 2214545569,
-    "putShares": 3482508,
-    "callShares": 8502028,
-    "holderCount": 786,
-    "pctShareChangeQoQ": -0.027505068300393853
+  "YUM": {
+    "totalValueUsd": 3264910204,
+    "totalShares": 22264713,
+    "putShares": 995,
+    "callShares": 300,
+    "holderCount": 143,
+    "pctShareChangeQoQ": -0.0030962398624796855
   },
-  "PIPR": {
-    "totalValueUsd": 3908698785,
-    "totalShares": 51404839,
-    "putShares": 513400,
-    "callShares": 407800,
-    "holderCount": 297,
-    "pctShareChangeQoQ": 2.8710462754326014
+  "TSCO": {
+    "totalValueUsd": 20278923614,
+    "totalShares": 470434336,
+    "putShares": 1183435,
+    "callShares": 1687100,
+    "holderCount": 1082,
+    "pctShareChangeQoQ": -0.07084199874357539
   },
-  "PRVA": {
-    "totalValueUsd": 2357297181,
-    "totalShares": 119963083,
+  "HOPE": {
+    "totalValueUsd": 1297486655,
+    "totalShares": 118337047,
     "putShares": 0,
-    "callShares": 129700,
-    "holderCount": 270,
-    "pctShareChangeQoQ": -0.004457882534509739
+    "callShares": 800,
+    "holderCount": 227,
+    "pctShareChangeQoQ": 0.03390594548147975
+  },
+  "INGR": {
+    "totalValueUsd": 6430224575,
+    "totalShares": 61069546,
+    "putShares": 20000,
+    "callShares": 31000,
+    "holderCount": 606,
+    "pctShareChangeQoQ": 0.01725761133644174
+  },
+  "MC": {
+    "totalValueUsd": 3872070840,
+    "totalShares": 70221511,
+    "putShares": 5500,
+    "callShares": 137700,
+    "holderCount": 331,
+    "pctShareChangeQoQ": 0.01870552326129626
+  },
+  "NRG": {
+    "totalValueUsd": 27683837993,
+    "totalShares": 194809501,
+    "putShares": 1684300,
+    "callShares": 1312332,
+    "holderCount": 960,
+    "pctShareChangeQoQ": 0.07395113251278869
   },
   "IOT": {
     "totalValueUsd": 9849520074,
@@ -1455,13 +1607,21 @@
     "holderCount": 461,
     "pctShareChangeQoQ": 0.1047596403778755
   },
-  "HWC": {
-    "totalValueUsd": 4721635675,
-    "totalShares": 76235236,
-    "putShares": 0,
-    "callShares": 3500,
-    "holderCount": 343,
-    "pctShareChangeQoQ": -0.020249233635115597
+  "WTTR": {
+    "totalValueUsd": 1587715139,
+    "totalShares": 105477075,
+    "putShares": 1700,
+    "callShares": 218200,
+    "holderCount": 225,
+    "pctShareChangeQoQ": 0.1980356236934811
+  },
+  "WKC": {
+    "totalValueUsd": 1530005332,
+    "totalShares": 319252106,
+    "putShares": 1000,
+    "callShares": 90100,
+    "holderCount": 234,
+    "pctShareChangeQoQ": 0.018509625796799867
   },
   "AMRX": {
     "totalValueUsd": 1870752256,
@@ -1471,6 +1631,14 @@
     "holderCount": 278,
     "pctShareChangeQoQ": 0.006343307807389891
   },
+  "WHR": {
+    "totalValueUsd": 3762676842,
+    "totalShares": 73427979,
+    "putShares": 3310400,
+    "callShares": 2662100,
+    "holderCount": 470,
+    "pctShareChangeQoQ": 0.3168790302395886
+  },
   "TXN": {
     "totalValueUsd": 18608107198,
     "totalShares": 111927103,
@@ -1479,6 +1647,14 @@
     "holderCount": 365,
     "pctShareChangeQoQ": 0.04155901998568338
   },
+  "OMDA": {
+    "totalValueUsd": 561424189,
+    "totalShares": 44580777,
+    "putShares": 49300,
+    "callShares": 1524700,
+    "holderCount": 125,
+    "pctShareChangeQoQ": 0.12421255427484082
+  },
   "ANAB": {
     "totalValueUsd": 1507213811,
     "totalShares": 27619805,
@@ -1486,6 +1662,14 @@
     "callShares": 25500,
     "holderCount": 188,
     "pctShareChangeQoQ": -0.03814636750555499
+  },
+  "CAG": {
+    "totalValueUsd": 6112874956,
+    "totalShares": 405506000,
+    "putShares": 7363300,
+    "callShares": 5861000,
+    "holderCount": 720,
+    "pctShareChangeQoQ": -0.001997889445044169
   },
   "GSAT": {
     "totalValueUsd": 1951642413,
@@ -1511,21 +1695,37 @@
     "holderCount": 301,
     "pctShareChangeQoQ": 0.019027704315887788
   },
-  "OBK": {
-    "totalValueUsd": 774588685,
-    "totalShares": 18882637,
-    "putShares": 0,
-    "callShares": 200,
-    "holderCount": 166,
-    "pctShareChangeQoQ": -0.02481836679887622
+  "PHAT": {
+    "totalValueUsd": 731518694,
+    "totalShares": 67669531,
+    "putShares": 64200,
+    "callShares": 1316400,
+    "holderCount": 164,
+    "pctShareChangeQoQ": 0.1298848636505706
   },
-  "MGEE": {
-    "totalValueUsd": 1597548048,
-    "totalShares": 21083930,
-    "putShares": 2800,
-    "callShares": 3300,
-    "holderCount": 295,
-    "pctShareChangeQoQ": -0.005088955742921758
+  "RCL": {
+    "totalValueUsd": 3563391715,
+    "totalShares": 13546305,
+    "putShares": 212,
+    "callShares": 95,
+    "holderCount": 102,
+    "pctShareChangeQoQ": -0.08420153413408797
+  },
+  "RPRX": {
+    "totalValueUsd": 15676400640,
+    "totalShares": 336146620,
+    "putShares": 309600,
+    "callShares": 839700,
+    "holderCount": 485,
+    "pctShareChangeQoQ": -0.0009210759183916191
+  },
+  "R": {
+    "totalValueUsd": 459167211,
+    "totalShares": 3663172,
+    "putShares": 0,
+    "callShares": 0,
+    "holderCount": 61,
+    "pctShareChangeQoQ": -0.016948588530048884
   },
   "MPWR": {
     "totalValueUsd": 3786705495,
@@ -1535,21 +1735,13 @@
     "holderCount": 112,
     "pctShareChangeQoQ": -0.07001753483154538
   },
-  "BWXT": {
-    "totalValueUsd": 15607931149,
-    "totalShares": 83719778,
-    "putShares": 518900,
-    "callShares": 2534300,
-    "holderCount": 762,
-    "pctShareChangeQoQ": -0.014073316373512272
-  },
-  "CALY": {
-    "totalValueUsd": 2311952572,
-    "totalShares": 388956418,
-    "putShares": 684000,
-    "callShares": 1454100,
-    "holderCount": 269,
-    "pctShareChangeQoQ": 3.557144518686837
+  "BNL": {
+    "totalValueUsd": 2476116302,
+    "totalShares": 139945290,
+    "putShares": 100,
+    "callShares": 176500,
+    "holderCount": 318,
+    "pctShareChangeQoQ": -0.14973583569283758
   },
   "CARG": {
     "totalValueUsd": 2737204488,
@@ -1559,13 +1751,13 @@
     "holderCount": 315,
     "pctShareChangeQoQ": -0.002323697944455434
   },
-  "NATL": {
-    "totalValueUsd": 2782464024,
-    "totalShares": 65445545,
-    "putShares": 28300,
-    "callShares": 156000,
-    "holderCount": 329,
-    "pctShareChangeQoQ": -0.03927470152512201
+  "NEOG": {
+    "totalValueUsd": 1963268148,
+    "totalShares": 225195578,
+    "putShares": 1097200,
+    "callShares": 2656000,
+    "holderCount": 285,
+    "pctShareChangeQoQ": 0.060541688331787774
   },
   "NTCT": {
     "totalValueUsd": 181910115,
@@ -1583,6 +1775,30 @@
     "holderCount": 650,
     "pctShareChangeQoQ": -0.05434627955262097
   },
+  "ALLY": {
+    "totalValueUsd": 812083907,
+    "totalShares": 23790841,
+    "putShares": 12700,
+    "callShares": 4400,
+    "holderCount": 74,
+    "pctShareChangeQoQ": -0.10621770602409385
+  },
+  "IPGP": {
+    "totalValueUsd": 3225518366,
+    "totalShares": 28331859,
+    "putShares": 38074,
+    "callShares": 90000,
+    "holderCount": 318,
+    "pctShareChangeQoQ": -0.013848755278939274
+  },
+  "NWBI": {
+    "totalValueUsd": 1233119805,
+    "totalShares": 98081121,
+    "putShares": 4700,
+    "callShares": 167100,
+    "holderCount": 263,
+    "pctShareChangeQoQ": 14.045445069643446
+  },
   "DOX": {
     "totalValueUsd": 5968403081,
     "totalShares": 102742897,
@@ -1590,14 +1806,6 @@
     "callShares": 1546100,
     "holderCount": 422,
     "pctShareChangeQoQ": 0.0020694970316698287
-  },
-  "IQV": {
-    "totalValueUsd": 2355628752,
-    "totalShares": 14717514,
-    "putShares": 8600,
-    "callShares": 0,
-    "holderCount": 158,
-    "pctShareChangeQoQ": 0.11592693690005004
   },
   "LEN": {
     "totalValueUsd": 15785744997,
@@ -1615,14 +1823,6 @@
     "holderCount": 282,
     "pctShareChangeQoQ": -0.018701607487769376
   },
-  "TDC": {
-    "totalValueUsd": 306100885,
-    "totalShares": 16223187,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 69,
-    "pctShareChangeQoQ": 0.09731643175721469
-  },
   "TER": {
     "totalValueUsd": 38958212685,
     "totalShares": 141209481,
@@ -1630,6 +1830,14 @@
     "callShares": 3704801,
     "holderCount": 1153,
     "pctShareChangeQoQ": -0.060059703235508584
+  },
+  "TRNO": {
+    "totalValueUsd": 434534309,
+    "totalShares": 7826541,
+    "putShares": 0,
+    "callShares": 0,
+    "holderCount": 53,
+    "pctShareChangeQoQ": -0.07977903054731962
   },
   "TPL": {
     "totalValueUsd": 2337218788,
@@ -1639,21 +1847,37 @@
     "holderCount": 111,
     "pctShareChangeQoQ": -0.006956002674883568
   },
-  "MZTI": {
-    "totalValueUsd": 31995702,
-    "totalShares": 235485,
+  "TFSL": {
+    "totalValueUsd": 47867903,
+    "totalShares": 3416494,
     "putShares": 0,
     "callShares": 0,
-    "holderCount": 14,
-    "pctShareChangeQoQ": 0.17837359074054615
+    "holderCount": 33,
+    "pctShareChangeQoQ": 0.010526471462522608
   },
-  "TFC": {
-    "totalValueUsd": 3781637075,
-    "totalShares": 89584516,
-    "putShares": 3962,
-    "callShares": 1655,
-    "holderCount": 200,
-    "pctShareChangeQoQ": 0.04132900639042485
+  "TBBK": {
+    "totalValueUsd": 50216098,
+    "totalShares": 947657,
+    "putShares": 0,
+    "callShares": 0,
+    "holderCount": 10,
+    "pctShareChangeQoQ": -0.11421507687993644
+  },
+  "BOH": {
+    "totalValueUsd": 186960779,
+    "totalShares": 2692902,
+    "putShares": 0,
+    "callShares": 0,
+    "holderCount": 49,
+    "pctShareChangeQoQ": 0.07539242469682854
+  },
+  "ITRI": {
+    "totalValueUsd": 4797840531,
+    "totalShares": 503239568,
+    "putShares": 465850,
+    "callShares": 1858450,
+    "holderCount": 447,
+    "pctShareChangeQoQ": -0.6068955513217018
   },
   "PATH": {
     "totalValueUsd": 3227789763,
@@ -1671,6 +1895,14 @@
     "holderCount": 295,
     "pctShareChangeQoQ": -0.004793893047477845
   },
+  "BLFS": {
+    "totalValueUsd": 815528620,
+    "totalShares": 49465884,
+    "putShares": 0,
+    "callShares": 1100,
+    "holderCount": 169,
+    "pctShareChangeQoQ": 0.12795226223754458
+  },
   "BMRN": {
     "totalValueUsd": 10689435132,
     "totalShares": 720482059,
@@ -1679,38 +1911,6 @@
     "holderCount": 568,
     "pctShareChangeQoQ": -0.02106999374379534
   },
-  "ATEN": {
-    "totalValueUsd": 1523750136,
-    "totalShares": 76390864,
-    "putShares": 0,
-    "callShares": 359900,
-    "holderCount": 258,
-    "pctShareChangeQoQ": 0.09973000127117504
-  },
-  "AAON": {
-    "totalValueUsd": 5595464187,
-    "totalShares": 68325538,
-    "putShares": 99800,
-    "callShares": 207900,
-    "holderCount": 368,
-    "pctShareChangeQoQ": -0.058863547804279485
-  },
-  "ACHC": {
-    "totalValueUsd": 207841949,
-    "totalShares": 9986774,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 56,
-    "pctShareChangeQoQ": 0.5439049698570738
-  },
-  "ACAD": {
-    "totalValueUsd": 3608095304,
-    "totalShares": 163747785,
-    "putShares": 375100,
-    "callShares": 578500,
-    "holderCount": 305,
-    "pctShareChangeQoQ": -0.0084149858371889
-  },
   "ACIW": {
     "totalValueUsd": 3904569328,
     "totalShares": 97909136,
@@ -1718,14 +1918,6 @@
     "callShares": 6400,
     "holderCount": 344,
     "pctShareChangeQoQ": -0.024999721667876024
-  },
-  "GOLF": {
-    "totalValueUsd": 779232364,
-    "totalShares": 8722874,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 50,
-    "pctShareChangeQoQ": -0.0340675766029915
   },
   "AAP": {
     "totalValueUsd": 3261778196,
@@ -1743,6 +1935,14 @@
     "holderCount": 67,
     "pctShareChangeQoQ": 1.0353402038808384
   },
+  "GM": {
+    "totalValueUsd": 5496205454,
+    "totalShares": 84343060,
+    "putShares": 5990,
+    "callShares": 8633,
+    "holderCount": 229,
+    "pctShareChangeQoQ": 0.012737199776610334
+  },
   "ROCK": {
     "totalValueUsd": 79151761,
     "totalShares": 2013557,
@@ -1751,29 +1951,13 @@
     "holderCount": 40,
     "pctShareChangeQoQ": -0.35149388904562956
   },
-  "VECO": {
-    "totalValueUsd": 309581462,
-    "totalShares": 17010039,
+  "GMED": {
+    "totalValueUsd": 300402155,
+    "totalShares": 3835619,
     "putShares": 0,
-    "callShares": 0,
-    "holderCount": 41,
-    "pctShareChangeQoQ": 0.7957644127182902
-  },
-  "LEU": {
-    "totalValueUsd": 2123901240,
-    "totalShares": 166703423,
-    "putShares": 1395416,
-    "callShares": 1504821,
-    "holderCount": 350,
-    "pctShareChangeQoQ": -0.0060672890553054365
-  },
-  "HEI": {
-    "totalValueUsd": 1796530616,
-    "totalShares": 7752562,
-    "putShares": 39740,
-    "callShares": 7135,
-    "holderCount": 125,
-    "pctShareChangeQoQ": -0.01574315907291555
+    "callShares": 15300,
+    "holderCount": 47,
+    "pctShareChangeQoQ": -0.15638346400131262
   },
   "DINO": {
     "totalValueUsd": 8721664336,
@@ -1783,29 +1967,29 @@
     "holderCount": 597,
     "pctShareChangeQoQ": -0.07953196745691331
   },
-  "HON": {
-    "totalValueUsd": 10838261052,
-    "totalShares": 49483309,
-    "putShares": 1012,
-    "callShares": 18822,
-    "holderCount": 295,
-    "pctShareChangeQoQ": -0.014934038636927096
+  "VRTS": {
+    "totalValueUsd": 47443970,
+    "totalShares": 360642,
+    "putShares": 0,
+    "callShares": 0,
+    "holderCount": 29,
+    "pctShareChangeQoQ": 0.024021670613489615
   },
-  "VCEL": {
-    "totalValueUsd": 1675083576,
-    "totalShares": 54577023,
-    "putShares": 1522100,
-    "callShares": 761200,
-    "holderCount": 268,
-    "pctShareChangeQoQ": 0.02715955750232587
+  "HRL": {
+    "totalValueUsd": 5578536739,
+    "totalShares": 248125106,
+    "putShares": 1293700,
+    "callShares": 2613900,
+    "holderCount": 591,
+    "pctShareChangeQoQ": 0.009433111272246966
   },
-  "DXCM": {
-    "totalValueUsd": 23896094830,
-    "totalShares": 1302145762,
-    "putShares": 3663316,
-    "callShares": 3998396,
-    "holderCount": 943,
-    "pctShareChangeQoQ": -0.0564912355666546
+  "HII": {
+    "totalValueUsd": 387442671,
+    "totalShares": 2728911,
+    "putShares": 2,
+    "callShares": 0,
+    "holderCount": 79,
+    "pctShareChangeQoQ": -0.23955877923049979
   },
   "INVA": {
     "totalValueUsd": 1887712437,
@@ -1815,13 +1999,13 @@
     "holderCount": 287,
     "pctShareChangeQoQ": 0.0841127833968057
   },
-  "SKYW": {
-    "totalValueUsd": 3289024343,
-    "totalShares": 36325343,
-    "putShares": 183800,
-    "callShares": 236100,
-    "holderCount": 324,
-    "pctShareChangeQoQ": -0.007739856513299343
+  "SITE": {
+    "totalValueUsd": 5099587564,
+    "totalShares": 45550273,
+    "putShares": 23300,
+    "callShares": 146000,
+    "holderCount": 381,
+    "pctShareChangeQoQ": 0.05085828307027159
   },
   "DOCU": {
     "totalValueUsd": 8176553185,
@@ -1831,14 +2015,6 @@
     "holderCount": 690,
     "pctShareChangeQoQ": 0.05173534961488532
   },
-  "DY": {
-    "totalValueUsd": 748981991,
-    "totalShares": 2313136,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 90,
-    "pctShareChangeQoQ": 0.1374531006436829
-  },
   "IBM": {
     "totalValueUsd": 1933114122,
     "totalShares": 11912177,
@@ -1846,6 +2022,22 @@
     "callShares": 1476,
     "holderCount": 175,
     "pctShareChangeQoQ": 0.09367320553314032
+  },
+  "MDGL": {
+    "totalValueUsd": 12045103722,
+    "totalShares": 23630031,
+    "putShares": 387100,
+    "callShares": 758701,
+    "holderCount": 340,
+    "pctShareChangeQoQ": 0.006387207119028108
+  },
+  "MLM": {
+    "totalValueUsd": 3649095780,
+    "totalShares": 6421792,
+    "putShares": 0,
+    "callShares": 0,
+    "holderCount": 139,
+    "pctShareChangeQoQ": -0.053362345626508836
   },
   "SPB": {
     "totalValueUsd": 2022948519,
@@ -1855,6 +2047,14 @@
     "holderCount": 265,
     "pctShareChangeQoQ": -0.4809740058183685
   },
+  "SPSC": {
+    "totalValueUsd": 339833310,
+    "totalShares": 6177403,
+    "putShares": 0,
+    "callShares": 100000,
+    "holderCount": 63,
+    "pctShareChangeQoQ": -0.08836484396294726
+  },
   "SSNC": {
     "totalValueUsd": 1273267657,
     "totalShares": 20019087,
@@ -1862,14 +2062,6 @@
     "callShares": 0,
     "holderCount": 87,
     "pctShareChangeQoQ": 0.028398923553186833
-  },
-  "EIX": {
-    "totalValueUsd": 2650600212,
-    "totalShares": 38298587,
-    "putShares": 34900,
-    "callShares": 28800,
-    "holderCount": 121,
-    "pctShareChangeQoQ": -0.001025147733095059
   },
   "EOG": {
     "totalValueUsd": 7772858218,
@@ -1887,21 +2079,21 @@
     "holderCount": 80,
     "pctShareChangeQoQ": 0.04111221690165556
   },
-  "MAX": {
-    "totalValueUsd": 411642912,
-    "totalShares": 45997111,
-    "putShares": 51500,
-    "callShares": 926600,
-    "holderCount": 137,
-    "pctShareChangeQoQ": -0.008299929806941168
-  },
-  "MMSI": {
-    "totalValueUsd": 333901266,
-    "totalShares": 4952091,
+  "STT": {
+    "totalValueUsd": 8482540376,
+    "totalShares": 99503285,
     "putShares": 0,
     "callShares": 0,
-    "holderCount": 51,
-    "pctShareChangeQoQ": -0.07647872583260851
+    "holderCount": 244,
+    "pctShareChangeQoQ": 0.20933869612166825
+  },
+  "SF": {
+    "totalValueUsd": 824842382,
+    "totalShares": 13008302,
+    "putShares": 0,
+    "callShares": 0,
+    "holderCount": 91,
+    "pctShareChangeQoQ": 0.22190308113819207
   },
   "PLUS": {
     "totalValueUsd": 1824468327,
@@ -1919,21 +2111,13 @@
     "holderCount": 666,
     "pctShareChangeQoQ": -0.007438313876893753
   },
-  "EXR": {
-    "totalValueUsd": 23339786129,
-    "totalShares": 196871238,
-    "putShares": 129200,
-    "callShares": 253600,
-    "holderCount": 683,
-    "pctShareChangeQoQ": -0.06833195764840798
-  },
-  "FFIV": {
-    "totalValueUsd": 15943613823,
-    "totalShares": 56601968,
-    "putShares": 219200,
-    "callShares": 272402,
-    "holderCount": 639,
-    "pctShareChangeQoQ": -0.05864831221095084
+  "OLN": {
+    "totalValueUsd": 3243045095,
+    "totalShares": 110471988,
+    "putShares": 1123200,
+    "callShares": 3043300,
+    "holderCount": 377,
+    "pctShareChangeQoQ": 0.11155234774004154
   },
   "ON": {
     "totalValueUsd": 25331421886,
@@ -1943,13 +2127,13 @@
     "holderCount": 822,
     "pctShareChangeQoQ": -0.16074855366166765
   },
-  "CASH": {
-    "totalValueUsd": 1869359873,
-    "totalShares": 20257046,
+  "WSFS": {
+    "totalValueUsd": 260414542,
+    "totalShares": 4050871,
     "putShares": 0,
-    "callShares": 4800,
-    "holderCount": 246,
-    "pctShareChangeQoQ": 0.013379003737192407
+    "callShares": 0,
+    "holderCount": 47,
+    "pctShareChangeQoQ": -0.25893012152579276
   },
   "YETI": {
     "totalValueUsd": 520076125,
@@ -1959,21 +2143,13 @@
     "holderCount": 71,
     "pctShareChangeQoQ": -0.1385691283133625
   },
-  "FA": {
-    "totalValueUsd": 145496535,
-    "totalShares": 12596945,
+  "ZION": {
+    "totalValueUsd": 11851975,
+    "totalShares": 275957,
     "putShares": 0,
     "callShares": 0,
-    "holderCount": 31,
-    "pctShareChangeQoQ": -0.21547062314835747
-  },
-  "FRME": {
-    "totalValueUsd": 1727356448,
-    "totalShares": 45453098,
-    "putShares": 6100,
-    "callShares": 20800,
-    "holderCount": 275,
-    "pctShareChangeQoQ": -0.23108212004275466
+    "holderCount": 11,
+    "pctShareChangeQoQ": -0.8919639165894114
   },
   "FWRG": {
     "totalValueUsd": 17542301,
@@ -1983,13 +2159,21 @@
     "holderCount": 6,
     "pctShareChangeQoQ": -0.12007519613954332
   },
-  "FCFS": {
-    "totalValueUsd": 7109209422,
-    "totalShares": 40079613,
-    "putShares": 20100,
-    "callShares": 51800,
-    "holderCount": 414,
-    "pctShareChangeQoQ": 0.030540973154276996
+  "PM": {
+    "totalValueUsd": 15047870615,
+    "totalShares": 97687930,
+    "putShares": 11900,
+    "callShares": 96900,
+    "holderCount": 200,
+    "pctShareChangeQoQ": -0.004581244674182827
+  },
+  "BPOP": {
+    "totalValueUsd": 6953775421,
+    "totalShares": 57950700,
+    "putShares": 24800,
+    "callShares": 82700,
+    "holderCount": 405,
+    "pctShareChangeQoQ": -0.031642176003918436
   },
   "WBS": {
     "totalValueUsd": 653697649,
@@ -1999,21 +2183,21 @@
     "holderCount": 68,
     "pctShareChangeQoQ": -0.35503840439172013
   },
-  "FOR": {
-    "totalValueUsd": 440579201,
-    "totalShares": 18344826,
+  "WAL": {
+    "totalValueUsd": 45994844,
+    "totalShares": 649186,
     "putShares": 0,
-    "callShares": 9900,
-    "holderCount": 151,
-    "pctShareChangeQoQ": 0.019342860181506428
+    "callShares": 0,
+    "holderCount": 5,
+    "pctShareChangeQoQ": 10.751674450599182
   },
-  "BEN": {
-    "totalValueUsd": 6641656731,
-    "totalShares": 283224889,
-    "putShares": 859400,
-    "callShares": 1524200,
-    "holderCount": 547,
-    "pctShareChangeQoQ": 0.026403761033323807
+  "WSM": {
+    "totalValueUsd": 1348646787,
+    "totalShares": 7469159,
+    "putShares": 0,
+    "callShares": 10800,
+    "holderCount": 94,
+    "pctShareChangeQoQ": 0.026075979659153304
   },
   "YOU": {
     "totalValueUsd": 4060304550,
@@ -2030,14 +2214,6 @@
     "callShares": 8600,
     "holderCount": 243,
     "pctShareChangeQoQ": -0.026097918615423727
-  },
-  "PEG": {
-    "totalValueUsd": 749453881,
-    "totalShares": 14429042,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 66,
-    "pctShareChangeQoQ": 0.1595700899775231
   },
   "WSC": {
     "totalValueUsd": 550476998,
@@ -2063,29 +2239,21 @@
     "holderCount": 618,
     "pctShareChangeQoQ": -0.10774537300813186
   },
-  "RF": {
-    "totalValueUsd": 1459589322,
-    "totalShares": 69679579,
-    "putShares": 577,
-    "callShares": 581,
-    "holderCount": 138,
-    "pctShareChangeQoQ": -0.0045358608979609374
+  "CVSA": {
+    "totalValueUsd": 3724031841,
+    "totalShares": 33937300,
+    "putShares": 22400,
+    "callShares": 58000,
+    "holderCount": 304,
+    "pctShareChangeQoQ": null
   },
-  "ROKU": {
-    "totalValueUsd": 10051512434,
-    "totalShares": 111085136,
-    "putShares": 6198941,
-    "callShares": 5509077,
-    "holderCount": 631,
-    "pctShareChangeQoQ": 0.016581063388887908
-  },
-  "ROL": {
-    "totalValueUsd": 14297251388,
-    "totalShares": 275238523,
-    "putShares": 53500,
-    "callShares": 201900,
-    "holderCount": 785,
-    "pctShareChangeQoQ": 0.01463500142080628
+  "RLI": {
+    "totalValueUsd": 4339717729,
+    "totalShares": 79820882,
+    "putShares": 49100,
+    "callShares": 6500,
+    "holderCount": 382,
+    "pctShareChangeQoQ": 0.03324551749598525
   },
   "PL": {
     "totalValueUsd": 6152932160,
@@ -2094,6 +2262,14 @@
     "callShares": 20073800,
     "holderCount": 372,
     "pctShareChangeQoQ": 0.16963288352109282
+  },
+  "CAR": {
+    "totalValueUsd": 7473525632,
+    "totalShares": 51654720,
+    "putShares": 3120355,
+    "callShares": 2140200,
+    "holderCount": 283,
+    "pctShareChangeQoQ": 0.15724861401616577
   },
   "CART": {
     "totalValueUsd": 6949052743,
@@ -2111,13 +2287,13 @@
     "holderCount": 230,
     "pctShareChangeQoQ": 7.558877768499915
   },
-  "TGTX": {
-    "totalValueUsd": 3460653938,
-    "totalShares": 106498490,
-    "putShares": 2478200,
-    "callShares": 2479800,
-    "holderCount": 360,
-    "pctShareChangeQoQ": 0.03814595148970549
+  "WMG": {
+    "totalValueUsd": 3305253326,
+    "totalShares": 134411197,
+    "putShares": 237500,
+    "callShares": 1989600,
+    "holderCount": 262,
+    "pctShareChangeQoQ": -0.06434897416151804
   },
   "MBC": {
     "totalValueUsd": 1110488234,
@@ -2127,6 +2303,14 @@
     "holderCount": 301,
     "pctShareChangeQoQ": 0.04322164358329866
   },
+  "TRIP": {
+    "totalValueUsd": 1488746196,
+    "totalShares": 148532376,
+    "putShares": 9359900,
+    "callShares": 6561300,
+    "holderCount": 291,
+    "pctShareChangeQoQ": -0.6690763499875951
+  },
   "VSEC": {
     "totalValueUsd": 5897970171,
     "totalShares": 43192147,
@@ -2134,6 +2318,14 @@
     "callShares": 57400,
     "holderCount": 337,
     "pctShareChangeQoQ": 0.8382130733309693
+  },
+  "KMX": {
+    "totalValueUsd": 6263843483,
+    "totalShares": 152214079,
+    "putShares": 3812005,
+    "callShares": 3224500,
+    "holderCount": 514,
+    "pctShareChangeQoQ": 0.03336652518232005
   },
   "PSMT": {
     "totalValueUsd": 3923518688,
@@ -2151,14 +2343,6 @@
     "holderCount": 537,
     "pctShareChangeQoQ": -0.05484465481997505
   },
-  "VCYT": {
-    "totalValueUsd": 2741167694,
-    "totalShares": 87194171,
-    "putShares": 26500,
-    "callShares": 210600,
-    "holderCount": 317,
-    "pctShareChangeQoQ": 0.00901165503728067
-  },
   "WAFD": {
     "totalValueUsd": 1901400934,
     "totalShares": 61441404,
@@ -2166,6 +2350,22 @@
     "callShares": 0,
     "holderCount": 224,
     "pctShareChangeQoQ": 0.04878410907160113
+  },
+  "WLK": {
+    "totalValueUsd": 4751381319,
+    "totalShares": 43243261,
+    "putShares": 144900,
+    "callShares": 228600,
+    "holderCount": 299,
+    "pctShareChangeQoQ": -0.03699143804305584
+  },
+  "WING": {
+    "totalValueUsd": 4482468745,
+    "totalShares": 32376729,
+    "putShares": 1049242,
+    "callShares": 828000,
+    "holderCount": 378,
+    "pctShareChangeQoQ": -0.07767320329509611
   },
   "OPCH": {
     "totalValueUsd": 4237475820,
@@ -2183,14 +2383,6 @@
     "holderCount": 630,
     "pctShareChangeQoQ": -0.05181698469285638
   },
-  "QLYS": {
-    "totalValueUsd": 3006958159,
-    "totalShares": 35702790,
-    "putShares": 153300,
-    "callShares": 231500,
-    "holderCount": 407,
-    "pctShareChangeQoQ": 0.018131272834693127
-  },
   "GTLB": {
     "totalValueUsd": 2653872527,
     "totalShares": 123448396,
@@ -2207,13 +2399,29 @@
     "holderCount": 255,
     "pctShareChangeQoQ": 0.02683790111538265
   },
-  "SBRA": {
-    "totalValueUsd": 4582528620,
-    "totalShares": 244826096,
-    "putShares": 35800,
-    "callShares": 228200,
-    "holderCount": 410,
-    "pctShareChangeQoQ": -0.0019014238025972102
+  "HLIT": {
+    "totalValueUsd": 816529703,
+    "totalShares": 92000470,
+    "putShares": 24400,
+    "callShares": 900,
+    "holderCount": 237,
+    "pctShareChangeQoQ": -0.0619301382157309
+  },
+  "H": {
+    "totalValueUsd": 6554720670,
+    "totalShares": 45942269,
+    "putShares": 97307,
+    "callShares": 86700,
+    "holderCount": 404,
+    "pctShareChangeQoQ": -0.06392112712674144
+  },
+  "SLM": {
+    "totalValueUsd": 4094157077,
+    "totalShares": 203967289,
+    "putShares": 358100,
+    "callShares": 960100,
+    "holderCount": 340,
+    "pctShareChangeQoQ": -0.03782920269119688
   },
   "SRPT": {
     "totalValueUsd": 2321722324,
@@ -2223,6 +2431,14 @@
     "holderCount": 329,
     "pctShareChangeQoQ": 0.2724044048626108
   },
+  "SONO": {
+    "totalValueUsd": 1304885676,
+    "totalShares": 100962761,
+    "putShares": 324700,
+    "callShares": 513800,
+    "holderCount": 281,
+    "pctShareChangeQoQ": 0.035479324691488213
+  },
   "STRL": {
     "totalValueUsd": 10641844677,
     "totalShares": 27332388,
@@ -2230,14 +2446,6 @@
     "callShares": 277019,
     "holderCount": 653,
     "pctShareChangeQoQ": 0.009359374622631176
-  },
-  "ENOV": {
-    "totalValueUsd": 1780554681,
-    "totalShares": 401639674,
-    "putShares": 69800,
-    "callShares": 2787180,
-    "holderCount": 249,
-    "pctShareChangeQoQ": -0.4086710609069758
   },
   "CDP": {
     "totalValueUsd": 3651508511,
@@ -2255,6 +2463,14 @@
     "holderCount": 497,
     "pctShareChangeQoQ": -0.03605725705934614
   },
+  "BRZE": {
+    "totalValueUsd": 1980915029,
+    "totalShares": 84373474,
+    "putShares": 983500,
+    "callShares": 3804500,
+    "holderCount": 214,
+    "pctShareChangeQoQ": 0.08836182143170043
+  },
   "CBT": {
     "totalValueUsd": 3657088296,
     "totalShares": 50944719,
@@ -2271,13 +2487,13 @@
     "holderCount": 238,
     "pctShareChangeQoQ": 0.027958999546734177
   },
-  "ASIX": {
-    "totalValueUsd": 533467518,
-    "totalShares": 23114357,
-    "putShares": 14800,
-    "callShares": 449000,
-    "holderCount": 240,
-    "pctShareChangeQoQ": -0.016147379646449335
+  "AN": {
+    "totalValueUsd": 4469643145,
+    "totalShares": 23804424,
+    "putShares": 78800,
+    "callShares": 54400,
+    "holderCount": 465,
+    "pctShareChangeQoQ": -0.17604979611022406
   },
   "NMRK": {
     "totalValueUsd": 1458983620,
@@ -2287,14 +2503,6 @@
     "holderCount": 251,
     "pctShareChangeQoQ": -0.05177647724155371
   },
-  "RCMT": {
-    "totalValueUsd": 49220303,
-    "totalShares": 2663415,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 67,
-    "pctShareChangeQoQ": -0.0795948636747851
-  },
   "UDR": {
     "totalValueUsd": 9833447255,
     "totalShares": 314369718,
@@ -2302,6 +2510,30 @@
     "callShares": 876700,
     "holderCount": 488,
     "pctShareChangeQoQ": -0.05990968282830808
+  },
+  "XPO": {
+    "totalValueUsd": 21092124526,
+    "totalShares": 115092167,
+    "putShares": 712840,
+    "callShares": 652076,
+    "holderCount": 586,
+    "pctShareChangeQoQ": -0.05979229373741391
+  },
+  "NTNX": {
+    "totalValueUsd": 9455066236,
+    "totalShares": 1297308265,
+    "putShares": 1386200,
+    "callShares": 3647124,
+    "holderCount": 518,
+    "pctShareChangeQoQ": -0.12111838416788774
+  },
+  "AVAV": {
+    "totalValueUsd": 5817702852,
+    "totalShares": 561732604,
+    "putShares": 1937101,
+    "callShares": 1976501,
+    "holderCount": 583,
+    "pctShareChangeQoQ": -0.20945500213061818
   },
   "MDB": {
     "totalValueUsd": 16779213695,
@@ -2311,22 +2543,6 @@
     "holderCount": 768,
     "pctShareChangeQoQ": 0.005096376979600111
   },
-  "KFRC": {
-    "totalValueUsd": 481805281,
-    "totalShares": 16732073,
-    "putShares": 0,
-    "callShares": 1800,
-    "holderCount": 193,
-    "pctShareChangeQoQ": -0.008545656830303719
-  },
-  "KRYS": {
-    "totalValueUsd": 7052337755,
-    "totalShares": 28022938,
-    "putShares": 123100,
-    "callShares": 313700,
-    "holderCount": 333,
-    "pctShareChangeQoQ": -0.006093934847101881
-  },
   "RBRK": {
     "totalValueUsd": 5142813929,
     "totalShares": 107382992,
@@ -2335,13 +2551,13 @@
     "holderCount": 396,
     "pctShareChangeQoQ": -0.029276110106600285
   },
-  "RLGT": {
-    "totalValueUsd": 169837067,
-    "totalShares": 24233194,
-    "putShares": 806400,
-    "callShares": 35700,
-    "holderCount": 116,
-    "pctShareChangeQoQ": -0.009639559174001949
+  "AVTR": {
+    "totalValueUsd": 4933462694,
+    "totalShares": 646669674,
+    "putShares": 9280600,
+    "callShares": 607300,
+    "holderCount": 433,
+    "pctShareChangeQoQ": -0.01726410718184093
   },
   "LPLA": {
     "totalValueUsd": 2511429569,
@@ -2351,13 +2567,13 @@
     "holderCount": 106,
     "pctShareChangeQoQ": -0.037340881662191475
   },
-  "PATK": {
-    "totalValueUsd": 444596800,
-    "totalShares": 5174666,
+  "OMF": {
+    "totalValueUsd": 608860288,
+    "totalShares": 11870588,
     "putShares": 0,
-    "callShares": 0,
-    "holderCount": 65,
-    "pctShareChangeQoQ": 0.06000898454007697
+    "callShares": 3300,
+    "holderCount": 57,
+    "pctShareChangeQoQ": -0.0382367434348528
   },
   "VCTR": {
     "totalValueUsd": 364650593,
@@ -2383,6 +2599,30 @@
     "holderCount": 267,
     "pctShareChangeQoQ": 0.02063118726071668
   },
+  "APO": {
+    "totalValueUsd": 3771296706,
+    "totalShares": 41832722,
+    "putShares": 1798,
+    "callShares": 40589,
+    "holderCount": 109,
+    "pctShareChangeQoQ": 0.07618015941042233
+  },
+  "BELFB": {
+    "totalValueUsd": 1655786197,
+    "totalShares": 10163302,
+    "putShares": 8800,
+    "callShares": 130800,
+    "holderCount": 202,
+    "pctShareChangeQoQ": 0.08757867535933278
+  },
+  "CWST": {
+    "totalValueUsd": 292125908,
+    "totalShares": 3713571,
+    "putShares": 0,
+    "callShares": 5000,
+    "holderCount": 31,
+    "pctShareChangeQoQ": -0.13003272944757724
+  },
   "SKY": {
     "totalValueUsd": 4193723730,
     "totalShares": 57937336,
@@ -2390,6 +2630,14 @@
     "callShares": 76200,
     "holderCount": 301,
     "pctShareChangeQoQ": 0.007123230026432203
+  },
+  "GBCI": {
+    "totalValueUsd": 770519262,
+    "totalShares": 19646525,
+    "putShares": 0,
+    "callShares": 0,
+    "holderCount": 69,
+    "pctShareChangeQoQ": -0.02529371135275755
   },
   "HWKN": {
     "totalValueUsd": 2395385077,
@@ -2399,6 +2647,14 @@
     "holderCount": 288,
     "pctShareChangeQoQ": 0.015869430369982306
   },
+  "HRI": {
+    "totalValueUsd": 408508178,
+    "totalShares": 4637545,
+    "putShares": 2000,
+    "callShares": 0,
+    "holderCount": 54,
+    "pctShareChangeQoQ": -0.16553921837649246
+  },
   "NAVN": {
     "totalValueUsd": 1901279033,
     "totalShares": 147337718,
@@ -2407,21 +2663,13 @@
     "holderCount": 119,
     "pctShareChangeQoQ": -0.016739098249566278
   },
-  "OHI": {
-    "totalValueUsd": 992097360,
-    "totalShares": 36760515,
+  "MLI": {
+    "totalValueUsd": 1216349105,
+    "totalShares": 12863990,
     "putShares": 0,
-    "callShares": 97300,
-    "holderCount": 73,
-    "pctShareChangeQoQ": -0.07696588070759668
-  },
-  "SEZL": {
-    "totalValueUsd": 785329390,
-    "totalShares": 13231877,
-    "putShares": 735200,
-    "callShares": 1225000,
-    "holderCount": 204,
-    "pctShareChangeQoQ": 0.03476594068152233
+    "callShares": 0,
+    "holderCount": 88,
+    "pctShareChangeQoQ": -0.029892223234762948
   },
   "AES": {
     "totalValueUsd": 40685765,
@@ -2447,14 +2695,6 @@
     "holderCount": 343,
     "pctShareChangeQoQ": -0.03830656894301425
   },
-  "TSSI": {
-    "totalValueUsd": 13143572,
-    "totalShares": 1032169,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 18,
-    "pctShareChangeQoQ": 0.41028464776666346
-  },
   "TTWO": {
     "totalValueUsd": 2982927072,
     "totalShares": 15949163,
@@ -2462,6 +2702,22 @@
     "callShares": 95000,
     "holderCount": 107,
     "pctShareChangeQoQ": -0.05098438909373297
+  },
+  "MAIN": {
+    "totalValueUsd": 66709727,
+    "totalShares": 3694867,
+    "putShares": 0,
+    "callShares": 0,
+    "holderCount": 43,
+    "pctShareChangeQoQ": 0.23543612465012828
+  },
+  "RKT": {
+    "totalValueUsd": 93545984,
+    "totalShares": 12124793,
+    "putShares": 245900,
+    "callShares": 0,
+    "holderCount": 25,
+    "pctShareChangeQoQ": -0.04944551348262063
   },
   "CMCO": {
     "totalValueUsd": 13030931,
@@ -2479,21 +2735,21 @@
     "holderCount": 133,
     "pctShareChangeQoQ": 0.009985969860477022
   },
-  "TILE": {
-    "totalValueUsd": 1320616441,
-    "totalShares": 56223160,
-    "putShares": 1000,
-    "callShares": 300,
-    "holderCount": 288,
-    "pctShareChangeQoQ": -0.03746439571706345
+  "STAG": {
+    "totalValueUsd": 5650989827,
+    "totalShares": 160044448,
+    "putShares": 80600,
+    "callShares": 142300,
+    "holderCount": 431,
+    "pctShareChangeQoQ": 6.449011504456041
   },
-  "GRND": {
-    "totalValueUsd": 416679573,
-    "totalShares": 34901927,
-    "putShares": 197900,
-    "callShares": 835500,
-    "holderCount": 148,
-    "pctShareChangeQoQ": 0.03804075479895584
+  "TXNM": {
+    "totalValueUsd": 6974515120,
+    "totalShares": 599180561,
+    "putShares": 21400,
+    "callShares": 2400,
+    "holderCount": 337,
+    "pctShareChangeQoQ": -0.0956051902281716
   },
   "LOW": {
     "totalValueUsd": 1456117860,
@@ -2503,14 +2759,6 @@
     "holderCount": 239,
     "pctShareChangeQoQ": -0.12102134208317135
   },
-  "INTA": {
-    "totalValueUsd": 1695269285,
-    "totalShares": 67424579,
-    "putShares": 63800,
-    "callShares": 133300,
-    "holderCount": 226,
-    "pctShareChangeQoQ": -0.033831166426769664
-  },
   "LQDA": {
     "totalValueUsd": 2241324347,
     "totalShares": 61005136,
@@ -2518,6 +2766,14 @@
     "callShares": 6643775,
     "holderCount": 227,
     "pctShareChangeQoQ": 0.01834463520031882
+  },
+  "NNI": {
+    "totalValueUsd": 1367851778,
+    "totalShares": 10639771,
+    "putShares": 100,
+    "callShares": 5100,
+    "holderCount": 173,
+    "pctShareChangeQoQ": -0.011777286215148145
   },
   "CXW": {
     "totalValueUsd": 1517347410,
@@ -2543,6 +2799,14 @@
     "holderCount": 164,
     "pctShareChangeQoQ": 0.01760576065151604
   },
+  "FLEX": {
+    "totalValueUsd": 1980970468,
+    "totalShares": 33507471,
+    "putShares": 15100,
+    "callShares": 100,
+    "holderCount": 132,
+    "pctShareChangeQoQ": -0.908485855900856
+  },
   "FLNC": {
     "totalValueUsd": 2045026193,
     "totalShares": 528915709,
@@ -2559,13 +2823,29 @@
     "holderCount": 543,
     "pctShareChangeQoQ": -0.07584179067295303
   },
-  "BLBD": {
-    "totalValueUsd": 1777781831,
-    "totalShares": 32831909,
-    "putShares": 45500,
-    "callShares": 113100,
-    "holderCount": 270,
-    "pctShareChangeQoQ": -0.03598661488134017
+  "LEGN": {
+    "totalValueUsd": 1649861358,
+    "totalShares": 92944825,
+    "putShares": 491300,
+    "callShares": 636800,
+    "holderCount": 174,
+    "pctShareChangeQoQ": 0.09870685346597893
+  },
+  "WYNN": {
+    "totalValueUsd": 7090099712,
+    "totalShares": 71917864,
+    "putShares": 4697061,
+    "callShares": 15994658,
+    "holderCount": 497,
+    "pctShareChangeQoQ": 0.0391142033864368
+  },
+  "PEBO": {
+    "totalValueUsd": 722099669,
+    "totalShares": 22222743,
+    "putShares": 17000,
+    "callShares": 11300,
+    "holderCount": 176,
+    "pctShareChangeQoQ": 0.04139307698731335
   },
   "HIMS": {
     "totalValueUsd": 2891142971,
@@ -2591,14 +2871,6 @@
     "holderCount": 190,
     "pctShareChangeQoQ": 0.03186941773394429
   },
-  "PAYS": {
-    "totalValueUsd": 141412231,
-    "totalShares": 25917621,
-    "putShares": 100,
-    "callShares": 387200,
-    "holderCount": 110,
-    "pctShareChangeQoQ": 0.02838295941581534
-  },
   "PRM": {
     "totalValueUsd": 3056585161,
     "totalShares": 127949242,
@@ -2606,14 +2878,6 @@
     "callShares": 386900,
     "holderCount": 263,
     "pctShareChangeQoQ": -0.0031611625735509952
-  },
-  "FINW": {
-    "totalValueUsd": 62109475,
-    "totalShares": 3809826,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 52,
-    "pctShareChangeQoQ": -0.04381149626994158
   },
   "MQ": {
     "totalValueUsd": 846829618,
@@ -2655,37 +2919,29 @@
     "holderCount": 309,
     "pctShareChangeQoQ": null
   },
-  "COLL": {
-    "totalValueUsd": 1313593781,
-    "totalShares": 137588243,
+  "CNOB": {
+    "totalValueUsd": 993539659,
+    "totalShares": 37336665,
+    "putShares": 0,
+    "callShares": 400,
+    "holderCount": 192,
+    "pctShareChangeQoQ": 0.012556771229407146
+  },
+  "BAND": {
+    "totalValueUsd": 506743739,
+    "totalShares": 163602560,
+    "putShares": 27800,
+    "callShares": 104700,
+    "holderCount": 149,
+    "pctShareChangeQoQ": -0.4000777686527791
+  },
+  "BEN": {
+    "totalValueUsd": 124561287,
+    "totalShares": 3874112,
     "putShares": 0,
     "callShares": 0,
-    "holderCount": 253,
-    "pctShareChangeQoQ": 0.14542268672341083
-  },
-  "NRIM": {
-    "totalValueUsd": 357209773,
-    "totalShares": 15985132,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 148,
-    "pctShareChangeQoQ": 0.02001204350849851
-  },
-  "CRGY": {
-    "totalValueUsd": 3809794303,
-    "totalShares": 283677736,
-    "putShares": 1349040,
-    "callShares": 3678710,
-    "holderCount": 294,
-    "pctShareChangeQoQ": 0.08620171835894853
-  },
-  "BANC": {
-    "totalValueUsd": 2351245950,
-    "totalShares": 149790611,
-    "putShares": 2388550,
-    "callShares": 204500,
-    "holderCount": 281,
-    "pctShareChangeQoQ": 0.09085165242705309
+    "holderCount": 73,
+    "pctShareChangeQoQ": -0.10819406462068266
   },
   "TNDM": {
     "totalValueUsd": 1661259958,
@@ -2695,14 +2951,6 @@
     "holderCount": 266,
     "pctShareChangeQoQ": 0.0871835165413941
   },
-  "ACR": {
-    "totalValueUsd": 57317771,
-    "totalShares": 3155514,
-    "putShares": 7200,
-    "callShares": 200,
-    "holderCount": 62,
-    "pctShareChangeQoQ": 0.003929161825472677
-  },
   "ADMA": {
     "totalValueUsd": 1844104851,
     "totalShares": 210494352,
@@ -2710,22 +2958,6 @@
     "callShares": 6216000,
     "holderCount": 333,
     "pctShareChangeQoQ": -0.03975079016830792
-  },
-  "GDOT": {
-    "totalValueUsd": 470121690,
-    "totalShares": 42806727,
-    "putShares": 140800,
-    "callShares": 529500,
-    "holderCount": 144,
-    "pctShareChangeQoQ": -0.029526284879278327
-  },
-  "COOK": {
-    "totalValueUsd": 25134474,
-    "totalShares": 866760,
-    "putShares": 0,
-    "callShares": 18400,
-    "holderCount": 41,
-    "pctShareChangeQoQ": -0.9795557105589981
   },
   "AMBA": {
     "totalValueUsd": 1736607461,
@@ -2735,13 +2967,13 @@
     "holderCount": 285,
     "pctShareChangeQoQ": -0.025050873941889103
   },
-  "PCYO": {
-    "totalValueUsd": 127337235,
-    "totalShares": 12681734,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 103,
-    "pctShareChangeQoQ": 0.06709269369480728
+  "AMPX": {
+    "totalValueUsd": 1371495632,
+    "totalShares": 89939880,
+    "putShares": 7167100,
+    "callShares": 12968700,
+    "holderCount": 228,
+    "pctShareChangeQoQ": 0.2126404711167099
   },
   "APPN": {
     "totalValueUsd": 957393783,
@@ -2767,21 +2999,13 @@
     "holderCount": 279,
     "pctShareChangeQoQ": -0.49357191903004405
   },
-  "IPI": {
-    "totalValueUsd": 314888023,
-    "totalShares": 7616233,
-    "putShares": 105000,
-    "callShares": 364400,
-    "holderCount": 153,
-    "pctShareChangeQoQ": -0.039298138949365395
-  },
-  "TRAK": {
-    "totalValueUsd": 50343128,
-    "totalShares": 6998522,
-    "putShares": 0,
-    "callShares": 28400,
-    "holderCount": 99,
-    "pctShareChangeQoQ": 0.22240463186584106
+  "QXO": {
+    "totalValueUsd": 13482946953,
+    "totalShares": 691276872,
+    "putShares": 4992456,
+    "callShares": 8072900,
+    "holderCount": 539,
+    "pctShareChangeQoQ": 0.02612350247865137
   },
   "AX": {
     "totalValueUsd": 3960408454,
@@ -2791,21 +3015,21 @@
     "holderCount": 361,
     "pctShareChangeQoQ": 0.0333614397595588
   },
-  "RSI": {
-    "totalValueUsd": 2090451438,
-    "totalShares": 98810508,
-    "putShares": 509300,
-    "callShares": 1697100,
-    "holderCount": 241,
-    "pctShareChangeQoQ": 0.07548865121496777
+  "CROX": {
+    "totalValueUsd": 3755931991,
+    "totalShares": 47751623,
+    "putShares": 2090100,
+    "callShares": 1964000,
+    "holderCount": 447,
+    "pctShareChangeQoQ": -0.011592047748975848
   },
-  "AFRM": {
-    "totalValueUsd": 777784261,
-    "totalShares": 195898180,
-    "putShares": 54150,
-    "callShares": 26363,
-    "holderCount": 76,
-    "pctShareChangeQoQ": 1.2485358842228562
+  "DBRG": {
+    "totalValueUsd": 2459491323,
+    "totalShares": 170546882,
+    "putShares": 817300,
+    "callShares": 6092900,
+    "holderCount": 275,
+    "pctShareChangeQoQ": 0.0867794366075732
   },
   "ANIP": {
     "totalValueUsd": 2009321339,
@@ -2815,6 +3039,14 @@
     "holderCount": 269,
     "pctShareChangeQoQ": -0.5419831966771419
   },
+  "DOCN": {
+    "totalValueUsd": 1262594078,
+    "totalShares": 53988167,
+    "putShares": 0,
+    "callShares": 795100,
+    "holderCount": 72,
+    "pctShareChangeQoQ": 0.2120240051311282
+  },
   "FIVN": {
     "totalValueUsd": 1590049048,
     "totalShares": 718870962,
@@ -2823,29 +3055,61 @@
     "holderCount": 304,
     "pctShareChangeQoQ": 0.01530388016331531
   },
-  "PRCH": {
-    "totalValueUsd": 733939701,
-    "totalShares": 219605636,
-    "putShares": 990400,
-    "callShares": 495900,
-    "holderCount": 180,
-    "pctShareChangeQoQ": 0.0754879371133482
+  "GPRE": {
+    "totalValueUsd": 1359247750,
+    "totalShares": 262592710,
+    "putShares": 1325100,
+    "callShares": 3389700,
+    "holderCount": 205,
+    "pctShareChangeQoQ": -0.007939589958791477
   },
-  "CL": {
-    "totalValueUsd": 6507624148,
-    "totalShares": 76590336,
-    "putShares": 416,
-    "callShares": 958,
-    "holderCount": 232,
-    "pctShareChangeQoQ": 0.19121852301682582
+  "FWRD": {
+    "totalValueUsd": 478778329,
+    "totalShares": 29180903,
+    "putShares": 302700,
+    "callShares": 1866500,
+    "holderCount": 169,
+    "pctShareChangeQoQ": -0.0069447398524157275
   },
-  "RLJ": {
-    "totalValueUsd": 179686272,
-    "totalShares": 26611039,
+  "LNC": {
+    "totalValueUsd": 927618752,
+    "totalShares": 29006855,
+    "putShares": 0,
+    "callShares": 213700,
+    "holderCount": 66,
+    "pctShareChangeQoQ": 0.006535242147592664
+  },
+  "MTDR": {
+    "totalValueUsd": 711968343,
+    "totalShares": 18429013,
     "putShares": 0,
     "callShares": 0,
-    "holderCount": 36,
-    "pctShareChangeQoQ": -0.00985293671696648
+    "holderCount": 82,
+    "pctShareChangeQoQ": -0.032360480619683704
+  },
+  "MRCY": {
+    "totalValueUsd": 584560834,
+    "totalShares": 8962967,
+    "putShares": 0,
+    "callShares": 0,
+    "holderCount": 57,
+    "pctShareChangeQoQ": -0.06431097936924954
+  },
+  "VLY": {
+    "totalValueUsd": 319546696,
+    "totalShares": 28230187,
+    "putShares": 0,
+    "callShares": 0,
+    "holderCount": 50,
+    "pctShareChangeQoQ": -0.41142344264675307
+  },
+  "VNO": {
+    "totalValueUsd": 359104014,
+    "totalShares": 14328079,
+    "putShares": 0,
+    "callShares": 11200,
+    "holderCount": 56,
+    "pctShareChangeQoQ": -0.03741323296903307
   },
   "COMP": {
     "totalValueUsd": 4496913736,
@@ -2855,13 +3119,21 @@
     "holderCount": 358,
     "pctShareChangeQoQ": 0.3264730454095638
   },
-  "LMNR": {
-    "totalValueUsd": 140654267,
-    "totalShares": 10524431,
-    "putShares": 71500,
-    "callShares": 13000,
-    "holderCount": 124,
-    "pctShareChangeQoQ": 0.1236367227536727
+  "REAL": {
+    "totalValueUsd": 1155464158,
+    "totalShares": 276865253,
+    "putShares": 1641200,
+    "callShares": 5976776,
+    "holderCount": 228,
+    "pctShareChangeQoQ": -0.1243129168662381
+  },
+  "WD": {
+    "totalValueUsd": 1179564151,
+    "totalShares": 27658103,
+    "putShares": 11200,
+    "callShares": 292700,
+    "holderCount": 228,
+    "pctShareChangeQoQ": 0.01653437092127118
   },
   "KSS": {
     "totalValueUsd": 1557887126,
@@ -2895,14 +3167,6 @@
     "holderCount": 197,
     "pctShareChangeQoQ": 0.006462338063832069
   },
-  "GHC": {
-    "totalValueUsd": 719516639,
-    "totalShares": 9404641,
-    "putShares": 3800,
-    "callShares": 17800,
-    "holderCount": 189,
-    "pctShareChangeQoQ": 0.04886819400196242
-  },
   "MNRO": {
     "totalValueUsd": 575038588,
     "totalShares": 36159509,
@@ -2911,13 +3175,29 @@
     "holderCount": 158,
     "pctShareChangeQoQ": -0.03916362202819583
   },
-  "WT": {
-    "totalValueUsd": 2807371976,
-    "totalShares": 291332459,
-    "putShares": 28600,
-    "callShares": 2743400,
-    "holderCount": 296,
-    "pctShareChangeQoQ": -0.5356942817656292
+  "OPLN": {
+    "totalValueUsd": 3018829272,
+    "totalShares": 104233952,
+    "putShares": 0,
+    "callShares": 1300,
+    "holderCount": 265,
+    "pctShareChangeQoQ": 0.007751727233346173
+  },
+  "KRG": {
+    "totalValueUsd": 3963380369,
+    "totalShares": 190894489,
+    "putShares": 11400,
+    "callShares": 25300,
+    "holderCount": 301,
+    "pctShareChangeQoQ": 2.0794812868118737
+  },
+  "QDEL": {
+    "totalValueUsd": 1169867064,
+    "totalShares": 77295621,
+    "putShares": 280100,
+    "callShares": 245459,
+    "holderCount": 219,
+    "pctShareChangeQoQ": 0.058528087401850365
   },
   "RELY": {
     "totalValueUsd": 2576366812,
@@ -2943,13 +3223,21 @@
     "holderCount": 247,
     "pctShareChangeQoQ": 0.014141338786400844
   },
-  "UFPI": {
-    "totalValueUsd": 4241525573,
-    "totalShares": 47634101,
-    "putShares": 0,
-    "callShares": 159700,
-    "holderCount": 351,
-    "pctShareChangeQoQ": -0.0008614966116641045
+  "IDT": {
+    "totalValueUsd": 596326452,
+    "totalShares": 12440392,
+    "putShares": 5300,
+    "callShares": 17500,
+    "holderCount": 171,
+    "pctShareChangeQoQ": 0.04054640682376192
+  },
+  "SRCE": {
+    "totalValueUsd": 1206759869,
+    "totalShares": 17612717,
+    "putShares": 800,
+    "callShares": 36900,
+    "holderCount": 181,
+    "pctShareChangeQoQ": -0.0012956770825684255
   },
   "AGCO": {
     "totalValueUsd": 6152509058,
@@ -2958,14 +3246,6 @@
     "callShares": 79500,
     "holderCount": 459,
     "pctShareChangeQoQ": -0.04339370135291294
-  },
-  "ALHC": {
-    "totalValueUsd": 3558990909,
-    "totalShares": 474532336,
-    "putShares": 215600,
-    "callShares": 755500,
-    "holderCount": 281,
-    "pctShareChangeQoQ": 0.01049998717423248
   },
   "ABCB": {
     "totalValueUsd": 4747350970,
@@ -2983,22 +3263,6 @@
     "holderCount": 153,
     "pctShareChangeQoQ": 0.025604206764053384
   },
-  "BANF": {
-    "totalValueUsd": 1777451139,
-    "totalShares": 16479826,
-    "putShares": 2200,
-    "callShares": 2900,
-    "holderCount": 221,
-    "pctShareChangeQoQ": -0.012884508903660104
-  },
-  "CALX": {
-    "totalValueUsd": 2809113530,
-    "totalShares": 58673374,
-    "putShares": 6500,
-    "callShares": 58400,
-    "holderCount": 282,
-    "pctShareChangeQoQ": 0.0021572555813336733
-  },
   "LYV": {
     "totalValueUsd": 716915318,
     "totalShares": 109828450,
@@ -3007,21 +3271,13 @@
     "holderCount": 85,
     "pctShareChangeQoQ": 0.20427313234316263
   },
-  "PLMR": {
-    "totalValueUsd": 430530056,
-    "totalShares": 3782430,
+  "RJF": {
+    "totalValueUsd": 1685889684,
+    "totalShares": 12254728,
     "putShares": 0,
     "callShares": 0,
-    "holderCount": 57,
-    "pctShareChangeQoQ": -0.01206078661528504
-  },
-  "CDE": {
-    "totalValueUsd": 880926991,
-    "totalShares": 129512759,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 77,
-    "pctShareChangeQoQ": 0.3604974232301242
+    "holderCount": 128,
+    "pctShareChangeQoQ": 0.01809228781505484
   },
   "CENX": {
     "totalValueUsd": 1959460561,
@@ -3031,14 +3287,6 @@
     "holderCount": 49,
     "pctShareChangeQoQ": -0.41514150928792265
   },
-  "NRDS": {
-    "totalValueUsd": 293110986,
-    "totalShares": 28368315,
-    "putShares": 182500,
-    "callShares": 54900,
-    "holderCount": 141,
-    "pctShareChangeQoQ": 0.06096902556866568
-  },
   "CEVA": {
     "totalValueUsd": 412704273,
     "totalShares": 24352845,
@@ -3046,14 +3294,6 @@
     "callShares": 12300,
     "holderCount": 148,
     "pctShareChangeQoQ": 0.0279825963249631
-  },
-  "UFPT": {
-    "totalValueUsd": 1578081737,
-    "totalShares": 8727292,
-    "putShares": 7400,
-    "callShares": 1200,
-    "holderCount": 253,
-    "pctShareChangeQoQ": 0.01183049629512231
   },
   "WGS": {
     "totalValueUsd": 1956079706,
@@ -3079,13 +3319,21 @@
     "holderCount": 245,
     "pctShareChangeQoQ": 0.04204235556068503
   },
-  "STEP": {
-    "totalValueUsd": 3456172297,
-    "totalShares": 76270248,
-    "putShares": 188200,
-    "callShares": 590500,
-    "holderCount": 219,
-    "pctShareChangeQoQ": 0.040319981580653794
+  "ETR": {
+    "totalValueUsd": 5334674851,
+    "totalShares": 52737025,
+    "putShares": 0,
+    "callShares": 0,
+    "holderCount": 183,
+    "pctShareChangeQoQ": -0.1898697559983244
+  },
+  "BRC": {
+    "totalValueUsd": 2591178270,
+    "totalShares": 33628932,
+    "putShares": 10000,
+    "callShares": 9600,
+    "holderCount": 266,
+    "pctShareChangeQoQ": 0.02963148799426254
   },
   "PGNY": {
     "totalValueUsd": 1134454043,
@@ -3095,14 +3343,6 @@
     "holderCount": 271,
     "pctShareChangeQoQ": -0.1437306356114297
   },
-  "CRMD": {
-    "totalValueUsd": 275591410,
-    "totalShares": 40998803,
-    "putShares": 1986927,
-    "callShares": 2030600,
-    "holderCount": 175,
-    "pctShareChangeQoQ": -0.021672192391632716
-  },
   "LGIH": {
     "totalValueUsd": 779117031,
     "totalShares": 19824279,
@@ -3111,6 +3351,14 @@
     "holderCount": 186,
     "pctShareChangeQoQ": 0.07267712721369111
   },
+  "GFF": {
+    "totalValueUsd": 2437671741,
+    "totalShares": 35379320,
+    "putShares": 0,
+    "callShares": 9400,
+    "holderCount": 315,
+    "pctShareChangeQoQ": 0.006588702056592995
+  },
   "PAR": {
     "totalValueUsd": 734990754,
     "totalShares": 207072716,
@@ -3118,14 +3366,6 @@
     "callShares": 2203800,
     "holderCount": 181,
     "pctShareChangeQoQ": -0.27780043924656533
-  },
-  "RSVR": {
-    "totalValueUsd": 164436637,
-    "totalShares": 20756883,
-    "putShares": 0,
-    "callShares": 395100,
-    "holderCount": 82,
-    "pctShareChangeQoQ": 0.0013968109695468866
   },
   "SGRY": {
     "totalValueUsd": 1890897206,
@@ -3143,29 +3383,21 @@
     "holderCount": 89,
     "pctShareChangeQoQ": 0.1382214934114202
   },
-  "SFST": {
-    "totalValueUsd": 301556800,
-    "totalShares": 6534935,
-    "putShares": 0,
-    "callShares": 1000,
-    "holderCount": 126,
-    "pctShareChangeQoQ": 0.11751367407436542
+  "ATRO": {
+    "totalValueUsd": 2107602030,
+    "totalShares": 55223714,
+    "putShares": 106500,
+    "callShares": 1691700,
+    "holderCount": 285,
+    "pctShareChangeQoQ": 0.01530867417014256
   },
-  "SBSI": {
-    "totalValueUsd": 514211423,
-    "totalShares": 16702526,
-    "putShares": 320600,
-    "callShares": 0,
-    "holderCount": 163,
-    "pctShareChangeQoQ": -0.017761652686588976
-  },
-  "ECVT": {
-    "totalValueUsd": 1394450724,
-    "totalShares": 109761260,
-    "putShares": 300,
-    "callShares": 1059100,
-    "holderCount": 186,
-    "pctShareChangeQoQ": -0.055775353091316954
+  "KNTK": {
+    "totalValueUsd": 3135367820,
+    "totalShares": 66588415,
+    "putShares": 166600,
+    "callShares": 835200,
+    "holderCount": 261,
+    "pctShareChangeQoQ": 0.022214827358712087
   },
   "ARQT": {
     "totalValueUsd": 2979474699,
@@ -3175,21 +3407,13 @@
     "holderCount": 243,
     "pctShareChangeQoQ": -0.0010894643013949529
   },
-  "CDNA": {
-    "totalValueUsd": 893248978,
-    "totalShares": 51562468,
-    "putShares": 100,
-    "callShares": 22200,
-    "holderCount": 178,
-    "pctShareChangeQoQ": -0.0017454292351149479
-  },
-  "PRKS": {
-    "totalValueUsd": 2049534258,
-    "totalShares": 63585683,
-    "putShares": 41700,
-    "callShares": 6600,
-    "holderCount": 184,
-    "pctShareChangeQoQ": -0.03245307873897024
+  "SNEX": {
+    "totalValueUsd": 4472151308,
+    "totalShares": 64384249,
+    "putShares": 31800,
+    "callShares": 126000,
+    "holderCount": 358,
+    "pctShareChangeQoQ": 0.5510710151639107
   },
   "UPBD": {
     "totalValueUsd": 953693267,
@@ -3239,14 +3463,6 @@
     "holderCount": 234,
     "pctShareChangeQoQ": -0.0057645545774500945
   },
-  "ZYME": {
-    "totalValueUsd": 1739499135,
-    "totalShares": 69923226,
-    "putShares": 65200,
-    "callShares": 454100,
-    "holderCount": 195,
-    "pctShareChangeQoQ": -0.016513830374606974
-  },
   "CVI": {
     "totalValueUsd": 3389987748,
     "totalShares": 101020223,
@@ -3263,14 +3479,6 @@
     "holderCount": 193,
     "pctShareChangeQoQ": 0.050505289851306534
   },
-  "PHR": {
-    "totalValueUsd": 447481064,
-    "totalShares": 56832357,
-    "putShares": 338000,
-    "callShares": 121600,
-    "holderCount": 226,
-    "pctShareChangeQoQ": -0.00330586034654686
-  },
   "SCSC": {
     "totalValueUsd": 731737860,
     "totalShares": 21124773,
@@ -3278,6 +3486,14 @@
     "callShares": 0,
     "holderCount": 196,
     "pctShareChangeQoQ": -0.005103016861483326
+  },
+  "PRAA": {
+    "totalValueUsd": 579348568,
+    "totalShares": 37079903,
+    "putShares": 0,
+    "callShares": 34600,
+    "holderCount": 181,
+    "pctShareChangeQoQ": 0.05925250628997096
   },
   "NTST": {
     "totalValueUsd": 2130584521,
@@ -3287,6 +3503,14 @@
     "holderCount": 238,
     "pctShareChangeQoQ": 0.14569486756908265
   },
+  "NEU": {
+    "totalValueUsd": 3363567131,
+    "totalShares": 5703558,
+    "putShares": 9300,
+    "callShares": 57400,
+    "holderCount": 339,
+    "pctShareChangeQoQ": -0.09528911115735829
+  },
   "LASR": {
     "totalValueUsd": 2622325837,
     "totalShares": 48929105,
@@ -3295,29 +3519,13 @@
     "holderCount": 304,
     "pctShareChangeQoQ": 0.09954272972441962
   },
-  "HY": {
-    "totalValueUsd": 240496567,
-    "totalShares": 7598998,
-    "putShares": 300,
-    "callShares": 31500,
-    "holderCount": 117,
-    "pctShareChangeQoQ": 0.02762401203235928
-  },
-  "TH": {
-    "totalValueUsd": 279692555,
-    "totalShares": 30902546,
-    "putShares": 123200,
-    "callShares": 381200,
-    "holderCount": 127,
-    "pctShareChangeQoQ": -0.0360247187818228
-  },
-  "OOMA": {
-    "totalValueUsd": 246259076,
-    "totalShares": 18136385,
-    "putShares": 0,
-    "callShares": 36100,
-    "holderCount": 143,
-    "pctShareChangeQoQ": -0.03526244123848481
+  "OFG": {
+    "totalValueUsd": 1496318201,
+    "totalShares": 39421014,
+    "putShares": 200,
+    "callShares": 0,
+    "holderCount": 217,
+    "pctShareChangeQoQ": -0.03317239493200142
   },
   "OUT": {
     "totalValueUsd": 4039594203,
@@ -3335,21 +3543,21 @@
     "holderCount": 222,
     "pctShareChangeQoQ": 0.04791210154390404
   },
-  "CNXN": {
-    "totalValueUsd": 591339663,
-    "totalShares": 10222137,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 171,
-    "pctShareChangeQoQ": 0.006544717724707703
+  "AVO": {
+    "totalValueUsd": 373147951,
+    "totalShares": 27244235,
+    "putShares": 154000,
+    "callShares": 1404500,
+    "holderCount": 174,
+    "pctShareChangeQoQ": 0.14818815710015115
   },
-  "ADC": {
-    "totalValueUsd": 1038995089,
-    "totalShares": 32471724,
-    "putShares": 0,
+  "PWP": {
+    "totalValueUsd": 1307864237,
+    "totalShares": 73331955,
+    "putShares": 400,
     "callShares": 0,
-    "holderCount": 68,
-    "pctShareChangeQoQ": 0.04496368404962268
+    "holderCount": 145,
+    "pctShareChangeQoQ": 0.08164469566540784
   },
   "BKD": {
     "totalValueUsd": 413660030,
@@ -3367,61 +3575,21 @@
     "holderCount": 117,
     "pctShareChangeQoQ": 0.045242269259205624
   },
-  "LFST": {
-    "totalValueUsd": 2341764367,
-    "totalShares": 368258693,
-    "putShares": 5000,
-    "callShares": 129100,
-    "holderCount": 206,
-    "pctShareChangeQoQ": -0.013685884092033328
-  },
-  "PCB": {
-    "totalValueUsd": 101198025,
-    "totalShares": 5251316,
-    "putShares": 200,
-    "callShares": 100,
-    "holderCount": 86,
-    "pctShareChangeQoQ": 0.006986736610097143
-  },
-  "MCHB": {
-    "totalValueUsd": 342487151,
-    "totalShares": 23285151,
-    "putShares": 0,
-    "callShares": 800,
+  "WLTH": {
+    "totalValueUsd": 839417752,
+    "totalShares": 93366602,
+    "putShares": 339700,
+    "callShares": 369400,
     "holderCount": 97,
-    "pctShareChangeQoQ": -0.08558392048727595
+    "pctShareChangeQoQ": 0.07332761292620414
   },
-  "MFIN": {
-    "totalValueUsd": 56932067,
-    "totalShares": 7788022,
-    "putShares": 0,
-    "callShares": 27900,
-    "holderCount": 82,
-    "pctShareChangeQoQ": 2.155484137335293
-  },
-  "PDLB": {
-    "totalValueUsd": 130298519,
-    "totalShares": 11767153,
-    "putShares": 0,
-    "callShares": 2500,
-    "holderCount": 83,
-    "pctShareChangeQoQ": 0.153985026143055
-  },
-  "LCNB": {
-    "totalValueUsd": 89868233,
-    "totalShares": 5774993,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 97,
-    "pctShareChangeQoQ": 0.05097862152203
-  },
-  "LEGH": {
-    "totalValueUsd": 183308566,
-    "totalShares": 9454065,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 102,
-    "pctShareChangeQoQ": 0.01717380835260291
+  "BKV": {
+    "totalValueUsd": 1052605294,
+    "totalShares": 39076011,
+    "putShares": 500,
+    "callShares": 60400,
+    "holderCount": 152,
+    "pctShareChangeQoQ": 0.2367516232123111
   },
   "TREE": {
     "totalValueUsd": 463185459,
@@ -3431,38 +3599,6 @@
     "holderCount": 154,
     "pctShareChangeQoQ": 5.291050718166471
   },
-  "MG": {
-    "totalValueUsd": 256487947,
-    "totalShares": 18109433,
-    "putShares": 141600,
-    "callShares": 3600,
-    "holderCount": 118,
-    "pctShareChangeQoQ": 0.03160201815243465
-  },
-  "MDV": {
-    "totalValueUsd": 37245989,
-    "totalShares": 2690731,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 74,
-    "pctShareChangeQoQ": 0.122574344087789
-  },
-  "ACEL": {
-    "totalValueUsd": 473510501,
-    "totalShares": 44286234,
-    "putShares": 0,
-    "callShares": 83200,
-    "holderCount": 157,
-    "pctShareChangeQoQ": 0.009076812837952135
-  },
-  "ACNB": {
-    "totalValueUsd": 195304427,
-    "totalShares": 4102186,
-    "putShares": 8600,
-    "callShares": 0,
-    "holderCount": 95,
-    "pctShareChangeQoQ": 0.010803675689154756
-  },
   "ATEX": {
     "totalValueUsd": 637454414,
     "totalShares": 16905858,
@@ -3470,62 +3606,6 @@
     "callShares": 1042100,
     "holderCount": 118,
     "pctShareChangeQoQ": 0.05647594384820064
-  },
-  "BSVN": {
-    "totalValueUsd": 129094537,
-    "totalShares": 3188611,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 87,
-    "pctShareChangeQoQ": 0.037277920949064056
-  },
-  "BCML": {
-    "totalValueUsd": 196005825,
-    "totalShares": 6891373,
-    "putShares": 500,
-    "callShares": 100,
-    "holderCount": 90,
-    "pctShareChangeQoQ": -0.0164582682467373
-  },
-  "CCBG": {
-    "totalValueUsd": 369856530,
-    "totalShares": 8698777,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 119,
-    "pctShareChangeQoQ": 10.510871363144947
-  },
-  "HROW": {
-    "totalValueUsd": 738960356,
-    "totalShares": 20992657,
-    "putShares": 734900,
-    "callShares": 1504500,
-    "holderCount": 196,
-    "pctShareChangeQoQ": 0.16865895293505867
-  },
-  "IBEX": {
-    "totalValueUsd": 254619076,
-    "totalShares": 9929619,
-    "putShares": 0,
-    "callShares": 39700,
-    "holderCount": 150,
-    "pctShareChangeQoQ": -0.030150107854766975
-  },
-  "IBTA": {
-    "totalValueUsd": 425319344,
-    "totalShares": 14651006,
-    "putShares": 23300,
-    "callShares": 85100,
-    "holderCount": 105,
-    "pctShareChangeQoQ": 0.10507242441521923
-  },
-  "IDR": {
-    "totalValueUsd": 198457405,
-    "totalShares": 6605603,
-    "putShares": 149800,
-    "callShares": 288700,
-    "holderCount": 117,
-    "pctShareChangeQoQ": 0.007029046134032249
   },
   "KRUS": {
     "totalValueUsd": 549482793,
@@ -3535,29 +3615,13 @@
     "holderCount": 115,
     "pctShareChangeQoQ": 0.08326366348024727
   },
-  "CABO": {
-    "totalValueUsd": 724291099,
-    "totalShares": 332174525,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 184,
-    "pctShareChangeQoQ": -0.6388388729105539
-  },
-  "CARE": {
-    "totalValueUsd": 290912738,
-    "totalShares": 12651940,
-    "putShares": 0,
-    "callShares": 11500,
-    "holderCount": 112,
-    "pctShareChangeQoQ": 0.08674895258618616
-  },
-  "TCBK": {
-    "totalValueUsd": 1042023524,
-    "totalShares": 22051265,
-    "putShares": 5600,
-    "callShares": 0,
-    "holderCount": 172,
-    "pctShareChangeQoQ": -0.019428476546964057
+  "AMPL": {
+    "totalValueUsd": 540918260,
+    "totalShares": 80074971,
+    "putShares": 494300,
+    "callShares": 666000,
+    "holderCount": 190,
+    "pctShareChangeQoQ": 0.04308878560022933
   },
   "TFIN": {
     "totalValueUsd": 1186934413,
@@ -3567,14 +3631,6 @@
     "holderCount": 178,
     "pctShareChangeQoQ": -0.07334575392874694
   },
-  "TBCH": {
-    "totalValueUsd": 118439618,
-    "totalShares": 12116382,
-    "putShares": 163300,
-    "callShares": 769000,
-    "holderCount": 98,
-    "pctShareChangeQoQ": -0.04067904101015307
-  },
   "AIP": {
     "totalValueUsd": 429244984,
     "totalShares": 27104207,
@@ -3583,14 +3639,6 @@
     "holderCount": 135,
     "pctShareChangeQoQ": 0.07294968971627697
   },
-  "BCAL": {
-    "totalValueUsd": 382020005,
-    "totalShares": 21643315,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 136,
-    "pctShareChangeQoQ": 0.10718304922971762
-  },
   "ASAN": {
     "totalValueUsd": 626282491,
     "totalShares": 96833489,
@@ -3598,22 +3646,6 @@
     "callShares": 1342400,
     "holderCount": 227,
     "pctShareChangeQoQ": 0.2692948709554546
-  },
-  "ACNT": {
-    "totalValueUsd": 70453755,
-    "totalShares": 5291941,
-    "putShares": 75700,
-    "callShares": 131000,
-    "holderCount": 75,
-    "pctShareChangeQoQ": 0.07751758519345647
-  },
-  "ASUR": {
-    "totalValueUsd": 172286767,
-    "totalShares": 20102059,
-    "putShares": 200,
-    "callShares": 2100,
-    "holderCount": 89,
-    "pctShareChangeQoQ": 0.010061138114777822
   },
   "ATLC": {
     "totalValueUsd": 185467393,
@@ -3631,117 +3663,29 @@
     "holderCount": 209,
     "pctShareChangeQoQ": 0.024838509027113504
   },
-  "RGR": {
-    "totalValueUsd": 372418459,
-    "totalShares": 9517870,
-    "putShares": 428000,
-    "callShares": 73300,
-    "holderCount": 166,
-    "pctShareChangeQoQ": -0.0049958920760190175
+  "BJRI": {
+    "totalValueUsd": 656442186,
+    "totalShares": 19073135,
+    "putShares": 9800,
+    "callShares": 65100,
+    "holderCount": 165,
+    "pctShareChangeQoQ": -0.04713717530553543
   },
-  "NHC": {
-    "totalValueUsd": 1356563255,
-    "totalShares": 9041116,
-    "putShares": 200,
-    "callShares": 12800,
-    "holderCount": 204,
-    "pctShareChangeQoQ": 0.03585589631720775
+  "RRR": {
+    "totalValueUsd": 2430618813,
+    "totalShares": 46164760,
+    "putShares": 225900,
+    "callShares": 87700,
+    "holderCount": 202,
+    "pctShareChangeQoQ": 0.024174526902230768
   },
-  "BVS": {
-    "totalValueUsd": 439839205,
-    "totalShares": 48929110,
-    "putShares": 39100,
-    "callShares": 213900,
-    "holderCount": 134,
-    "pctShareChangeQoQ": 0.015295677511161038
-  },
-  "BKTI": {
-    "totalValueUsd": 151187094,
-    "totalShares": 2087256,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 103,
-    "pctShareChangeQoQ": 0.08791880649043536
-  },
-  "OSPN": {
-    "totalValueUsd": 313301486,
-    "totalShares": 32769567,
-    "putShares": 33600,
-    "callShares": 12500,
-    "holderCount": 173,
-    "pctShareChangeQoQ": -0.06703027627827794
-  },
-  "ONIT": {
-    "totalValueUsd": 178082831,
-    "totalShares": 4634918,
-    "putShares": 100700,
-    "callShares": 88500,
-    "holderCount": 107,
-    "pctShareChangeQoQ": -0.06408628570367014
-  },
-  "JOUT": {
-    "totalValueUsd": 239578951,
-    "totalShares": 5417033,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 104,
-    "pctShareChangeQoQ": -0.09883448084149082
-  },
-  "RCKY": {
-    "totalValueUsd": 208407165,
-    "totalShares": 5726090,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 105,
-    "pctShareChangeQoQ": 0.03704601199049758
-  },
-  "RIGL": {
-    "totalValueUsd": 378507773,
-    "totalShares": 15297555,
-    "putShares": 52300,
-    "callShares": 84400,
-    "holderCount": 143,
-    "pctShareChangeQoQ": -0.0073446176274067545
-  },
-  "PKE": {
-    "totalValueUsd": 479840200,
-    "totalShares": 17604963,
-    "putShares": 100,
-    "callShares": 48900,
-    "holderCount": 154,
-    "pctShareChangeQoQ": 0.06737422115773575
-  },
-  "BSRR": {
-    "totalValueUsd": 247235579,
-    "totalShares": 7532967,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 106,
-    "pctShareChangeQoQ": 0.006050217257315866
-  },
-  "SMBK": {
-    "totalValueUsd": 395276143,
-    "totalShares": 10657337,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 160,
-    "pctShareChangeQoQ": 0.02158018705148517
-  },
-  "UTL": {
-    "totalValueUsd": 715168460,
-    "totalShares": 14141697,
-    "putShares": 0,
-    "callShares": 8200,
-    "holderCount": 213,
-    "pctShareChangeQoQ": -0.03581227567769013
-  },
-  "ESCA": {
-    "totalValueUsd": 68499148,
-    "totalShares": 4072282,
-    "putShares": 0,
-    "callShares": 21000,
-    "holderCount": 73,
-    "pctShareChangeQoQ": 0.18850302183402035
+  "CTRN": {
+    "totalValueUsd": 335923285,
+    "totalShares": 7994057,
+    "putShares": 35600,
+    "callShares": 147500,
+    "holderCount": 125,
+    "pctShareChangeQoQ": 0.028033055257990217
   },
   "AXGN": {
     "totalValueUsd": 1593278550,
@@ -3751,45 +3695,13 @@
     "holderCount": 200,
     "pctShareChangeQoQ": 0.16121155088228342
   },
-  "CLFD": {
-    "totalValueUsd": 183985829,
-    "totalShares": 7140321,
-    "putShares": 51500,
-    "callShares": 53400,
-    "holderCount": 113,
-    "pctShareChangeQoQ": -0.08412357259892753
-  },
-  "BY": {
-    "totalValueUsd": 743596532,
-    "totalShares": 24357929,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 170,
-    "pctShareChangeQoQ": 0.020919137545049895
-  },
-  "FC": {
-    "totalValueUsd": 128551528,
-    "totalShares": 8343069,
-    "putShares": 0,
-    "callShares": 100,
-    "holderCount": 96,
-    "pctShareChangeQoQ": -0.009358827854276856
-  },
-  "FVR": {
-    "totalValueUsd": 250102738,
-    "totalShares": 16204267,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 98,
-    "pctShareChangeQoQ": 0.037639888412646524
-  },
-  "FSBW": {
-    "totalValueUsd": 142660877,
-    "totalShares": 4786948,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 93,
-    "pctShareChangeQoQ": 0.15316828417921205
+  "FUBO": {
+    "totalValueUsd": 102551924,
+    "totalShares": 11122191,
+    "putShares": 4808564,
+    "callShares": 2440404,
+    "holderCount": 133,
+    "pctShareChangeQoQ": -0.9590738108367133
   },
   "GPGI": {
     "totalValueUsd": 4174922875,
@@ -3807,45 +3719,21 @@
     "holderCount": 245,
     "pctShareChangeQoQ": -0.17402319873745561
   },
-  "HTB": {
-    "totalValueUsd": 426037678,
-    "totalShares": 10169703,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 123,
-    "pctShareChangeQoQ": -0.011019817135432975
+  "CNS": {
+    "totalValueUsd": 1632450189,
+    "totalShares": 27786624,
+    "putShares": 4000,
+    "callShares": 6100,
+    "holderCount": 267,
+    "pctShareChangeQoQ": -0.02466592767680824
   },
-  "RBB": {
-    "totalValueUsd": 193895104,
-    "totalShares": 9418545,
-    "putShares": 200,
-    "callShares": 100,
-    "holderCount": 108,
-    "pctShareChangeQoQ": 0.05855464514284379
-  },
-  "OPRX": {
-    "totalValueUsd": 84151297,
-    "totalShares": 13357193,
-    "putShares": 54100,
-    "callShares": 210200,
-    "holderCount": 123,
-    "pctShareChangeQoQ": 0.01816184842527923
-  },
-  "JCAP": {
-    "totalValueUsd": 414735639,
-    "totalShares": 21690764,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 99,
-    "pctShareChangeQoQ": 0.8192058259503212
-  },
-  "KE": {
-    "totalValueUsd": 443517177,
-    "totalShares": 19661564,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 154,
-    "pctShareChangeQoQ": 0.006686147856300276
+  "THRM": {
+    "totalValueUsd": 847168486,
+    "totalShares": 30550123,
+    "putShares": 327700,
+    "callShares": 63000,
+    "holderCount": 236,
+    "pctShareChangeQoQ": 0.0034706147870177504
   },
   "ROOT": {
     "totalValueUsd": 333373587,
@@ -3862,14 +3750,6 @@
     "callShares": 900,
     "holderCount": 188,
     "pctShareChangeQoQ": 0.06991754735852519
-  },
-  "KOP": {
-    "totalValueUsd": 673980909,
-    "totalShares": 18872071,
-    "putShares": 18900,
-    "callShares": 69300,
-    "holderCount": 182,
-    "pctShareChangeQoQ": -0.020858357203452905
   },
   "YSS": {
     "totalValueUsd": 1092263049,
@@ -3903,6 +3783,14 @@
     "holderCount": 162,
     "pctShareChangeQoQ": 0.06853602079129456
   },
+  "RYN": {
+    "totalValueUsd": 38192084,
+    "totalShares": 1912765,
+    "putShares": 0,
+    "callShares": 0,
+    "holderCount": 20,
+    "pctShareChangeQoQ": 1.915831418932824
+  },
   "BXMT": {
     "totalValueUsd": 44753460,
     "totalShares": 39232218,
@@ -3910,6 +3798,14 @@
     "callShares": 0,
     "holderCount": 27,
     "pctShareChangeQoQ": 0.01505127530243545
+  },
+  "INSP": {
+    "totalValueUsd": 139016117,
+    "totalShares": 2818273,
+    "putShares": 0,
+    "callShares": 0,
+    "holderCount": 44,
+    "pctShareChangeQoQ": 0.0973694498264938
   },
   "PUMP": {
     "totalValueUsd": 133974004,
@@ -3919,21 +3815,13 @@
     "holderCount": 38,
     "pctShareChangeQoQ": 0.5336654809202295
   },
-  "QUAD": {
-    "totalValueUsd": 9297502,
-    "totalShares": 1406444,
+  "QCRH": {
+    "totalValueUsd": 154395085,
+    "totalShares": 1876880,
     "putShares": 0,
     "callShares": 0,
-    "holderCount": 12,
-    "pctShareChangeQoQ": 0.01065669072027157
-  },
-  "SSRM": {
-    "totalValueUsd": 224194030,
-    "totalShares": 21359983,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 47,
-    "pctShareChangeQoQ": -0.5940696608943428
+    "holderCount": 50,
+    "pctShareChangeQoQ": -0.8521150437297064
   },
   "AEHR": {
     "totalValueUsd": 168291243,
@@ -3943,21 +3831,13 @@
     "holderCount": 23,
     "pctShareChangeQoQ": -0.12668589695115134
   },
-  "PMTS": {
-    "totalValueUsd": 38264243,
-    "totalShares": 2729372,
+  "JKHY": {
+    "totalValueUsd": 916390093,
+    "totalShares": 6056984,
     "putShares": 0,
     "callShares": 0,
-    "holderCount": 65,
-    "pctShareChangeQoQ": -0.042786755713826286
-  },
-  "JBSS": {
-    "totalValueUsd": 68867483,
-    "totalShares": 878403,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 32,
-    "pctShareChangeQoQ": 0.0005228123889450808
+    "holderCount": 73,
+    "pctShareChangeQoQ": -0.1323376892760838
   },
   "CHCO": {
     "totalValueUsd": 89174982,
@@ -3967,30 +3847,6 @@
     "holderCount": 41,
     "pctShareChangeQoQ": -0.28911989057630455
   },
-  "RM": {
-    "totalValueUsd": 17421438,
-    "totalShares": 1220601,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 21,
-    "pctShareChangeQoQ": 0.0003376526095547493
-  },
-  "DRVN": {
-    "totalValueUsd": 27966290,
-    "totalShares": 2218021,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 22,
-    "pctShareChangeQoQ": -0.21062261285000264
-  },
-  "JAKK": {
-    "totalValueUsd": 30173250,
-    "totalShares": 1964999,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 27,
-    "pctShareChangeQoQ": 0.2882147628831376
-  },
   "LMB": {
     "totalValueUsd": 104456796,
     "totalShares": 1515504,
@@ -3999,45 +3855,13 @@
     "holderCount": 34,
     "pctShareChangeQoQ": 0.12070198427693653
   },
-  "OBT": {
-    "totalValueUsd": 22499273,
-    "totalShares": 703707,
+  "CURB": {
+    "totalValueUsd": 179271881,
+    "totalShares": 10175010,
     "putShares": 0,
     "callShares": 0,
-    "holderCount": 18,
-    "pctShareChangeQoQ": -0.010385435358575262
-  },
-  "SMTI": {
-    "totalValueUsd": 24017693,
-    "totalShares": 1420331,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 57,
-    "pctShareChangeQoQ": 0.2787411116693046
-  },
-  "FTRE": {
-    "totalValueUsd": 93742668,
-    "totalShares": 10055935,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 49,
-    "pctShareChangeQoQ": 0.3627723055123249
-  },
-  "WAY": {
-    "totalValueUsd": 397157768,
-    "totalShares": 16582397,
-    "putShares": 79500,
-    "callShares": 3600,
-    "holderCount": 49,
-    "pctShareChangeQoQ": 0.12638127331019175
-  },
-  "WBTN": {
-    "totalValueUsd": 15446618,
-    "totalShares": 1680777,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 18,
-    "pctShareChangeQoQ": 0.020173094326635877
+    "holderCount": 40,
+    "pctShareChangeQoQ": 0.0399476459696677
   },
   "SLDE": {
     "totalValueUsd": 108858129,
@@ -4047,29 +3871,13 @@
     "holderCount": 28,
     "pctShareChangeQoQ": 0.5271968714393076
   },
-  "ABX": {
-    "totalValueUsd": 30475144,
-    "totalShares": 3867131,
+  "CLBK": {
+    "totalValueUsd": 18015371,
+    "totalShares": 1028726,
     "putShares": 0,
     "callShares": 0,
-    "holderCount": 16,
-    "pctShareChangeQoQ": 0.0774497708650957
-  },
-  "AVBH": {
-    "totalValueUsd": 52974028,
-    "totalShares": 1858703,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 13,
-    "pctShareChangeQoQ": 0.03571993759054943
-  },
-  "CTBI": {
-    "totalValueUsd": 45836626,
-    "totalShares": 1032322,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 30,
-    "pctShareChangeQoQ": 0.009564399310737359
+    "holderCount": 15,
+    "pctShareChangeQoQ": -0.0449450302561046
   },
   "CRK": {
     "totalValueUsd": 82746192,
@@ -4079,45 +3887,45 @@
     "holderCount": 40,
     "pctShareChangeQoQ": -0.34795777207703615
   },
-  "UPST": {
-    "totalValueUsd": 292751372,
-    "totalShares": 100047999,
-    "putShares": 46650,
-    "callShares": 63500,
-    "holderCount": 49,
-    "pctShareChangeQoQ": 0.6718383400754633
-  },
-  "EFSI": {
-    "totalValueUsd": 6688965,
-    "totalShares": 200566,
+  "TNL": {
+    "totalValueUsd": 265489235,
+    "totalShares": 5871674,
     "putShares": 0,
     "callShares": 0,
-    "holderCount": 11,
-    "pctShareChangeQoQ": -0.09201781866251381
+    "holderCount": 42,
+    "pctShareChangeQoQ": -0.11589455975443631
   },
-  "FNWD": {
-    "totalValueUsd": 74006119,
-    "totalShares": 2093012,
+  "BXC": {
+    "totalValueUsd": 107875287,
+    "totalShares": 2068590,
     "putShares": 0,
     "callShares": 0,
-    "holderCount": 67,
-    "pctShareChangeQoQ": 0.001570058538634877
+    "holderCount": 25,
+    "pctShareChangeQoQ": 0.06294891387122666
   },
-  "FTLF": {
-    "totalValueUsd": 11781299,
-    "totalShares": 829635,
+  "FEIM": {
+    "totalValueUsd": 49144539,
+    "totalShares": 1142410,
     "putShares": 0,
     "callShares": 0,
-    "holderCount": 40,
-    "pctShareChangeQoQ": -0.07407118056524364
+    "holderCount": 22,
+    "pctShareChangeQoQ": 0.3109631547299375
   },
-  "CCRN": {
-    "totalValueUsd": 37889324,
-    "totalShares": 4032557,
+  "CVBF": {
+    "totalValueUsd": 107638067,
+    "totalShares": 5757953,
     "putShares": 0,
     "callShares": 0,
-    "holderCount": 31,
-    "pctShareChangeQoQ": 0.00902971872677638
+    "holderCount": 37,
+    "pctShareChangeQoQ": -0.27775618917071987
+  },
+  "LAD": {
+    "totalValueUsd": 954023398,
+    "totalShares": 4165161,
+    "putShares": 0,
+    "callShares": 0,
+    "holderCount": 57,
+    "pctShareChangeQoQ": 0.126975309777709
   },
   "ENR": {
     "totalValueUsd": 93097553,
@@ -4126,14 +3934,6 @@
     "callShares": 0,
     "holderCount": 34,
     "pctShareChangeQoQ": -0.2802010085528086
-  },
-  "SYBT": {
-    "totalValueUsd": 253085470,
-    "totalShares": 3829886,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 33,
-    "pctShareChangeQoQ": 0.05721293261102101
   },
   "STRA": {
     "totalValueUsd": 118153992,
@@ -4151,14 +3951,6 @@
     "holderCount": 34,
     "pctShareChangeQoQ": -0.04220564769422528
   },
-  "TROW": {
-    "totalValueUsd": 1951592664,
-    "totalShares": 25652668,
-    "putShares": 200,
-    "callShares": 297,
-    "holderCount": 149,
-    "pctShareChangeQoQ": 0.057296414431596596
-  },
   "EPR": {
     "totalValueUsd": 260297174,
     "totalShares": 6965489,
@@ -4166,14 +3958,6 @@
     "callShares": 0,
     "holderCount": 64,
     "pctShareChangeQoQ": 0.07876841637382703
-  },
-  "TENB": {
-    "totalValueUsd": 265988962,
-    "totalShares": 15506472,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 37,
-    "pctShareChangeQoQ": 0.09900184243404277
   },
   "TCBI": {
     "totalValueUsd": 456878679,
@@ -4183,30 +3967,6 @@
     "holderCount": 56,
     "pctShareChangeQoQ": -0.15257883591347796
   },
-  "FCBC": {
-    "totalValueUsd": 22574677,
-    "totalShares": 543576,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 14,
-    "pctShareChangeQoQ": 0.023787729825631987
-  },
-  "FORR": {
-    "totalValueUsd": 7230002,
-    "totalShares": 1882578,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 19,
-    "pctShareChangeQoQ": -0.02051602228916603
-  },
-  "FRPH": {
-    "totalValueUsd": 12507249,
-    "totalShares": 571633,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 20,
-    "pctShareChangeQoQ": -0.26912086043392486
-  },
   "UCTT": {
     "totalValueUsd": 386005582,
     "totalShares": 6860275,
@@ -4215,13 +3975,29 @@
     "holderCount": 61,
     "pctShareChangeQoQ": 0.34702379561559366
   },
-  "UBSI": {
-    "totalValueUsd": 374883226,
-    "totalShares": 9232974,
+  "UMBF": {
+    "totalValueUsd": 884621142,
+    "totalShares": 8949438,
     "putShares": 0,
     "callShares": 0,
-    "holderCount": 36,
-    "pctShareChangeQoQ": 0.07480028017292308
+    "holderCount": 68,
+    "pctShareChangeQoQ": 0.0734350014081473
+  },
+  "UMH": {
+    "totalValueUsd": 68962245,
+    "totalShares": 5308747,
+    "putShares": 0,
+    "callShares": 0,
+    "holderCount": 42,
+    "pctShareChangeQoQ": 0.03571464106748659
+  },
+  "UNFI": {
+    "totalValueUsd": 159345953,
+    "totalShares": 3763980,
+    "putShares": 0,
+    "callShares": 0,
+    "holderCount": 52,
+    "pctShareChangeQoQ": -0.08964988822514887
   },
   "UE": {
     "totalValueUsd": 126026049,
@@ -4231,21 +4007,13 @@
     "holderCount": 34,
     "pctShareChangeQoQ": 0.03736108484883363
   },
-  "GTY": {
-    "totalValueUsd": 177817817,
-    "totalShares": 6095827,
+  "LOPE": {
+    "totalValueUsd": 545885091,
+    "totalShares": 4654769,
     "putShares": 0,
     "callShares": 0,
-    "holderCount": 46,
-    "pctShareChangeQoQ": 0.19479586560673873
-  },
-  "GSBC": {
-    "totalValueUsd": 24727518,
-    "totalShares": 531246,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 24,
-    "pctShareChangeQoQ": -0.025088224445190734
+    "holderCount": 56,
+    "pctShareChangeQoQ": -0.05505880241689586
   },
   "VRNS": {
     "totalValueUsd": 323646389,
@@ -4255,53 +4023,45 @@
     "holderCount": 50,
     "pctShareChangeQoQ": 0.5880643198412164
   },
-  "WASH": {
-    "totalValueUsd": 41462090,
-    "totalShares": 1433566,
+  "GO": {
+    "totalValueUsd": 83103376,
+    "totalShares": 11980222,
     "putShares": 0,
     "callShares": 0,
-    "holderCount": 26,
-    "pctShareChangeQoQ": 0.3045463645463645
+    "holderCount": 35,
+    "pctShareChangeQoQ": 0.06688192703446517
   },
-  "WSBF": {
-    "totalValueUsd": 13885597,
-    "totalShares": 960359,
+  "FUL": {
+    "totalValueUsd": 72072112,
+    "totalShares": 1410231,
     "putShares": 0,
     "callShares": 0,
-    "holderCount": 23,
-    "pctShareChangeQoQ": 0.047100833006236645
+    "holderCount": 10,
+    "pctShareChangeQoQ": 0.1317502660381265
   },
-  "HTH": {
-    "totalValueUsd": 97782167,
-    "totalShares": 2953354,
+  "HRB": {
+    "totalValueUsd": 277901289,
+    "totalShares": 10504254,
     "putShares": 0,
     "callShares": 0,
-    "holderCount": 46,
-    "pctShareChangeQoQ": -0.9108970980313124
+    "holderCount": 49,
+    "pctShareChangeQoQ": -0.26739386621794464
   },
-  "HBCP": {
-    "totalValueUsd": 27434920,
-    "totalShares": 507332,
+  "EQH": {
+    "totalValueUsd": 831165181,
+    "totalShares": 23325643,
     "putShares": 0,
     "callShares": 0,
-    "holderCount": 30,
-    "pctShareChangeQoQ": -0.868408622906453
+    "holderCount": 79,
+    "pctShareChangeQoQ": 0.06222751143052804
   },
-  "WEYS": {
-    "totalValueUsd": 72434607,
-    "totalShares": 2279368,
+  "PRDO": {
+    "totalValueUsd": 177905848,
+    "totalShares": 6638234,
     "putShares": 0,
     "callShares": 0,
-    "holderCount": 67,
-    "pctShareChangeQoQ": 0.00394377413106156
-  },
-  "WRLD": {
-    "totalValueUsd": 22962351,
-    "totalShares": 187893,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 29,
-    "pctShareChangeQoQ": -0.22000498152683798
+    "holderCount": 43,
+    "pctShareChangeQoQ": 0.07531090260080645
   },
   "SAFT": {
     "totalValueUsd": 52193953,
@@ -4310,22 +4070,6 @@
     "callShares": 0,
     "holderCount": 36,
     "pctShareChangeQoQ": -0.0410384275019217
-  },
-  "ELA": {
-    "totalValueUsd": 74880656,
-    "totalShares": 4510469,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 64,
-    "pctShareChangeQoQ": -0.02711059459146992
-  },
-  "MYFW": {
-    "totalValueUsd": 21561749,
-    "totalShares": 1067239,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 20,
-    "pctShareChangeQoQ": -0.003294834450445335
   },
   "BV": {
     "totalValueUsd": 89097701,
@@ -4343,14 +4087,6 @@
     "holderCount": 74,
     "pctShareChangeQoQ": 0.03573441070904561
   },
-  "LQDT": {
-    "totalValueUsd": 99437027,
-    "totalShares": 3383227,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 36,
-    "pctShareChangeQoQ": -0.16822140396674978
-  },
   "RAMP": {
     "totalValueUsd": 208626288,
     "totalShares": 9446338,
@@ -4359,13 +4095,21 @@
     "holderCount": 44,
     "pctShareChangeQoQ": 0.03487659105487136
   },
-  "CSV": {
-    "totalValueUsd": 79007957,
-    "totalShares": 2363823,
+  "CZR": {
+    "totalValueUsd": 397501593,
+    "totalShares": 35371898,
+    "putShares": 36700,
+    "callShares": 89200,
+    "holderCount": 51,
+    "pctShareChangeQoQ": -0.11274317139244164
+  },
+  "SVV": {
+    "totalValueUsd": 948193113,
+    "totalShares": 127475528,
     "putShares": 0,
     "callShares": 0,
-    "holderCount": 33,
-    "pctShareChangeQoQ": -0.00014212242070013058
+    "holderCount": 19,
+    "pctShareChangeQoQ": -0.017630430222299123
   },
   "CVCO": {
     "totalValueUsd": 594124385,
@@ -4375,29 +4119,21 @@
     "holderCount": 55,
     "pctShareChangeQoQ": 0.05180296008371954
   },
-  "CPF": {
-    "totalValueUsd": 52399610,
-    "totalShares": 2388493,
+  "MKTX": {
+    "totalValueUsd": 592281925,
+    "totalShares": 4896249,
     "putShares": 0,
-    "callShares": 0,
-    "holderCount": 34,
-    "pctShareChangeQoQ": -0.04793199141242902
+    "callShares": 600,
+    "holderCount": 65,
+    "pctShareChangeQoQ": 0.18394830548762117
   },
-  "GTLS": {
-    "totalValueUsd": 741976176,
-    "totalShares": 3860468,
+  "MRTN": {
+    "totalValueUsd": 71412795,
+    "totalShares": 5473453,
     "putShares": 0,
     "callShares": 0,
-    "holderCount": 62,
-    "pctShareChangeQoQ": -0.05279023736505431
-  },
-  "CIM": {
-    "totalValueUsd": 34713293,
-    "totalShares": 4886119,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 21,
-    "pctShareChangeQoQ": 0.014739110822761834
+    "holderCount": 39,
+    "pctShareChangeQoQ": -0.20286214778030118
   },
   "MCY": {
     "totalValueUsd": 145718168,
@@ -4407,6 +4143,14 @@
     "holderCount": 42,
     "pctShareChangeQoQ": -0.14886105909540914
   },
+  "MEI": {
+    "totalValueUsd": 19320265,
+    "totalShares": 3674526,
+    "putShares": 0,
+    "callShares": 0,
+    "holderCount": 22,
+    "pctShareChangeQoQ": 0.42919774519348386
+  },
   "GNW": {
     "totalValueUsd": 535163477,
     "totalShares": 66770564,
@@ -4415,13 +4159,13 @@
     "holderCount": 41,
     "pctShareChangeQoQ": 0.018995661514201942
   },
-  "MGPI": {
-    "totalValueUsd": 55840809,
-    "totalShares": 33721014,
+  "AKR": {
+    "totalValueUsd": 118812503,
+    "totalShares": 22881137,
     "putShares": 0,
     "callShares": 0,
-    "holderCount": 32,
-    "pctShareChangeQoQ": -0.3936470143479805
+    "holderCount": 33,
+    "pctShareChangeQoQ": -0.14327401112692473
   },
   "MITK": {
     "totalValueUsd": 78709106,
@@ -4455,13 +4199,21 @@
     "holderCount": 36,
     "pctShareChangeQoQ": 0.5462274289638646
   },
-  "NFBK": {
-    "totalValueUsd": 19464249,
-    "totalShares": 1443667,
+  "AWR": {
+    "totalValueUsd": 356030434,
+    "totalShares": 4869000,
     "putShares": 0,
     "callShares": 0,
-    "holderCount": 25,
-    "pctShareChangeQoQ": -0.3812496839102382
+    "holderCount": 47,
+    "pctShareChangeQoQ": 0.018734120855887305
+  },
+  "EYE": {
+    "totalValueUsd": 347784029,
+    "totalShares": 13694135,
+    "putShares": 0,
+    "callShares": 0,
+    "holderCount": 43,
+    "pctShareChangeQoQ": 0.014765605461332543
   },
   "CDRE": {
     "totalValueUsd": 115525134,
@@ -4471,61 +4223,45 @@
     "holderCount": 34,
     "pctShareChangeQoQ": 0.00972688506394996
   },
-  "AROW": {
-    "totalValueUsd": 81975275,
-    "totalShares": 2462772,
+  "ONB": {
+    "totalValueUsd": 383242614,
+    "totalShares": 17895949,
     "putShares": 0,
     "callShares": 0,
-    "holderCount": 25,
-    "pctShareChangeQoQ": -0.0028132743792818617
+    "holderCount": 41,
+    "pctShareChangeQoQ": -0.3373612744323733
   },
-  "AJG": {
-    "totalValueUsd": 4741545610,
-    "totalShares": 22502847,
-    "putShares": 0,
-    "callShares": 3000,
-    "holderCount": 123,
-    "pctShareChangeQoQ": 0.4332544293901
-  },
-  "AVNS": {
-    "totalValueUsd": 47389775,
-    "totalShares": 3504863,
+  "OXM": {
+    "totalValueUsd": 32939060,
+    "totalShares": 1202447,
     "putShares": 0,
     "callShares": 0,
-    "holderCount": 39,
-    "pctShareChangeQoQ": -0.044826764863948584
+    "holderCount": 37,
+    "pctShareChangeQoQ": 0.08470253935320915
   },
-  "OFIX": {
-    "totalValueUsd": 62010342,
-    "totalShares": 5965304,
+  "PCTY": {
+    "totalValueUsd": 561908467,
+    "totalShares": 5394802,
     "putShares": 0,
     "callShares": 0,
-    "holderCount": 26,
-    "pctShareChangeQoQ": 0.09675335264918165
+    "holderCount": 64,
+    "pctShareChangeQoQ": -0.006994731817074906
   },
-  "HIPO": {
-    "totalValueUsd": 39919997,
-    "totalShares": 1531714,
+  "ET": {
+    "totalValueUsd": 2747657930,
+    "totalShares": 167429604,
     "putShares": 0,
     "callShares": 0,
-    "holderCount": 21,
-    "pctShareChangeQoQ": 0.05486167162057557
+    "holderCount": 103,
+    "pctShareChangeQoQ": -0.019167571882099856
   },
-  "PFIS": {
-    "totalValueUsd": 17015065,
-    "totalShares": 319005,
+  "LIFE": {
+    "totalValueUsd": 184182413,
+    "totalShares": 18074512,
     "putShares": 0,
     "callShares": 0,
-    "holderCount": 15,
-    "pctShareChangeQoQ": 0.05347194473156701
-  },
-  "MKTW": {
-    "totalValueUsd": 14823289,
-    "totalShares": 792077,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 44,
-    "pctShareChangeQoQ": 0.18246038321726343
+    "holderCount": 62,
+    "pctShareChangeQoQ": null
   },
   "METC": {
     "totalValueUsd": 208877507,
@@ -4535,22 +4271,6 @@
     "holderCount": 25,
     "pctShareChangeQoQ": 0.33342795373255285
   },
-  "REPX": {
-    "totalValueUsd": 57069118,
-    "totalShares": 1638702,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 21,
-    "pctShareChangeQoQ": 0.7483236405885422
-  },
-  "STBA": {
-    "totalValueUsd": 10894567,
-    "totalShares": 392133,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 17,
-    "pctShareChangeQoQ": -0.010322469922240759
-  },
   "TW": {
     "totalValueUsd": 307030064,
     "totalShares": 4249301,
@@ -4559,13 +4279,13 @@
     "holderCount": 47,
     "pctShareChangeQoQ": -0.33812315052870073
   },
-  "VEEV": {
-    "totalValueUsd": 950006679,
-    "totalShares": 6548892,
-    "putShares": 5800,
-    "callShares": 4700,
-    "holderCount": 95,
-    "pctShareChangeQoQ": 0.02049373451080317
+  "ZBRA": {
+    "totalValueUsd": 466874513,
+    "totalShares": 2211556,
+    "putShares": 0,
+    "callShares": 0,
+    "holderCount": 59,
+    "pctShareChangeQoQ": -0.10219312650129685
   },
   "SMA": {
     "totalValueUsd": 4095915,
@@ -4583,13 +4303,21 @@
     "holderCount": 99,
     "pctShareChangeQoQ": -0.9578236098956576
   },
-  "RHP": {
-    "totalValueUsd": 9646550,
-    "totalShares": 131435,
+  "BIO": {
+    "totalValueUsd": 20133624,
+    "totalShares": 112857,
     "putShares": 0,
     "callShares": 0,
-    "holderCount": 7,
-    "pctShareChangeQoQ": 0.3437924935333149
+    "holderCount": 24,
+    "pctShareChangeQoQ": -0.34324371508379886
+  },
+  "FCPT": {
+    "totalValueUsd": 1620873,
+    "totalShares": 69394,
+    "putShares": 0,
+    "callShares": 0,
+    "holderCount": 6,
+    "pctShareChangeQoQ": -0.9622629196777823
   },
   "APD": {
     "totalValueUsd": 1457241004,
@@ -4607,13 +4335,45 @@
     "holderCount": 26,
     "pctShareChangeQoQ": -0.12871946281983668
   },
-  "SRBK": {
-    "totalValueUsd": 43737836,
-    "totalShares": 2697313,
+  "FND": {
+    "totalValueUsd": 463280986,
+    "totalShares": 9291560,
+    "putShares": 25100,
+    "callShares": 0,
+    "holderCount": 41,
+    "pctShareChangeQoQ": 0.043740082483185574
+  },
+  "GSHD": {
+    "totalValueUsd": 92619527,
+    "totalShares": 2177860,
     "putShares": 0,
     "callShares": 0,
-    "holderCount": 62,
-    "pctShareChangeQoQ": 0.06397591283431277
+    "holderCount": 23,
+    "pctShareChangeQoQ": 0.05695397150020432
+  },
+  "HBNC": {
+    "totalValueUsd": 82160495,
+    "totalShares": 5904789,
+    "putShares": 0,
+    "callShares": 0,
+    "holderCount": 25,
+    "pctShareChangeQoQ": -0.8424158384440152
+  },
+  "FLUT": {
+    "totalValueUsd": 178198683,
+    "totalShares": 1959006,
+    "putShares": 2200,
+    "callShares": 0,
+    "holderCount": 32,
+    "pctShareChangeQoQ": -0.554559880816142
+  },
+  "GLPI": {
+    "totalValueUsd": 429777287,
+    "totalShares": 12097413,
+    "putShares": 0,
+    "callShares": 0,
+    "holderCount": 48,
+    "pctShareChangeQoQ": 0.25194408470664403
   },
   "BG": {
     "totalValueUsd": 65455993,
@@ -4623,21 +4383,37 @@
     "holderCount": 18,
     "pctShareChangeQoQ": -0.32679688675321455
   },
-  "CCSI": {
-    "totalValueUsd": 30279946,
-    "totalShares": 2003708,
+  "CTSH": {
+    "totalValueUsd": 1726092261,
+    "totalShares": 30823045,
     "putShares": 0,
     "callShares": 0,
-    "holderCount": 20,
-    "pctShareChangeQoQ": 0.028383201447747544
+    "holderCount": 93,
+    "pctShareChangeQoQ": -0.10030912507868234
   },
-  "TCMD": {
-    "totalValueUsd": 40624800,
-    "totalShares": 2034216,
+  "NLY": {
+    "totalValueUsd": 153913881,
+    "totalShares": 13772606,
     "putShares": 0,
     "callShares": 0,
-    "holderCount": 21,
-    "pctShareChangeQoQ": 0.030927061799896717
+    "holderCount": 56,
+    "pctShareChangeQoQ": -0.14139341502911854
+  },
+  "JEF": {
+    "totalValueUsd": 419901424,
+    "totalShares": 10269490,
+    "putShares": 2250,
+    "callShares": 2250,
+    "holderCount": 57,
+    "pctShareChangeQoQ": -0.09807978060557421
+  },
+  "RARE": {
+    "totalValueUsd": 109341757,
+    "totalShares": 5354633,
+    "putShares": 0,
+    "callShares": 350000,
+    "holderCount": 32,
+    "pctShareChangeQoQ": -0.16339493387242202
   },
   "MAR": {
     "totalValueUsd": 179084440,
@@ -4647,14 +4423,6 @@
     "holderCount": 63,
     "pctShareChangeQoQ": -0.16376507294420686
   },
-  "BBSI": {
-    "totalValueUsd": 62139083,
-    "totalShares": 2393195,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 22,
-    "pctShareChangeQoQ": -0.0002318537859007833
-  },
   "PZZA": {
     "totalValueUsd": 15874879,
     "totalShares": 580766,
@@ -4663,21 +4431,13 @@
     "holderCount": 18,
     "pctShareChangeQoQ": 0.7349556676146548
   },
-  "LOVE": {
-    "totalValueUsd": 11441211,
-    "totalShares": 774625,
+  "GOLD": {
+    "totalValueUsd": 64476409,
+    "totalShares": 1951575,
     "putShares": 0,
     "callShares": 0,
-    "holderCount": 3,
-    "pctShareChangeQoQ": 0.44626710455318586
-  },
-  "CARS": {
-    "totalValueUsd": 27753221,
-    "totalShares": 3641987,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 29,
-    "pctShareChangeQoQ": -0.01563156704067575
+    "holderCount": 28,
+    "pctShareChangeQoQ": -0.0027751575621127373
   },
   "MTB": {
     "totalValueUsd": 729063105,
@@ -4687,37 +4447,29 @@
     "holderCount": 93,
     "pctShareChangeQoQ": 0.005004560755279595
   },
-  "USPH": {
-    "totalValueUsd": 190711892,
-    "totalShares": 2933183,
-    "putShares": 0,
+  "LPX": {
+    "totalValueUsd": 324298367,
+    "totalShares": 4501698,
+    "putShares": 5500,
     "callShares": 0,
-    "holderCount": 33,
-    "pctShareChangeQoQ": 0.026082846910154615
+    "holderCount": 35,
+    "pctShareChangeQoQ": -0.007361934781817761
   },
-  "PPHC": {
-    "totalValueUsd": 21745844,
-    "totalShares": 1733466,
+  "PNFP": {
+    "totalValueUsd": 115658749,
+    "totalShares": 1370338,
     "putShares": 0,
     "callShares": 0,
-    "holderCount": 8,
-    "pctShareChangeQoQ": null
+    "holderCount": 16,
+    "pctShareChangeQoQ": 1.6982646758253768
   },
-  "PINE": {
-    "totalValueUsd": 1820813,
-    "totalShares": 101423,
+  "FNF": {
+    "totalValueUsd": 365308218,
+    "totalShares": 7876414,
     "putShares": 0,
     "callShares": 0,
-    "holderCount": 3,
-    "pctShareChangeQoQ": 1.7251793535212403
-  },
-  "PNC": {
-    "totalValueUsd": 515310465,
-    "totalShares": 2484590,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 28,
-    "pctShareChangeQoQ": 0.024699962882006023
+    "holderCount": 14,
+    "pctShareChangeQoQ": 0.017739207828065384
   },
   "HRMY": {
     "totalValueUsd": 8095534,
@@ -4727,13 +4479,13 @@
     "holderCount": 6,
     "pctShareChangeQoQ": -0.34525449223882493
   },
-  "CFFN": {
-    "totalValueUsd": 4348535,
-    "totalShares": 1320359,
+  "HRTG": {
+    "totalValueUsd": 2075964,
+    "totalShares": 79390,
     "putShares": 0,
     "callShares": 0,
-    "holderCount": 21,
-    "pctShareChangeQoQ": -0.007839692453816976
+    "holderCount": 3,
+    "pctShareChangeQoQ": -0.04636636636636637
   },
   "WLY": {
     "totalValueUsd": 12915900,
@@ -4743,45 +4495,37 @@
     "holderCount": 17,
     "pctShareChangeQoQ": 0.9881742535487029
   },
-  "SO": {
-    "totalValueUsd": 2015954,
-    "totalShares": 50549,
+  "PSIX": {
+    "totalValueUsd": 21315755,
+    "totalShares": 350261,
     "putShares": 0,
     "callShares": 0,
-    "holderCount": 5,
-    "pctShareChangeQoQ": -0.9606064006708345
+    "holderCount": 16,
+    "pctShareChangeQoQ": -0.42433984001998515
   },
-  "ULH": {
-    "totalValueUsd": 38,
-    "totalShares": 808,
+  "ALH": {
+    "totalValueUsd": 215012307,
+    "totalShares": 10367035,
     "putShares": 0,
     "callShares": 0,
-    "holderCount": 2,
-    "pctShareChangeQoQ": 1.3488372093023255
+    "holderCount": 11,
+    "pctShareChangeQoQ": -0.005065540018601094
   },
-  "KHC": {
-    "totalValueUsd": 122489124,
-    "totalShares": 5575469,
+  "UVV": {
+    "totalValueUsd": 13013564,
+    "totalShares": 258677,
     "putShares": 0,
     "callShares": 0,
-    "holderCount": 14,
-    "pctShareChangeQoQ": -0.1360833889085847
+    "holderCount": 10,
+    "pctShareChangeQoQ": -0.12025996639890082
   },
-  "RBCAA": {
-    "totalValueUsd": 1422301,
-    "totalShares": 20161,
+  "VIRT": {
+    "totalValueUsd": 82718805,
+    "totalShares": 2052143,
     "putShares": 0,
     "callShares": 0,
-    "holderCount": 3,
-    "pctShareChangeQoQ": 0.0814246634125409
-  },
-  "HCKT": {
-    "totalValueUsd": 3471548,
-    "totalShares": 266837,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 2,
-    "pctShareChangeQoQ": -0.37774414558954533
+    "holderCount": 27,
+    "pctShareChangeQoQ": -0.15916902843670833
   },
   "COCO": {
     "totalValueUsd": 31649817,
@@ -4799,6 +4543,38 @@
     "holderCount": 20,
     "pctShareChangeQoQ": -0.30210703486560647
   },
+  "BMNR": {
+    "totalValueUsd": 209313259,
+    "totalShares": 12997194,
+    "putShares": 0,
+    "callShares": 8000,
+    "holderCount": 19,
+    "pctShareChangeQoQ": 0.12153584175544101
+  },
+  "SMPL": {
+    "totalValueUsd": 6938312,
+    "totalShares": 493140,
+    "putShares": 0,
+    "callShares": 0,
+    "holderCount": 9,
+    "pctShareChangeQoQ": 0.3477342355760953
+  },
+  "DIS": {
+    "totalValueUsd": 5013187,
+    "totalShares": 66810,
+    "putShares": 89900,
+    "callShares": 16000,
+    "holderCount": 5,
+    "pctShareChangeQoQ": -0.15647134578235672
+  },
+  "GS": {
+    "totalValueUsd": 12576952,
+    "totalShares": 19605,
+    "putShares": 0,
+    "callShares": 0,
+    "holderCount": 6,
+    "pctShareChangeQoQ": 0.2876847290640394
+  },
   "MOS": {
     "totalValueUsd": 19706140,
     "totalShares": 809850,
@@ -4806,6 +4582,14 @@
     "callShares": 0,
     "holderCount": 2,
     "pctShareChangeQoQ": -0.03853573925958288
+  },
+  "PGR": {
+    "totalValueUsd": 14635189,
+    "totalShares": 92352,
+    "putShares": 0,
+    "callShares": 0,
+    "holderCount": 4,
+    "pctShareChangeQoQ": -0.8057236139042923
   },
   "CCB": {
     "totalValueUsd": 95262615,
@@ -4815,14 +4599,6 @@
     "holderCount": 12,
     "pctShareChangeQoQ": -0.08014346683596987
   },
-  "KELYA": {
-    "totalValueUsd": 19616836,
-    "totalShares": 3168312,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 14,
-    "pctShareChangeQoQ": 0.45893824804665195
-  },
   "IRT": {
     "totalValueUsd": 72558941,
     "totalShares": 5183211,
@@ -4831,21 +4607,29 @@
     "holderCount": 34,
     "pctShareChangeQoQ": -0.6027410289653845
   },
-  "FXNC": {
-    "totalValueUsd": 5342518,
-    "totalShares": 198250,
+  "NHI": {
+    "totalValueUsd": 83821205,
+    "totalShares": 1081817,
     "putShares": 0,
     "callShares": 0,
-    "holderCount": 6,
-    "pctShareChangeQoQ": -0.05302577967146085
+    "holderCount": 29,
+    "pctShareChangeQoQ": -0.6080222646232065
   },
-  "SJM": {
-    "totalValueUsd": 2216866,
-    "totalShares": 22987,
+  "PFBC": {
+    "totalValueUsd": 30592203,
+    "totalShares": 343590,
     "putShares": 0,
     "callShares": 0,
-    "holderCount": 1,
-    "pctShareChangeQoQ": -0.09588987217305801
+    "holderCount": 11,
+    "pctShareChangeQoQ": -0.04578477876892656
+  },
+  "OPY": {
+    "totalValueUsd": 50918957,
+    "totalShares": 571013,
+    "putShares": 0,
+    "callShares": 0,
+    "holderCount": 8,
+    "pctShareChangeQoQ": -0.02831603003813475
   },
   "FIBK": {
     "totalValueUsd": 3116225,
@@ -4855,45 +4639,13 @@
     "holderCount": 5,
     "pctShareChangeQoQ": -0.8635563470375716
   },
-  "PFSI": {
-    "totalValueUsd": 523844,
-    "totalShares": 6632,
+  "MIAX": {
+    "totalValueUsd": 15440459,
+    "totalShares": 396723,
     "putShares": 0,
     "callShares": 0,
-    "holderCount": 3,
-    "pctShareChangeQoQ": 0.5626767200754006
-  },
-  "GRDN": {
-    "totalValueUsd": 47911087,
-    "totalShares": 1365369,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 14,
-    "pctShareChangeQoQ": 0.1908530570486862
-  },
-  "BTSG": {
-    "totalValueUsd": 4565959,
-    "totalShares": 107157,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 5,
-    "pctShareChangeQoQ": 0.06461804417155971
-  },
-  "KINS": {
-    "totalValueUsd": 839882,
-    "totalShares": 57644,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 3,
-    "pctShareChangeQoQ": -0.39838229922245993
-  },
-  "FRBA": {
-    "totalValueUsd": 50216816,
-    "totalShares": 3138551,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 7,
-    "pctShareChangeQoQ": -0.007562450454028453
+    "holderCount": 2,
+    "pctShareChangeQoQ": -0.2548627389109268
   },
   "CBU": {
     "totalValueUsd": 239383856,
@@ -4903,6 +4655,14 @@
     "holderCount": 18,
     "pctShareChangeQoQ": -0.1395198868885918
   },
+  "NPK": {
+    "totalValueUsd": 9367205,
+    "totalShares": 71181,
+    "putShares": 0,
+    "callShares": 0,
+    "holderCount": 13,
+    "pctShareChangeQoQ": -0.12751274759756814
+  },
   "VIA": {
     "totalValueUsd": 5964765,
     "totalShares": 397651,
@@ -4910,6 +4670,14 @@
     "callShares": 0,
     "holderCount": 6,
     "pctShareChangeQoQ": 1.6347589862514493
+  },
+  "PFS": {
+    "totalValueUsd": 45057104,
+    "totalShares": 2198009,
+    "putShares": 0,
+    "callShares": 0,
+    "holderCount": 5,
+    "pctShareChangeQoQ": 0.004277528537036808
   },
   "MEC": {
     "totalValueUsd": 640779,
@@ -4919,21 +4687,13 @@
     "holderCount": 1,
     "pctShareChangeQoQ": null
   },
-  "WNEB": {
-    "totalValueUsd": 2210306,
-    "totalShares": 170944,
+  "HLX": {
+    "totalValueUsd": 36493359,
+    "totalShares": 3689925,
     "putShares": 0,
     "callShares": 0,
-    "holderCount": 3,
-    "pctShareChangeQoQ": -0.15877741635459058
-  },
-  "IART": {
-    "totalValueUsd": 9536431,
-    "totalShares": 1012360,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 1,
-    "pctShareChangeQoQ": -0.043805886058792584
+    "holderCount": 6,
+    "pctShareChangeQoQ": -0.017825106497604937
   },
   "ASO": {
     "totalValueUsd": 16974289,
@@ -4943,21 +4703,29 @@
     "holderCount": 2,
     "pctShareChangeQoQ": -0.7468584181429246
   },
-  "INR": {
-    "totalValueUsd": 9808263,
-    "totalShares": 556971,
+  "RGA": {
+    "totalValueUsd": 9314071,
+    "totalShares": 56780,
+    "putShares": 0,
+    "callShares": 0,
+    "holderCount": 8,
+    "pctShareChangeQoQ": -0.795603936730095
+  },
+  "COO": {
+    "totalValueUsd": 35304438,
+    "totalShares": 504382,
     "putShares": 0,
     "callShares": 0,
     "holderCount": 7,
-    "pctShareChangeQoQ": -0.1754307007427432
+    "pctShareChangeQoQ": -0.06403880554916384
   },
-  "KR": {
-    "totalValueUsd": 2170968,
-    "totalShares": 30002,
+  "PCG": {
+    "totalValueUsd": 4677,
+    "totalShares": 256175,
     "putShares": 0,
     "callShares": 0,
-    "holderCount": 5,
-    "pctShareChangeQoQ": 1.7028828828828828
+    "holderCount": 2,
+    "pctShareChangeQoQ": -0.03656665337836313
   },
   "HD": {
     "totalValueUsd": 7043430,
@@ -4967,21 +4735,29 @@
     "holderCount": 6,
     "pctShareChangeQoQ": -0.22990086113322236
   },
-  "ORRF": {
-    "totalValueUsd": 631184,
-    "totalShares": 17494,
+  "PG": {
+    "totalValueUsd": 10640483,
+    "totalShares": 73721,
     "putShares": 0,
     "callShares": 0,
-    "holderCount": 1,
-    "pctShareChangeQoQ": 0.03809636838357465
+    "holderCount": 5,
+    "pctShareChangeQoQ": 0.13963950037101164
   },
-  "ASIC": {
-    "totalValueUsd": 10636,
-    "totalShares": 538,
+  "TJX": {
+    "totalValueUsd": 7012437,
+    "totalShares": 44159,
     "putShares": 0,
     "callShares": 0,
-    "holderCount": 1,
-    "pctShareChangeQoQ": 0.0
+    "holderCount": 5,
+    "pctShareChangeQoQ": 1.0199899364164493
+  },
+  "BA": {
+    "totalValueUsd": 2807044,
+    "totalShares": 14040,
+    "putShares": 0,
+    "callShares": 0,
+    "holderCount": 4,
+    "pctShareChangeQoQ": -0.5850450716713462
   },
   "WMB": {
     "totalValueUsd": 145589357,
@@ -4998,22 +4774,6 @@
     "callShares": 0,
     "holderCount": 2,
     "pctShareChangeQoQ": 4.451703817576224
-  },
-  "COFS": {
-    "totalValueUsd": 4,
-    "totalShares": 153,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 1,
-    "pctShareChangeQoQ": 4.464285714285714
-  },
-  "NREF": {
-    "totalValueUsd": 3,
-    "totalShares": 228,
-    "putShares": 0,
-    "callShares": 0,
-    "holderCount": 1,
-    "pctShareChangeQoQ": 0.0410958904109589
   },
   "AGM": {
     "totalValueUsd": 445,

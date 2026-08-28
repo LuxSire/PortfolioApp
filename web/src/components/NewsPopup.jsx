@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { IB_NEWS_URL } from '../ibStream'
-import { SENTIMENT_LABEL, fmtNewsTime, sentimentClass } from '../news'
+import { SENTIMENT_LABEL, fmtNewsTime, importanceStars, importanceTitle, sentimentClass } from '../news'
 
 // Standalone page (see main.jsx's #/news/TICKER route), meant to be opened
 // as a real popup window (see PeTable.jsx's openNewsPopup) rather than
@@ -67,7 +67,14 @@ export default function NewsPopup({ ticker }) {
                     {SENTIMENT_LABEL[a.sentiment] || '—'}
                   </td>
                   <td className="col-left">{a.provider}</td>
-                  <td className="col-left">{a.headline}</td>
+                  <td className="col-left">
+                    {a.importance ? (
+                      <span className="news-importance-stars" title={importanceTitle(a.importance)}>
+                        {importanceStars(a.importance)}{' '}
+                      </span>
+                    ) : null}
+                    {a.headline}
+                  </td>
                 </tr>
               ))}
             </tbody>

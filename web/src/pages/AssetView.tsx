@@ -4,7 +4,7 @@ import { parseCSV } from '../csv'
 import { earningsUrgencyClass, fmtEarningsDate, useNowTick } from '../earnings'
 import { IB_NEWS_ARTICLE_URL, IB_NEWS_URL } from '../ibStream'
 import type { AssetInfo, CandlePoint, Holder, MonteCarloResult, NewsArticle, PricePoint } from '../interfaces/IAssetView'
-import { SENTIMENT_LABEL, fmtNewsTime, sentimentClass } from '../news'
+import { SENTIMENT_LABEL, fmtNewsTime, importanceStars, importanceTitle, sentimentClass } from '../news'
 import { ratingClass, toNum } from '../screenerFactors'
 import CandlestickChart from '../components/CandlestickChart'
 import PriceChart from '../components/PriceChart'
@@ -234,6 +234,11 @@ function NewsItem({ ticker, article }: { ticker: string; article: NewsArticle })
         {(article.sentiment !== null && (SENTIMENT_LABEL as Record<number, string>)[article.sentiment]) || '—'}
       </span>
       <span className="news-headline news-headline-expandable" onClick={toggle}>
+        {article.importance ? (
+          <span className="news-importance-stars" title={importanceTitle(article.importance)}>
+            {importanceStars(article.importance)}{' '}
+          </span>
+        ) : null}
         {article.headline}
       </span>
       <span className="news-meta">

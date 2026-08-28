@@ -738,12 +738,27 @@ def _ib_server_running(port=IB_SERVER_PORT, timeout=2):
     this machine -- distinct from _ib_gateway_reachable's TCP probe of
     Gateway itself. Used by refresh_ib_daily_history to route through
     that process's already-connected IB Gateway connection instead of
-    opening a second one (see that function's docstring for why)."""
+    opening a second one (see that function's docstring for why).
+
+    Returns that process's own OS PID (via GET /api/admin/pid -- see
+    ib_server.py's _handle_pid) on success, or None if unreachable --
+    callers only ever check truthiness (a PID is never 0), so this reads
+    the same as the plain bool it used to return, but also gives log
+    lines something concrete to name ("deferring to PID 12345") instead
+    of just "ib_server.py is already running." Falls back to True (still
+    "running", just with no PID to report) if the process answers but
+    this specific request fails for some other reason -- a partial
+    failure here shouldn't make an otherwise-healthy server look down."""
     try:
-        urllib.request.urlopen(f"http://127.0.0.1:{port}/api/last-prices", timeout=timeout)
-        return True
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/last-prices", timeout=timeout) as _:
+            pass
     except (urllib.error.URLError, OSError):
-        return False
+        return None
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/admin/pid", timeout=timeout) as resp:
+            return json.loads(resp.read()).get("pid") or True
+    except (urllib.error.URLError, OSError, ValueError):
+        return True
 
 
 # Shared with ib_server.py (same DATA_DIR-relative path, both processes
@@ -828,6 +843,56 @@ def _mark_ib_refresh_completed(kind):
         json.dump(state, f)
 
 
+def _call_ib_server_job_endpoint(path, port, timeout, tickers, overwrite):
+    """POST an ib_server.py admin endpoint that runs as a tracked
+    _current_job (see that module's _handle_refresh_ib_daily/-hourly --
+    both now claim that job slot and log through it via log_fn) and print
+    its progress to THIS process's own terminal as it happens, instead of
+    just blocking silently until the single (up to 2hr) response finally
+    arrives -- explicit fix: routing through ib_server.py's own IB Gateway
+    connection (see _ib_server_running's own comment on why this routing
+    exists at all) used to mean this process had zero visibility into
+    progress, only ib_server.py's own stdout did.
+
+    Fires the actual request in a background thread (so this thread is
+    free to poll) and polls GET /api/admin/run-status every 10s, printing
+    only the log lines not already seen (log is append-only and never
+    shrinks while a job runs, so a length-based watermark is enough) --
+    each one prefixed to make clear it's ib_server.py's own progress, not
+    this process's. Returns the request thread's actual JSON result
+    ({"skipped": bool, "tickersTotal": int, ...} or {"error": str}); a
+    poll failure is swallowed and retried next cycle rather than treated
+    as fatal -- a missed progress line doesn't mean the actual fetch
+    (running in the other thread, on ib_server.py's own connection)
+    failed too."""
+    data = json.dumps({"tickers": tickers, "overwrite": overwrite}).encode() if tickers is not None or overwrite else b""
+    req = urllib.request.Request(f"http://127.0.0.1:{port}{path}", method="POST", data=data)
+
+    result_holder = {}
+
+    def _do_request():
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            result_holder["result"] = json.loads(resp.read())
+
+    thread = threading.Thread(target=_do_request, daemon=True)
+    thread.start()
+
+    seen = 0
+    while thread.is_alive():
+        thread.join(timeout=10)
+        try:
+            with urllib.request.urlopen(f"http://127.0.0.1:{port}/api/admin/run-status", timeout=5) as resp:
+                status = json.loads(resp.read())
+        except (urllib.error.URLError, OSError, ValueError):
+            continue
+        log = status.get("log", [])
+        for line in log[seen:]:
+            print(f"  [ib_server.py] {line}")
+        seen = len(log)
+
+    return result_holder.get("result", {"error": "ib_server.py request thread ended with no result"})
+
+
 def _refresh_ib_daily_via_server(port=IB_SERVER_PORT, timeout=7200, tickers=None, overwrite=False):
     """POST /api/admin/refresh-ib-daily on ib_server.py's already-running
     process (see that module's refresh_daily_history_on_demand) --
@@ -842,23 +907,17 @@ def _refresh_ib_daily_via_server(port=IB_SERVER_PORT, timeout=7200, tickers=None
     for the case where ib_server.py's on-disk record is ahead of what
     this process last saw. timeout is long (2hr, matching ib_server.py's
     own handler): a large stale ticker list, paced by IB's rate limit,
-    can take a while, and this blocks until ib_server.py's fetch
-    actually finishes."""
-    data = json.dumps({"tickers": tickers, "overwrite": overwrite}).encode() if tickers is not None or overwrite else b""
-    req = urllib.request.Request(f"http://127.0.0.1:{port}/api/admin/refresh-ib-daily", method="POST", data=data)
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return json.loads(resp.read())
+    can take a while. See _call_ib_server_job_endpoint for how progress
+    reaches this process's own terminal while that's happening."""
+    return _call_ib_server_job_endpoint("/api/admin/refresh-ib-daily", port, timeout, tickers, overwrite)
 
 
 def _refresh_ib_hourly_via_server(port=IB_SERVER_PORT, timeout=7200, tickers=None, overwrite=False):
     """POST /api/admin/refresh-ib-hourly on ib_server.py's already-running
     process (see that module's refresh_hourly_history_on_demand) -- the
     hourly-bars twin of _refresh_ib_daily_via_server, same shape/timeout/
-    tickers/overwrite-passthrough reasoning."""
-    data = json.dumps({"tickers": tickers, "overwrite": overwrite}).encode() if tickers is not None or overwrite else b""
-    req = urllib.request.Request(f"http://127.0.0.1:{port}/api/admin/refresh-ib-hourly", method="POST", data=data)
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return json.loads(resp.read())
+    tickers/overwrite-passthrough/progress-polling reasoning."""
+    return _call_ib_server_job_endpoint("/api/admin/refresh-ib-hourly", port, timeout, tickers, overwrite)
 
 
 def _progress_printer(label, total):
@@ -1003,8 +1062,10 @@ async def refresh_ib_daily_history(app, tickers=None, overwrite=False):
     if not _ib_gateway_reachable():
         print("IB Gateway not reachable at 127.0.0.1:4001 -- skipping IB daily-history refresh (yfinance-only this run)")
         return
-    if _ib_server_running():
-        print(f"ib_server.py is already running on port {IB_SERVER_PORT} -- refreshing via its own IB Gateway connection instead of opening a second one")
+    running_pid = _ib_server_running()
+    if running_pid:
+        pid_note = f" (PID {running_pid})" if isinstance(running_pid, int) else ""
+        print(f"ib_server.py is already running on port {IB_SERVER_PORT}{pid_note} -- refreshing via its own IB Gateway connection instead of opening a second one")
         try:
             loop = asyncio.get_running_loop()
             result = await loop.run_in_executor(None, functools.partial(_refresh_ib_daily_via_server, tickers=tickers, overwrite=overwrite))
@@ -1120,8 +1181,10 @@ async def refresh_ib_hourly_history(app, tickers=None, overwrite=False):
     if not _ib_gateway_reachable():
         print("IB Gateway not reachable at 127.0.0.1:4001 -- skipping IB hourly-history refresh (yfinance-only this run)")
         return
-    if _ib_server_running():
-        print(f"ib_server.py is already running on port {IB_SERVER_PORT} -- refreshing via its own IB Gateway connection instead of opening a second one")
+    running_pid = _ib_server_running()
+    if running_pid:
+        pid_note = f" (PID {running_pid})" if isinstance(running_pid, int) else ""
+        print(f"ib_server.py is already running on port {IB_SERVER_PORT}{pid_note} -- refreshing via its own IB Gateway connection instead of opening a second one")
         try:
             loop = asyncio.get_running_loop()
             result = await loop.run_in_executor(None, functools.partial(_refresh_ib_hourly_via_server, tickers=tickers, overwrite=overwrite))

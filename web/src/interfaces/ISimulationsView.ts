@@ -15,6 +15,21 @@ export interface RawSimResult {
   sector?: string | null
   forecastPrice?: number | null
   forecastReturn?: number | null
+  // SimPrice -- mean of the simulated-path Monte Carlo (see modules/
+  // simulations.py's own comment on the simulated-path block), sourced
+  // from a FIXED multiple, only the EPS side is randomized. Deliberately
+  // NOT confidence-pulled toward currentPrice the way forecastPrice is --
+  // see that module's own comment on why. simPriceDistribution is the
+  // full mean/median/stdev/percentile block that mean comes from, same
+  // shape as priceAtIndustryMultiple below.
+  simPrice?: number | null
+  simReturn?: number | null
+  // Modified (Israelsen 2005) Sharpe ratio of the simulated-path return
+  // distribution -- see modules/simulations.py's "SIMULATED-PATH FORMULA"
+  // section for the formula (handles negative excess returns correctly,
+  // unlike the plain excess_return/vol ratio).
+  simSharpe?: number | null
+  simPriceDistribution?: SimPriceStats | null
   currentPrice?: number
   inputs?: {
     muEps: number
@@ -58,6 +73,9 @@ export interface SimRow {
   price: number
   forecastPrice: number | null
   forecastReturn: number | null
+  simPrice: number | null
+  simVol: number | null
+  simSharpe: number | null
   muEps: number
   sigmaEpsPct: number | null
   epsVolSource: string
