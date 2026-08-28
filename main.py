@@ -537,7 +537,7 @@ COUNTRY_OVERRIDE_TICKERS = {"ARM", "ASML", "BIRK", "CRSP", "NBIS", "ONON"}
 
 FIELDNAMES = [
     "ticker", "name", "sector", "forwardPE", "forwardEps", "epsCurrentYear", "trailingPE", "trailingPS", "pegRatio", "priceToFCF",
-    "enterpriseToEbitda", "beta", "debtToEquity", "LiqRatio", "quickRatio", "currentRatio", "shortRatio", "shortPercentOfFloat",
+    "enterpriseValue", "sharesOutstanding", "impliedSharesOutstanding", "enterpriseToEbitda", "beta", "debtToEquity", "LiqRatio", "quickRatio", "currentRatio", "shortRatio", "shortPercentOfFloat",
     "revenueGrowth", "returnOnEquity", "profitMargins", "operatingMargins", "grossMargins", "price",
     "targetMeanPrice", "targetHighPrice", "targetLowPrice", "targetUpside", "recommendationKey",
     "recommendationMean", "numberOfAnalystOpinions", "momentum", "meanReversion", "epsRevision0y",
@@ -592,6 +592,22 @@ def normalize_eps_revisions(data):
         for field in ("epsRevision0y", "epsRevision1y"):
             revision = clamp_eps_revision(d.get(field))
             d[field] = revision if revision is not None else None
+
+
+def augment_forward_ebitda_inputs(data):
+    """Backfill fields needed for scoring.forward_ev_ebitda from raw_data.json.
+    Existing forward_pe.csv rows from before those fields were curated can
+    then be rescored without a network refresh."""
+    try:
+        with open(RAW_DATA_FILE) as f:
+            raw = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return
+    for symbol, d in data.items():
+        raw_row = raw.get(symbol) or {}
+        for field in ("enterpriseValue", "sharesOutstanding", "impliedSharesOutstanding"):
+            if d.get(field) in (None, "") and raw_row.get(field) is not None:
+                d[field] = raw_row.get(field)
 
 
 def load_top_tickers(path, n=None):
@@ -1758,6 +1774,7 @@ def rescore():
     print(f"Loaded {len(data)} tickers from {OUTPUT_CSV}")
 
     app = IBApp()
+    augment_forward_ebitda_inputs(data)
     add_momentum_from_cache(app, data)
     apply_sector_overrides(data, load_sectors(SYMBOLS_FILE))
     add_target_upside(data)

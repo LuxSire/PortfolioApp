@@ -130,6 +130,19 @@ def high_is_better_key(field):
     return key
 
 
+def forward_ev_ebitda(d):
+    """Estimate EV/EBITDA from forward EPS when current EBITDA is negative.
+    This is a fallback valuation multiple for growth-stage companies where
+    the trailing EBITDA denominator is not useful, not a replacement for a
+    valid positive enterpriseToEbitda value."""
+    enterprise_value = to_float(d.get("enterpriseValue"))
+    forward_eps = to_float(d.get("forwardEps"))
+    shares = to_float(d.get("sharesOutstanding")) or to_float(d.get("impliedSharesOutstanding"))
+    if enterprise_value is None or enterprise_value <= 0 or forward_eps is None or forward_eps <= 0 or not shares:
+        return None
+    return enterprise_value / (forward_eps * shares)
+
+
 # ---------------------------------------------------------------------- #
 #  Enrichment -- computes a raw field that a factor below then ranks     #
 # ---------------------------------------------------------------------- #
@@ -390,16 +403,22 @@ def fcf_rank(rows):
 
 
 def ev_ebitda_rank(rows):
-    """Low enterpriseToEbitda ranks better; negative EBITDA ranked worst
-    (see neg_if_positive) rather than given fcf_rank's fixed-200
-    fallback -- there's no "priced off the mean, still comparable"
-    convention for it the way priceToFCF has one, so it gets the same
-    qualitatively-worse-than-low-positive treatment margin_rank/
-    roe_rank/growth_rank give their own negative inputs. A heavily-
-    levered name that looks cheap on priceToFCF alone (fcf_rank) can
-    look expensive here, since enterprise value folds in debt that
-    market cap ignores -- see that function's docstring."""
-    return rank_ascending(rows, neg_if_positive("enterpriseToEbitda"))
+    """Low enterpriseToEbitda ranks better. Positive current EV/EBITDA is
+    used directly. When the current multiple is non-positive because EBITDA
+    is negative, but forward EPS is positive and enterprise value/share
+    count are available, rank an estimated forward EV/EBITDA instead:
+    enterpriseValue / (forwardEps * sharesOutstanding). If that forward
+    multiple cannot be computed, the row remains ranked worst. This keeps
+    genuinely unprofitable or missing-data companies penalized while giving
+    growth-stage names with expected earnings a real forward valuation
+    measure instead of treating negative trailing EBITDA as the whole story."""
+    def effective_ev_ebitda(d):
+        current = to_float(d.get("enterpriseToEbitda"))
+        if current is not None and current > 0:
+            return current
+        return forward_ev_ebitda(d)
+
+    return rank_ascending(rows, effective_ev_ebitda)
 
 
 def pe_vs_trailing_rank(rows):

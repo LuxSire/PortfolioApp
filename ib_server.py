@@ -147,14 +147,24 @@ output lives under data/, see main.py's DATA_DIR):
                                 NEWS_WINDOW_DAYS window as news.json.
   data/IB/news_bodies.json          {articleId: bodyText} -- a backend-only
                                 scoring-input cache (see NEWS_BODIES_FILE's
-                                own comment) of each article's full body,
-                                fetched once via reqNewsArticle and reused
-                                for FinBERT (headline + body together, see
-                                news_sentiment.score_articles) rather than
-                                scoring the headline alone. NOT synced into
+                                own comment) of every article body fetched
+                                for a headline+body re-score (news_sentiment.
+                                score_articles), rather than the headline-only
+                                score (news_sentiment.score_headlines) news_loop
+                                gives every article automatically. Populated
+                                two ways, both on demand rather than
+                                automatically for every new headline
+                                (reqNewsArticle has no bulk form, unlike
+                                reqHistoricalNews -- see news_loop's own
+                                docstring): GET /api/news/article
+                                piggybacks a free re-score onto a user
+                                viewing an article's body, and the Dataset
+                                tab's news_sentiment Run button
+                                (_force_rescore_news, via
+                                _run_in_process_job) runs a deliberate,
+                                scoped bulk pass. NOT synced into
                                 web/public/ -- the frontend never reads
-                                this file; a single body is fetched lazily
-                                on demand instead (GET /api/news/article).
+                                this file directly.
 Both cover the top CANDLESTICK_TOP_N ranked tickers, every RATED_FOR_EXTRAS
 ticker (Strong Buy/Buy/Sell/Strong Sell -- CANDLESTICK_TOP_N alone only
 ever reaches the best-scoring/Buy end, since it's a top-N slice of a file
@@ -244,7 +254,14 @@ from main import (
 )
 from modules.finra import SHORT_INTEREST_FILE
 from main import PRICE_HISTORY_FILE as YAHOO_PRICE_HISTORY_FILE
-from modules.news_sentiment import clean_headline, fast_path_score, score_articles
+from modules.news_sentiment import (
+    clean_headline,
+    fast_path_score,
+    headline_importance,
+    score_articles,
+    score_headlines,
+    strip_boilerplate,
+)
 from modules.scoring import FACTOR_WEIGHTS, most_recent_completed_trading_day
 from modules.sec_edgar import FORM4_FILE, THIRTEENF_FILE, THIRTEENF_HOLDERS_FILE, XBRL_FACTS_FILE
 from modules.social_sentiment import SENTIMENT_FILE
@@ -329,6 +346,14 @@ TS_EXPORT_FILE = os.path.join(IB_DIR, "ts.json")
 #     routing message and then sit blocked on an HTTP call back to this
 #     same process for however long the fetch takes, with zero per-
 #     ticker output of its own to show.
+#   {"kind": "in_process", "target": "rescore_news"} calls
+#     _force_rescore_news directly, same "no useful child-process output"
+#     reasoning -- makes no IB API calls of its own (re-scores from
+#     already-cached article bodies only, never fetches a new one -- see
+#     that function's own docstring), but is still scheduled onto the
+#     shared ib_loop (see _run_in_process_job's own comment on why, not a
+#     separate event loop of its own), so it still needs that loop
+#     actually running.
 # None means no button: the only command for that file needs an argument
 # this UI doesn't collect (`symbol TICKER ...`, `themes TICKER ...` for a
 # specific ticker), or there's no one-shot command for that file at all
@@ -457,9 +482,9 @@ DATASETS = [
         "path": NEWS_SENTIMENT_FILE,
         "label": "News sentiment (FinBERT)",
         "command": None,
-        "notes": "same as News headlines -- scored as part of the same loop",
-        "network": "Live IB Gateway",
-        "run": None,
+        "notes": "headline-only at first sight, upgraded to headline+body within the last 24h as body_fetch_loop catches up; Run force-rescores the WHOLE cache with current rules using whatever bodies are already cached -- no IB Gateway needed, local CPU only",
+        "network": "Live IB Gateway (body_fetch_loop) + local CPU",
+        "run": {"kind": "in_process", "target": "rescore_news"},
     },
     {
         "id": "form4",
@@ -1353,6 +1378,71 @@ NEWS_LOOP_PASS_DELAY_SECONDS = 1800  # 30 minutes
 # it ever reaches news_by_ticker/news.json.
 _FILES_8K_RE = re.compile(r"\bFiles 8K\b", re.I)
 
+# IBD/Dow Jones republish an ongoing "Live Coverage" story (e.g. "Dow
+# Jones Futures: ...") under a FRESH articleId every ~20-90 minutes as it
+# ticks forward, often with the headline text completely unchanged
+# between republishes -- confirmed live: one such headline appeared 6
+# times for a single ticker within about 3 hours, and because that span
+# crossed a UTC midnight, it even reads as "reported on two different
+# dates." articleId-based dedup (see the bucket check in news_loop below)
+# can't catch this at all, since every republish genuinely is a new,
+# distinct articleId from IB's own feed -- this is a second, content-
+# based dedup layer on top of it. A generous multi-hour window, not
+# same-calendar-day: confirmed against this project's own cached data
+# that the gap between consecutive occurrences of the same (ticker,
+# headline) pair is sharply bimodal -- a "live coverage republish"
+# cluster (2,370 gaps, median ~19 minutes) and a "genuinely separate
+# recurring report" cluster (Substantial Insider Sales' daily digest,
+# CFA's weekly Insider Review, an insider's own repeated Form 4 filing --
+# 1,755 gaps, median 4 days) -- with nothing in between, so any threshold
+# from a couple hours up to a day cleanly separates the two without ever
+# risking suppressing a genuinely new daily/weekly report.
+DUPLICATE_HEADLINE_WINDOW_HOURS = 24
+
+
+def _find_recent_duplicate(bucket, headline, time_str):
+    """Returns the articleId of an existing entry in `bucket` (one
+    ticker's news_by_ticker dict) with the identical headline text
+    within DUPLICATE_HEADLINE_WINDOW_HOURS of `time_str`, or None if
+    there isn't one -- see this module's own comment above for why that
+    window is a safe, well-separated threshold.
+
+    Callers use this to decide which of the two duplicates to actually
+    keep -- always the LATER one by time, never just "whichever was
+    already there first." A same-headline republish of a "Live Coverage"
+    story is not always identical noise: it can be a genuinely more
+    complete revision of a still-developing story. Confirmed live and
+    corrected after getting this wrong the first time: an earlier
+    Semtech earnings republish still read "Earnings report details to
+    follow" and closed on a bearish technical note ("STOCK DOWN FROM
+    RECORD HIGH"); a later republish of the SAME headline, two hours on,
+    had the full earnings-call CEO quote and had swapped that section for
+    a bullish one ("STOCK RISES AFTER REPORT"). An earlier version of
+    this dedup logic kept whichever occurrence came first and discarded
+    the rest -- for this story, that meant keeping the stale, less
+    accurate read and deleting the better one. O(bucket size) per call
+    (at most ~100, IB's own max_headlines_per_ticker cap), negligible
+    against the network round-trip this is already gating."""
+    try:
+        t = isoparse(time_str)
+    except (ValueError, TypeError):
+        return None
+    if t.tzinfo is None:
+        t = t.replace(tzinfo=timezone.utc)
+    for article_id, existing in bucket.items():
+        if existing.get("headline") != headline:
+            continue
+        try:
+            et = isoparse(existing["time"])
+        except (ValueError, TypeError, KeyError):
+            continue
+        if et.tzinfo is None:
+            et = et.replace(tzinfo=timezone.utc)
+        if abs((t - et).total_seconds()) <= DUPLICATE_HEADLINE_WINDOW_HOURS * 3600:
+            return article_id
+    return None
+
+
 # {ticker: {articleId: {articleId, time, provider, headline, sentiment}}}
 # -- keyed by articleId (not a flat list) so re-fetching an already-seen
 # headline within the rolling window on a later pass is a no-op merge,
@@ -1366,6 +1456,13 @@ news_by_ticker = {}
 # this is and why it's kept separate from news_by_ticker. Same locking
 # rule as news_by_ticker: every access (read or write) holds `lock`.
 news_bodies_by_id = {}
+
+# Guards _force_rescore_news against a second overlapping pass (see its
+# own docstring) -- a separate, dedicated lock rather than reusing `lock`,
+# since this flag is checked from the HTTP handler thread and must never
+# block on whatever `lock` happens to be held for elsewhere.
+_rescore_state_lock = threading.Lock()
+_rescore_running = False
 
 
 def _load_news_file():
@@ -1528,10 +1625,77 @@ async def _fetch_article_bodies(articles):
             print(f"News: body fetch failed for {article_id}: {e}")
             continue
         if body:
+            body = strip_boilerplate(body)
             bodies[i] = body
             with lock:
                 news_bodies_by_id[article_id] = body
     return bodies
+
+
+# How often body_fetch_loop below sweeps -- frequent enough that a fresh
+# headline gets its body (and headline+body re-score) within a reasonable
+# delay of first appearing, cheap enough that it's a small fraction of
+# each cycle's own duration: the loop only ever looks at the last 24h of
+# articles (BODY_FETCH_WINDOW_HOURS), not the whole NEWS_WINDOW_DAYS
+# cache, so a day's worth of real (non-fast-path) headlines is on the
+# order of a couple hundred requests at most -- a few minutes of IB calls
+# per cycle, confirmed against this project's own recent cache (~35
+# articles/day so far today, ~11 needing a real fetch).
+BODY_FETCH_INTERVAL_SECONDS = 600  # 10 minutes
+BODY_FETCH_WINDOW_HOURS = 24
+
+
+async def body_fetch_loop():
+    """Runs forever as a background asyncio task (see run_ib_client),
+    fetching each article body for whatever's currently within the last
+    BODY_FETCH_WINDOW_HOURS -- a small, bounded, cheap slice of the full
+    rolling NEWS_WINDOW_DAYS window news_loop maintains. Explicit design
+    choice: reqNewsArticle has no bulk form (one paced IB request per
+    article, see _ARTICLE_BODY_MAX_REQUESTS_PER_10MIN), which makes
+    fetching a body for the ENTIRE cache prohibitively slow (days, see
+    _force_rescore_news's own docstring) but a rolling 24h slice easily
+    sustainable indefinitely.
+
+    _fetch_article_bodies already skips a fast-path headline (needs no
+    body at all) and an already-cached body (news_bodies_by_id) -- so
+    each cycle here only spends the pacing budget on genuinely new,
+    real-classification-needed articles from the last day. Every article
+    in the window is then re-scored headline+body
+    (news_sentiment.score_articles) and its `sentiment` updated in
+    place -- unconditionally preferring the headline+body read the
+    moment a body is available (whether freshly fetched this cycle or
+    already cached from a previous one), even over a headline-only score
+    news_loop's own first-sight pass already gave it. Explicit
+    instruction, with a known tradeoff: this can occasionally dilute an
+    already-correct headline-only read into a mushier one (see
+    news_sentiment.py's own module docstring for the empirical A/B
+    comparison that found this) -- accepted in exchange for using the
+    article's actual substance whenever it's cheaply available, rather
+    than never using it at all."""
+    while True:
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=BODY_FETCH_WINDOW_HOURS)
+        with lock:
+            recent = []
+            for articles in news_by_ticker.values():
+                for a in articles.values():
+                    try:
+                        t = isoparse(a["time"])
+                    except (ValueError, TypeError, KeyError):
+                        continue
+                    if t.tzinfo is None:
+                        t = t.replace(tzinfo=timezone.utc)
+                    if t >= cutoff:
+                        recent.append(a)
+        if recent:
+            print(f"News: body-fetch sweep over {len(recent)} article(s) from the last {BODY_FETCH_WINDOW_HOURS}h...")
+            bodies = await _fetch_article_bodies(recent)
+            scores = await asyncio.to_thread(score_articles, [a["headline"] for a in recent], bodies)
+            with lock:
+                for article, score in zip(recent, scores):
+                    article["sentiment"] = score
+            _prune_and_write_news()
+            print(f"News: body-fetch sweep complete ({len(recent)} article(s))")
+        await asyncio.sleep(BODY_FETCH_INTERVAL_SECONDS)
 
 
 async def _backfill_news_sentiment():
@@ -1543,23 +1707,211 @@ async def _backfill_news_sentiment():
     news_loop's own per-chunk scoring, same treatment news_loop gives a
     newly fetched article. Without this, a no_news run against an
     unscored cache would leave news_sentiment.json permanently empty --
-    no_news skips the only thing that would otherwise ever score them."""
+    no_news skips the only thing that would otherwise ever score them.
+
+    Also backfills article["importance"] (see _merge_article's own
+    comment) for any article that predates that field entirely -- a
+    LARGER set than `unscored` above, since every article cached before
+    this feature existed is missing importance regardless of whether it
+    already has a sentiment score. Synchronous (pure regex, no model
+    inference), so this runs inline under `lock` rather than needing
+    score_headlines' asyncio.to_thread offload."""
     with lock:
         unscored = [a for articles in news_by_ticker.values() for a in articles.values() if "sentiment" not in a]
         for article in unscored:
             article["headline"] = clean_headline(article.get("headline"))
+        unrated = [a for articles in news_by_ticker.values() for a in articles.values() if "importance" not in a]
+        for article in unrated:
+            article["importance"] = headline_importance(clean_headline(article.get("headline")))
+    if unrated:
+        print(f"News: backfilled importance for {len(unrated)} cached article(s) without one")
     if unscored:
         print(f"News: backfilling FinBERT sentiment for {len(unscored)} cached article(s) without one...")
-        bodies = await _fetch_article_bodies(unscored)
-        # CPU-bound (see news_sentiment.py), offloaded to a worker thread,
-        # and done without `lock` held so it doesn't block ticks,
-        # snapshots, or GET /api/news for however long this takes.
-        scores = await asyncio.to_thread(score_articles, [a["headline"] for a in unscored], bodies)
+        # Headline-only, same as news_loop's own scoring -- see that
+        # function's docstring for why the bulk/automatic path never
+        # fetches a body (reqNewsArticle has no bulk form, one paced
+        # request per article makes that unsustainable at this project's
+        # scale); a headline+body re-score is available on demand, via
+        # _handle_news_article (piggybacked on a user actually viewing an
+        # article) or the Dataset tab's news_sentiment Run button (a
+        # deliberate, scoped bulk pass) -- see _force_rescore_news. CPU-bound (see
+        # news_sentiment.py), offloaded to a worker thread, and done
+        # without `lock` held so it doesn't block ticks, snapshots, or
+        # GET /api/news for however long this takes.
+        scores = await asyncio.to_thread(score_headlines, [a["headline"] for a in unscored])
         with lock:
             for article, score in zip(unscored, scores):
                 article["sentiment"] = score
         print(f"News: backfilled {len(unscored)} article(s)")
     _prune_and_write_news()
+
+
+async def _force_rescore_news(tickers=None, log_fn=None):
+    """Re-scores EVERY cached article in scope -- not just the unscored
+    ones _backfill_news_sentiment/news_loop touch -- via the CURRENT
+    news_sentiment scoring logic (fast_path_score's regex shortcuts, plus
+    headline+body via score_articles for whatever already has a cached
+    body in news_bodies_by_id -- see body_fetch_loop, which is what
+    actually populates that cache; this function never triggers a new
+    body fetch of its own, see below), ignoring whatever `sentiment` an
+    article already carries. Exists for one reason: this project's
+    scoring is "once, on first sight" by design (see news_loop's own
+    docstring) -- adding a new fast_path_score regex (the market-recap
+    rule, the futures-recap rule, etc.) never retroactively touches an
+    article that was already scored before that regex existed. This is
+    the explicit, manually-triggered "yes, redo it" path (the Dataset
+    tab's news_sentiment Run button) -- most useful right after adding a new
+    fast-path pattern, to sweep it across the whole existing cache at
+    once instead of waiting for each affected headline to individually
+    age back out of the rolling window and get re-fetched.
+
+    Deliberately reads news_bodies_by_id as a snapshot rather than calling
+    _fetch_article_bodies (which WOULD trigger a live fetch on a cache
+    miss): reqNewsArticle has no bulk form -- one paced IB request per
+    article -- so letting a full-cache pass (tens of thousands of
+    articles) attempt a live fetch for everything missing a body would
+    reintroduce the days-long cost body_fetch_loop's own bounded 24h
+    window exists to avoid. This function itself makes no IB API calls
+    (pure local CPU, FinBERT inference only), so re-scoring the entire
+    cache is realistically minutes regardless of scope -- callers still
+    schedule it onto the shared ib_loop rather than running it standalone
+    (see _run_in_process_job's own comment on why: serializing every
+    _prune_and_write_news call through ib_loop's single thread avoids a
+    real file-write race with news_loop/body_fetch_loop's own calls),
+    so ib_loop does still need to be up. tickers, if given, still narrows
+    the pass to just those tickers' cached articles when a full sweep
+    isn't needed.
+
+    Processes and saves in NEWS_CHUNK_SIZE-sized batches so news.json
+    reflects progress throughout the pass rather than only at the very
+    end, and so it's safe to interrupt (server restart) and resume later
+    via another call. Clears _rescore_running (see that flag's own
+    comment) when done, however this pass ends -- including a mid-batch
+    exception, so one failure doesn't permanently wedge future rescore
+    requests."""
+    global _rescore_running
+
+    def _report(line):
+        print(line)
+        if log_fn:
+            log_fn(line)
+
+    try:
+        with lock:
+            scope = tickers if tickers is not None else list(news_by_ticker.keys())
+            all_articles = [a for ticker in scope for a in news_by_ticker.get(ticker, {}).values()]
+            bodies_snapshot = dict(news_bodies_by_id)
+        total = len(all_articles)
+        _report(f"News: force-rescoring {total} cached article(s) across {len(scope)} ticker(s)...")
+        done = 0
+        for i in range(0, total, NEWS_CHUNK_SIZE):
+            batch = all_articles[i : i + NEWS_CHUNK_SIZE]
+            bodies = [bodies_snapshot.get(a.get("articleId")) for a in batch]
+            scores = await asyncio.to_thread(score_articles, [a["headline"] for a in batch], bodies)
+            with lock:
+                for article, score in zip(batch, scores):
+                    article["sentiment"] = score
+            _prune_and_write_news()
+            done += len(batch)
+            _report(f"News: force-rescore {done}/{total} done")
+        _report(f"News: force-rescore complete ({total} article(s))")
+    finally:
+        with _rescore_state_lock:
+            _rescore_running = False
+
+
+def _dedupe_news(tickers=None):
+    """One-time cleanup pass: applies _find_recent_duplicate's own dedup
+    rule (see that function's own comment) retroactively to whatever's
+    ALREADY cached in news_by_ticker, removing a live-coverage story's
+    republished duplicates that predate _find_recent_duplicate's own
+    addition to news_loop's merge step -- that only prevents NEW
+    duplicates from being added going forward, it doesn't touch anything
+    already in the cache.
+
+    Walks each ticker's articles in ASCENDING time order; whenever an
+    article's headline duplicates one already kept (within
+    DUPLICATE_HEADLINE_WINDOW_HOURS), the earlier one is dropped and this
+    later one takes its place -- since the walk is ascending, whatever's
+    just been reached is always the newer of the two, so this always
+    converges on keeping the LATEST occurrence of each duplicate cluster,
+    never the first. See _find_recent_duplicate's own comment for why
+    that direction matters: a later republish of a "Live Coverage" story
+    can be a genuinely more complete revision, not just noise, and an
+    earlier version of this function got that backwards.
+
+    tickers, if given, scopes the pass to just those tickers; omit for
+    the whole cache. Pure local processing -- no IB Gateway involved, no
+    network calls, no FinBERT -- so unlike a body-fetch operation this is
+    fast (milliseconds to low seconds) regardless of scope; safe to call
+    synchronously from an HTTP handler rather than needing the fire-and-
+    forget pattern the Dataset tab's rescore job uses. Returns {"scanned": int,
+    "removed": int}; _prune_and_write_news's own body-cache pruning drops
+    any now-orphaned news_bodies_by_id entry for a removed article for
+    free."""
+    with lock:
+        scope = tickers if tickers is not None else list(news_by_ticker.keys())
+        scanned = 0
+        removed = 0
+        for ticker in scope:
+            bucket = news_by_ticker.get(ticker)
+            if not bucket:
+                continue
+            scanned += len(bucket)
+            ordered = sorted(bucket.values(), key=lambda a: a.get("time") or "")
+            kept = {}
+            for article in ordered:
+                headline = article.get("headline", "")
+                dup_id = _find_recent_duplicate(kept, headline, article.get("time"))
+                if dup_id is not None:
+                    del kept[dup_id]
+                    removed += 1
+                kept[article["articleId"]] = article
+            news_by_ticker[ticker] = kept
+    _prune_and_write_news()
+    return {"scanned": scanned, "removed": removed}
+
+
+def _merge_article(bucket, article):
+    """Merges one freshly-fetched article into `bucket` (one ticker's
+    news_by_ticker dict) -- shared by news_loop's own rotation and
+    refresh_news_now's on-demand fetch, so this bug-prone piece of logic
+    only exists in one place. Applies, in order:
+      1. Skip entirely if articleId is missing or already in the bucket
+         (a re-fetch of something already known -- see news_loop's own
+         docstring for why this is a no-op, not a duplicate).
+      2. Skip entirely if the headline matches _FILES_8K_RE (pure SEC
+         filing-noise, dropped before it ever reaches news_by_ticker).
+      3. Resolve a same-headline "Live Coverage" republish via
+         _find_recent_duplicate -- see that function's own comment for
+         why the LATER of two duplicates always wins (replacing the
+         earlier entry), not just whichever was seen first.
+    Mutates `bucket` in place. Returns the article dict (headline
+    cleaned) if it was actually added or replaced something -- meaning
+    it needs a fresh FinBERT score -- or None if it was skipped
+    entirely. Caller must hold `lock`.
+
+    Also sets article["importance"] (see news_sentiment.headline_importance
+    -- a separate 0/1/3-star "does this matter at all" read, independent
+    of the sentiment score) here, once, since it's a pure regex read of
+    the headline alone -- unlike sentiment, it never needs a body-based
+    re-score, so there's no reason to defer it the way sentiment scoring
+    is deferred to news_loop's own chunked pass."""
+    article_id = article.get("articleId")
+    if not article_id or article_id in bucket:
+        return None
+    headline = clean_headline(article.get("headline"))
+    if _FILES_8K_RE.search(headline):
+        return None
+    dup_id = _find_recent_duplicate(bucket, headline, article.get("time"))
+    if dup_id is not None:
+        if (bucket[dup_id].get("time") or "") >= (article.get("time") or ""):
+            return None  # existing entry is the same age or newer -- this fetch is the stale one
+        del bucket[dup_id]  # this one supersedes the existing entry -- drop the stale one
+    article["headline"] = headline
+    article["importance"] = headline_importance(headline)
+    bucket[article_id] = article
+    return article
 
 
 async def news_loop():
@@ -1573,13 +1925,27 @@ async def news_loop():
     end of what IB's pacing makes a multi-hour cycle. Headlines are
     merged into news_by_ticker keyed by articleId (see
     IBApp.get_news_headlines_async), so re-seeing an already-known
-    headline on a later pass is a no-op, not a duplicate. Each new
-    article has its full body fetched (_fetch_article_bodies) and is run
-    through FinBERT on headline + body together (news_sentiment.
-    score_articles) once, on first sight, and gets a `sentiment` field (1
-    very bearish - 5 very bullish); _prune_and_write_news then drops
-    anything older than NEWS_WINDOW_DAYS and rewrites news.json after
-    every chunk.
+    headline on a later pass is a no-op, not a duplicate -- and
+    _find_recent_duplicate catches the OTHER kind of duplicate this
+    misses, a fresh articleId for a "Live Coverage" story IBD/Dow Jones
+    republished with unchanged headline text (see that function's own
+    comment). Each new article is run through FinBERT on its headline alone
+    (news_sentiment.score_headlines) once, on first sight, and gets a
+    `sentiment` field (1 very bearish - 5 very bullish); _prune_and_write_news
+    then drops anything older than NEWS_WINDOW_DAYS and rewrites news.json
+    after every chunk.
+
+    Headline-only, not headline+body, is deliberate here: reqNewsArticle
+    (the body fetch) has no bulk form the way reqHistoricalNews does --
+    one paced IB request PER ARTICLE -- so fetching a body for every new
+    headline this loop discovers, continuously, forever, would compete
+    with this loop's own coverage of the full screener universe for the
+    same underlying IB connection. A headline+body re-score is available
+    on demand instead: _handle_news_article piggybacks one for free onto
+    a user actually viewing an article (its body is being fetched for
+    display anyway), and the Dataset tab's news_sentiment Run button
+    (_force_rescore_news) runs a deliberate, scoped bulk pass whenever
+    that's worth the cost.
 
     load_top_tickers is re-read fresh at the start of each full pass (not
     cached once at startup) since sorted_screen.csv's ranking, and the
@@ -1598,11 +1964,9 @@ async def news_loop():
             except Exception as e:
                 print(f"News: chunk starting at {i} failed: {e}")
                 continue
-            # Only ever add articleIds not already in the bucket -- an
-            # unconditional overwrite would clobber the `sentiment` score
-            # FinBERT already attached below the first time this articleId
-            # was seen, since a re-fetched article comes back from IB with
-            # no `sentiment` key at all.
+            # _merge_article (see its own docstring) handles the 8-K
+            # filter, articleId-based dedup, and the "later republish
+            # wins" content-based dedup all in one place.
             new_articles = []
             with lock:
                 for ticker, articles in results.items():
@@ -1610,23 +1974,17 @@ async def news_loop():
                         continue
                     bucket = news_by_ticker.setdefault(ticker, {})
                     for article in articles:
-                        article_id = article.get("articleId")
-                        if article_id and article_id not in bucket:
-                            headline = clean_headline(article.get("headline"))
-                            if _FILES_8K_RE.search(headline):
-                                continue
-                            article["headline"] = headline
-                            bucket[article_id] = article
-                            new_articles.append(article)
+                        merged = _merge_article(bucket, article)
+                        if merged is not None:
+                            new_articles.append(merged)
             if new_articles:
-                bodies = await _fetch_article_bodies(new_articles)
                 # FinBERT inference is CPU-bound (see news_sentiment.py) --
                 # offloaded to a worker thread (and run without `lock` held,
                 # unlike the merge above) so it doesn't stall this
                 # connection's shared event loop, or block GET /api/news,
                 # for however long a batch of ~40 tickers' worth of
                 # headlines takes.
-                scores = await asyncio.to_thread(score_articles, [a["headline"] for a in new_articles], bodies)
+                scores = await asyncio.to_thread(score_headlines, [a["headline"] for a in new_articles])
                 with lock:
                     for article, score in zip(new_articles, scores):
                         article["sentiment"] = score
@@ -1634,6 +1992,52 @@ async def news_loop():
             print(f"News: {min(i + NEWS_CHUNK_SIZE, len(tickers))}/{len(tickers)} done, news.json updated")
         print(f"News: pass complete, sleeping {NEWS_LOOP_PASS_DELAY_SECONDS}s before the next one")
         await asyncio.sleep(NEWS_LOOP_PASS_DELAY_SECONDS)
+
+
+async def refresh_news_now(tickers, log_fn=None):
+    """One-shot, on-demand refresh of news headlines (IBApp.
+    get_news_headlines_async) for a specific, small list of tickers --
+    POST /api/admin/refresh-news-now. The manual counterpart to
+    news_loop's own continuous full-screener rotation: useful when a
+    ticker's cache needs to reflect IB's CURRENT feed right now rather
+    than waiting for that ticker's own turn in news_loop's
+    NEWS_LOOP_PASS_DELAY_SECONDS-paced rotation over the whole screener,
+    which can take a while depending on where in the ranking it falls.
+    Same merge logic as news_loop (_merge_article, including
+    _find_recent_duplicate's own "later republish wins" rule) and same
+    headline-only scoring (news_sentiment.score_headlines) -- this
+    doesn't fetch bodies, same reasoning news_loop's own docstring gives
+    for staying headline-only at fetch time."""
+
+    def _report(line):
+        print(line)
+        if log_fn:
+            log_fn(line)
+
+    _report(f"News: on-demand refresh for {len(tickers)} ticker(s)...")
+    try:
+        results = await app.get_news_headlines_async(tickers, days=NEWS_WINDOW_DAYS)
+    except Exception as e:
+        _report(f"News: refresh failed: {e}")
+        return {"error": str(e)}
+    new_articles = []
+    with lock:
+        for ticker, articles in results.items():
+            if not articles:
+                continue
+            bucket = news_by_ticker.setdefault(ticker, {})
+            for article in articles:
+                merged = _merge_article(bucket, article)
+                if merged is not None:
+                    new_articles.append(merged)
+    if new_articles:
+        scores = await asyncio.to_thread(score_headlines, [a["headline"] for a in new_articles])
+        with lock:
+            for article, score in zip(new_articles, scores):
+                article["sentiment"] = score
+    _prune_and_write_news()
+    _report(f"News: on-demand refresh complete ({len(new_articles)} new/updated article(s))")
+    return {"newOrUpdated": len(new_articles)}
 
 
 # ---------------------------------------------------------------------- #
@@ -2685,18 +3089,61 @@ def _run_subprocess_job(argv):
 
 
 def _run_in_process_job(target):
-    """Runs the IB daily/hourly on-demand refresh directly on this
-    server's own already-connected IB Gateway connection (see DATASETS'
-    "run": {"kind": "in_process", ...} rows, and
-    refresh_daily_history_on_demand/refresh_hourly_history_on_demand's
-    own docstrings for why those two rows need this instead of
-    _run_subprocess_job: `python main.py ibprices`/`ibhprices` as a
-    child process would just route straight back to this same server
-    over HTTP and block there with no per-ticker output of its own).
-    Submits the coroutine onto ib_loop via run_coroutine_threadsafe and
-    blocks this thread on its result -- same pattern
-    _handle_refresh_ib_daily/_handle_refresh_ib_hourly already use for
-    the HTTP-routed callers, just with log_fn wired to this job's log."""
+    """Runs a job directly in this server process rather than as a child
+    process (see DATASETS' "run": {"kind": "in_process", ...} rows).
+
+    target == "rescore_news": _force_rescore_news (see its own docstring)
+    -- re-scores from already-cached article bodies only, never fetches a
+    new one, so unlike the daily/hourly targets below it does no IB API
+    calls of its own. Still scheduled onto the shared ib_loop via
+    run_coroutine_threadsafe, same as daily/hourly, rather than spinning
+    up a separate event loop in this thread (an earlier version did
+    that): _prune_and_write_news writes news.json/news_sentiment.json/
+    news_bodies.json OUTSIDE `lock` (only the in-memory mutation is
+    guarded), so two different OS threads both calling it around the
+    same time -- this one and news_loop/body_fetch_loop's own calls,
+    already running on ib_loop -- risked two threads writing the same
+    file concurrently. Running everything through ib_loop's own single-
+    threaded event loop serializes them instead: only one coroutine
+    actually executes between await points, however many are scheduled
+    on it. Guarded by _rescore_running so two Dataset-tab-triggered
+    rescore jobs can't run overlapping passes -- this is the ONLY way to
+    trigger _force_rescore_news; there is deliberately no standalone HTTP
+    endpoint for it, so a rescore always goes through the Dataset tab's
+    Run button / run-status tracking rather than a side channel.
+
+    target in ("daily", "hourly"): the IB daily/hourly on-demand refresh,
+    which DOES need this server's own already-connected IB Gateway
+    connection (see refresh_daily_history_on_demand/
+    refresh_hourly_history_on_demand's own docstrings for why: `python
+    main.py ibprices`/`ibhprices` as a child process would just route
+    straight back to this same server over HTTP and block there with no
+    per-ticker output of its own). Submits the coroutine onto ib_loop via
+    run_coroutine_threadsafe and blocks this thread on its result -- same
+    pattern _handle_refresh_ib_daily/_handle_refresh_ib_hourly already use
+    for the HTTP-routed callers, just with log_fn wired to this job's log."""
+    if target == "rescore_news":
+        global _rescore_running
+        if ib_loop is None or not app.is_connected:
+            _job_log("IB Gateway not connected")
+            _job_finish("error")
+            return
+        with _rescore_state_lock:
+            if _rescore_running:
+                _job_log("A rescore pass is already running -- check server logs for progress")
+                _job_finish("error")
+                return
+            _rescore_running = True
+        try:
+            future = asyncio.run_coroutine_threadsafe(_force_rescore_news(log_fn=_job_log), ib_loop)
+            future.result(timeout=3600)
+        except Exception as e:
+            _job_log(f"Failed: {e}")
+            _job_finish("error")
+            return
+        _job_finish("done", 0)
+        return
+
     if ib_loop is None or not app.is_connected:
         _job_log("IB Gateway not connected")
         _job_finish("error")
@@ -2784,6 +3231,8 @@ class Handler(BaseHTTPRequestHandler):
             self._handle_dataset_status()
         elif parsed.path == "/api/scoring-formula":
             self._handle_scoring_formula()
+        elif parsed.path == "/api/admin/pid":
+            self._handle_pid()
         elif parsed.path == "/api/admin/run-status":
             self._handle_run_status()
         else:
@@ -2815,6 +3264,10 @@ class Handler(BaseHTTPRequestHandler):
             self._handle_export_daily_history()
         elif parsed.path == "/api/admin/run-dataset":
             self._handle_run_dataset()
+        elif parsed.path == "/api/admin/dedupe-news":
+            self._handle_dedupe_news()
+        elif parsed.path == "/api/admin/refresh-news-now":
+            self._handle_refresh_news_now()
         else:
             self.send_response(404)
             self.end_headers()
@@ -2889,7 +3342,19 @@ class Handler(BaseHTTPRequestHandler):
         or more. Blocks this request thread (ThreadingHTTPServer, so
         only this one request thread, same as _handle_news_article's
         blocking IB call above) until the fetch finishes; main.py's own
-        caller uses a matching timeout."""
+        caller uses a matching timeout.
+
+        Claims the same global _current_job slot _run_in_process_job's
+        "daily" target uses (refusing with {"error": ...} if another job
+        is already running, same "one job at a time, globally" rule),
+        and passes log_fn=_job_log through to
+        refresh_daily_history_on_demand -- explicit fix: this path used
+        to call that function with no log_fn at all, so a caller routed
+        here (main.py's download_all, when ib_server.py is already up)
+        had zero visibility into progress until this whole blocking
+        request finally returned. Now GET /api/admin/run-status reflects
+        live progress the same way it does for a Dataset-tab-triggered
+        run, and main.py's own _refresh_ib_daily_via_server polls it."""
         length = int(self.headers.get("Content-Length", 0))
         tickers = None
         overwrite = False
@@ -2905,19 +3370,42 @@ class Handler(BaseHTTPRequestHandler):
         if ib_loop is None or not app.is_connected:
             self._send_json({"error": "IB Gateway not connected"})
             return
+        global _current_job
+        with _job_lock:
+            if _current_job is not None and _current_job["status"] == "running":
+                self._send_json({"error": "A job is already running -- check /api/admin/run-status"})
+                return
+            _current_job = {
+                "id": "ib_daily_refresh_direct",
+                "label": "IB daily history refresh",
+                "status": "running",
+                "log": [],
+                "returncode": None,
+                "startedAt": datetime.now(timezone.utc).isoformat(),
+                "endedAt": None,
+            }
         try:
-            future = asyncio.run_coroutine_threadsafe(refresh_daily_history_on_demand(tickers=tickers, overwrite=overwrite), ib_loop)
+            future = asyncio.run_coroutine_threadsafe(
+                refresh_daily_history_on_demand(tickers=tickers, overwrite=overwrite, log_fn=_job_log), ib_loop
+            )
             result = future.result(timeout=7200)
         except Exception as e:
+            _job_finish("error")
             self._send_json({"error": str(e)})
             return
+        if result.get("error"):
+            _job_finish("error")
+        else:
+            _job_finish("done", 0)
         self._send_json(result)
 
     def _handle_refresh_ib_hourly(self):
         """POST /api/admin/refresh-ib-hourly -- the hourly twin of
         _handle_refresh_ib_daily (same optional {"tickers": [...],
         "overwrite": bool} body, same 2hr timeout for a full-universe
-        fetch); see refresh_hourly_history_on_demand."""
+        fetch, same _current_job/log_fn wiring for the same reason -- see
+        _handle_refresh_ib_daily's own docstring); see
+        refresh_hourly_history_on_demand."""
         length = int(self.headers.get("Content-Length", 0))
         tickers = None
         overwrite = False
@@ -2933,9 +3421,94 @@ class Handler(BaseHTTPRequestHandler):
         if ib_loop is None or not app.is_connected:
             self._send_json({"error": "IB Gateway not connected"})
             return
+        global _current_job
+        with _job_lock:
+            if _current_job is not None and _current_job["status"] == "running":
+                self._send_json({"error": "A job is already running -- check /api/admin/run-status"})
+                return
+            _current_job = {
+                "id": "ib_hourly_refresh_direct",
+                "label": "IB hourly history refresh",
+                "status": "running",
+                "log": [],
+                "returncode": None,
+                "startedAt": datetime.now(timezone.utc).isoformat(),
+                "endedAt": None,
+            }
         try:
-            future = asyncio.run_coroutine_threadsafe(refresh_hourly_history_on_demand(tickers=tickers, overwrite=overwrite), ib_loop)
+            future = asyncio.run_coroutine_threadsafe(
+                refresh_hourly_history_on_demand(tickers=tickers, overwrite=overwrite, log_fn=_job_log), ib_loop
+            )
             result = future.result(timeout=7200)
+        except Exception as e:
+            _job_finish("error")
+            self._send_json({"error": str(e)})
+            return
+        if result.get("error"):
+            _job_finish("error")
+        else:
+            _job_finish("done", 0)
+        self._send_json(result)
+
+    def _handle_dedupe_news(self):
+        """POST /api/admin/dedupe-news -- optional JSON body {"tickers":
+        [...]} narrows the pass to just those tickers instead of the whole
+        cache; omit for everything. See _dedupe_news's own docstring: a
+        one-time cleanup for the SAME headline republished under a fresh
+        articleId (an ongoing "Live Coverage" story IBD/Dow Jones updates
+        every ~20-90 minutes) that predates _find_recent_duplicate's own
+        addition to news_loop's merge step -- that only stops NEW
+        duplicates from being added, it doesn't touch anything already in
+        the cache. Pure local processing, no IB Gateway or FinBERT
+        involved, fast enough to block this request thread directly and
+        return the result rather than needing the Dataset tab's rescore
+        job's fire-and-forget pattern. Returns {"scanned": int, "removed": int}."""
+        length = int(self.headers.get("Content-Length", 0))
+        tickers = None
+        if length:
+            try:
+                body = json.loads(self.rfile.read(length))
+                tickers = body.get("tickers")
+            except (ValueError, json.JSONDecodeError):
+                self.send_response(400)
+                self.end_headers()
+                return
+        result = _dedupe_news(tickers)
+        self._send_json(result)
+
+    def _handle_refresh_news_now(self):
+        """POST /api/admin/refresh-news-now -- {"tickers": [...]}
+        (required, a small explicit list -- unlike rescore/dedupe there's
+        no "omit for everything" default here, that would just be a
+        full news_loop-scale fetch through this one request). See
+        refresh_news_now's own docstring: the on-demand counterpart to
+        news_loop's own rotation, for when a specific ticker needs IB's
+        current news feed reflected right now instead of waiting for its
+        own turn in that rotation. Blocks this request thread on IB
+        Gateway (schedules onto ib_loop via run_coroutine_threadsafe,
+        same pattern _handle_refresh_ib_daily uses) -- fine for a small
+        ticker list; a genuinely large one should just wait for
+        news_loop's own rotation instead. Returns
+        {"newOrUpdated": int} or {"error": str}."""
+        length = int(self.headers.get("Content-Length", 0))
+        tickers = None
+        if length:
+            try:
+                body = json.loads(self.rfile.read(length))
+                tickers = body.get("tickers")
+            except (ValueError, json.JSONDecodeError):
+                self.send_response(400)
+                self.end_headers()
+                return
+        if not tickers:
+            self._send_json({"error": "tickers is required (a small explicit list)"})
+            return
+        if ib_loop is None or not app.is_connected:
+            self._send_json({"error": "IB Gateway not connected"})
+            return
+        try:
+            future = asyncio.run_coroutine_threadsafe(refresh_news_now(tickers), ib_loop)
+            result = future.result(timeout=60)
         except Exception as e:
             self._send_json({"error": str(e)})
             return
@@ -3015,11 +3588,22 @@ class Handler(BaseHTTPRequestHandler):
         self._send_json({"answer": answer})
 
     def _handle_news_article(self, query):
-        """Lazy on-demand article body fetch (see IBApp.get_news_article_async)
-        -- ?ticker=...&articleId=... identifies the article; providerCode
-        is looked up server-side from the already-cached headline (same
-        news_by_ticker bucket GET /api/news reads) rather than trusting a
-        client-supplied value."""
+        """Article body for display -- ?ticker=...&articleId=... identifies
+        the article. Checks news_bodies_by_id (see NEWS_BODIES_FILE's own
+        comment) first -- body_fetch_loop already fills this in for
+        anything from the last BODY_FETCH_WINDOW_HOURS, so a user viewing
+        a recent headline gets an instant response, no IB round-trip at
+        all. Falls back to a live fetch (IBApp.get_news_article_async,
+        providerCode looked up server-side from the already-cached
+        headline rather than trusting a client-supplied value) only on a
+        genuine cache miss -- an older article outside that window, or one
+        body_fetch_loop hasn't reached yet this cycle.
+
+        Either way a body is obtained, it's cached (if freshly fetched)
+        and this one article is re-scored headline+body
+        (news_sentiment.score_articles), unconditionally preferring that
+        over whatever score it already had -- same policy body_fetch_loop
+        itself uses, see that function's own docstring for the tradeoff."""
         ticker = (query.get("ticker") or [None])[0]
         article_id = (query.get("articleId") or [None])[0]
         if not ticker or not article_id:
@@ -3028,6 +3612,10 @@ class Handler(BaseHTTPRequestHandler):
             return
         with lock:
             article = news_by_ticker.get(ticker, {}).get(article_id)
+            cached_body = news_bodies_by_id.get(article_id)
+        if cached_body is not None:
+            self._send_json({"text": cached_body})
+            return
         provider = article.get("provider") if article else None
         if not provider:
             self.send_response(404)
@@ -3044,7 +3632,25 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as e:
             self._send_json({"error": str(e)})
             return
+        if text:
+            text = strip_boilerplate(text)
+            score = score_articles([article.get("headline")], [text])[0]
+            with lock:
+                news_bodies_by_id[article_id] = text
+                cached = news_by_ticker.get(ticker, {}).get(article_id)
+                if cached is not None:
+                    cached["sentiment"] = score
+            _prune_and_write_news()
         self._send_json({"text": text})
+
+    def _handle_pid(self):
+        """GET /api/admin/pid -> {"pid": int} -- this process's own OS
+        PID. Exists so a caller that already knows a second ib_server.py
+        would refuse a second IB Gateway connection (see main.py's
+        _ib_server_running/refresh_ib_daily_history/refresh_ib_hourly_
+        history) can say WHICH already-running process it's deferring to
+        in its own log line, not just that one exists."""
+        self._send_json({"pid": os.getpid()})
 
     def _send_json(self, data):
         with lock:
@@ -3283,9 +3889,14 @@ def run_ib_client(tickers, no_news=False):
     # this, a no_news run against a cache that predates FinBERT scoring
     # would leave news_sentiment.json permanently empty, since no_news
     # skips the only other thing (news_loop) that would ever score them.
+    # body_fetch_loop is also scheduled regardless of no_news, same
+    # reasoning -- it spends a separate IB pacing budget (reqNewsArticle,
+    # not reqHistoricalNews), so no_news skipping the headline download
+    # doesn't need to skip fetching bodies for whatever's already cached.
     _load_news_file()
     _load_news_bodies_file()
     asyncio.ensure_future(_backfill_news_sentiment())
+    asyncio.ensure_future(body_fetch_loop())
     if not no_news:
         asyncio.ensure_future(news_loop())
     app.ib.run()
