@@ -521,11 +521,9 @@ export default function AssetView({ ticker }: { ticker: string }) {
               currentPrice={sim.currentPrice ?? (lastPrice as number)}
               forecastPrice={sim.forecastPrice}
               forecastReturn={sim.forecastReturn}
-              p5={sim.forecastPriceP5 ?? sim.priceAtIndustryMultiple.p5}
-              p25={sim.forecastPriceP25 ?? sim.priceAtIndustryMultiple.p25}
+              p20={sim.forecastPriceP20 ?? sim.priceAtIndustryMultiple.p20}
               median={sim.priceAtIndustryMultiple.median}
-              p75={sim.forecastPriceP75 ?? sim.priceAtIndustryMultiple.p75}
-              p95={sim.forecastPriceP95 ?? sim.priceAtIndustryMultiple.p95}
+              p80={sim.forecastPriceP80 ?? sim.priceAtIndustryMultiple.p80}
               probAboveCurrentPrice={sim.priceAtIndustryMultiple.probAboveCurrentPrice}
               analystLow={sim.analystTargets?.low}
               analystMean={sim.analystTargets?.mean}

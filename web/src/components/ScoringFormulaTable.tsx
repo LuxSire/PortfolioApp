@@ -19,10 +19,15 @@ function fmtPct(weight: number): string {
 // columns take precedence over Growth when a ticker matches both.
 //
 // Each row is one scoring factor; a few blend more than one signal
-// internally -- e.g. "Simulations (forecast return + Sharpe)" is an
-// equal-weight average of the Monte Carlo forecastReturn rank and the
-// simulated-path Modified-Sharpe rank (see scoring.forecast_return_rank),
-// so the weight shown is on that blend, not on forecastReturn alone.
+// internally -- e.g. "Simulations (forecast return + sim return)" is an
+// equal-weight average of the Monte Carlo forecastReturn rank (the
+// confidence-shrunk point estimate) and the simReturn rank (the raw
+// simulated-path price-distribution mean), see
+// scoring.forecast_return_rank, so the weight shown is on that blend, not
+// on forecastReturn alone.
+// "Revenue growth" and "Earnings growth" are separate rows on purpose:
+// top-line vs bottom-line growth are distinct signals, and revenue growth
+// is only capped by (never rewarded for) earnings growth internally.
 //
 // Built after real incidents: Yahoo Finance doesn't populate
 // debtToEquity/quickRatio/currentRatio/enterpriseToEbitda/freeCashflow for

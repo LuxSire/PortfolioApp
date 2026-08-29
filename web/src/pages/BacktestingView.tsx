@@ -1,17 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
-import { RATING_BUCKETS, type Backtest, type RatingBucket } from '../interfaces/IBacktestingView'
+import { GROUPS, GROUP_LABEL, type Backtest, type GroupKey } from '../interfaces/IBacktestingView'
 
 function fmtPct(v: number | null | undefined): string {
   if (v === null || v === undefined) return '—'
   return (v >= 0 ? '+' : '') + (v * 100).toFixed(2) + '%'
-}
-function fmtVol(v: number | null | undefined): string {
-  if (v === null || v === undefined) return '—'
-  return (v * 100).toFixed(2) + '%'
-}
-function fmtRatio(v: number | null | undefined): string {
-  if (v === null || v === undefined) return '—'
-  return v.toFixed(2)
 }
 function signClass(v: number | null | undefined): string {
   if (v === null || v === undefined) return ''
@@ -24,21 +16,29 @@ function fmtWeek(iso: string): string {
   return `${month} ${Number(d)} '${y.slice(2)}`
 }
 
-const BUCKET_CLASS: Record<RatingBucket, string> = {
-  'Strong Buy': 'good',
-  Buy: 'good',
-  Sell: 'bad',
-  'Strong Sell': 'bad',
+const GROUP_CLASS: Record<GroupKey, string> = {
+  long_strong_buy: 'good',
+  long_buy: 'good',
+  long_blocked: '',
+  short_strong_sell: 'bad',
+  short_sell: 'bad',
+  short_blocked: '',
 }
-const BUCKET_ORDER: Record<RatingBucket, number> = { 'Strong Buy': 0, Buy: 1, Sell: 2, 'Strong Sell': 3 }
+const GROUP_ORDER: Record<GroupKey, number> = GROUPS.reduce(
+  (acc, g, i) => ({ ...acc, [g]: i }),
+  {} as Record<GroupKey, number>,
+)
 
-// Each historical screen snapshot scored forward one week against IB's
-// daily bars (see modules/backtest.py) -- per rating bucket, equal-weight
-// weekly return / volatility / Sharpe, then the per-ticker returns
-// underneath. One column per week; the first (oldest) snapshot leads.
+// Every rated Recommendations candidate scored forward one week from each
+// dated snapshot (see modules/backtest.py), split by the same entry gates
+// the Recommendations page applies: Long / Short vs Long blocked / Short
+// blocked. Returns are POSITION P&L (+ for a long that rose, + for a
+// short that fell), so on every row a positive number = the call worked.
+// One column per week; oldest snapshot first.
 export default function BacktestingView() {
   const [data, setData] = useState<Backtest | null>(null)
   const [error, setError] = useState(false)
+  const [groupFilter, setGroupFilter] = useState<GroupKey | 'all'>('all')
 
   useEffect(() => {
     fetch('/backtest.json')
@@ -49,28 +49,31 @@ export default function BacktestingView() {
 
   const weeks = useMemo(() => data?.weeks ?? [], [data])
 
-  // ticker -> { rating (from its most recent week), return per week }
+  // ticker -> { rating & group from its most recent week, P&L per week }
   const tickerRows = useMemo(() => {
-    const map = new Map<string, { ticker: string; rating: RatingBucket; byWeek: Record<string, number> }>()
+    const map = new Map<string, { ticker: string; rating: string; group: GroupKey; byWeek: Record<string, number> }>()
     for (const w of weeks) {
       for (const t of w.tickers) {
-        const row = map.get(t.ticker) ?? { ticker: t.ticker, rating: t.rating, byWeek: {} }
-        row.rating = t.rating // weeks are oldest-first, so this ends on the latest
+        const row = map.get(t.ticker) ?? { ticker: t.ticker, rating: t.rating, group: t.group, byWeek: {} }
+        row.rating = t.rating
+        row.group = t.group // weeks are oldest-first, so this ends on the latest
         row.byWeek[w.week] = t.return
         map.set(t.ticker, row)
       }
     }
     const latest = weeks.length ? weeks[weeks.length - 1].week : null
     return [...map.values()].sort((a, b) => {
-      if (BUCKET_ORDER[a.rating] !== BUCKET_ORDER[b.rating]) return BUCKET_ORDER[a.rating] - BUCKET_ORDER[b.rating]
+      if (GROUP_ORDER[a.group] !== GROUP_ORDER[b.group]) return GROUP_ORDER[a.group] - GROUP_ORDER[b.group]
       const ra = latest ? (a.byWeek[latest] ?? -Infinity) : 0
       const rb = latest ? (b.byWeek[latest] ?? -Infinity) : 0
       return rb - ra
     })
   }, [weeks])
 
+  const visibleRows = groupFilter === 'all' ? tickerRows : tickerRows.filter((r) => r.group === groupFilter)
+
   const totalLatest = weeks.length
-    ? RATING_BUCKETS.reduce((s, b) => s + (weeks[weeks.length - 1].buckets[b]?.count ?? 0), 0)
+    ? GROUPS.reduce((s, g) => s + (weeks[weeks.length - 1].groups[g]?.count ?? 0), 0)
     : 0
 
   return (
@@ -91,17 +94,22 @@ export default function BacktestingView() {
             </div>
             <div className="stat">
               <span className="n num">{totalLatest}</span>
-              <span className="l">tickers scored (latest)</span>
+              <span className="l">candidates (latest)</span>
             </div>
           </div>
         )}
       </header>
 
-      {error && <div className="asset-card">Couldn't load backtest.json — run `python main.py backtest` (or the Backtesting row on the Dataset tab).</div>}
+      {error && (
+        <div className="asset-card">
+          Couldn't load backtest.json — run <code>python main.py backtest</code> (or the Backtesting row on the Dataset
+          tab).
+        </div>
+      )}
       {!error && !data && <div className="asset-card">Loading…</div>}
       {!error && data && weeks.length === 0 && (
         <div className="asset-card">
-          No dated screen snapshots found. Drop a <code>sorted_screen &lt;YYYYMMDD&gt;.csv</code> into{' '}
+          No dated snapshots found. Drop a <code>sorted_screen &lt;YYYYMMDD&gt;.csv</code> into{' '}
           <code>data/output/history/</code> and re-run the backtest.
         </div>
       )}
@@ -109,65 +117,88 @@ export default function BacktestingView() {
       {!error && data && weeks.length > 0 && (
         <>
           <section className="target-section">
-            <h2 className="section-heading">Rating buckets — forward one-week performance (equal weight)</h2>
+            <h2 className="section-heading">Recommendation groups — forward one-week P&amp;L (equal weight)</h2>
             <div className="table-wrap">
               <table>
                 <thead>
                   <tr>
-                    <th className="col-left" rowSpan={2}>
-                      Bucket
-                    </th>
+                    <th className="col-left">Group</th>
                     {weeks.map((w) => (
                       <th
                         key={w.week}
-                        colSpan={3}
+                        className="num"
                         title={w.entryDate && w.exitDate ? `${w.entryDate} → ${w.exitDate}` : undefined}
                       >
                         {fmtWeek(w.week)}
                       </th>
                     ))}
                   </tr>
-                  <tr>
-                    {weeks.map((w) => (
-                      <FragmentSubHead key={w.week} />
-                    ))}
-                  </tr>
                 </thead>
                 <tbody>
-                  {RATING_BUCKETS.map((b) => (
-                    <tr key={b}>
-                      <td className={`col-left ${BUCKET_CLASS[b]}`}>{b}</td>
+                  {GROUPS.map((g) => (
+                    <tr key={g}>
+                      <td className={`col-left ${GROUP_CLASS[g]}`}>{GROUP_LABEL[g]}</td>
                       {weeks.map((w) => {
-                        const s = w.buckets[b]
+                        const s = w.groups[g]
                         return (
-                          <FragmentBucketCells
+                          <td
                             key={w.week}
-                            ret={s?.return ?? null}
-                            vol={s?.vol ?? null}
-                            sharpe={s?.sharpe ?? null}
-                            count={s?.count ?? 0}
-                          />
+                            className={`num ${signClass(s?.return ?? null)}`}
+                            title={s?.count ? `${s.count} names` : undefined}
+                          >
+                            {fmtPct(s?.return ?? null)}
+                          </td>
                         )
                       })}
                     </tr>
                   ))}
                 </tbody>
+                <tfoot>
+                  <tr>
+                    <td className="col-left">Portfolio (Strong Buy + Strong Sell)</td>
+                    {weeks.map((w) => (
+                      <td
+                        key={w.week}
+                        className={`num ${signClass(w.portfolio?.return ?? null)}`}
+                        title={w.portfolio?.count ? `${w.portfolio.count} names` : undefined}
+                      >
+                        {fmtPct(w.portfolio?.return ?? null)}
+                      </td>
+                    ))}
+                  </tr>
+                </tfoot>
               </table>
             </div>
             <p className="dataset-note">
-              Ret = equal-weight mean of the bucket's weekly stock returns (raw, so a working screen makes Strong Sell
-              negative). Vol = stdev of the bucket's equal-weight daily returns × √days. Sharpe = Ret / Vol (rf ≈ 0). n =
-              names with IB daily bars in the window.
+              Equal-weight mean position P&amp;L: +stock return for Long groups, −stock return for Short groups, so
+              positive always means the pick worked. n (hover a cell) = candidates with IB daily bars in the window.
+              "blocked" = failed a Recommendations entry gate (overbought / oversold momentum or mean-reversion, growth
+              threshold, crowded short, EPS-trend) — a working gate makes the blocked group worse than its un-blocked
+              counterpart. Portfolio = the gated Strong Buy long leg + gated Strong Sell short leg summed (dollar-neutral,
+              each leg equal-weight 100% gross).
             </p>
           </section>
 
           <section className="target-section">
-            <h2 className="section-heading">Tickers — weekly return</h2>
+            <h2 className="section-heading">Candidates — weekly P&amp;L</h2>
+            <div className="tab-bar">
+              {(['all', ...GROUPS] as const).map((g) => (
+                <button
+                  key={g}
+                  type="button"
+                  className={`tab-btn${groupFilter === g ? ' active' : ''}`}
+                  onClick={() => setGroupFilter(g)}
+                >
+                  {g === 'all' ? `All (${tickerRows.length})` : GROUP_LABEL[g]}
+                </button>
+              ))}
+            </div>
             <div className="table-wrap">
               <table>
                 <thead>
                   <tr>
                     <th className="col-left">Ticker</th>
+                    <th className="col-left">Group</th>
                     <th className="col-left">Rating</th>
                     {weeks.map((w) => (
                       <th key={w.week}>{fmtWeek(w.week)}</th>
@@ -175,7 +206,7 @@ export default function BacktestingView() {
                   </tr>
                 </thead>
                 <tbody>
-                  {tickerRows.map((r) => (
+                  {visibleRows.map((r) => (
                     <tr key={r.ticker}>
                       <td className="col-left">
                         <a
@@ -187,7 +218,8 @@ export default function BacktestingView() {
                           {r.ticker}
                         </a>
                       </td>
-                      <td className={`col-left ${BUCKET_CLASS[r.rating]}`}>{r.rating}</td>
+                      <td className={`col-left ${GROUP_CLASS[r.group]}`}>{GROUP_LABEL[r.group]}</td>
+                      <td className="col-left">{r.rating}</td>
                       {weeks.map((w) => {
                         const v = r.byWeek[w.week]
                         return (
@@ -208,34 +240,3 @@ export default function BacktestingView() {
   )
 }
 
-function FragmentSubHead() {
-  return (
-    <>
-      <th className="num">Ret</th>
-      <th className="num">Vol</th>
-      <th className="num">Sharpe</th>
-    </>
-  )
-}
-
-function FragmentBucketCells({
-  ret,
-  vol,
-  sharpe,
-  count,
-}: {
-  ret: number | null
-  vol: number | null
-  sharpe: number | null
-  count: number
-}) {
-  return (
-    <>
-      <td className={`num ${signClass(ret)}`} title={count ? `${count} names` : undefined}>
-        {fmtPct(ret)}
-      </td>
-      <td className="num">{fmtVol(vol)}</td>
-      <td className={`num ${signClass(sharpe)}`}>{fmtRatio(sharpe)}</td>
-    </>
-  )
-}

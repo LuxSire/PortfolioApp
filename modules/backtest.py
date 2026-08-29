@@ -1,54 +1,149 @@
 """backtest.py -- forward weekly performance of each historical screen's
-rating buckets.
+RECOMMENDATION groups.
 
 For every ``data/output/history/sorted_screen <YYYYMMDD>.csv`` snapshot,
-joins each rated ticker to its forward one-week return from IB's daily
-bars (``data/IB/price_history_daily_3mo.json``):
+every rated candidate (Strong Buy / Buy / Sell / Strong Sell -- the same
+set the Recommendations page draws from) is put into one of six groups
+by the same entry gates RecommendationsView.tsx applies:
 
-  entry = last close on/before the screen date   (e.g. Fri for a Sat date)
+  long_strong_buy   Strong Buy that clears the long gates
+  long_buy          Buy that clears the long gates
+  long_blocked      Buy/Strong Buy that fails one (overbought momentum,
+                    mean-reversion overbought, weak growth, negative EPS-trend)
+  short_strong_sell Strong Sell that clears the short gates
+  short_sell        Sell that clears the short gates
+  short_blocked     Sell/Strong Sell that fails one (oversold momentum,
+                    mean-reversion oversold, too much growth, crowded short,
+                    positive EPS-trend)
+
+Each candidate's forward one-week return is taken from IB's daily bars
+(``data/IB/price_history_daily_3mo.json``):
+
+  entry = last close on/before the screen date   (Fri for a Sat date)
   exit  = last close on/before the screen date + 7 days
 
-then aggregates per rating bucket, equal-weight:
+then per group, equal-weight:
 
-  return : mean of the bucket members' weekly returns
-  vol    : stdev of the bucket's equal-weight DAILY return series over the
-           week, x sqrt(n_days)  -> weekly volatility
-  sharpe : return / vol          (risk-free ~ 0 over a single week)
+  return : mean POSITION P&L -- +stock return for longs, -stock return
+           for shorts, so a positive number always means the pick worked
 
-Sell / Strong Sell buckets carry the RAW stock return (a good screen makes
-Strong Sell negative), not a short-side P&L -- one sign convention across
-all five buckets.
+The point of the long_blocked / short_blocked groups is to check whether
+the gates actually help: a working gate makes blocked picks worse than
+un-blocked ones. Each week also carries a ``portfolio`` -- the gated
+Strong Buy long leg + gated Strong Sell short leg summed (dollar-neutral,
+each leg equal-weight 100% gross).
 
-Output: ``{generatedAt, weeks: [{week, entryDate, exitDate, buckets,
-tickers}]}``, oldest week first. Recomputed in full every run (cheap,
-deterministic) -- new weeks appear simply by dropping another
-``sorted_screen <date>.csv`` into the history folder. IB daily history only
-reaches back ~3 months, so weeks older than that lose price coverage; each
-bucket carries its own ``count`` so the table can show how many names it
-actually spans.
+Output: ``{generatedAt, weeks: [{week, entryDate, exitDate, groups,
+portfolio, tickers}]}``, oldest week first. Recomputed in full every run -- new weeks
+appear by dropping another dated snapshot into the history folder. IB
+daily history only reaches ~3 months back, so older weeks lose coverage;
+each group carries its own ``count``.
 """
 
 import csv
 import glob
 import json
-import math
 import os
 import re
 import statistics
 from datetime import date, datetime, timedelta, timezone
 
-# Fixed display / iteration order. Hold and "NA" (priced but unscored)
-# are skipped -- Hold is the ~950-name middle-of-the-pack bucket with only
-# partial IB daily-bar coverage and no directional thesis to score.
-RATING_BUCKETS = ["Strong Buy", "Buy", "Sell", "Strong Sell"]
+GROUPS = [
+    "long_strong_buy",
+    "long_buy",
+    "long_blocked",
+    "short_strong_sell",
+    "short_sell",
+    "short_blocked",
+]
+
+_LONG_RATINGS = {"Strong Buy", "Buy"}
+_SHORT_RATINGS = {"Strong Sell", "Sell"}
+
+# Kept in lockstep with ib_server._REC_* / RecommendationsView.tsx.
+_MOMENTUM_OVERSOLD = 30
+_MOMENTUM_OVERBOUGHT = 70
+_REVENUE_GROWTH_THRESHOLD = 0.1
+_MEAN_REVERSION_OVERBOUGHT = 80
+_MEAN_REVERSION_OVERSOLD = 20
+_MAX_SHORT_INTEREST = 0.1
 
 _HISTORY_RE = re.compile(r"sorted_screen[ _](\d{4})(\d{2})(\d{2})\.csv$")
 
 
+def _f(x):
+    try:
+        v = float(x)
+        return v if v == v else None  # drop NaN
+    except (TypeError, ValueError):
+        return None
+
+
+def _eps_trend(row):
+    vals = [v for v in (_f(row.get("epsRevision0y")), _f(row.get("epsRevision1y"))) if v is not None]
+    return sum(vals) / len(vals) if vals else None
+
+
+def _short_pct(row):
+    return _f(row.get("shortPctOfFloatFinra")) or _f(row.get("shortPercentOfFloat"))
+
+
+def _passes_long_gates(row):
+    """RecommendationsView.tsx's eligibleToBuy + sufficientGrowthForLong +
+    meanReversionOkForLong + epsTrendOkForLong. Momentum gate BLOCKS
+    overbought, doesn't REQUIRE oversold."""
+    momentum = _f(row.get("momentum"))
+    if momentum is None or momentum > _MOMENTUM_OVERBOUGHT:
+        return False
+    growth = _f(row.get("revenueGrowth"))
+    if growth is not None and growth < _REVENUE_GROWTH_THRESHOLD:
+        return False
+    mr = _f(row.get("meanReversion"))
+    if mr is not None and mr >= _MEAN_REVERSION_OVERBOUGHT:
+        return False
+    eps = _eps_trend(row)
+    if eps is not None and eps < 0:
+        return False
+    return True
+
+
+def _passes_short_gates(row):
+    """RecommendationsView.tsx's eligibleToSell + notCrowded +
+    notTooMuchGrowthForShort + meanReversionOkForShort +
+    epsTrendOkForShort. Momentum gate BLOCKS oversold."""
+    momentum = _f(row.get("momentum"))
+    if momentum is None or momentum < _MOMENTUM_OVERSOLD:
+        return False
+    sp = _short_pct(row)
+    if sp is not None and sp > _MAX_SHORT_INTEREST:
+        return False
+    growth = _f(row.get("revenueGrowth"))
+    if growth is not None and growth > _REVENUE_GROWTH_THRESHOLD:
+        return False
+    mr = _f(row.get("meanReversion"))
+    if mr is not None and mr <= _MEAN_REVERSION_OVERSOLD:
+        return False
+    eps = _eps_trend(row)
+    if eps is not None and eps > 0:
+        return False
+    return True
+
+
+def _group_for(row):
+    rating = row.get("rating")
+    if rating in _LONG_RATINGS:
+        if not _passes_long_gates(row):
+            return "long_blocked"
+        return "long_strong_buy" if rating == "Strong Buy" else "long_buy"
+    if rating in _SHORT_RATINGS:
+        if not _passes_short_gates(row):
+            return "short_blocked"
+        return "short_strong_sell" if rating == "Strong Sell" else "short_sell"
+    return None
+
+
 def _history_files(history_dir):
-    """[(week_iso, path), ...] for every sorted_screen <YYYYMMDD>.csv in
-    history_dir (space or underscore before the date), one per date,
-    sorted oldest first."""
+    """[(week_iso, path), ...], one per date, oldest first."""
     by_week = {}
     for path in glob.glob(os.path.join(history_dir, "sorted_screen *.csv")) + glob.glob(
         os.path.join(history_dir, "sorted_screen_*.csv")
@@ -61,8 +156,7 @@ def _history_files(history_dir):
 
 
 def _load_daily_closes(daily_file):
-    """{ticker: [(date_iso, close), ...]} sorted by date, from IB's
-    {ticker: [{date, close, ...}]} daily-bar file."""
+    """{ticker: [(date_iso, close), ...]} sorted by date."""
     try:
         with open(daily_file) as f:
             raw = json.load(f)
@@ -70,23 +164,18 @@ def _load_daily_closes(daily_file):
         return {}
     closes = {}
     for ticker, bars in raw.items():
-        series = []
-        for b in bars or []:
-            d = (b.get("date") or "")[:10]
-            c = b.get("close")
-            if d and c is not None:
-                series.append((d, float(c)))
+        series = sorted(
+            ((b["date"][:10], float(b["close"])) for b in bars or [] if b.get("date") and b.get("close") is not None)
+        )
         if series:
-            series.sort()
             closes[ticker] = series
     return closes
 
 
 def _window_series(series, entry_cutoff, exit_cutoff):
-    """The close path used for one ticker's weekly return: the last bar
-    on/before entry_cutoff, followed by every bar after that up to and
-    including exit_cutoff. None when there's no entry bar or nothing after
-    it in the window."""
+    """Close path for one ticker's weekly return: last bar on/before
+    entry_cutoff, then every bar after it up to exit_cutoff. None when
+    there's no entry bar or nothing after it in the window."""
     if not series:
         return None
     entry_idx = None
@@ -106,36 +195,13 @@ def _window_series(series, entry_cutoff, exit_cutoff):
     return path if len(path) >= 2 else None
 
 
-def _bucket_stats(members):
-    """{return, vol, sharpe, count} for one rating bucket. members is a
-    list of per-ticker dicts with `ret` (weekly) and `path` (the
-    _window_series close path). Equal-weight, daily-rebalanced."""
+def _group_stats(members):
+    """{return, count} for one group. members carry `pnl` (signed weekly
+    P&L). return is the equal-weight mean of the members' weekly P&L."""
     if not members:
-        return {"return": None, "vol": None, "sharpe": None, "count": 0}
-
-    weekly = statistics.fmean(m["ret"] for m in members)
-
-    # Equal-weight portfolio's daily return per trading day, keyed by the
-    # day's date so members that miss a bar just don't contribute to that
-    # step rather than misaligning the whole series.
-    step_returns = {}
-    for m in members:
-        path = m["path"]
-        for (_, prev_c), (cur_d, cur_c) in zip(path, path[1:]):
-            if prev_c:
-                step_returns.setdefault(cur_d, []).append(cur_c / prev_c - 1)
-    port_daily = [statistics.fmean(v) for _, v in sorted(step_returns.items())]
-
-    vol = sharpe = None
-    if len(port_daily) >= 2:
-        vol = statistics.stdev(port_daily) * math.sqrt(len(port_daily))
-        if vol > 0:
-            sharpe = weekly / vol
-
+        return {"return": None, "count": 0}
     return {
-        "return": round(weekly, 6),
-        "vol": round(vol, 6) if vol is not None else None,
-        "sharpe": round(sharpe, 4) if sharpe is not None else None,
+        "return": round(statistics.fmean(m["pnl"] for m in members), 6),
         "count": len(members),
     }
 
@@ -150,47 +216,57 @@ def _build_week(week_iso, csv_path, closes):
 
     records = []
     for row in rows:
-        rating = row.get("rating")
+        group = _group_for(row)
         ticker = row.get("ticker")
-        if rating not in RATING_BUCKETS or not ticker:
+        if group is None or not ticker:
             continue
         path = _window_series(closes.get(ticker), entry_cutoff, exit_cutoff)
         if not path:
             continue
+        sign = 1.0 if group.startswith("long") else -1.0
         records.append({
             "ticker": ticker,
-            "rating": rating,
-            "ret": path[-1][1] / path[0][1] - 1,
-            "path": path,
+            "rating": row.get("rating"),
+            "group": group,
+            "pnl": sign * (path[-1][1] / path[0][1] - 1),
+            "entry_d": path[0][0],
+            "exit_d": path[-1][0],
         })
 
-    by_bucket = {b: [r for r in records if r["rating"] == b] for b in RATING_BUCKETS}
-    buckets = {b: _bucket_stats(by_bucket[b]) for b in RATING_BUCKETS}
+    by_group = {g: [r for r in records if r["group"] == g] for g in GROUPS}
+    groups = {g: _group_stats(by_group[g]) for g in GROUPS}
 
-    all_dates = [d for r in records for d, _ in r["path"]]
-    entry_date = min(all_dates) if all_dates else None
-    exit_date = max(all_dates) if all_dates else None
+    # Dollar-neutral book: the gated Strong Buy longs + gated Strong Sell
+    # shorts, each leg equal-weight & 100% gross. P&L is just the sum of
+    # the two group P&Ls (already position-signed). None if either leg is
+    # empty for the week.
+    sb, ss = groups["long_strong_buy"], groups["short_strong_sell"]
+    portfolio = {
+        "return": round(sb["return"] + ss["return"], 6) if sb["return"] is not None and ss["return"] is not None else None,
+        "count": sb["count"] + ss["count"],
+    }
 
-    order = {b: i for i, b in enumerate(RATING_BUCKETS)}
+    order = {g: i for i, g in enumerate(GROUPS)}
     tickers = sorted(
-        ({"ticker": r["ticker"], "rating": r["rating"], "return": round(r["ret"], 6)} for r in records),
-        key=lambda t: (order[t["rating"]], -t["return"]),
+        ({"ticker": r["ticker"], "rating": r["rating"], "group": r["group"], "return": round(r["pnl"], 6)} for r in records),
+        key=lambda t: (order[t["group"]], -t["return"]),
     )
 
     return {
         "week": week_iso,
-        "entryDate": entry_date,
-        "exitDate": exit_date,
-        "buckets": buckets,
+        "entryDate": min((r["entry_d"] for r in records), default=None),
+        "exitDate": max((r["exit_d"] for r in records), default=None),
+        "groups": groups,
+        "portfolio": portfolio,
         "tickers": tickers,
     }
 
 
 def build_backtest(history_dir, daily_file):
     """See module docstring. Returns the JSON-ready result dict. Weeks with
-    no price coverage yet -- the most recent snapshot, whose forward week
-    hasn't finished, or any week older than IB's ~3-month daily history --
-    are dropped rather than rendered as an all-blank column."""
+    no price coverage yet -- the newest snapshot whose forward week hasn't
+    finished, or any week older than IB's ~3-month daily history -- are
+    dropped rather than rendered as an all-blank column."""
     closes = _load_daily_closes(daily_file)
     weeks = [
         w

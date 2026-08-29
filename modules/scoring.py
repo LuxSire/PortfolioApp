@@ -592,17 +592,49 @@ def growth_rank(rows):
     base-effect artifact (a ratio that reads in the thousands of percent)
     can't claim the single best rank ahead of a company with a real,
     still-exceptional growth number -- see GROWTH_CAP's own comment.
-    revenueGrowth itself is dilution-adjusted at the source (see
-    IBApp._revenue_per_share_growth) rather than Yahoo's raw total-company
-    ratio -- restated per-share so growth bought with newly issued shares
-    (an all-stock acquisition) doesn't count the same as organic growth.
-    That adjusted-but-uncapped value is untouched everywhere else (the row
-    dict, forward_pe.csv, sorted_screen.csv, the screener UI); only the
-    number fed into rank_ascending here is clamped."""
+
+    revenueGrowth is dilution-adjusted at the source (see
+    IBApp._revenue_per_share_growth) so all-STOCK acquisitions don't count
+    as organic growth. The number ranked here is corroborated one step
+    further, against trailing earningsGrowth: when earnings grew slower
+    than revenue (or shrank), revenue growth is credited only up to
+    max(earningsGrowth, 0). That catches what the per-share adjustment
+    can't -- an all-CASH acquisition (DKS: +53% revenueGrowth / -26%
+    earningsGrowth from the Foot Locker deal, then -27% the next week), a
+    low-margin roll-up, or unprofitable top-line expansion. Missing
+    earningsGrowth (~28% of the universe) just means no corroboration cap.
+    The raw revenueGrowth is untouched everywhere else (row dict,
+    screen_data.csv, sorted_screen.csv, the screener UI)."""
     def key(d):
         value = to_float(d.get("revenueGrowth"))
-        return -min(value, GROWTH_CAP) if value is not None and value > 0 else None
+        if value is None or value <= 0:
+            return None
+        value = min(value, GROWTH_CAP)
+        earnings = to_float(d.get("earningsGrowth"))
+        if earnings is not None and earnings < value:
+            value = min(value, max(earnings, 0.0))
+        return -value
     return rank_ascending(rows, key)
+
+
+def earnings_growth_rank(rows):
+    """High trailing earningsGrowth (yfinance's YoY figure) ranks better,
+    shrinking earnings worse, on a smooth scale -- the value is clamped to
+    +/-GROWTH_CAP first so a near-zero-prior-year base-effect blowup (a
+    $0.01 -> $1.00 EPS reads as +9,900%, or the mirror on the way down)
+    can't claim the best or worst rank outright, then negated for
+    rank_ascending. A MISSING earningsGrowth (~29% of the universe --
+    Yahoo just doesn't supply it) is ranked NEUTRAL (missing=0.5), not
+    worst: data absence isn't a bearish signal, same reasoning peg_rank/
+    eps_volatility_rank use, and the same fail-open growth_rank already
+    applies to its own earningsGrowth cap. Its own factor alongside
+    growth_rank (revenue growth) -- top-line and bottom-line growth are
+    distinct signals, and growth_rank only uses earningsGrowth as a
+    one-way CAP on revenue growth, never as a reward in its own right."""
+    def key(d):
+        value = to_float(d.get("earningsGrowth"))
+        return -max(-GROWTH_CAP, min(value, GROWTH_CAP)) if value is not None else None
+    return rank_ascending(rows, key, missing=0.5)
 
 
 # momentum_rank's "sweet spot" curve for the daily Money Flow Index/RSI
@@ -708,29 +740,32 @@ def eps_trend_rank(rows):
 
 
 def forecast_return_rank(rows):
-    """Equal-weight blend of two ranks from modules/simulations.py's
-    EPS-driven Monte Carlo (see that module's own docstring):
+    """Equal-weight blend of two predicted-return ranks from
+    modules/simulations.py's EPS-driven Monte Carlo (see that module's own
+    docstring) -- one from the forecast price, one from the simulated
+    price, so a name has to look attractive on BOTH the shrunk point
+    estimate and the raw distribution to rank well:
 
-      - high forecastReturn (simReturn): the confidence-discounted
-        predicted return, (forecastPrice / currentPrice) - 1, where
-        forecastPrice is today's price shifted by the discounted blended-
-        multiple median move -- how MUCH upside the simulation sees.
-      - high simSharpe: the Modified (Israelsen 2005) Sharpe of the
-        simulated-path return distribution -- return per unit of downside
-        risk, i.e. how RELIABLE that upside is.
+      - high forecastReturn: (forecastPrice / currentPrice) - 1, the
+        confidence-discounted point estimate -- today's price shifted by
+        the discounted blended-multiple median move, then pulled back
+        toward current price by 1/(1+combinedVol).
+      - high simReturn: (simPrice / currentPrice) - 1, where simPrice is
+        the MEAN of the simulated-path price distribution -- the raw
+        earnings-path outcome, NOT confidence-shrunk.
 
     Both are injected into each row dict by write_sorted_screen_csv
     (main.py) from data/output/simulations.json before scoring; a
-    successful simulation always carries both, so in practice they are
-    co-present (confirmed: 1655/1655 non-error entries have each).
-    Averaging the two ranks (not the raw values, which are on different
-    scales -- a return vs. a ratio) the same way margin_rank/
-    analyst_conviction_rank blend their own components. A ticker with no
-    simulations entry at all is ranked worst on both legs, same treatment
-    as every other factor's missing data."""
-    return_ranks = rank_ascending(rows, neg_perf("simReturn"))
-    sharpe_ranks = rank_ascending(rows, neg_perf("simSharpe"))
-    return {symbol: (return_ranks[symbol] + sharpe_ranks[symbol]) / 2 for symbol, _ in rows}
+    successful simulation carries both. Averaging the two ranks (not the
+    raw values -- forecastReturn is deliberately compressed toward 0,
+    simReturn is not) the same way margin_rank/analyst_conviction_rank
+    blend their own components. A ticker with no simulations entry at all
+    is ranked worst on both legs, same treatment as every other factor's
+    missing data. (simSharpe is still injected for reference but no longer
+    scored here.)"""
+    forecast_ranks = rank_ascending(rows, neg_perf("forecastReturn"))
+    sim_ranks = rank_ascending(rows, neg_perf("simReturn"))
+    return {symbol: (forecast_ranks[symbol] + sim_ranks[symbol]) / 2 for symbol, _ in rows}
 
 
 # ---------------------------------------------------------------------- #
@@ -1228,18 +1263,31 @@ def is_growth_cohort(d):
 #   growth" -- fcf/trailing_ps/peg/margin are all deliberately left at
 #   standard).
 #
-# forecast_return raised 10% -> 13% in EVERY column (per explicit
-# instruction), alongside blending simSharpe into the factor itself (see
-# forecast_return_rank -- now an equal-weight average of the forecastReturn
-# rank and the simulated-path Modified-Sharpe rank, so the factor rewards
-# reliable simulated upside, not just large simulated upside). The +3% is
-# funded per column:
+# forecast_return raised 10% -> 13% in EVERY column, alongside blending
+# the simulated-path return into the factor itself (see
+# forecast_return_rank -- an equal-weight average of the forecastReturn
+# rank and the simReturn rank; an earlier version paired forecastReturn
+# with the simulated-path Modified-Sharpe rank instead, since replaced by
+# simReturn per explicit instruction -- score the raw simulated price,
+# not its risk ratio). The +3% was funded per column:
 #   Standard: 1% each from peg (4% -> 3%), short_interest (8% -> 7%),
 #     eps_trend (5% -> 4%).
 #   Financials: 3% from eps_trend (15% -> 12%).
 #   Utilities: 3% from sector_pe (11% -> 8%).
 #   Real Estate: 3% from eps_trend (10% -> 7%).
 #   Growth: 3% from short_interest (13% -> 10%).
+#
+# earnings_growth (trailing YoY EPS growth -- see earnings_growth_rank)
+# added as its own 3% factor, funded by trimming forecast_return 13% ->
+# 10% (net effect on forecast_return vs. its pre-Sharpe-blend weight is
+# zero). Standard/Financials/Utilities/Real Estate only -- the GROWTH
+# column keeps earnings_growth at 0% and forecast_return at 13%, since a
+# pre-profitability cohort has no or negative earnings growth by
+# definition (of ~40 scored cohort names only 3 even have the figure),
+# exactly the reason that column already zeroes roe/ev_ebitda/
+# pe_vs_trailing/eps_volatility. Distinct from growth_rank's revenue
+# growth: bottom-line growth is its own signal, and growth_rank only uses
+# earningsGrowth as a one-way cap.
 FACTOR_WEIGHTS = {
     "pe": ("Forward P/E", 0.03, 0.03, 0.03, 0.03, 0.03),
     "sector_pe": ("Forward P/E vs. sector average", 0.05, 0.12, 0.08, 0.07, 0.06),
@@ -1250,11 +1298,12 @@ FACTOR_WEIGHTS = {
     "mean_reversion": ("Hourly-timeframe overbought/oversold (MFI)", 0.05, 0.05, 0.05, 0.05, 0.05),
     "eps_trend": ("EPS-estimate revision trend", 0.04, 0.12, 0.04, 0.07, 0.07),
     "analyst": ("Analyst conviction", 0.05, 0.05, 0.05, 0.05, 0.05),
-    "forecast_return": ("Simulations (forecast return + Sharpe)", 0.13, 0.13, 0.13, 0.13, 0.13),
+    "forecast_return": ("Simulations (forecast return + sim return)", 0.10, 0.10, 0.10, 0.10, 0.13),
     "pe_vs_trailing": ("Forward P/E vs. Trailing P/E", 0.03, 0.03, 0.03, 0.03, 0.0),
     "peg": ("PEG ratio", 0.03, 0.08, 0.05, 0.05, 0.04),
     "trailing_ps": ("Trailing P/S", 0.02, 0.02, 0.02, 0.02, 0.02),
     "growth": ("Revenue growth", 0.04, 0.06, 0.02, 0.06, 0.07),
+    "earnings_growth": ("Earnings growth", 0.03, 0.03, 0.03, 0.03, 0.0),
     "debt": ("Debt/equity vs. sector average", 0.05, 0.0, 0.05, 0.0, 0.05),
     "liquidity": ("Quick/current ratio", 0.02, 0.0, 0.0, 0.0, 0.02),
     "roe": ("Return on equity", 0.03, 0.03, 0.06, 0.03, 0.0),
@@ -1333,6 +1382,7 @@ def score_rows(rows, sentiment_scores=None, insider_scores=None, short_interest_
         "peg": peg_rank(rows),
         "trailing_ps": trailing_ps_rank(rows),
         "growth": growth_rank(rows),
+        "earnings_growth": earnings_growth_rank(rows),
         "debt": debt_rank(rows),
         "liquidity": liquidity_rank(rows),
         "roe": roe_rank(rows),

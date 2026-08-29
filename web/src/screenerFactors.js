@@ -23,6 +23,7 @@ export const COLUMNS = [
   { key: 'tps', label: 'Trail PS', fmt: 'num2' },
   { key: 'peg', label: 'PEG', fmt: 'num2' },
   { key: 'revg', label: 'Rev Growth', fmt: 'pct' },
+  { key: 'earnG', label: 'Earn Growth', fmt: 'pct' },
   { key: 'pfcf', label: 'P/FCF', fmt: 'num2' },
   { key: 'evEbitda', label: 'EV/EBITDA', fmt: 'num2' },
   { key: 'opMargin', label: 'Op Margin', fmt: 'pct' },

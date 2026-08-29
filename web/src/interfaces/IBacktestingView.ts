@@ -1,31 +1,47 @@
 // Types for BacktestingView.tsx -- GET /backtest.json, written by
 // modules/backtest.py (main.py `download_backtest`).
 
-export const RATING_BUCKETS = ['Strong Buy', 'Buy', 'Sell', 'Strong Sell'] as const
-export type RatingBucket = (typeof RATING_BUCKETS)[number]
+export const GROUPS = [
+  'long_strong_buy',
+  'long_buy',
+  'long_blocked',
+  'short_strong_sell',
+  'short_sell',
+  'short_blocked',
+] as const
+export type GroupKey = (typeof GROUPS)[number]
 
-export interface BucketStats {
-  // Equal-weight, daily-rebalanced over the week. return / vol are
-  // fractions (0.012 = +1.2%); vol is stdev(daily) x sqrt(n_days).
-  // sharpe = return / vol (rf ~ 0). null when the bucket had < 2 covered
-  // names or no price path.
+export const GROUP_LABEL: Record<GroupKey, string> = {
+  long_strong_buy: 'Long · Strong Buy',
+  long_buy: 'Long · Buy',
+  long_blocked: 'Long blocked',
+  short_strong_sell: 'Short · Strong Sell',
+  short_sell: 'Short · Sell',
+  short_blocked: 'Short blocked',
+}
+
+export interface GroupStats {
+  // Equal-weight mean POSITION P&L over the week (+stock return for longs,
+  // -stock return for shorts) as a fraction (0.012 = +1.2%).
   return: number | null
-  vol: number | null
-  sharpe: number | null
   count: number
 }
 
 export interface BacktestTicker {
   ticker: string
-  rating: RatingBucket
-  return: number
+  rating: string
+  group: GroupKey
+  return: number // position P&L, same sign convention as GroupStats.return
 }
 
 export interface BacktestWeek {
-  week: string // ISO date of the screen snapshot (e.g. "2026-08-22")
-  entryDate: string | null // first close used (last bar on/before `week`)
-  exitDate: string | null // last close used (last bar on/before week + 7d)
-  buckets: Record<RatingBucket, BucketStats>
+  week: string // ISO date of the snapshot (e.g. "2026-08-22")
+  entryDate: string | null
+  exitDate: string | null
+  groups: Record<GroupKey, GroupStats>
+  // Gated Strong Buy long leg + gated Strong Sell short leg, summed
+  // (dollar-neutral, each leg equal-weight 100% gross).
+  portfolio: { return: number | null; count: number }
   tickers: BacktestTicker[]
 }
 

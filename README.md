@@ -63,7 +63,7 @@ Flex Queries → a token generated for that query.
 # also refreshes IB Gateway's own daily+hourly bars for the WHOLE active
 # universe in the background (async, gated by a 3h cooldown -- see "IB
 # Gateway bar downloads" below) -> data/yfinance/raw_data.json,
-# data/yfinance/forward_pe.csv, data/output/sorted_screen.csv, data/social_sentiment.json
+# data/yfinance/screen_data.csv, data/output/sorted_screen.csv, data/social_sentiment.json
 python main.py
 python main.py all
 
@@ -89,7 +89,7 @@ python main.py ibhprices
 python main.py yfprices
 
 # EPS-driven Monte Carlo price simulation -- zero network calls, reads
-# data/yfinance/forward_pe.csv only -> data/output/simulations.json. Every
+# data/yfinance/screen_data.csv only -> data/output/simulations.json. Every
 # simulated ticker is logged to the terminal as it completes. Defaults to
 # the FULL active universe (same scope as the Screener itself, what feeds
 # the Simulations tab; well under a minute, numpy-vectorized) when no
@@ -244,7 +244,7 @@ raw analyst consensus.
 ## Monte Carlo EPS forecast (prototype)
 
 `python main.py simulations [TICKER ...]` runs an EPS-driven Monte Carlo
-price simulation — zero network calls, reads `data/yfinance/forward_pe.csv`
+price simulation — zero network calls, reads `data/yfinance/screen_data.csv`
 only — and writes `data/output/simulations.json`. Defaults to the **full
 active universe** when no tickers are given, same as `simulations --all`.
 Full implementation in `modules/simulations.py`.
@@ -393,7 +393,7 @@ not a price target:
 | `modules/sec_edgar.py` | SEC EDGAR fetchers — Form 4 insider transactions (`python main.py form4`), XBRL company facts (`python main.py xbrl`, multi-year revenue/income/assets/equity/EPS history), and 13F institutional holdings (`python main.py 13f`, matched by company name from SEC's quarterly bulk dataset since 13F has no per-ticker CIK; downloads current + prior quarter to compute QoQ institutional share-count change, blended into the sentiment factor above and shown as its own "Inst Change" column). No API key needed, just a descriptive User-Agent and staying under SEC's rate limit. |
 | `modules/news_sentiment.py` | FinBERT (`ProsusAI/finbert`) headline scoring — 1 (very bearish) to 5 (very bullish), with a filter for mechanical "Stock Rises X%, Outperforms Peers"-style headlines that carry no real signal. |
 | `modules/theme_classifier.py` | Zero-shot classification (`facebook/bart-large-mnli`, local, no API key) of a ticker's `longBusinessSummary` against `data/theme_taxonomy.json`'s fixed theme list, for the Themes tab. Best-effort (~84% top-1 accuracy measured against hand-verified tags) — never overwrites an existing `data/ticker_themes.json` entry, only fills in untagged tickers. Run via `python main.py themes TICKER [TICKER ...]`. |
-| `modules/simulations.py` | EPS-driven Monte Carlo price simulation prototype — see [Monte Carlo EPS forecast](#monte-carlo-eps-forecast-prototype) above for the formula. Zero network calls, reads `data/yfinance/forward_pe.csv` only. Run via `python main.py simulations [TICKER ...]`. |
+| `modules/simulations.py` | EPS-driven Monte Carlo price simulation prototype — see [Monte Carlo EPS forecast](#monte-carlo-eps-forecast-prototype) above for the formula. Zero network calls, reads `data/yfinance/screen_data.csv` only. Run via `python main.py simulations [TICKER ...]`. |
 | `modules/sector_groups.py` | Python port of `web/src/sectorGroups.js`'s granular-industry → broad-GICS-sector mapping, kept in sync by hand (no shared layer across the Python/JS boundary) — used by `modules/simulations.py`'s industry→sector peer-group fallback. |
 | `modules/IBApp.py` | `ib_insync`-based IB Gateway client: connection, historical data, news headlines, momentum, Flex Query fetch. |
 | `ib_server.py` | Local HTTP/SSE server: live prices, positions, account data, trades, snapshot polling, FinBERT-scored news, Flex Query parsing for the Portfolio tab. |
@@ -409,7 +409,7 @@ not a price target:
   they contain your real account ID, balances, and positions. Regenerate
   `data/portfolio_performance.json` locally with `python ib_server.py
   performance`.
-- The other data files (`data/yfinance/raw_data.json`, `data/yfinance/forward_pe.csv`,
+- The other data files (`data/yfinance/raw_data.json`, `data/yfinance/screen_data.csv`,
   `data/output/sorted_screen.csv`, `data/IB/price_history*.json`,
   `data/social_sentiment.json`, `data/IB/news.json`,
   `data/output/news_sentiment.json`, `data/ib_refresh_state.json`,

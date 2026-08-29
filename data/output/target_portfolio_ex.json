@@ -1,0 +1,6325 @@
+{
+  "longs": [
+    {
+      "ticker": "WLFC",
+      "name": "Willis Lease Finance Corporatio",
+      "sector": "Rental & Leasing Services",
+      "price": 53.42,
+      "side": "Long",
+      "rating": "Strong Buy",
+      "score": 0.3400128535462037,
+      "scorePercentile": 1.3,
+      "forecastReturn": 0.31636404615725455,
+      "positionReturn": 0.31636404615725455,
+      "vol": 0.15080000000000002,
+      "beta": 0.754,
+      "indivSharpe": 1.8658093246502288,
+      "analysts": 1.0,
+      "targetUpside": 0.32909022837888435,
+      "probAbove": 0.7426,
+      "shortInterest": 0.2273,
+      "mom": 51.87903854558634,
+      "mr": 63.33714494240701,
+      "sent": -65.4671,
+      "newsSent": -45.757,
+      "instChange": null,
+      "insiders": -92.5926,
+      "compositeScore": 0.9108,
+      "poolRank": 1,
+      "poolSize": 172,
+      "alternates": [
+        {
+          "ticker": "NRG",
+          "name": "NRG Energy, Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.11736273175658907,
+          "compositeScore": 0.3041,
+          "poolRank": 150
+        },
+        {
+          "ticker": "SCSC",
+          "name": "ScanSource, Inc.",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.21580331073831238,
+          "compositeScore": 0.674,
+          "poolRank": 39
+        }
+      ]
+    },
+    {
+      "ticker": "HRB",
+      "name": "H&R Block, Inc.",
+      "sector": "Personal Services",
+      "price": 52.48,
+      "side": "Long",
+      "rating": "Strong Buy",
+      "score": 0.37371890037895017,
+      "scorePercentile": 4.3,
+      "forecastReturn": 0.2696122436866477,
+      "positionReturn": 0.2696122436866477,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": 1.5640816245776512,
+      "analysts": 3.0,
+      "targetUpside": -0.03455278201219503,
+      "probAbove": 0.83095,
+      "shortInterest": 0.1537,
+      "mom": 65.9955761195136,
+      "mr": 25.436033142240518,
+      "sent": 43.415,
+      "newsSent": 48.4725,
+      "instChange": -82.699,
+      "insiders": null,
+      "compositeScore": 0.8816,
+      "poolRank": 2,
+      "poolSize": 172,
+      "alternates": [
+        {
+          "ticker": "DAR",
+          "name": "Darling Ingredients Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.09931734338925469,
+          "compositeScore": 0.3143,
+          "poolRank": 144
+        },
+        {
+          "ticker": "CTSH",
+          "name": "Cognizant Technology Solutions ",
+          "rating": "Buy",
+          "forecastReturn": 0.10051475585075997,
+          "compositeScore": 0.4649,
+          "poolRank": 84
+        }
+      ]
+    },
+    {
+      "ticker": "MTDR",
+      "name": "Matador Resources Company",
+      "sector": "Oil & Gas E&P",
+      "price": 56.39,
+      "side": "Long",
+      "rating": "Strong Buy",
+      "score": 0.3126742762852832,
+      "scorePercentile": 0.3,
+      "forecastReturn": 0.2589629873659056,
+      "positionReturn": 0.2589629873659056,
+      "vol": 0.1542,
+      "beta": 0.771,
+      "indivSharpe": 1.4524188545130066,
+      "analysts": 19.0,
+      "targetUpside": 0.21988774605426475,
+      "probAbove": 0.816,
+      "shortInterest": 0.1277,
+      "mom": 67.91800960835009,
+      "mr": 65.82000500316042,
+      "sent": 43.415,
+      "newsSent": 23.5574,
+      "instChange": -24.5675,
+      "insiders": 100.0,
+      "compositeScore": 0.8611,
+      "poolRank": 4,
+      "poolSize": 172,
+      "alternates": [
+        {
+          "ticker": "APA",
+          "name": "APA Corporation",
+          "rating": "Buy",
+          "forecastReturn": 0.06279859512058361,
+          "compositeScore": 0.3684,
+          "poolRank": 129
+        },
+        {
+          "ticker": "DAR",
+          "name": "Darling Ingredients Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.09931734338925469,
+          "compositeScore": 0.3143,
+          "poolRank": 144
+        }
+      ]
+    },
+    {
+      "ticker": "PRGS",
+      "name": "Progress Software Corporation",
+      "sector": "Software - Infrastructure",
+      "price": 44.76,
+      "side": "Long",
+      "rating": "Strong Buy",
+      "score": 0.3264822623220493,
+      "scorePercentile": 0.9,
+      "forecastReturn": 0.2589722397611445,
+      "positionReturn": 0.2589722397611445,
+      "vol": 0.16100000000000003,
+      "beta": 0.805,
+      "indivSharpe": 1.3911319239822635,
+      "analysts": 5.0,
+      "targetUpside": 0.2466487935656836,
+      "probAbove": 0.79215,
+      "shortInterest": 0.1136,
+      "mom": 65.86488983289345,
+      "mr": 39.13292506971348,
+      "sent": 43.415,
+      "newsSent": -25.2546,
+      "instChange": -50.519,
+      "insiders": -100.0,
+      "compositeScore": 0.8406,
+      "poolRank": 5,
+      "poolSize": 172,
+      "alternates": [
+        {
+          "ticker": "CTSH",
+          "name": "Cognizant Technology Solutions ",
+          "rating": "Buy",
+          "forecastReturn": 0.10051475585075997,
+          "compositeScore": 0.4649,
+          "poolRank": 84
+        },
+        {
+          "ticker": "DAR",
+          "name": "Darling Ingredients Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.09931734338925469,
+          "compositeScore": 0.3143,
+          "poolRank": 144
+        }
+      ]
+    },
+    {
+      "ticker": "ASO",
+      "name": "Academy Sports and Outdoors, In",
+      "sector": "Specialty Retail",
+      "price": 43.5,
+      "side": "Long",
+      "rating": "Strong Buy",
+      "score": 0.3763865297283236,
+      "scorePercentile": 4.6,
+      "forecastReturn": 0.24039672961024827,
+      "positionReturn": 0.24039672961024827,
+      "vol": 0.2068,
+      "beta": 1.034,
+      "indivSharpe": 0.9932143598174481,
+      "analysts": 19.0,
+      "targetUpside": 0.37810045977011497,
+      "probAbove": 0.8191,
+      "shortInterest": 0.1279,
+      "mom": 41.34702391593476,
+      "mr": 36.003897923465665,
+      "sent": 43.415,
+      "newsSent": -25.2546,
+      "instChange": -94.1176,
+      "insiders": -100.0,
+      "compositeScore": 0.8377,
+      "poolRank": 6,
+      "poolSize": 172,
+      "alternates": [
+        {
+          "ticker": "CDRE",
+          "name": "Cadre Holdings, Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.16198834036557863,
+          "compositeScore": 0.4927,
+          "poolRank": 73
+        },
+        {
+          "ticker": "DAR",
+          "name": "Darling Ingredients Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.09931734338925469,
+          "compositeScore": 0.3143,
+          "poolRank": 144
+        }
+      ]
+    },
+    {
+      "ticker": "DOX",
+      "name": "Amdocs Limited",
+      "sector": "Software - Infrastructure",
+      "price": 62.91,
+      "side": "Long",
+      "rating": "Strong Buy",
+      "score": 0.3284307085576802,
+      "scorePercentile": 1.0,
+      "forecastReturn": 0.25295359013365615,
+      "positionReturn": 0.25295359013365615,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": 1.453023934224374,
+      "analysts": 4.0,
+      "targetUpside": 0.2597361309807662,
+      "probAbove": 0.81135,
+      "shortInterest": 0.1043,
+      "mom": 66.27110134581037,
+      "mr": 24.08887845571776,
+      "sent": 43.415,
+      "newsSent": 79.0224,
+      "instChange": 8.6505,
+      "insiders": -100.0,
+      "compositeScore": 0.8348,
+      "poolRank": 7,
+      "poolSize": 172,
+      "alternates": [
+        {
+          "ticker": "DAR",
+          "name": "Darling Ingredients Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.09931734338925469,
+          "compositeScore": 0.3143,
+          "poolRank": 144
+        },
+        {
+          "ticker": "CTSH",
+          "name": "Cognizant Technology Solutions ",
+          "rating": "Buy",
+          "forecastReturn": 0.10051475585075997,
+          "compositeScore": 0.4649,
+          "poolRank": 84
+        }
+      ]
+    },
+    {
+      "ticker": "TNL",
+      "name": "Travel   Leisure Co.",
+      "sector": "Travel Services",
+      "price": 71.21,
+      "side": "Long",
+      "rating": "Strong Buy",
+      "score": 0.3514524140710013,
+      "scorePercentile": 2.1,
+      "forecastReturn": 0.23863947585765466,
+      "positionReturn": 0.23863947585765466,
+      "vol": 0.238,
+      "beta": 1.19,
+      "indivSharpe": 0.8556280498220784,
+      "analysts": 13.0,
+      "targetUpside": 0.27574989467771394,
+      "probAbove": 0.8368,
+      "shortInterest": 0.1168,
+      "mom": 38.64016268046216,
+      "mr": 26.181291442302026,
+      "sent": 43.415,
+      "newsSent": -25.2546,
+      "instChange": -67.474,
+      "insiders": -100.0,
+      "compositeScore": 0.8158,
+      "poolRank": 10,
+      "poolSize": 172,
+      "alternates": [
+        {
+          "ticker": "CDRE",
+          "name": "Cadre Holdings, Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.16198834036557863,
+          "compositeScore": 0.4927,
+          "poolRank": 73
+        },
+        {
+          "ticker": "NRG",
+          "name": "NRG Energy, Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.11736273175658907,
+          "compositeScore": 0.3041,
+          "poolRank": 150
+        }
+      ]
+    },
+    {
+      "ticker": "WEX",
+      "name": "WEX Inc.",
+      "sector": "Software - Infrastructure",
+      "price": 197.32,
+      "side": "Long",
+      "rating": "Strong Buy",
+      "score": 0.32071464200332145,
+      "scorePercentile": 0.4,
+      "forecastReturn": 0.2735806013812323,
+      "positionReturn": 0.2735806013812323,
+      "vol": 0.166,
+      "beta": 0.83,
+      "indivSharpe": 1.4372325384411584,
+      "analysts": 10.0,
+      "targetUpside": -0.024934117170078984,
+      "probAbove": 0.84145,
+      "shortInterest": 0.0874,
+      "mom": 63.98178592365013,
+      "mr": 14.118381373717199,
+      "sent": 43.415,
+      "newsSent": 79.0224,
+      "instChange": 10.7266,
+      "insiders": -100.0,
+      "compositeScore": 0.7997,
+      "poolRank": 14,
+      "poolSize": 172,
+      "alternates": [
+        {
+          "ticker": "CPAY",
+          "name": "Corpay, Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.18690821744923825,
+          "compositeScore": 0.4167,
+          "poolRank": 102
+        },
+        {
+          "ticker": "DAR",
+          "name": "Darling Ingredients Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.09931734338925469,
+          "compositeScore": 0.3143,
+          "poolRank": 144
+        }
+      ]
+    },
+    {
+      "ticker": "TPL",
+      "name": "Texas Pacific Land Corporation",
+      "sector": "Oil & Gas E&P",
+      "price": 364.38,
+      "side": "Long",
+      "rating": "Strong Buy",
+      "score": 0.341521039465965,
+      "scorePercentile": 1.4,
+      "forecastReturn": 0.36192788633911976,
+      "positionReturn": 0.36192788633911976,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": 2.179519242260798,
+      "analysts": 2.0,
+      "targetUpside": 0.21301937537735327,
+      "probAbove": 0.8274,
+      "shortInterest": 0.0731,
+      "mom": 63.31025183878536,
+      "mr": 37.849107697705904,
+      "sent": 43.415,
+      "newsSent": -89.1378,
+      "instChange": -1.0381,
+      "insiders": 90.9091,
+      "compositeScore": 0.7909,
+      "poolRank": 15,
+      "poolSize": 172,
+      "alternates": [
+        {
+          "ticker": "DAR",
+          "name": "Darling Ingredients Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.09931734338925469,
+          "compositeScore": 0.3143,
+          "poolRank": 144
+        },
+        {
+          "ticker": "NRG",
+          "name": "NRG Energy, Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.11736273175658907,
+          "compositeScore": 0.3041,
+          "poolRank": 150
+        }
+      ]
+    },
+    {
+      "ticker": "BCO",
+      "name": "Brinks Company (The)",
+      "sector": "Security & Protection Services",
+      "price": 110.97,
+      "side": "Long",
+      "rating": "Strong Buy",
+      "score": 0.36248808989932196,
+      "scorePercentile": 3.1,
+      "forecastReturn": 0.18250362637582618,
+      "positionReturn": 0.18250362637582618,
+      "vol": 0.2076,
+      "beta": 1.038,
+      "indivSharpe": 0.710518431482785,
+      "analysts": 2.0,
+      "targetUpside": 0.3562224024511129,
+      "probAbove": 0.7436,
+      "shortInterest": 0.1143,
+      "mom": 53.349602886129254,
+      "mr": 39.61551393303068,
+      "sent": -65.4671,
+      "newsSent": 79.0224,
+      "instChange": 95.8478,
+      "insiders": null,
+      "compositeScore": 0.7909,
+      "poolRank": 16,
+      "poolSize": 172,
+      "alternates": [
+        {
+          "ticker": "DAR",
+          "name": "Darling Ingredients Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.09931734338925469,
+          "compositeScore": 0.3143,
+          "poolRank": 144
+        },
+        {
+          "ticker": "SCSC",
+          "name": "ScanSource, Inc.",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.21580331073831238,
+          "compositeScore": 0.674,
+          "poolRank": 39
+        }
+      ]
+    },
+    {
+      "ticker": "TALO",
+      "name": "Talos Energy, Inc.",
+      "sector": "Oil & Gas E&P",
+      "price": 16.67,
+      "side": "Long",
+      "rating": "Strong Buy",
+      "score": 0.3696654194671183,
+      "scorePercentile": 4.0,
+      "forecastReturn": 0.35668323760972576,
+      "positionReturn": 0.35668323760972576,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": 2.144554917398171,
+      "analysts": 9.0,
+      "targetUpside": 0.14643731253749248,
+      "probAbove": 0.72235,
+      "shortInterest": 0.0727,
+      "mom": 61.233681488832495,
+      "mr": 45.84869676831096,
+      "sent": -60.49,
+      "newsSent": 79.0224,
+      "instChange": null,
+      "insiders": null,
+      "compositeScore": 0.7865,
+      "poolRank": 19,
+      "poolSize": 172,
+      "alternates": [
+        {
+          "ticker": "APA",
+          "name": "APA Corporation",
+          "rating": "Buy",
+          "forecastReturn": 0.06279859512058361,
+          "compositeScore": 0.3684,
+          "poolRank": 129
+        },
+        {
+          "ticker": "CRGY",
+          "name": "Crescent Energy Company",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.14793417456345437,
+          "compositeScore": 0.7895,
+          "poolRank": 18
+        }
+      ]
+    },
+    {
+      "ticker": "NXST",
+      "name": "Nexstar Media Group, Inc.",
+      "sector": "Broadcasting",
+      "price": 183.32,
+      "side": "Long",
+      "rating": "Strong Buy",
+      "score": 0.36695989416808666,
+      "scorePercentile": 3.6,
+      "forecastReturn": 0.185006721723175,
+      "positionReturn": 0.185006721723175,
+      "vol": 0.17900000000000002,
+      "beta": 0.895,
+      "indivSharpe": 0.8380263783417596,
+      "analysts": 8.0,
+      "targetUpside": 0.3460069823259875,
+      "probAbove": 0.6648,
+      "shortInterest": 0.0781,
+      "mom": 52.35324689299996,
+      "mr": 39.49452238640646,
+      "sent": 43.415,
+      "newsSent": 10.9301,
+      "instChange": 4.4983,
+      "insiders": -93.3333,
+      "compositeScore": 0.7529,
+      "poolRank": 25,
+      "poolSize": 172,
+      "alternates": [
+        {
+          "ticker": "DAR",
+          "name": "Darling Ingredients Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.09931734338925469,
+          "compositeScore": 0.3143,
+          "poolRank": 144
+        },
+        {
+          "ticker": "CPAY",
+          "name": "Corpay, Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.18690821744923825,
+          "compositeScore": 0.4167,
+          "poolRank": 102
+        }
+      ]
+    },
+    {
+      "ticker": "PBI",
+      "name": "Pitney Bowes Inc.",
+      "sector": "Integrated Freight & Logistics",
+      "price": 17.21,
+      "side": "Long",
+      "rating": "Strong Buy",
+      "score": 0.3593197652397436,
+      "scorePercentile": 2.7,
+      "forecastReturn": 0.16138388754821675,
+      "positionReturn": 0.16138388754821675,
+      "vol": 0.32780000000000004,
+      "beta": 1.639,
+      "indivSharpe": 0.38555182290487106,
+      "analysts": 5.0,
+      "targetUpside": 0.13654851830331194,
+      "probAbove": 0.6242,
+      "shortInterest": 0.1331,
+      "mom": 56.82937035121654,
+      "mr": 50.023553580152104,
+      "sent": 43.415,
+      "newsSent": -38.425,
+      "instChange": null,
+      "insiders": null,
+      "compositeScore": 0.7471,
+      "poolRank": 26,
+      "poolSize": 172,
+      "alternates": [
+        {
+          "ticker": "DAR",
+          "name": "Darling Ingredients Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.09931734338925469,
+          "compositeScore": 0.3143,
+          "poolRank": 144
+        },
+        {
+          "ticker": "SCSC",
+          "name": "ScanSource, Inc.",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.21580331073831238,
+          "compositeScore": 0.674,
+          "poolRank": 39
+        }
+      ]
+    },
+    {
+      "ticker": "INSW",
+      "name": "International Seaways, Inc.",
+      "sector": "Oil & Gas Midstream",
+      "price": 98.81,
+      "side": "Long",
+      "rating": "Strong Buy",
+      "score": 0.3109548571590618,
+      "scorePercentile": 0.3,
+      "forecastReturn": 0.4178942385774269,
+      "positionReturn": 0.4178942385774269,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": 2.5526282571828456,
+      "analysts": 6.0,
+      "targetUpside": 0.01204331545390147,
+      "probAbove": 0.9322,
+      "shortInterest": 0.0517,
+      "mom": 63.66392889289318,
+      "mr": 48.00105952006923,
+      "sent": 43.415,
+      "newsSent": 79.0224,
+      "instChange": 56.4014,
+      "insiders": -100.0,
+      "compositeScore": 0.7427,
+      "poolRank": 27,
+      "poolSize": 172,
+      "alternates": [
+        {
+          "ticker": "DAR",
+          "name": "Darling Ingredients Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.09931734338925469,
+          "compositeScore": 0.3143,
+          "poolRank": 144
+        },
+        {
+          "ticker": "APA",
+          "name": "APA Corporation",
+          "rating": "Buy",
+          "forecastReturn": 0.06279859512058361,
+          "compositeScore": 0.3684,
+          "poolRank": 129
+        }
+      ]
+    },
+    {
+      "ticker": "SNDK",
+      "name": "Sandisk Corporation",
+      "sector": "Computer Hardware",
+      "price": 1484.98,
+      "side": "Long",
+      "rating": "Strong Buy",
+      "score": 0.3569312213458565,
+      "scorePercentile": 2.5,
+      "forecastReturn": 1.2189524298064325,
+      "positionReturn": 1.2189524298064325,
+      "vol": 0.2,
+      "beta": 1.0,
+      "indivSharpe": 5.919762149032162,
+      "analysts": 23.0,
+      "targetUpside": 0.431054290293472,
+      "probAbove": 0.95155,
+      "shortInterest": 0.0473,
+      "mom": 54.81794614381585,
+      "mr": 41.02907000773035,
+      "sent": -17.3813,
+      "newsSent": -13.3741,
+      "instChange": -55.3633,
+      "insiders": -100.0,
+      "compositeScore": 0.7325,
+      "poolRank": 28,
+      "poolSize": 172,
+      "alternates": [
+        {
+          "ticker": "AMKR",
+          "name": "Amkor Technology, Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.22632490229959323,
+          "compositeScore": 0.4547,
+          "poolRank": 89
+        },
+        {
+          "ticker": "SANM",
+          "name": "Sanmina Corporation",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.24094725671871742,
+          "compositeScore": 0.6213,
+          "poolRank": 50
+        }
+      ]
+    },
+    {
+      "ticker": "NATL",
+      "name": "NCR Atleos Corporation",
+      "sector": "Software - Application",
+      "price": 46.26,
+      "side": "Long",
+      "rating": "Strong Buy",
+      "score": 0.3560693803277971,
+      "scorePercentile": 2.4,
+      "forecastReturn": 0.16900661197891886,
+      "positionReturn": 0.16900661197891886,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": 0.8933774131927923,
+      "analysts": 3.0,
+      "targetUpside": 0.08661197578901869,
+      "probAbove": 0.63885,
+      "shortInterest": 0.0531,
+      "mom": 42.47876252597977,
+      "mr": 30.677179425755128,
+      "sent": 43.415,
+      "newsSent": 79.0224,
+      "instChange": null,
+      "insiders": null,
+      "compositeScore": 0.7032,
+      "poolRank": 33,
+      "poolSize": 172,
+      "alternates": [
+        {
+          "ticker": "DAR",
+          "name": "Darling Ingredients Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.09931734338925469,
+          "compositeScore": 0.3143,
+          "poolRank": 144
+        },
+        {
+          "ticker": "SCSC",
+          "name": "ScanSource, Inc.",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.21580331073831238,
+          "compositeScore": 0.674,
+          "poolRank": 39
+        }
+      ]
+    },
+    {
+      "ticker": "MU",
+      "name": "Micron Technology, Inc.",
+      "sector": "Semiconductors",
+      "price": 932.86,
+      "side": "Long",
+      "rating": "Strong Buy",
+      "score": 0.3796433054720057,
+      "scorePercentile": 5.1,
+      "forecastReturn": 0.8736007718929226,
+      "positionReturn": 0.8736007718929226,
+      "vol": 0.4,
+      "beta": 2.0,
+      "indivSharpe": 2.096501929732306,
+      "analysts": 44.0,
+      "targetUpside": 0.622332397144266,
+      "probAbove": 0.86515,
+      "shortInterest": 0.0266,
+      "mom": 64.57297003687123,
+      "mr": 52.180576497261,
+      "sent": -13.7825,
+      "newsSent": -39.4433,
+      "instChange": -28.0277,
+      "insiders": -100.0,
+      "compositeScore": 0.6827,
+      "poolRank": 36,
+      "poolSize": 172,
+      "alternates": [
+        {
+          "ticker": "SANM",
+          "name": "Sanmina Corporation",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.24094725671871742,
+          "compositeScore": 0.6213,
+          "poolRank": 50
+        },
+        {
+          "ticker": "ON",
+          "name": "ON Semiconductor Corporation",
+          "rating": "Buy",
+          "forecastReturn": 0.17468907438663273,
+          "compositeScore": 0.4123,
+          "poolRank": 105
+        }
+      ]
+    },
+    {
+      "ticker": "EVER",
+      "name": "EverQuote, Inc.",
+      "sector": "Internet Content & Information",
+      "price": 25.66,
+      "side": "Long",
+      "rating": "Strong Buy",
+      "score": 0.34338575621420997,
+      "scorePercentile": 1.5,
+      "forecastReturn": 0.03506630252853826,
+      "positionReturn": 0.03506630252853826,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": 0.0004420168569217267,
+      "analysts": 6.0,
+      "targetUpside": 0.14964925954793462,
+      "probAbove": 0.5316,
+      "shortInterest": 0.2145,
+      "mom": 51.5972203588773,
+      "mr": 54.130736535397766,
+      "sent": 43.415,
+      "newsSent": 79.0224,
+      "instChange": 77.5087,
+      "insiders": -100.0,
+      "compositeScore": 0.6725,
+      "poolRank": 40,
+      "poolSize": 172,
+      "alternates": [
+        {
+          "ticker": "DAR",
+          "name": "Darling Ingredients Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.09931734338925469,
+          "compositeScore": 0.3143,
+          "poolRank": 144
+        },
+        {
+          "ticker": "CPAY",
+          "name": "Corpay, Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.18690821744923825,
+          "compositeScore": 0.4167,
+          "poolRank": 102
+        }
+      ]
+    },
+    {
+      "ticker": "PR",
+      "name": "Permian Resources Corporation",
+      "sector": "Oil & Gas E&P",
+      "price": 22.7,
+      "side": "Long",
+      "rating": "Strong Buy",
+      "score": 0.34566868308633275,
+      "scorePercentile": 1.7,
+      "forecastReturn": 0.1999716282665307,
+      "positionReturn": 0.1999716282665307,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": 1.0998108551102044,
+      "analysts": 19.0,
+      "targetUpside": 0.1361000000000001,
+      "probAbove": 0.81175,
+      "shortInterest": 0.0278,
+      "mom": 61.67264898500064,
+      "mr": 56.66612159379439,
+      "sent": 43.415,
+      "newsSent": 55.6008,
+      "instChange": 40.4844,
+      "insiders": null,
+      "compositeScore": 0.6652,
+      "poolRank": 41,
+      "poolSize": 172,
+      "alternates": [
+        {
+          "ticker": "APA",
+          "name": "APA Corporation",
+          "rating": "Buy",
+          "forecastReturn": 0.06279859512058361,
+          "compositeScore": 0.3684,
+          "poolRank": 129
+        },
+        {
+          "ticker": "CRGY",
+          "name": "Crescent Energy Company",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.14793417456345437,
+          "compositeScore": 0.7895,
+          "poolRank": 18
+        }
+      ]
+    },
+    {
+      "ticker": "ARW",
+      "name": "Arrow Electronics, Inc.",
+      "sector": "Electronics & Computer Distribution",
+      "price": 203.92,
+      "side": "Long",
+      "rating": "Strong Buy",
+      "score": 0.3790410793560218,
+      "scorePercentile": 5.0,
+      "forecastReturn": 0.27384482206311334,
+      "positionReturn": 0.27384482206311334,
+      "vol": 0.24020000000000002,
+      "beta": 1.201,
+      "indivSharpe": 0.9943581268239522,
+      "analysts": 4.0,
+      "targetUpside": 0.1524127108670068,
+      "probAbove": 0.7775,
+      "shortInterest": 0.0264,
+      "mom": 52.177876429983705,
+      "mr": 35.309486105234214,
+      "sent": 43.415,
+      "newsSent": 54.0394,
+      "instChange": -75.0865,
+      "insiders": -100.0,
+      "compositeScore": 0.6506,
+      "poolRank": 42,
+      "poolSize": 172,
+      "alternates": [
+        {
+          "ticker": "DAR",
+          "name": "Darling Ingredients Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.09931734338925469,
+          "compositeScore": 0.3143,
+          "poolRank": 144
+        },
+        {
+          "ticker": "BDC",
+          "name": "Belden Inc",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.21368949654145197,
+          "compositeScore": 0.7661,
+          "poolRank": 22
+        }
+      ]
+    },
+    {
+      "ticker": "SSNC",
+      "name": "SS&C Technologies Holdings, Inc",
+      "sector": "Software - Application",
+      "price": 83.42,
+      "side": "Long",
+      "rating": "Strong Buy",
+      "score": 0.3784316103076355,
+      "scorePercentile": 4.9,
+      "forecastReturn": 0.21290654814357657,
+      "positionReturn": 0.21290654814357657,
+      "vol": 0.2174,
+      "beta": 1.087,
+      "indivSharpe": 0.8183373879649336,
+      "analysts": 9.0,
+      "targetUpside": 0.10684883720930238,
+      "probAbove": 0.82315,
+      "shortInterest": 0.0296,
+      "mom": 56.765298359568675,
+      "mr": 27.69376943521779,
+      "sent": -65.4671,
+      "newsSent": 79.0224,
+      "instChange": 40.1384,
+      "insiders": null,
+      "compositeScore": 0.6477,
+      "poolRank": 43,
+      "poolSize": 172,
+      "alternates": [
+        {
+          "ticker": "DAR",
+          "name": "Darling Ingredients Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.09931734338925469,
+          "compositeScore": 0.3143,
+          "poolRank": 144
+        },
+        {
+          "ticker": "CPAY",
+          "name": "Corpay, Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.18690821744923825,
+          "compositeScore": 0.4167,
+          "poolRank": 102
+        }
+      ]
+    },
+    {
+      "ticker": "EOG",
+      "name": "EOG Resources, Inc.",
+      "sector": "Oil & Gas E&P",
+      "price": 143.35,
+      "side": "Long",
+      "rating": "Strong Buy",
+      "score": 0.3500353225242795,
+      "scorePercentile": 1.9,
+      "forecastReturn": 0.15607946631226777,
+      "positionReturn": 0.15607946631226777,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": 0.807196442081785,
+      "analysts": 27.0,
+      "targetUpside": 0.1158909661667249,
+      "probAbove": 0.74695,
+      "shortInterest": 0.031,
+      "mom": 45.283235733499545,
+      "mr": 26.94874722021453,
+      "sent": 43.415,
+      "newsSent": 4.6843,
+      "instChange": 76.1246,
+      "insiders": -100.0,
+      "compositeScore": 0.6462,
+      "poolRank": 44,
+      "poolSize": 172,
+      "alternates": [
+        {
+          "ticker": "APA",
+          "name": "APA Corporation",
+          "rating": "Buy",
+          "forecastReturn": 0.06279859512058361,
+          "compositeScore": 0.3684,
+          "poolRank": 129
+        },
+        {
+          "ticker": "DAR",
+          "name": "Darling Ingredients Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.09931734338925469,
+          "compositeScore": 0.3143,
+          "poolRank": 144
+        }
+      ]
+    },
+    {
+      "ticker": "FANG",
+      "name": "Diamondback Energy, Inc.",
+      "sector": "Oil & Gas E&P",
+      "price": 197.67,
+      "side": "Long",
+      "rating": "Strong Buy",
+      "score": 0.3808806758822394,
+      "scorePercentile": 5.4,
+      "forecastReturn": 0.13338366341168584,
+      "positionReturn": 0.13338366341168584,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": 0.6558910894112387,
+      "analysts": 28.0,
+      "targetUpside": 0.17638336621642137,
+      "probAbove": 0.64605,
+      "shortInterest": 0.0405,
+      "mom": 54.36162912867483,
+      "mr": 31.194993125913314,
+      "sent": -38.3614,
+      "newsSent": -25.2546,
+      "instChange": 52.5952,
+      "insiders": -100.0,
+      "compositeScore": 0.633,
+      "poolRank": 47,
+      "poolSize": 172,
+      "alternates": [
+        {
+          "ticker": "APA",
+          "name": "APA Corporation",
+          "rating": "Buy",
+          "forecastReturn": 0.06279859512058361,
+          "compositeScore": 0.3684,
+          "poolRank": 129
+        },
+        {
+          "ticker": "DAR",
+          "name": "Darling Ingredients Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.09931734338925469,
+          "compositeScore": 0.3143,
+          "poolRank": 144
+        }
+      ]
+    },
+    {
+      "ticker": "PBF",
+      "name": "PBF Energy Inc.",
+      "sector": "Oil & Gas Refining & Marketing",
+      "price": 71.28,
+      "side": "Long",
+      "rating": "Buy",
+      "score": 0.42908219910727813,
+      "scorePercentile": 14.3,
+      "forecastReturn": 0.36750733111648737,
+      "positionReturn": 0.36750733111648737,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": 2.216715540776582,
+      "analysts": 13.0,
+      "targetUpside": -0.05141161616161616,
+      "probAbove": 0.73365,
+      "shortInterest": 0.1088,
+      "mom": 65.2662472357708,
+      "mr": 41.12915296905419,
+      "sent": 43.415,
+      "newsSent": -74.3381,
+      "instChange": 41.5225,
+      "insiders": -100.0,
+      "compositeScore": 0.5965,
+      "poolRank": 53,
+      "poolSize": 172,
+      "alternates": [
+        {
+          "ticker": "DAR",
+          "name": "Darling Ingredients Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.09931734338925469,
+          "compositeScore": 0.3143,
+          "poolRank": 144
+        },
+        {
+          "ticker": "APA",
+          "name": "APA Corporation",
+          "rating": "Buy",
+          "forecastReturn": 0.06279859512058361,
+          "compositeScore": 0.3684,
+          "poolRank": 129
+        }
+      ]
+    },
+    {
+      "ticker": "STRA",
+      "name": "Strategic Education, Inc.",
+      "sector": "Education & Training Services",
+      "price": 84.64,
+      "side": "Long",
+      "rating": "Strong Buy",
+      "score": 0.3610158793269355,
+      "scorePercentile": 2.7,
+      "forecastReturn": 0.07742402119237912,
+      "positionReturn": 0.07742402119237912,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": 0.28282680794919407,
+      "analysts": 3.0,
+      "targetUpside": 0.1617831994328922,
+      "probAbove": 0.6018,
+      "shortInterest": 0.0577,
+      "mom": 55.281942522267656,
+      "mr": 40.307058456460595,
+      "sent": 43.415,
+      "newsSent": 79.0224,
+      "instChange": 58.8235,
+      "insiders": -100.0,
+      "compositeScore": 0.595,
+      "poolRank": 54,
+      "poolSize": 172,
+      "alternates": [
+        {
+          "ticker": "PRDO",
+          "name": "Perdoceo Education Corporation",
+          "rating": "Buy",
+          "forecastReturn": 0.07770075385027941,
+          "compositeScore": 0.3494,
+          "poolRank": 135
+        },
+        {
+          "ticker": "DAR",
+          "name": "Darling Ingredients Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.09931734338925469,
+          "compositeScore": 0.3143,
+          "poolRank": 144
+        }
+      ]
+    },
+    {
+      "ticker": "AVT",
+      "name": "Avnet, Inc.",
+      "sector": "Electronics & Computer Distribution",
+      "price": 88.63,
+      "side": "Long",
+      "rating": "Buy",
+      "score": 0.44760072011446206,
+      "scorePercentile": 17.6,
+      "forecastReturn": 0.3674055854889515,
+      "positionReturn": 0.3674055854889515,
+      "vol": 0.2238,
+      "beta": 1.119,
+      "indivSharpe": 1.4852796491910254,
+      "analysts": 4.0,
+      "targetUpside": 0.1988040166986349,
+      "probAbove": 0.8486,
+      "shortInterest": 0.0981,
+      "mom": 43.249809356165386,
+      "mr": 23.09835911456034,
+      "sent": null,
+      "newsSent": -15.3428,
+      "instChange": null,
+      "insiders": null,
+      "compositeScore": 0.576,
+      "poolRank": 55,
+      "poolSize": 172,
+      "alternates": [
+        {
+          "ticker": "DAR",
+          "name": "Darling Ingredients Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.09931734338925469,
+          "compositeScore": 0.3143,
+          "poolRank": 144
+        },
+        {
+          "ticker": "BDC",
+          "name": "Belden Inc",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.21368949654145197,
+          "compositeScore": 0.7661,
+          "poolRank": 22
+        }
+      ]
+    },
+    {
+      "ticker": "ENR",
+      "name": "Energizer Holdings, Inc.",
+      "sector": "Electrical Equipment & Parts",
+      "price": 22.27,
+      "side": "Long",
+      "rating": "Buy",
+      "score": 0.4344130962345264,
+      "scorePercentile": 15.3,
+      "forecastReturn": 0.13424815934707057,
+      "positionReturn": 0.13424815934707057,
+      "vol": 0.1506,
+      "beta": 0.753,
+      "indivSharpe": 0.6590183223577063,
+      "analysts": 6.0,
+      "targetUpside": 0.002843735967669625,
+      "probAbove": 0.60345,
+      "shortInterest": 0.1241,
+      "mom": 53.460122660515204,
+      "mr": 49.046911229215056,
+      "sent": 43.415,
+      "newsSent": -42.4304,
+      "instChange": -83.737,
+      "insiders": 100.0,
+      "compositeScore": 0.5468,
+      "poolRank": 60,
+      "poolSize": 172,
+      "alternates": [
+        {
+          "ticker": "NRG",
+          "name": "NRG Energy, Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.11736273175658907,
+          "compositeScore": 0.3041,
+          "poolRank": 150
+        },
+        {
+          "ticker": "DAR",
+          "name": "Darling Ingredients Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.09931734338925469,
+          "compositeScore": 0.3143,
+          "poolRank": 144
+        }
+      ]
+    },
+    {
+      "ticker": "GPI",
+      "name": "Group 1 Automotive, Inc.",
+      "sector": "Auto & Truck Dealerships",
+      "price": 263.95,
+      "side": "Long",
+      "rating": "Buy",
+      "score": 0.4481785233740498,
+      "scorePercentile": 17.9,
+      "forecastReturn": 0.2139249197331905,
+      "positionReturn": 0.2139249197331905,
+      "vol": 0.1668,
+      "beta": 0.834,
+      "indivSharpe": 1.0726913653068975,
+      "analysts": 12.0,
+      "targetUpside": 0.40588497821557135,
+      "probAbove": 0.7727,
+      "shortInterest": 0.0932,
+      "mom": 43.840829794500316,
+      "mr": 74.68248292060989,
+      "sent": 43.415,
+      "newsSent": -89.1378,
+      "instChange": null,
+      "insiders": null,
+      "compositeScore": 0.5424,
+      "poolRank": 61,
+      "poolSize": 172,
+      "alternates": [
+        {
+          "ticker": "AN",
+          "name": "AutoNation, Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.1831518693353642,
+          "compositeScore": 0.4737,
+          "poolRank": 81
+        },
+        {
+          "ticker": "SCSC",
+          "name": "ScanSource, Inc.",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.21580331073831238,
+          "compositeScore": 0.674,
+          "poolRank": 39
+        }
+      ]
+    },
+    {
+      "ticker": "LYFT",
+      "name": "Lyft, Inc.",
+      "sector": "Software - Application",
+      "price": 17.7,
+      "side": "Long",
+      "rating": "Buy",
+      "score": 0.4313635332112323,
+      "scorePercentile": 14.7,
+      "forecastReturn": 0.1466430069502036,
+      "positionReturn": 0.1466430069502036,
+      "vol": 0.36640000000000006,
+      "beta": 1.832,
+      "indivSharpe": 0.30470252988592683,
+      "analysts": 36.0,
+      "targetUpside": 0.11770225988700567,
+      "probAbove": 0.60915,
+      "shortInterest": 0.2254,
+      "mom": 67.20309533004507,
+      "mr": 64.92205846374222,
+      "sent": -56.8147,
+      "newsSent": 42.5662,
+      "instChange": -27.6817,
+      "insiders": -100.0,
+      "compositeScore": 0.5073,
+      "poolRank": 67,
+      "poolSize": 172,
+      "alternates": [
+        {
+          "ticker": "GCT",
+          "name": "GigaCloud Technology Inc",
+          "rating": "Buy",
+          "forecastReturn": 0.21778525169412744,
+          "compositeScore": 0.5556,
+          "poolRank": 57
+        },
+        {
+          "ticker": "CPAY",
+          "name": "Corpay, Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.18690821744923825,
+          "compositeScore": 0.4167,
+          "poolRank": 102
+        }
+      ]
+    },
+    {
+      "ticker": "WMG",
+      "name": "Warner Music Group Corp.",
+      "sector": "Entertainment",
+      "price": 28.03,
+      "side": "Long",
+      "rating": "Buy",
+      "score": 0.428401757234024,
+      "scorePercentile": 14.0,
+      "forecastReturn": 0.34076440843149336,
+      "positionReturn": 0.34076440843149336,
+      "vol": 0.2586,
+      "beta": 1.293,
+      "indivSharpe": 1.1823836366260376,
+      "analysts": 17.0,
+      "targetUpside": 0.3158169818052088,
+      "probAbove": 0.8578,
+      "shortInterest": 0.0658,
+      "mom": 66.99757677862775,
+      "mr": 62.72765839377139,
+      "sent": 43.415,
+      "newsSent": -25.2546,
+      "instChange": -52.5952,
+      "insiders": null,
+      "compositeScore": 0.4971,
+      "poolRank": 71,
+      "poolSize": 172,
+      "alternates": [
+        {
+          "ticker": "DAR",
+          "name": "Darling Ingredients Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.09931734338925469,
+          "compositeScore": 0.3143,
+          "poolRank": 144
+        },
+        {
+          "ticker": "SCSC",
+          "name": "ScanSource, Inc.",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.21580331073831238,
+          "compositeScore": 0.674,
+          "poolRank": 39
+        }
+      ]
+    },
+    {
+      "ticker": "CVX",
+      "name": "Chevron Corporation",
+      "sector": "Oil & Gas Integrated",
+      "price": 201.86,
+      "side": "Long",
+      "rating": "Strong Buy",
+      "score": 0.3820963220158529,
+      "scorePercentile": 5.5,
+      "forecastReturn": 0.06892397016390062,
+      "positionReturn": 0.06892397016390062,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": 0.22615980109267073,
+      "analysts": 24.0,
+      "targetUpside": 0.08140131774497172,
+      "probAbove": 0.5829,
+      "shortInterest": 0.0108,
+      "mom": 67.26382695101313,
+      "mr": 62.99061033077462,
+      "sent": 43.415,
+      "newsSent": -4.4807,
+      "instChange": 97.9239,
+      "insiders": -100.0,
+      "compositeScore": 0.4883,
+      "poolRank": 74,
+      "poolSize": 172,
+      "alternates": [
+        {
+          "ticker": "DAR",
+          "name": "Darling Ingredients Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.09931734338925469,
+          "compositeScore": 0.3143,
+          "poolRank": 144
+        },
+        {
+          "ticker": "APA",
+          "name": "APA Corporation",
+          "rating": "Buy",
+          "forecastReturn": 0.06279859512058361,
+          "compositeScore": 0.3684,
+          "poolRank": 129
+        }
+      ]
+    },
+    {
+      "ticker": "VSEC",
+      "name": "VSE Corporation",
+      "sector": "Aerospace & Defense",
+      "price": 215.82,
+      "side": "Long",
+      "rating": "Buy",
+      "score": 0.438056030764175,
+      "scorePercentile": 16.1,
+      "forecastReturn": 0.2127924032876798,
+      "positionReturn": 0.2127924032876798,
+      "vol": 0.2472,
+      "beta": 1.236,
+      "indivSharpe": 0.7192249323935266,
+      "analysts": 9.0,
+      "targetUpside": 0.25104253544620514,
+      "probAbove": 0.708,
+      "shortInterest": 0.0766,
+      "mom": 56.29929773086996,
+      "mr": 22.164099379616843,
+      "sent": -82.2358,
+      "newsSent": -10.2512,
+      "instChange": 91.6955,
+      "insiders": -100.0,
+      "compositeScore": 0.4825,
+      "poolRank": 78,
+      "poolSize": 172,
+      "alternates": [
+        {
+          "ticker": "CDRE",
+          "name": "Cadre Holdings, Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.16198834036557863,
+          "compositeScore": 0.4927,
+          "poolRank": 73
+        },
+        {
+          "ticker": "NRG",
+          "name": "NRG Energy, Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.11736273175658907,
+          "compositeScore": 0.3041,
+          "poolRank": 150
+        }
+      ]
+    },
+    {
+      "ticker": "BLMN",
+      "name": "Bloomin' Brands, Inc.",
+      "sector": "Restaurants",
+      "price": 10.58,
+      "side": "Long",
+      "rating": "Buy",
+      "score": 0.44750772267279487,
+      "scorePercentile": 17.5,
+      "forecastReturn": 0.16681844941619173,
+      "positionReturn": 0.16681844941619173,
+      "vol": 0.24,
+      "beta": 1.2,
+      "indivSharpe": 0.5492435392341322,
+      "analysts": 11.0,
+      "targetUpside": 0.07020132325141781,
+      "probAbove": 0.6308,
+      "shortInterest": 0.0935,
+      "mom": 35.48179711575514,
+      "mr": 38.45921973799049,
+      "sent": 43.415,
+      "newsSent": 41.48,
+      "instChange": null,
+      "insiders": null,
+      "compositeScore": 0.481,
+      "poolRank": 79,
+      "poolSize": 172,
+      "alternates": [
+        {
+          "ticker": "NRG",
+          "name": "NRG Energy, Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.11736273175658907,
+          "compositeScore": 0.3041,
+          "poolRank": 150
+        },
+        {
+          "ticker": "FLOC",
+          "name": "Flowco Holdings Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.12625377246364633,
+          "compositeScore": 0.5526,
+          "poolRank": 59
+        }
+      ]
+    },
+    {
+      "ticker": "KMT",
+      "name": "Kennametal Inc.",
+      "sector": "Tools & Accessories",
+      "price": 29.54,
+      "side": "Long",
+      "rating": "Buy",
+      "score": 0.40022366911081303,
+      "scorePercentile": 8.7,
+      "forecastReturn": 0.2267169219488554,
+      "positionReturn": 0.2267169219488554,
+      "vol": 0.27120000000000005,
+      "beta": 1.356,
+      "indivSharpe": 0.7069208036462218,
+      "analysts": 7.0,
+      "targetUpside": 0.11712931618144884,
+      "probAbove": 0.69175,
+      "shortInterest": 0.0658,
+      "mom": 35.07551995531972,
+      "mr": 55.80308353612314,
+      "sent": 43.415,
+      "newsSent": -45.757,
+      "instChange": 7.2664,
+      "insiders": -100.0,
+      "compositeScore": 0.4474,
+      "poolRank": 92,
+      "poolSize": 172,
+      "alternates": [
+        {
+          "ticker": "DAR",
+          "name": "Darling Ingredients Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.09931734338925469,
+          "compositeScore": 0.3143,
+          "poolRank": 144
+        },
+        {
+          "ticker": "SCSC",
+          "name": "ScanSource, Inc.",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.21580331073831238,
+          "compositeScore": 0.674,
+          "poolRank": 39
+        }
+      ]
+    },
+    {
+      "ticker": "YOU",
+      "name": "Clear Secure, Inc.",
+      "sector": "Software - Application",
+      "price": 43.43,
+      "side": "Long",
+      "rating": "Buy",
+      "score": 0.40109741967711454,
+      "scorePercentile": 9.0,
+      "forecastReturn": 0.08200471036135082,
+      "positionReturn": 0.08200471036135082,
+      "vol": 0.21040000000000003,
+      "beta": 1.052,
+      "indivSharpe": 0.2234064180672567,
+      "analysts": 6.0,
+      "targetUpside": 0.4122341699286207,
+      "probAbove": 0.5681,
+      "shortInterest": 0.1295,
+      "mom": 28.943862419287754,
+      "mr": 43.95799418868602,
+      "sent": -43.5681,
+      "newsSent": 28.4453,
+      "instChange": 8.3045,
+      "insiders": -100.0,
+      "compositeScore": 0.4401,
+      "poolRank": 93,
+      "poolSize": 172,
+      "alternates": [
+        {
+          "ticker": "SCSC",
+          "name": "ScanSource, Inc.",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.21580331073831238,
+          "compositeScore": 0.674,
+          "poolRank": 39
+        },
+        {
+          "ticker": "DAR",
+          "name": "Darling Ingredients Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.09931734338925469,
+          "compositeScore": 0.3143,
+          "poolRank": 144
+        }
+      ]
+    },
+    {
+      "ticker": "GDDY",
+      "name": "GoDaddy Inc.",
+      "sector": "Software - Infrastructure",
+      "price": 97.7,
+      "side": "Long",
+      "rating": "Buy",
+      "score": 0.4184311482566257,
+      "scorePercentile": 11.8,
+      "forecastReturn": 0.2370881942871359,
+      "positionReturn": 0.2370881942871359,
+      "vol": 0.1836,
+      "beta": 0.918,
+      "indivSharpe": 1.1006982259647924,
+      "analysts": 15.0,
+      "targetUpside": 0.06994196519959073,
+      "probAbove": 0.7091,
+      "shortInterest": 0.041,
+      "mom": 60.95955881959564,
+      "mr": 39.57726220585035,
+      "sent": -22.6646,
+      "newsSent": -77.0536,
+      "instChange": -38.0623,
+      "insiders": -100.0,
+      "compositeScore": 0.4386,
+      "poolRank": 94,
+      "poolSize": 172,
+      "alternates": [
+        {
+          "ticker": "CPAY",
+          "name": "Corpay, Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.18690821744923825,
+          "compositeScore": 0.4167,
+          "poolRank": 102
+        },
+        {
+          "ticker": "FIS",
+          "name": "Fidelity National Information S",
+          "rating": "Buy",
+          "forecastReturn": 0.14680708566363343,
+          "compositeScore": 0.3845,
+          "poolRank": 115
+        }
+      ]
+    },
+    {
+      "ticker": "HII",
+      "name": "Huntington Ingalls Industries, ",
+      "sector": "Aerospace & Defense",
+      "price": 294.21,
+      "side": "Long",
+      "rating": "Buy",
+      "score": 0.4495642987291312,
+      "scorePercentile": 18.8,
+      "forecastReturn": 0.2842913167028418,
+      "positionReturn": 0.2842913167028418,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": 1.6619421113522783,
+      "analysts": 12.0,
+      "targetUpside": 0.2522234458380068,
+      "probAbove": 0.8802,
+      "shortInterest": 0.029,
+      "mom": 20.051957105551864,
+      "mr": 59.149429530377816,
+      "sent": 43.415,
+      "newsSent": 60.2172,
+      "instChange": -81.6609,
+      "insiders": -100.0,
+      "compositeScore": 0.4357,
+      "poolRank": 97,
+      "poolSize": 172,
+      "alternates": [
+        {
+          "ticker": "DAR",
+          "name": "Darling Ingredients Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.09931734338925469,
+          "compositeScore": 0.3143,
+          "poolRank": 144
+        },
+        {
+          "ticker": "NRG",
+          "name": "NRG Energy, Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.11736273175658907,
+          "compositeScore": 0.3041,
+          "poolRank": 150
+        }
+      ]
+    },
+    {
+      "ticker": "ACIW",
+      "name": "ACI Worldwide, Inc.",
+      "sector": "Software - Infrastructure",
+      "price": 53.83,
+      "side": "Long",
+      "rating": "Buy",
+      "score": 0.38649175333933666,
+      "scorePercentile": 6.1,
+      "forecastReturn": 0.16177069734303684,
+      "positionReturn": 0.16177069734303684,
+      "vol": 0.198,
+      "beta": 0.99,
+      "indivSharpe": 0.6402560471870548,
+      "analysts": 3.0,
+      "targetUpside": 0.25085138398662465,
+      "probAbove": 0.73365,
+      "shortInterest": 0.0576,
+      "mom": 50.444100674781744,
+      "mr": 59.948346588069384,
+      "sent": -56.8147,
+      "newsSent": 79.0224,
+      "instChange": -19.0311,
+      "insiders": null,
+      "compositeScore": 0.4298,
+      "poolRank": 99,
+      "poolSize": 172,
+      "alternates": [
+        {
+          "ticker": "SCSC",
+          "name": "ScanSource, Inc.",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.21580331073831238,
+          "compositeScore": 0.674,
+          "poolRank": 39
+        },
+        {
+          "ticker": "DAR",
+          "name": "Darling Ingredients Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.09931734338925469,
+          "compositeScore": 0.3143,
+          "poolRank": 144
+        }
+      ]
+    },
+    {
+      "ticker": "CNK",
+      "name": "Cinemark Holdings Inc Cinemark ",
+      "sector": "Entertainment",
+      "price": 35.99,
+      "side": "Long",
+      "rating": "Buy",
+      "score": 0.3878907623438039,
+      "scorePercentile": 6.4,
+      "forecastReturn": 0.11518783205062899,
+      "positionReturn": 0.11518783205062899,
+      "vol": 0.19720000000000001,
+      "beta": 0.986,
+      "indivSharpe": 0.40663200837032953,
+      "analysts": 11.0,
+      "targetUpside": 0.09121228118921931,
+      "probAbove": 0.5956,
+      "shortInterest": 0.0778,
+      "mom": 30.779197643708343,
+      "mr": 18.538879858571875,
+      "sent": 43.415,
+      "newsSent": 28.4453,
+      "instChange": null,
+      "insiders": null,
+      "compositeScore": 0.424,
+      "poolRank": 101,
+      "poolSize": 172,
+      "alternates": [
+        {
+          "ticker": "DAR",
+          "name": "Darling Ingredients Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.09931734338925469,
+          "compositeScore": 0.3143,
+          "poolRank": 144
+        },
+        {
+          "ticker": "SCSC",
+          "name": "ScanSource, Inc.",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.21580331073831238,
+          "compositeScore": 0.674,
+          "poolRank": 39
+        }
+      ]
+    },
+    {
+      "ticker": "PCG",
+      "name": "Pacific Gas & Electric Co.",
+      "sector": "Utilities - Regulated Electric",
+      "price": 16.6,
+      "side": "Long",
+      "rating": "Buy",
+      "score": 0.4144212248015333,
+      "scorePercentile": 11.0,
+      "forecastReturn": 0.22506198417181378,
+      "positionReturn": 0.22506198417181378,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": 1.2670798944787582,
+      "analysts": 16.0,
+      "targetUpside": 0.3685993975903614,
+      "probAbove": 0.8179,
+      "shortInterest": 0.0151,
+      "mom": 46.675145591542886,
+      "mr": 34.49411917117202,
+      "sent": 43.415,
+      "newsSent": -4.4807,
+      "instChange": -28.7197,
+      "insiders": -100.0,
+      "compositeScore": 0.4079,
+      "poolRank": 106,
+      "poolSize": 172,
+      "alternates": [
+        {
+          "ticker": "DAR",
+          "name": "Darling Ingredients Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.09931734338925469,
+          "compositeScore": 0.3143,
+          "poolRank": 144
+        },
+        {
+          "ticker": "SCSC",
+          "name": "ScanSource, Inc.",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.21580331073831238,
+          "compositeScore": 0.674,
+          "poolRank": 39
+        }
+      ]
+    },
+    {
+      "ticker": "ABM",
+      "name": "ABM Industries Incorporated",
+      "sector": "Specialty Business Services",
+      "price": 47.2,
+      "side": "Long",
+      "rating": "Buy",
+      "score": 0.4401410292570648,
+      "scorePercentile": 16.5,
+      "forecastReturn": 0.14826234538488836,
+      "positionReturn": 0.14826234538488836,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": 0.7550823025659222,
+      "analysts": 7.0,
+      "targetUpside": 0.11077478813559316,
+      "probAbove": 0.66915,
+      "shortInterest": 0.0336,
+      "mom": 32.76830770570071,
+      "mr": 40.85935780583554,
+      "sent": 43.415,
+      "newsSent": null,
+      "instChange": null,
+      "insiders": null,
+      "compositeScore": 0.3918,
+      "poolRank": 111,
+      "poolSize": 172,
+      "alternates": [
+        {
+          "ticker": "DAR",
+          "name": "Darling Ingredients Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.09931734338925469,
+          "compositeScore": 0.3143,
+          "poolRank": 144
+        },
+        {
+          "ticker": "SCSC",
+          "name": "ScanSource, Inc.",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.21580331073831238,
+          "compositeScore": 0.674,
+          "poolRank": 39
+        }
+      ]
+    },
+    {
+      "ticker": "NVDA",
+      "name": "NVIDIA Corporation",
+      "sector": "Semiconductors",
+      "price": 217.55,
+      "side": "Long",
+      "rating": "Buy",
+      "score": 0.406237036365022,
+      "scorePercentile": 9.7,
+      "forecastReturn": 0.4006486490252268,
+      "positionReturn": 0.4006486490252268,
+      "vol": 0.4,
+      "beta": 2.0,
+      "indivSharpe": 0.9141216225630668,
+      "analysts": 58.0,
+      "targetUpside": 0.4056221558262467,
+      "probAbove": 0.75845,
+      "shortInterest": 0.0127,
+      "mom": 46.51907277826415,
+      "mr": 52.303009945879126,
+      "sent": -79.0965,
+      "newsSent": 4.1412,
+      "instChange": -24.9135,
+      "insiders": -100.0,
+      "compositeScore": 0.383,
+      "poolRank": 117,
+      "poolSize": 172,
+      "alternates": [
+        {
+          "ticker": "DAR",
+          "name": "Darling Ingredients Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.09931734338925469,
+          "compositeScore": 0.3143,
+          "poolRank": 144
+        },
+        {
+          "ticker": "FLOC",
+          "name": "Flowco Holdings Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.12625377246364633,
+          "compositeScore": 0.5526,
+          "poolRank": 59
+        }
+      ]
+    },
+    {
+      "ticker": "RAMP",
+      "name": "LiveRamp Holdings, Inc.",
+      "sector": "Software - Infrastructure",
+      "price": 37.74,
+      "side": "Long",
+      "rating": "Buy",
+      "score": 0.4119403187937232,
+      "scorePercentile": 10.6,
+      "forecastReturn": 0.11845821945846491,
+      "positionReturn": 0.11845821945846491,
+      "vol": 0.2516,
+      "beta": 1.258,
+      "indivSharpe": 0.33170993425463,
+      "analysts": 5.0,
+      "targetUpside": 0.025437201907790197,
+      "probAbove": 0.5951,
+      "shortInterest": 0.0672,
+      "mom": 48.332437403443976,
+      "mr": 68.49080493338057,
+      "sent": 43.415,
+      "newsSent": -89.1378,
+      "instChange": 45.3287,
+      "insiders": null,
+      "compositeScore": 0.3801,
+      "poolRank": 120,
+      "poolSize": 172,
+      "alternates": [
+        {
+          "ticker": "DAR",
+          "name": "Darling Ingredients Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.09931734338925469,
+          "compositeScore": 0.3143,
+          "poolRank": 144
+        },
+        {
+          "ticker": "SCSC",
+          "name": "ScanSource, Inc.",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.21580331073831238,
+          "compositeScore": 0.674,
+          "poolRank": 39
+        }
+      ]
+    },
+    {
+      "ticker": "CART",
+      "name": "Maplebear Inc.",
+      "sector": "Internet Retail",
+      "price": 50.54,
+      "side": "Long",
+      "rating": "Buy",
+      "score": 0.42495488237629847,
+      "scorePercentile": 13.2,
+      "forecastReturn": 0.056035681281510374,
+      "positionReturn": 0.056035681281510374,
+      "vol": 0.15560000000000002,
+      "beta": 0.778,
+      "indivSharpe": 0.13519075373721318,
+      "analysts": 27.0,
+      "targetUpside": 0.13881203007518805,
+      "probAbove": 0.55,
+      "shortInterest": 0.0954,
+      "mom": 53.05559476629956,
+      "mr": 43.25002925739472,
+      "sent": 43.415,
+      "newsSent": 50.7807,
+      "instChange": -4.1522,
+      "insiders": -100.0,
+      "compositeScore": 0.3772,
+      "poolRank": 123,
+      "poolSize": 172,
+      "alternates": [
+        {
+          "ticker": "DAR",
+          "name": "Darling Ingredients Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.09931734338925469,
+          "compositeScore": 0.3143,
+          "poolRank": 144
+        },
+        {
+          "ticker": "SCSC",
+          "name": "ScanSource, Inc.",
+          "rating": "Strong Buy",
+          "forecastReturn": 0.21580331073831238,
+          "compositeScore": 0.674,
+          "poolRank": 39
+        }
+      ]
+    },
+    {
+      "ticker": "BG",
+      "name": "Bunge Limited",
+      "sector": "Farm Products",
+      "price": 115.48,
+      "side": "Long",
+      "rating": "Buy",
+      "score": 0.4541345271296015,
+      "scorePercentile": 19.9,
+      "forecastReturn": 0.13022730465381427,
+      "positionReturn": 0.13022730465381427,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": 0.634848697692095,
+      "analysts": 9.0,
+      "targetUpside": 0.22291487703498425,
+      "probAbove": 0.6511,
+      "shortInterest": 0.0371,
+      "mom": 48.81176699736098,
+      "mr": 55.784817711745475,
+      "sent": 43.415,
+      "newsSent": -25.2546,
+      "instChange": -85.1211,
+      "insiders": 100.0,
+      "compositeScore": 0.3772,
+      "poolRank": 124,
+      "poolSize": 172,
+      "alternates": [
+        {
+          "ticker": "DAR",
+          "name": "Darling Ingredients Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.09931734338925469,
+          "compositeScore": 0.3143,
+          "poolRank": 144
+        },
+        {
+          "ticker": "APA",
+          "name": "APA Corporation",
+          "rating": "Buy",
+          "forecastReturn": 0.06279859512058361,
+          "compositeScore": 0.3684,
+          "poolRank": 129
+        }
+      ]
+    },
+    {
+      "ticker": "LNG",
+      "name": "Cheniere Energy, Inc.",
+      "sector": "Oil & Gas Midstream",
+      "price": 282.33,
+      "side": "Long",
+      "rating": "Buy",
+      "score": 0.4154486043334927,
+      "scorePercentile": 11.2,
+      "forecastReturn": 0.1555944935281648,
+      "positionReturn": 0.1555944935281648,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": 0.8039632901877651,
+      "analysts": 21.0,
+      "targetUpside": 0.09412655403251513,
+      "probAbove": 0.6409,
+      "shortInterest": 0.0184,
+      "mom": 65.19972728185029,
+      "mr": 46.20188821127856,
+      "sent": 43.415,
+      "newsSent": 79.0224,
+      "instChange": null,
+      "insiders": null,
+      "compositeScore": 0.3713,
+      "poolRank": 127,
+      "poolSize": 172,
+      "alternates": [
+        {
+          "ticker": "DAR",
+          "name": "Darling Ingredients Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.09931734338925469,
+          "compositeScore": 0.3143,
+          "poolRank": 144
+        },
+        {
+          "ticker": "APA",
+          "name": "APA Corporation",
+          "rating": "Buy",
+          "forecastReturn": 0.06279859512058361,
+          "compositeScore": 0.3684,
+          "poolRank": 129
+        }
+      ]
+    },
+    {
+      "ticker": "CF",
+      "name": "CF Industries Holdings, Inc.",
+      "sector": "Agricultural Inputs",
+      "price": 125.79,
+      "side": "Long",
+      "rating": "Buy",
+      "score": 0.39648864617665514,
+      "scorePercentile": 7.9,
+      "forecastReturn": 0.09342684903854126,
+      "positionReturn": 0.09342684903854126,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": 0.3895123269236083,
+      "analysts": 19.0,
+      "targetUpside": -0.00012131329994446993,
+      "probAbove": 0.6031,
+      "shortInterest": 0.0533,
+      "mom": 53.77190443617399,
+      "mr": 48.952485969342874,
+      "sent": 43.415,
+      "newsSent": -4.4807,
+      "instChange": null,
+      "insiders": null,
+      "compositeScore": 0.3655,
+      "poolRank": 130,
+      "poolSize": 172,
+      "alternates": [
+        {
+          "ticker": "DAR",
+          "name": "Darling Ingredients Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.09931734338925469,
+          "compositeScore": 0.3143,
+          "poolRank": 144
+        },
+        {
+          "ticker": "APA",
+          "name": "APA Corporation",
+          "rating": "Buy",
+          "forecastReturn": 0.06279859512058361,
+          "compositeScore": 0.3684,
+          "poolRank": 129
+        }
+      ]
+    },
+    {
+      "ticker": "TPR",
+      "name": "Tapestry, Inc.",
+      "sector": "Luxury Goods",
+      "price": 125.49,
+      "side": "Long",
+      "rating": "Buy",
+      "score": 0.44767951201909645,
+      "scorePercentile": 17.7,
+      "forecastReturn": 0.024947825561433712,
+      "positionReturn": 0.024947825561433712,
+      "vol": 0.2928,
+      "beta": 1.464,
+      "indivSharpe": -0.03433119685302695,
+      "analysts": 20.0,
+      "targetUpside": 0.33397083432942876,
+      "probAbove": 0.5264,
+      "shortInterest": 0.0834,
+      "mom": 31.253153901894365,
+      "mr": 37.637499670011074,
+      "sent": -49.8469,
+      "newsSent": -11.9484,
+      "instChange": -20.4152,
+      "insiders": -100.0,
+      "compositeScore": 0.3187,
+      "poolRank": 142,
+      "poolSize": 172,
+      "alternates": [
+        {
+          "ticker": "NRG",
+          "name": "NRG Energy, Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.11736273175658907,
+          "compositeScore": 0.3041,
+          "poolRank": 150
+        },
+        {
+          "ticker": "CDRE",
+          "name": "Cadre Holdings, Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.16198834036557863,
+          "compositeScore": 0.4927,
+          "poolRank": 73
+        }
+      ]
+    },
+    {
+      "ticker": "POR",
+      "name": "Portland General Electric Co",
+      "sector": "Utilities - Regulated Electric",
+      "price": 49.6,
+      "side": "Long",
+      "rating": "Buy",
+      "score": 0.4144347535278944,
+      "scorePercentile": 11.1,
+      "forecastReturn": 0.06594406044079792,
+      "positionReturn": 0.06594406044079792,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": 0.2062937362719861,
+      "analysts": 11.0,
+      "targetUpside": 0.08229475806451614,
+      "probAbove": 0.62925,
+      "shortInterest": 0.0534,
+      "mom": 60.54642306147265,
+      "mr": 27.459144366709793,
+      "sent": 43.415,
+      "newsSent": 79.0224,
+      "instChange": null,
+      "insiders": -100.0,
+      "compositeScore": 0.307,
+      "poolRank": 149,
+      "poolSize": 172,
+      "alternates": [
+        {
+          "ticker": "DAR",
+          "name": "Darling Ingredients Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.09931734338925469,
+          "compositeScore": 0.3143,
+          "poolRank": 144
+        },
+        {
+          "ticker": "NRG",
+          "name": "NRG Energy, Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.11736273175658907,
+          "compositeScore": 0.3041,
+          "poolRank": 150
+        }
+      ]
+    },
+    {
+      "ticker": "OGS",
+      "name": "ONE Gas, Inc.",
+      "sector": "Utilities - Regulated Gas",
+      "price": 79.47,
+      "side": "Long",
+      "rating": "Buy",
+      "score": 0.45084512212267575,
+      "scorePercentile": 19.1,
+      "forecastReturn": 0.03487619607921655,
+      "positionReturn": 0.03487619607921655,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": -0.0008253594718897008,
+      "analysts": 8.0,
+      "targetUpside": 0.1269976091606897,
+      "probAbove": 0.5739,
+      "shortInterest": 0.0585,
+      "mom": 56.65183482163964,
+      "mr": 51.39413177513054,
+      "sent": 43.415,
+      "newsSent": -4.4807,
+      "instChange": null,
+      "insiders": null,
+      "compositeScore": 0.2719,
+      "poolRank": 160,
+      "poolSize": 172,
+      "alternates": [
+        {
+          "ticker": "DAR",
+          "name": "Darling Ingredients Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.09931734338925469,
+          "compositeScore": 0.3143,
+          "poolRank": 144
+        },
+        {
+          "ticker": "NRG",
+          "name": "NRG Energy, Inc.",
+          "rating": "Buy",
+          "forecastReturn": 0.11736273175658907,
+          "compositeScore": 0.3041,
+          "poolRank": 150
+        }
+      ]
+    }
+  ],
+  "shorts": [
+    {
+      "ticker": "WBD",
+      "name": "Warner Bros. Discovery, Inc. - ",
+      "sector": "Entertainment",
+      "price": 28.77,
+      "side": "Short",
+      "rating": "Strong Sell",
+      "score": 0.7318500417469576,
+      "scorePercentile": 99.7,
+      "forecastReturn": -0.23013435886963718,
+      "positionReturn": 0.23013435886963718,
+      "vol": 0.313,
+      "beta": 1.565,
+      "indivSharpe": 0.6234324564525149,
+      "analysts": 11.0,
+      "targetUpside": 0.03643309002433104,
+      "probAbove": 0.22695,
+      "shortInterest": 0.0303,
+      "mom": 81.38080893562709,
+      "mr": 40.017385971875136,
+      "sent": -65.4671,
+      "newsSent": -70.2648,
+      "instChange": 6.9204,
+      "insiders": -100.0,
+      "compositeScore": 0.9045,
+      "poolRank": 1,
+      "poolSize": 111,
+      "alternates": [
+        {
+          "ticker": "FAST",
+          "name": "Fastenal Company",
+          "rating": "Sell",
+          "forecastReturn": -0.08723807121108795,
+          "compositeScore": 0.4318,
+          "poolRank": 67
+        },
+        {
+          "ticker": "NEU",
+          "name": "NewMarket Corp",
+          "rating": "Sell",
+          "forecastReturn": -0.11400786327608547,
+          "compositeScore": 0.45,
+          "poolRank": 65
+        }
+      ]
+    },
+    {
+      "ticker": "TSLA",
+      "name": "Tesla, Inc.",
+      "sector": "Auto Manufacturers",
+      "price": 348.75,
+      "side": "Short",
+      "rating": "Strong Sell",
+      "score": 0.7350909106005844,
+      "scorePercentile": 99.8,
+      "forecastReturn": -0.18855178879691292,
+      "positionReturn": 0.18855178879691292,
+      "vol": 0.3654,
+      "beta": 1.827,
+      "indivSharpe": 0.4202293070523068,
+      "analysts": 39.0,
+      "targetUpside": 0.11854574910394255,
+      "probAbove": 0.28245,
+      "shortInterest": 0.0243,
+      "mom": 49.0408603617494,
+      "mr": 53.11773806626933,
+      "sent": -49.8469,
+      "newsSent": -56.5513,
+      "instChange": -41.5225,
+      "insiders": -100.0,
+      "compositeScore": 0.8977,
+      "poolRank": 2,
+      "poolSize": 111,
+      "alternates": [
+        {
+          "ticker": "FAST",
+          "name": "Fastenal Company",
+          "rating": "Sell",
+          "forecastReturn": -0.08723807121108795,
+          "compositeScore": 0.4318,
+          "poolRank": 67
+        },
+        {
+          "ticker": "OPLN",
+          "name": "OPENLANE, Inc.",
+          "rating": "Sell",
+          "forecastReturn": -0.04814743944350297,
+          "compositeScore": 0.4,
+          "poolRank": 74
+        }
+      ]
+    },
+    {
+      "ticker": "DE",
+      "name": "Deere & Company",
+      "sector": "Farm & Heavy Construction Machinery",
+      "price": 630.33,
+      "side": "Short",
+      "rating": "Strong Sell",
+      "score": 0.6804770976700877,
+      "scorePercentile": 97.8,
+      "forecastReturn": -0.12368052051747525,
+      "positionReturn": 0.12368052051747525,
+      "vol": 0.18020000000000003,
+      "beta": 0.901,
+      "indivSharpe": 0.49212275536889694,
+      "analysts": 22.0,
+      "targetUpside": 0.05555455079085547,
+      "probAbove": 0.2966,
+      "shortInterest": 0.0234,
+      "mom": 56.96613813615286,
+      "mr": 44.30254339522425,
+      "sent": -99.2343,
+      "newsSent": -12.6952,
+      "instChange": -58.1315,
+      "insiders": -100.0,
+      "compositeScore": 0.8591,
+      "poolRank": 4,
+      "poolSize": 111,
+      "alternates": [
+        {
+          "ticker": "AGCO",
+          "name": "AGCO Corporation",
+          "rating": "Sell",
+          "forecastReturn": -0.03711685724309899,
+          "compositeScore": 0.4182,
+          "poolRank": 70
+        },
+        {
+          "ticker": "FAST",
+          "name": "Fastenal Company",
+          "rating": "Sell",
+          "forecastReturn": -0.08723807121108795,
+          "compositeScore": 0.4318,
+          "poolRank": 67
+        }
+      ]
+    },
+    {
+      "ticker": "FWONK",
+      "name": "Liberty Media Corporation - Ser",
+      "sector": "Entertainment",
+      "price": 101.8,
+      "side": "Short",
+      "rating": "Strong Sell",
+      "score": 0.7115734585462594,
+      "scorePercentile": 99.2,
+      "forecastReturn": -0.09493281466956105,
+      "positionReturn": 0.09493281466956105,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": 0.39955209779707357,
+      "analysts": 16.0,
+      "targetUpside": 0.18123772102161095,
+      "probAbove": 0.40035,
+      "shortInterest": 0.0337,
+      "mom": 61.86317720601636,
+      "mr": 37.8378423132413,
+      "sent": -92.9556,
+      "newsSent": null,
+      "instChange": null,
+      "insiders": -100.0,
+      "compositeScore": 0.825,
+      "poolRank": 6,
+      "poolSize": 111,
+      "alternates": [
+        {
+          "ticker": "FAST",
+          "name": "Fastenal Company",
+          "rating": "Sell",
+          "forecastReturn": -0.08723807121108795,
+          "compositeScore": 0.4318,
+          "poolRank": 67
+        },
+        {
+          "ticker": "PNW",
+          "name": "Pinnacle West Capital Corporati",
+          "rating": "Sell",
+          "forecastReturn": -0.0059454696819646324,
+          "compositeScore": 0.325,
+          "poolRank": 88
+        }
+      ]
+    },
+    {
+      "ticker": "FWONA",
+      "name": "Liberty Media Corporation - Ser",
+      "sector": "Entertainment",
+      "price": 93.42,
+      "side": "Short",
+      "rating": "Strong Sell",
+      "score": 0.6825016572159769,
+      "scorePercentile": 98.0,
+      "forecastReturn": -0.05516797166403287,
+      "positionReturn": 0.05516797166403287,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": 0.13445314442688575,
+      "analysts": 6.0,
+      "targetUpside": 0.1881824020552345,
+      "probAbove": 0.44775,
+      "shortInterest": 0.0048,
+      "mom": 54.77801922639625,
+      "mr": 41.338136748776066,
+      "sent": null,
+      "newsSent": 37.7461,
+      "instChange": null,
+      "insiders": null,
+      "compositeScore": 0.7864,
+      "poolRank": 7,
+      "poolSize": 111,
+      "alternates": [
+        {
+          "ticker": "FAST",
+          "name": "Fastenal Company",
+          "rating": "Sell",
+          "forecastReturn": -0.08723807121108795,
+          "compositeScore": 0.4318,
+          "poolRank": 67
+        },
+        {
+          "ticker": "PNW",
+          "name": "Pinnacle West Capital Corporati",
+          "rating": "Sell",
+          "forecastReturn": -0.0059454696819646324,
+          "compositeScore": 0.325,
+          "poolRank": 88
+        }
+      ]
+    },
+    {
+      "ticker": "PM",
+      "name": "Philip Morris International Inc",
+      "sector": "Tobacco",
+      "price": 191.89,
+      "side": "Short",
+      "rating": "Strong Sell",
+      "score": 0.6600678184530926,
+      "scorePercentile": 95.9,
+      "forecastReturn": -0.07095779322264928,
+      "positionReturn": 0.07095779322264928,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": 0.23971862148432846,
+      "analysts": 15.0,
+      "targetUpside": 0.06206680910938567,
+      "probAbove": 0.3483,
+      "shortInterest": 0.0104,
+      "mom": 64.08796506362967,
+      "mr": 35.448658051679544,
+      "sent": -25.1149,
+      "newsSent": -7.6714,
+      "instChange": 1.7301,
+      "insiders": null,
+      "compositeScore": 0.775,
+      "poolRank": 10,
+      "poolSize": 111,
+      "alternates": [
+        {
+          "ticker": "PNW",
+          "name": "Pinnacle West Capital Corporati",
+          "rating": "Sell",
+          "forecastReturn": -0.0059454696819646324,
+          "compositeScore": 0.325,
+          "poolRank": 88
+        },
+        {
+          "ticker": "FAST",
+          "name": "Fastenal Company",
+          "rating": "Sell",
+          "forecastReturn": -0.08723807121108795,
+          "compositeScore": 0.4318,
+          "poolRank": 67
+        }
+      ]
+    },
+    {
+      "ticker": "ECL",
+      "name": "Ecolab Inc.",
+      "sector": "Specialty Chemicals",
+      "price": 286.75,
+      "side": "Short",
+      "rating": "Sell",
+      "score": 0.6426946954276356,
+      "scorePercentile": 93.6,
+      "forecastReturn": -0.09249549689908765,
+      "positionReturn": 0.09249549689908765,
+      "vol": 0.17800000000000002,
+      "beta": 0.89,
+      "indivSharpe": 0.3230084095454362,
+      "analysts": 21.0,
+      "targetUpside": 0.13322545771578032,
+      "probAbove": 0.33395,
+      "shortInterest": 0.0111,
+      "mom": 49.47246723664657,
+      "mr": 48.356381662796714,
+      "sent": 43.415,
+      "newsSent": -59.131,
+      "instChange": -58.4775,
+      "insiders": -33.3333,
+      "compositeScore": 0.7568,
+      "poolRank": 12,
+      "poolSize": 111,
+      "alternates": [
+        {
+          "ticker": "FAST",
+          "name": "Fastenal Company",
+          "rating": "Sell",
+          "forecastReturn": -0.08723807121108795,
+          "compositeScore": 0.4318,
+          "poolRank": 67
+        },
+        {
+          "ticker": "PNW",
+          "name": "Pinnacle West Capital Corporati",
+          "rating": "Sell",
+          "forecastReturn": -0.0059454696819646324,
+          "compositeScore": 0.325,
+          "poolRank": 88
+        }
+      ]
+    },
+    {
+      "ticker": "SNOW",
+      "name": "Snowflake Inc.",
+      "sector": "Software - Application",
+      "price": 328.0,
+      "side": "Short",
+      "rating": "Strong Sell",
+      "score": 0.6899240710482104,
+      "scorePercentile": 98.2,
+      "forecastReturn": -0.15198549209427648,
+      "positionReturn": 0.15198549209427648,
+      "vol": 0.263,
+      "beta": 1.315,
+      "indivSharpe": 0.44481175701245806,
+      "analysts": 48.0,
+      "targetUpside": -0.003442621951219582,
+      "probAbove": 0.31345,
+      "shortInterest": 0.0562,
+      "mom": 36.69557650764108,
+      "mr": 53.688110245420106,
+      "sent": 43.415,
+      "newsSent": 2.3761,
+      "instChange": -59.8616,
+      "insiders": -100.0,
+      "compositeScore": 0.7455,
+      "poolRank": 14,
+      "poolSize": 111,
+      "alternates": [
+        {
+          "ticker": "FAST",
+          "name": "Fastenal Company",
+          "rating": "Sell",
+          "forecastReturn": -0.08723807121108795,
+          "compositeScore": 0.4318,
+          "poolRank": 67
+        },
+        {
+          "ticker": "NEU",
+          "name": "NewMarket Corp",
+          "rating": "Sell",
+          "forecastReturn": -0.11400786327608547,
+          "compositeScore": 0.45,
+          "poolRank": 65
+        }
+      ]
+    },
+    {
+      "ticker": "LBRT",
+      "name": "Liberty Energy Inc.",
+      "sector": "Oil & Gas Equipment & Services",
+      "price": 19.02,
+      "side": "Short",
+      "rating": "Strong Sell",
+      "score": 0.7092549399987084,
+      "scorePercentile": 99.0,
+      "forecastReturn": -0.25445302541478154,
+      "positionReturn": 0.25445302541478154,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": 1.4630201694318767,
+      "analysts": 13.0,
+      "targetUpside": 0.526732912723449,
+      "probAbove": 0.15905,
+      "shortInterest": 0.0893,
+      "mom": 33.170165858931114,
+      "mr": 67.84984311794425,
+      "sent": -38.3614,
+      "newsSent": -25.2546,
+      "instChange": 60.2076,
+      "insiders": -66.6667,
+      "compositeScore": 0.7455,
+      "poolRank": 15,
+      "poolSize": 111,
+      "alternates": [
+        {
+          "ticker": "FAST",
+          "name": "Fastenal Company",
+          "rating": "Sell",
+          "forecastReturn": -0.08723807121108795,
+          "compositeScore": 0.4318,
+          "poolRank": 67
+        },
+        {
+          "ticker": "AIP",
+          "name": "Arteris, Inc.",
+          "rating": "Strong Sell",
+          "forecastReturn": -0.3337506092726368,
+          "compositeScore": 0.7568,
+          "poolRank": 13
+        }
+      ]
+    },
+    {
+      "ticker": "SBUX",
+      "name": "Starbucks Corporation",
+      "sector": "Restaurants",
+      "price": 107.85,
+      "side": "Short",
+      "rating": "Strong Sell",
+      "score": 0.67327661182121,
+      "scorePercentile": 97.3,
+      "forecastReturn": -0.07531874530578864,
+      "positionReturn": 0.07531874530578864,
+      "vol": 0.1932,
+      "beta": 0.966,
+      "indivSharpe": 0.20868915789745668,
+      "analysts": 31.0,
+      "targetUpside": 0.04057311080203996,
+      "probAbove": 0.38905,
+      "shortInterest": 0.0345,
+      "mom": 55.7472017507584,
+      "mr": 57.740056583763405,
+      "sent": -69.3721,
+      "newsSent": -1.4257,
+      "instChange": 21.4533,
+      "insiders": -100.0,
+      "compositeScore": 0.7114,
+      "poolRank": 17,
+      "poolSize": 111,
+      "alternates": [
+        {
+          "ticker": "FAST",
+          "name": "Fastenal Company",
+          "rating": "Sell",
+          "forecastReturn": -0.08723807121108795,
+          "compositeScore": 0.4318,
+          "poolRank": 67
+        },
+        {
+          "ticker": "PNW",
+          "name": "Pinnacle West Capital Corporati",
+          "rating": "Sell",
+          "forecastReturn": -0.0059454696819646324,
+          "compositeScore": 0.325,
+          "poolRank": 88
+        }
+      ]
+    },
+    {
+      "ticker": "MBC",
+      "name": "MasterBrand, Inc.",
+      "sector": "Furnishings, Fixtures & Appliances",
+      "price": 8.63,
+      "side": "Short",
+      "rating": "Strong Sell",
+      "score": 0.690046815926532,
+      "scorePercentile": 98.3,
+      "forecastReturn": -0.27390540729047586,
+      "positionReturn": 0.27390540729047586,
+      "vol": 0.2872,
+      "beta": 1.436,
+      "indivSharpe": 0.8318433401478964,
+      "analysts": 3.0,
+      "targetUpside": 0.20046349942062558,
+      "probAbove": 0.1415,
+      "shortInterest": 0.0933,
+      "mom": 33.086542022378325,
+      "mr": 35.97751694480495,
+      "sent": 43.415,
+      "newsSent": -89.1378,
+      "instChange": 50.8651,
+      "insiders": -11.1111,
+      "compositeScore": 0.7114,
+      "poolRank": 18,
+      "poolSize": 111,
+      "alternates": [
+        {
+          "ticker": "FAST",
+          "name": "Fastenal Company",
+          "rating": "Sell",
+          "forecastReturn": -0.08723807121108795,
+          "compositeScore": 0.4318,
+          "poolRank": 67
+        },
+        {
+          "ticker": "AGCO",
+          "name": "AGCO Corporation",
+          "rating": "Sell",
+          "forecastReturn": -0.03711685724309899,
+          "compositeScore": 0.4182,
+          "poolRank": 70
+        }
+      ]
+    },
+    {
+      "ticker": "TTWO",
+      "name": "Take-Two Interactive Software, ",
+      "sector": "Electronic Gaming & Multimedia",
+      "price": 235.39,
+      "side": "Short",
+      "rating": "Strong Sell",
+      "score": 0.6929141884893144,
+      "scorePercentile": 98.4,
+      "forecastReturn": -0.06461511214939852,
+      "positionReturn": 0.06461511214939852,
+      "vol": 0.1966,
+      "beta": 0.983,
+      "indivSharpe": 0.15063637919327832,
+      "analysts": 29.0,
+      "targetUpside": 0.2187858447682569,
+      "probAbove": 0.43325,
+      "shortInterest": 0.0343,
+      "mom": 33.77681950785997,
+      "mr": 51.40843895396157,
+      "sent": -18.8361,
+      "newsSent": 34.9627,
+      "instChange": -41.1765,
+      "insiders": -100.0,
+      "compositeScore": 0.7114,
+      "poolRank": 19,
+      "poolSize": 111,
+      "alternates": [
+        {
+          "ticker": "FAST",
+          "name": "Fastenal Company",
+          "rating": "Sell",
+          "forecastReturn": -0.08723807121108795,
+          "compositeScore": 0.4318,
+          "poolRank": 67
+        },
+        {
+          "ticker": "NEU",
+          "name": "NewMarket Corp",
+          "rating": "Sell",
+          "forecastReturn": -0.11400786327608547,
+          "compositeScore": 0.45,
+          "poolRank": 65
+        }
+      ]
+    },
+    {
+      "ticker": "KO",
+      "name": "Coca-Cola Company (The)",
+      "sector": "Beverages - Non-Alcoholic",
+      "price": 89.66,
+      "side": "Short",
+      "rating": "Sell",
+      "score": 0.628782842753056,
+      "scorePercentile": 91.4,
+      "forecastReturn": -0.08993341612761863,
+      "positionReturn": 0.08993341612761863,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": 0.3662227741841241,
+      "analysts": 23.0,
+      "targetUpside": 0.056163841177782725,
+      "probAbove": 0.31465,
+      "shortInterest": 0.0101,
+      "mom": 63.989098471018316,
+      "mr": 39.432530339889986,
+      "sent": -65.4671,
+      "newsSent": -71.8262,
+      "instChange": null,
+      "insiders": -100.0,
+      "compositeScore": 0.7068,
+      "poolRank": 20,
+      "poolSize": 111,
+      "alternates": [
+        {
+          "ticker": "FAST",
+          "name": "Fastenal Company",
+          "rating": "Sell",
+          "forecastReturn": -0.08723807121108795,
+          "compositeScore": 0.4318,
+          "poolRank": 67
+        },
+        {
+          "ticker": "PNW",
+          "name": "Pinnacle West Capital Corporati",
+          "rating": "Sell",
+          "forecastReturn": -0.0059454696819646324,
+          "compositeScore": 0.325,
+          "poolRank": 88
+        }
+      ]
+    },
+    {
+      "ticker": "GWRE",
+      "name": "Guidewire Software, Inc.",
+      "sector": "Software - Application",
+      "price": 205.85,
+      "side": "Short",
+      "rating": "Strong Sell",
+      "score": 0.7036197671500571,
+      "scorePercentile": 98.7,
+      "forecastReturn": -0.08909322732827119,
+      "positionReturn": 0.08909322732827119,
+      "vol": 0.18500000000000003,
+      "beta": 0.925,
+      "indivSharpe": 0.2923958233960604,
+      "analysts": 14.0,
+      "targetUpside": -0.0166209861549671,
+      "probAbove": 0.41055,
+      "shortInterest": 0.0669,
+      "mom": 75.10735183487579,
+      "mr": 80.23654323004281,
+      "sent": -71.0567,
+      "newsSent": 3.7339,
+      "instChange": null,
+      "insiders": null,
+      "compositeScore": 0.7,
+      "poolRank": 21,
+      "poolSize": 111,
+      "alternates": [
+        {
+          "ticker": "FAST",
+          "name": "Fastenal Company",
+          "rating": "Sell",
+          "forecastReturn": -0.08723807121108795,
+          "compositeScore": 0.4318,
+          "poolRank": 67
+        },
+        {
+          "ticker": "NOW",
+          "name": "ServiceNow, Inc.",
+          "rating": "Strong Sell",
+          "forecastReturn": -0.06008116626083271,
+          "compositeScore": 0.6886,
+          "poolRank": 25
+        }
+      ]
+    },
+    {
+      "ticker": "AZO",
+      "name": "AutoZone, Inc.",
+      "sector": "Auto Parts",
+      "price": 2961.96,
+      "side": "Short",
+      "rating": "Strong Sell",
+      "score": 0.6508722191335726,
+      "scorePercentile": 94.6,
+      "forecastReturn": -0.07199116949416651,
+      "positionReturn": 0.07199116949416651,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": 0.24660779662777665,
+      "analysts": 23.0,
+      "targetUpside": 0.33375254898783235,
+      "probAbove": 0.3654,
+      "shortInterest": 0.0266,
+      "mom": 61.30594459995647,
+      "mr": 53.87098877299495,
+      "sent": -18.8361,
+      "newsSent": -89.1378,
+      "instChange": -65.0519,
+      "insiders": 0.0,
+      "compositeScore": 0.6977,
+      "poolRank": 22,
+      "poolSize": 111,
+      "alternates": [
+        {
+          "ticker": "FAST",
+          "name": "Fastenal Company",
+          "rating": "Sell",
+          "forecastReturn": -0.08723807121108795,
+          "compositeScore": 0.4318,
+          "poolRank": 67
+        },
+        {
+          "ticker": "PNW",
+          "name": "Pinnacle West Capital Corporati",
+          "rating": "Sell",
+          "forecastReturn": -0.0059454696819646324,
+          "compositeScore": 0.325,
+          "poolRank": 88
+        }
+      ]
+    },
+    {
+      "ticker": "CWST",
+      "name": "Casella Waste Systems, Inc.",
+      "sector": "Waste Management",
+      "price": 93.68,
+      "side": "Short",
+      "rating": "Strong Sell",
+      "score": 0.6651234411162371,
+      "scorePercentile": 96.5,
+      "forecastReturn": -0.10277393355363929,
+      "positionReturn": 0.10277393355363929,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": 0.45182622369092845,
+      "analysts": 10.0,
+      "targetUpside": 0.19342442356959855,
+      "probAbove": 0.3904,
+      "shortInterest": 0.0752,
+      "mom": 58.34813026867293,
+      "mr": 49.43505954950507,
+      "sent": -69.3721,
+      "newsSent": -62.797,
+      "instChange": -70.9343,
+      "insiders": -100.0,
+      "compositeScore": 0.6705,
+      "poolRank": 26,
+      "poolSize": 111,
+      "alternates": [
+        {
+          "ticker": "OPLN",
+          "name": "OPENLANE, Inc.",
+          "rating": "Sell",
+          "forecastReturn": -0.04814743944350297,
+          "compositeScore": 0.4,
+          "poolRank": 74
+        },
+        {
+          "ticker": "FAST",
+          "name": "Fastenal Company",
+          "rating": "Sell",
+          "forecastReturn": -0.08723807121108795,
+          "compositeScore": 0.4318,
+          "poolRank": 67
+        }
+      ]
+    },
+    {
+      "ticker": "MANH",
+      "name": "Manhattan Associates, Inc.",
+      "sector": "Software - Application",
+      "price": 223.28,
+      "side": "Short",
+      "rating": "Sell",
+      "score": 0.6438360283151412,
+      "scorePercentile": 93.7,
+      "forecastReturn": -0.10562704334646922,
+      "positionReturn": 0.10562704334646922,
+      "vol": 0.18560000000000001,
+      "beta": 0.928,
+      "indivSharpe": 0.38053363872020046,
+      "analysts": 10.0,
+      "targetUpside": -0.04201003224650657,
+      "probAbove": 0.31055,
+      "shortInterest": 0.0445,
+      "mom": 73.27129669948184,
+      "mr": 37.397752012787684,
+      "sent": -76.4165,
+      "newsSent": -69.9253,
+      "instChange": null,
+      "insiders": null,
+      "compositeScore": 0.6659,
+      "poolRank": 27,
+      "poolSize": 111,
+      "alternates": [
+        {
+          "ticker": "FAST",
+          "name": "Fastenal Company",
+          "rating": "Sell",
+          "forecastReturn": -0.08723807121108795,
+          "compositeScore": 0.4318,
+          "poolRank": 67
+        },
+        {
+          "ticker": "PNW",
+          "name": "Pinnacle West Capital Corporati",
+          "rating": "Sell",
+          "forecastReturn": -0.0059454696819646324,
+          "compositeScore": 0.325,
+          "poolRank": 88
+        }
+      ]
+    },
+    {
+      "ticker": "NE",
+      "name": "Noble Corporation plc A",
+      "sector": "Oil & Gas Drilling",
+      "price": 45.76,
+      "side": "Short",
+      "rating": "Sell",
+      "score": 0.609406542395043,
+      "scorePercentile": 87.0,
+      "forecastReturn": -0.1631285467628525,
+      "positionReturn": 0.1631285467628525,
+      "vol": 0.1844,
+      "beta": 0.922,
+      "indivSharpe": 0.6948402752866186,
+      "analysts": 11.0,
+      "targetUpside": 0.04895104895104896,
+      "probAbove": 0.2691,
+      "shortInterest": 0.0,
+      "mom": 53.356389396341136,
+      "mr": 47.95292396047483,
+      "sent": 43.415,
+      "newsSent": null,
+      "instChange": -62.9758,
+      "insiders": -100.0,
+      "compositeScore": 0.6545,
+      "poolRank": 28,
+      "poolSize": 111,
+      "alternates": [
+        {
+          "ticker": "FAST",
+          "name": "Fastenal Company",
+          "rating": "Sell",
+          "forecastReturn": -0.08723807121108795,
+          "compositeScore": 0.4318,
+          "poolRank": 67
+        },
+        {
+          "ticker": "NEU",
+          "name": "NewMarket Corp",
+          "rating": "Sell",
+          "forecastReturn": -0.11400786327608547,
+          "compositeScore": 0.45,
+          "poolRank": 65
+        }
+      ]
+    },
+    {
+      "ticker": "ORLY",
+      "name": "O'Reilly Automotive, Inc.",
+      "sector": "Auto Parts",
+      "price": 88.5,
+      "side": "Short",
+      "rating": "Sell",
+      "score": 0.6269565286059492,
+      "scorePercentile": 90.9,
+      "forecastReturn": -0.11972627363571697,
+      "positionReturn": 0.11972627363571697,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": 0.564841824238113,
+      "analysts": 25.0,
+      "targetUpside": 0.2180790960451977,
+      "probAbove": 0.25025,
+      "shortInterest": 0.0313,
+      "mom": 55.753543724319414,
+      "mr": 40.6887299632462,
+      "sent": 43.415,
+      "newsSent": -74.3381,
+      "instChange": -15.5709,
+      "insiders": -100.0,
+      "compositeScore": 0.65,
+      "poolRank": 29,
+      "poolSize": 111,
+      "alternates": [
+        {
+          "ticker": "FAST",
+          "name": "Fastenal Company",
+          "rating": "Sell",
+          "forecastReturn": -0.08723807121108795,
+          "compositeScore": 0.4318,
+          "poolRank": 67
+        },
+        {
+          "ticker": "PNW",
+          "name": "Pinnacle West Capital Corporati",
+          "rating": "Sell",
+          "forecastReturn": -0.0059454696819646324,
+          "compositeScore": 0.325,
+          "poolRank": 88
+        }
+      ]
+    },
+    {
+      "ticker": "HP",
+      "name": "Helmerich & Payne, Inc.",
+      "sector": "Oil & Gas Drilling",
+      "price": 42.55,
+      "side": "Short",
+      "rating": "Strong Sell",
+      "score": 0.6514505889671834,
+      "scorePercentile": 94.7,
+      "forecastReturn": -0.1445694080196036,
+      "positionReturn": 0.1445694080196036,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": 0.7304627201306906,
+      "analysts": 15.0,
+      "targetUpside": 0.015276145710928501,
+      "probAbove": 0.34195,
+      "shortInterest": 0.0872,
+      "mom": 65.6463093720963,
+      "mr": 62.537594196342916,
+      "sent": -53.2925,
+      "newsSent": -38.425,
+      "instChange": 39.4464,
+      "insiders": -100.0,
+      "compositeScore": 0.6432,
+      "poolRank": 30,
+      "poolSize": 111,
+      "alternates": [
+        {
+          "ticker": "ORA",
+          "name": "Ormat Technologies, Inc.",
+          "rating": "Sell",
+          "forecastReturn": -0.1032007539542279,
+          "compositeScore": 0.5341,
+          "poolRank": 45
+        },
+        {
+          "ticker": "SLB",
+          "name": "SLB Limited",
+          "rating": "Sell",
+          "forecastReturn": -0.0023305792017352944,
+          "compositeScore": 0.3,
+          "poolRank": 97
+        }
+      ]
+    },
+    {
+      "ticker": "LASR",
+      "name": "nLIGHT, Inc.",
+      "sector": "Semiconductors",
+      "price": 42.94,
+      "side": "Short",
+      "rating": "Sell",
+      "score": 0.6455458366807039,
+      "scorePercentile": 94.0,
+      "forecastReturn": -0.13748164759101011,
+      "positionReturn": 0.13748164759101011,
+      "vol": 0.4,
+      "beta": 2.0,
+      "indivSharpe": 0.25620411897752526,
+      "analysts": 7.0,
+      "targetUpside": 1.0693325570563577,
+      "probAbove": 0.28575,
+      "shortInterest": 0.0525,
+      "mom": 32.90176442307387,
+      "mr": 28.47936674686747,
+      "sent": 43.415,
+      "newsSent": -89.1378,
+      "instChange": 71.6263,
+      "insiders": -100.0,
+      "compositeScore": 0.6159,
+      "poolRank": 32,
+      "poolSize": 111,
+      "alternates": [
+        {
+          "ticker": "AIP",
+          "name": "Arteris, Inc.",
+          "rating": "Strong Sell",
+          "forecastReturn": -0.3337506092726368,
+          "compositeScore": 0.7568,
+          "poolRank": 13
+        },
+        {
+          "ticker": "TRNS",
+          "name": "Transcat, Inc.",
+          "rating": "Sell",
+          "forecastReturn": -0.10867825330753,
+          "compositeScore": 0.5182,
+          "poolRank": 49
+        }
+      ]
+    },
+    {
+      "ticker": "IFF",
+      "name": "International Flavors & Fragran",
+      "sector": "Specialty Chemicals",
+      "price": 87.95,
+      "side": "Short",
+      "rating": "Strong Sell",
+      "score": 0.6527925414134821,
+      "scorePercentile": 94.9,
+      "forecastReturn": -0.08760000246695876,
+      "positionReturn": 0.08760000246695876,
+      "vol": 0.1886,
+      "beta": 0.943,
+      "indivSharpe": 0.2788971498778301,
+      "analysts": 18.0,
+      "targetUpside": 0.0876129619101762,
+      "probAbove": 0.4064,
+      "shortInterest": 0.0645,
+      "mom": 61.6475184124709,
+      "mr": 53.24612077980364,
+      "sent": -33.0015,
+      "newsSent": -36.592,
+      "instChange": null,
+      "insiders": -20.0,
+      "compositeScore": 0.6068,
+      "poolRank": 33,
+      "poolSize": 111,
+      "alternates": [
+        {
+          "ticker": "FAST",
+          "name": "Fastenal Company",
+          "rating": "Sell",
+          "forecastReturn": -0.08723807121108795,
+          "compositeScore": 0.4318,
+          "poolRank": 67
+        },
+        {
+          "ticker": "INTA",
+          "name": "Intapp, Inc.",
+          "rating": "Sell",
+          "forecastReturn": -0.02974852744690959,
+          "compositeScore": 0.2227,
+          "poolRank": 105
+        }
+      ]
+    },
+    {
+      "ticker": "DASH",
+      "name": "DoorDash, Inc.",
+      "sector": "Internet Retail",
+      "price": 236.74,
+      "side": "Short",
+      "rating": "Strong Sell",
+      "score": 0.660215002825001,
+      "scorePercentile": 95.9,
+      "forecastReturn": -0.05860698807746023,
+      "positionReturn": 0.05860698807746023,
+      "vol": 0.35400000000000004,
+      "beta": 1.77,
+      "indivSharpe": 0.06668640699847521,
+      "analysts": 42.0,
+      "targetUpside": 0.06571605981245243,
+      "probAbove": 0.4369,
+      "shortInterest": 0.0473,
+      "mom": 85.84004356295691,
+      "mr": 48.45780038974494,
+      "sent": -49.8469,
+      "newsSent": 4.277,
+      "instChange": null,
+      "insiders": null,
+      "compositeScore": 0.5977,
+      "poolRank": 35,
+      "poolSize": 111,
+      "alternates": [
+        {
+          "ticker": "PNW",
+          "name": "Pinnacle West Capital Corporati",
+          "rating": "Sell",
+          "forecastReturn": -0.0059454696819646324,
+          "compositeScore": 0.325,
+          "poolRank": 88
+        },
+        {
+          "ticker": "FAST",
+          "name": "Fastenal Company",
+          "rating": "Sell",
+          "forecastReturn": -0.08723807121108795,
+          "compositeScore": 0.4318,
+          "poolRank": 67
+        }
+      ]
+    },
+    {
+      "ticker": "CMG",
+      "name": "Chipotle Mexican Grill, Inc.",
+      "sector": "Restaurants",
+      "price": 38.03,
+      "side": "Short",
+      "rating": "Sell",
+      "score": 0.6371999572596392,
+      "scorePercentile": 92.8,
+      "forecastReturn": -0.06127778056206956,
+      "positionReturn": 0.06127778056206956,
+      "vol": 0.1874,
+      "beta": 0.937,
+      "indivSharpe": 0.14022294857027512,
+      "analysts": 32.0,
+      "targetUpside": 0.14835340520641593,
+      "probAbove": 0.38905,
+      "shortInterest": 0.0311,
+      "mom": 77.02476328749714,
+      "mr": 74.37036933098989,
+      "sent": -49.8469,
+      "newsSent": -36.0489,
+      "instChange": null,
+      "insiders": null,
+      "compositeScore": 0.5864,
+      "poolRank": 37,
+      "poolSize": 111,
+      "alternates": [
+        {
+          "ticker": "OPLN",
+          "name": "OPENLANE, Inc.",
+          "rating": "Sell",
+          "forecastReturn": -0.04814743944350297,
+          "compositeScore": 0.4,
+          "poolRank": 74
+        },
+        {
+          "ticker": "AGCO",
+          "name": "AGCO Corporation",
+          "rating": "Sell",
+          "forecastReturn": -0.03711685724309899,
+          "compositeScore": 0.4182,
+          "poolRank": 70
+        }
+      ]
+    },
+    {
+      "ticker": "AIN",
+      "name": "Albany International Corporatio",
+      "sector": "Textile Manufacturing",
+      "price": 58.35,
+      "side": "Short",
+      "rating": "Sell",
+      "score": 0.6391752643724776,
+      "scorePercentile": 93.3,
+      "forecastReturn": -0.03859538689050379,
+      "positionReturn": 0.03859538689050379,
+      "vol": 0.2398,
+      "beta": 1.199,
+      "indivSharpe": 0.014993273104686353,
+      "analysts": 3.0,
+      "targetUpside": 0.0625535561268209,
+      "probAbove": 0.4601,
+      "shortInterest": 0.0257,
+      "mom": 42.919441351358806,
+      "mr": 56.754662642044934,
+      "sent": -82.2358,
+      "newsSent": 79.0224,
+      "instChange": null,
+      "insiders": null,
+      "compositeScore": 0.575,
+      "poolRank": 38,
+      "poolSize": 111,
+      "alternates": [
+        {
+          "ticker": "OPLN",
+          "name": "OPENLANE, Inc.",
+          "rating": "Sell",
+          "forecastReturn": -0.04814743944350297,
+          "compositeScore": 0.4,
+          "poolRank": 74
+        },
+        {
+          "ticker": "PNW",
+          "name": "Pinnacle West Capital Corporati",
+          "rating": "Sell",
+          "forecastReturn": -0.0059454696819646324,
+          "compositeScore": 0.325,
+          "poolRank": 88
+        }
+      ]
+    },
+    {
+      "ticker": "FWRG",
+      "name": "First Watch Restaurant Group, I",
+      "sector": "Restaurants",
+      "price": 12.51,
+      "side": "Short",
+      "rating": "Sell",
+      "score": 0.6423400226858598,
+      "scorePercentile": 93.5,
+      "forecastReturn": -0.14032358827167435,
+      "positionReturn": 0.14032358827167435,
+      "vol": 0.207,
+      "beta": 1.035,
+      "indivSharpe": 0.5088096051771708,
+      "analysts": 11.0,
+      "targetUpside": 0.5405859312549959,
+      "probAbove": 0.3028,
+      "shortInterest": 0.099,
+      "mom": 52.50431042809444,
+      "mr": 66.01210542767132,
+      "sent": -56.8147,
+      "newsSent": -52.1385,
+      "instChange": -68.1661,
+      "insiders": null,
+      "compositeScore": 0.5636,
+      "poolRank": 41,
+      "poolSize": 111,
+      "alternates": [
+        {
+          "ticker": "AGCO",
+          "name": "AGCO Corporation",
+          "rating": "Sell",
+          "forecastReturn": -0.03711685724309899,
+          "compositeScore": 0.4182,
+          "poolRank": 70
+        },
+        {
+          "ticker": "PNW",
+          "name": "Pinnacle West Capital Corporati",
+          "rating": "Sell",
+          "forecastReturn": -0.0059454696819646324,
+          "compositeScore": 0.325,
+          "poolRank": 88
+        }
+      ]
+    },
+    {
+      "ticker": "COST",
+      "name": "Costco Wholesale Corporation",
+      "sector": "Discount Stores",
+      "price": 945.47,
+      "side": "Short",
+      "rating": "Sell",
+      "score": 0.601090080246554,
+      "scorePercentile": 84.7,
+      "forecastReturn": -0.14710953850363906,
+      "positionReturn": 0.14710953850363906,
+      "vol": 0.17200000000000001,
+      "beta": 0.86,
+      "indivSharpe": 0.6517996424630177,
+      "analysts": 35.0,
+      "targetUpside": 0.1394484224777095,
+      "probAbove": 0.25335,
+      "shortInterest": 0.0167,
+      "mom": 45.60042792190423,
+      "mr": null,
+      "sent": 43.415,
+      "newsSent": 33.8764,
+      "instChange": null,
+      "insiders": -100.0,
+      "compositeScore": 0.55,
+      "poolRank": 42,
+      "poolSize": 111,
+      "alternates": [
+        {
+          "ticker": "FAST",
+          "name": "Fastenal Company",
+          "rating": "Sell",
+          "forecastReturn": -0.08723807121108795,
+          "compositeScore": 0.4318,
+          "poolRank": 67
+        },
+        {
+          "ticker": "PNW",
+          "name": "Pinnacle West Capital Corporati",
+          "rating": "Sell",
+          "forecastReturn": -0.0059454696819646324,
+          "compositeScore": 0.325,
+          "poolRank": 88
+        }
+      ]
+    },
+    {
+      "ticker": "SLAB",
+      "name": "Silicon Laboratories, Inc.",
+      "sector": "Semiconductors",
+      "price": 218.54,
+      "side": "Short",
+      "rating": "Strong Sell",
+      "score": 0.6961354444949751,
+      "scorePercentile": 98.5,
+      "forecastReturn": -0.04427445604789604,
+      "positionReturn": 0.04427445604789604,
+      "vol": 0.2722,
+      "beta": 1.361,
+      "indivSharpe": 0.03407221178506993,
+      "analysts": 7.0,
+      "targetUpside": 0.019754507184039483,
+      "probAbove": 0.45825,
+      "shortInterest": 0.0874,
+      "mom": 52.62695119368556,
+      "mr": 25.32139114692076,
+      "sent": -98.0092,
+      "newsSent": -52.1385,
+      "instChange": -63.3218,
+      "insiders": -100.0,
+      "compositeScore": 0.55,
+      "poolRank": 43,
+      "poolSize": 111,
+      "alternates": [
+        {
+          "ticker": "FAST",
+          "name": "Fastenal Company",
+          "rating": "Sell",
+          "forecastReturn": -0.08723807121108795,
+          "compositeScore": 0.4318,
+          "poolRank": 67
+        },
+        {
+          "ticker": "PNW",
+          "name": "Pinnacle West Capital Corporati",
+          "rating": "Sell",
+          "forecastReturn": -0.0059454696819646324,
+          "compositeScore": 0.325,
+          "poolRank": 88
+        }
+      ]
+    },
+    {
+      "ticker": "HD",
+      "name": "Home Depot, Inc. (The)",
+      "sector": "Home Improvement Retail",
+      "price": 330.19,
+      "side": "Short",
+      "rating": "Sell",
+      "score": 0.6165735114421154,
+      "scorePercentile": 88.5,
+      "forecastReturn": -0.06808168603553433,
+      "positionReturn": 0.06808168603553433,
+      "vol": 0.1918,
+      "beta": 0.959,
+      "indivSharpe": 0.17248011488808304,
+      "analysts": 32.0,
+      "targetUpside": 0.14328114116114965,
+      "probAbove": 0.36185,
+      "shortInterest": 0.0123,
+      "mom": 47.64138534804582,
+      "mr": 45.15038070195109,
+      "sent": -84.9923,
+      "newsSent": 2.2403,
+      "instChange": -80.6228,
+      "insiders": -100.0,
+      "compositeScore": 0.5432,
+      "poolRank": 44,
+      "poolSize": 111,
+      "alternates": [
+        {
+          "ticker": "FAST",
+          "name": "Fastenal Company",
+          "rating": "Sell",
+          "forecastReturn": -0.08723807121108795,
+          "compositeScore": 0.4318,
+          "poolRank": 67
+        },
+        {
+          "ticker": "PNW",
+          "name": "Pinnacle West Capital Corporati",
+          "rating": "Sell",
+          "forecastReturn": -0.0059454696819646324,
+          "compositeScore": 0.325,
+          "poolRank": 88
+        }
+      ]
+    },
+    {
+      "ticker": "WMB",
+      "name": "Williams Companies, Inc. (The)",
+      "sector": "Oil & Gas Midstream",
+      "price": 73.73,
+      "side": "Short",
+      "rating": "Sell",
+      "score": 0.6042957664414906,
+      "scorePercentile": 85.9,
+      "forecastReturn": -0.09751021010405692,
+      "positionReturn": 0.09751021010405692,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": 0.416734734027046,
+      "analysts": 20.0,
+      "targetUpside": 0.1562457615624575,
+      "probAbove": 0.3169,
+      "shortInterest": 0.0218,
+      "mom": 60.141582084332256,
+      "mr": 41.586493913343425,
+      "sent": null,
+      "newsSent": 60.4888,
+      "instChange": -7.2664,
+      "insiders": -100.0,
+      "compositeScore": 0.5273,
+      "poolRank": 47,
+      "poolSize": 111,
+      "alternates": [
+        {
+          "ticker": "FAST",
+          "name": "Fastenal Company",
+          "rating": "Sell",
+          "forecastReturn": -0.08723807121108795,
+          "compositeScore": 0.4318,
+          "poolRank": 67
+        },
+        {
+          "ticker": "PNW",
+          "name": "Pinnacle West Capital Corporati",
+          "rating": "Sell",
+          "forecastReturn": -0.0059454696819646324,
+          "compositeScore": 0.325,
+          "poolRank": 88
+        }
+      ]
+    },
+    {
+      "ticker": "KMX",
+      "name": "CarMax Inc",
+      "sector": "Auto & Truck Dealerships",
+      "price": 62.11,
+      "side": "Short",
+      "rating": "Strong Sell",
+      "score": 0.6503283026834445,
+      "scorePercentile": 94.6,
+      "forecastReturn": -0.08277662064894165,
+      "positionReturn": 0.08277662064894165,
+      "vol": 0.23260000000000003,
+      "beta": 1.163,
+      "indivSharpe": 0.20540249634110763,
+      "analysts": 13.0,
+      "targetUpside": -0.11695137658992105,
+      "probAbove": 0.399,
+      "shortInterest": 0.0978,
+      "mom": 73.16675469686308,
+      "mr": 22.665025974456867,
+      "sent": -79.7856,
+      "newsSent": -52.1385,
+      "instChange": 43.5986,
+      "insiders": 100.0,
+      "compositeScore": 0.4909,
+      "poolRank": 57,
+      "poolSize": 111,
+      "alternates": [
+        {
+          "ticker": "AGCO",
+          "name": "AGCO Corporation",
+          "rating": "Sell",
+          "forecastReturn": -0.03711685724309899,
+          "compositeScore": 0.4182,
+          "poolRank": 70
+        },
+        {
+          "ticker": "OPLN",
+          "name": "OPENLANE, Inc.",
+          "rating": "Sell",
+          "forecastReturn": -0.04814743944350297,
+          "compositeScore": 0.4,
+          "poolRank": 74
+        }
+      ]
+    },
+    {
+      "ticker": "GE",
+      "name": "GE Aerospace",
+      "sector": "Aerospace & Defense",
+      "price": 342.58,
+      "side": "Short",
+      "rating": "Sell",
+      "score": 0.6183719579960761,
+      "scorePercentile": 88.8,
+      "forecastReturn": -0.03316414298837089,
+      "positionReturn": 0.03316414298837089,
+      "vol": 0.27320000000000005,
+      "beta": 1.366,
+      "indivSharpe": -0.0067198280074271975,
+      "analysts": 21.0,
+      "targetUpside": 0.18192757895965905,
+      "probAbove": 0.46355,
+      "shortInterest": 0.0138,
+      "mom": 50.78656485236624,
+      "mr": 31.06648975469639,
+      "sent": 43.415,
+      "newsSent": -76.5784,
+      "instChange": 52.2491,
+      "insiders": -100.0,
+      "compositeScore": 0.4773,
+      "poolRank": 58,
+      "poolSize": 111,
+      "alternates": [
+        {
+          "ticker": "FAST",
+          "name": "Fastenal Company",
+          "rating": "Sell",
+          "forecastReturn": -0.08723807121108795,
+          "compositeScore": 0.4318,
+          "poolRank": 67
+        },
+        {
+          "ticker": "PNW",
+          "name": "Pinnacle West Capital Corporati",
+          "rating": "Sell",
+          "forecastReturn": -0.0059454696819646324,
+          "compositeScore": 0.325,
+          "poolRank": 88
+        }
+      ]
+    },
+    {
+      "ticker": "DOW",
+      "name": "Dow Inc.",
+      "sector": "Chemicals",
+      "price": 30.51,
+      "side": "Short",
+      "rating": "Sell",
+      "score": 0.6388993964098553,
+      "scorePercentile": 93.3,
+      "forecastReturn": -0.007699867773848901,
+      "positionReturn": 0.007699867773848901,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": -0.182000881507674,
+      "analysts": 16.0,
+      "targetUpside": 0.16969845952146834,
+      "probAbove": 0.4924,
+      "shortInterest": 0.049,
+      "mom": 55.84688536647463,
+      "mr": 39.805029235686334,
+      "sent": -73.8132,
+      "newsSent": -89.1378,
+      "instChange": -94.8097,
+      "insiders": null,
+      "compositeScore": 0.4568,
+      "poolRank": 64,
+      "poolSize": 111,
+      "alternates": [
+        {
+          "ticker": "FAST",
+          "name": "Fastenal Company",
+          "rating": "Sell",
+          "forecastReturn": -0.08723807121108795,
+          "compositeScore": 0.4318,
+          "poolRank": 67
+        },
+        {
+          "ticker": "SLB",
+          "name": "SLB Limited",
+          "rating": "Sell",
+          "forecastReturn": -0.0023305792017352944,
+          "compositeScore": 0.3,
+          "poolRank": 97
+        }
+      ]
+    },
+    {
+      "ticker": "TRGP",
+      "name": "Targa Resources, Inc.",
+      "sector": "Oil & Gas Midstream",
+      "price": 287.82,
+      "side": "Short",
+      "rating": "Sell",
+      "score": 0.6016546978248382,
+      "scorePercentile": 84.9,
+      "forecastReturn": -0.06856105232992826,
+      "positionReturn": 0.06856105232992826,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": 0.22374034886618835,
+      "analysts": 21.0,
+      "targetUpside": 0.07044420123688422,
+      "probAbove": 0.40305,
+      "shortInterest": 0.0235,
+      "mom": 55.815280382010855,
+      "mr": 29.71148118420453,
+      "sent": null,
+      "newsSent": 58.8595,
+      "instChange": null,
+      "insiders": null,
+      "compositeScore": 0.4341,
+      "poolRank": 66,
+      "poolSize": 111,
+      "alternates": [
+        {
+          "ticker": "FAST",
+          "name": "Fastenal Company",
+          "rating": "Sell",
+          "forecastReturn": -0.08723807121108795,
+          "compositeScore": 0.4318,
+          "poolRank": 67
+        },
+        {
+          "ticker": "NEU",
+          "name": "NewMarket Corp",
+          "rating": "Sell",
+          "forecastReturn": -0.11400786327608547,
+          "compositeScore": 0.45,
+          "poolRank": 65
+        }
+      ]
+    },
+    {
+      "ticker": "MEI",
+      "name": "Methode Electronics, Inc.",
+      "sector": "Electronic Components",
+      "price": 18.21,
+      "side": "Short",
+      "rating": "Sell",
+      "score": 0.6075576895922264,
+      "scorePercentile": 86.6,
+      "forecastReturn": -0.17206619289051395,
+      "positionReturn": 0.17206619289051395,
+      "vol": 0.3012,
+      "beta": 1.506,
+      "indivSharpe": 0.45506704146916976,
+      "analysts": 4.0,
+      "targetUpside": 0.20812740252608442,
+      "probAbove": 0.30505,
+      "shortInterest": 0.0686,
+      "mom": 66.88781218214649,
+      "mr": 76.55158017975002,
+      "sent": -76.4165,
+      "newsSent": null,
+      "instChange": 88.9273,
+      "insiders": null,
+      "compositeScore": 0.4205,
+      "poolRank": 69,
+      "poolSize": 111,
+      "alternates": [
+        {
+          "ticker": "AIP",
+          "name": "Arteris, Inc.",
+          "rating": "Strong Sell",
+          "forecastReturn": -0.3337506092726368,
+          "compositeScore": 0.7568,
+          "poolRank": 13
+        },
+        {
+          "ticker": "TRNS",
+          "name": "Transcat, Inc.",
+          "rating": "Sell",
+          "forecastReturn": -0.10867825330753,
+          "compositeScore": 0.5182,
+          "poolRank": 49
+        }
+      ]
+    },
+    {
+      "ticker": "ROL",
+      "name": "Rollins, Inc.",
+      "sector": "Personal Services",
+      "price": 36.38,
+      "side": "Short",
+      "rating": "Sell",
+      "score": 0.5961758478530051,
+      "scorePercentile": 83.1,
+      "forecastReturn": -0.10130818847439027,
+      "positionReturn": 0.10130818847439027,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": 0.4420545898292684,
+      "analysts": 17.0,
+      "targetUpside": 0.25311269928532143,
+      "probAbove": 0.3483,
+      "shortInterest": 0.0428,
+      "mom": 38.45321597888322,
+      "mr": 69.72948093872304,
+      "sent": -22.6646,
+      "newsSent": -25.2546,
+      "instChange": null,
+      "insiders": null,
+      "compositeScore": 0.4023,
+      "poolRank": 72,
+      "poolSize": 111,
+      "alternates": [
+        {
+          "ticker": "FAST",
+          "name": "Fastenal Company",
+          "rating": "Sell",
+          "forecastReturn": -0.08723807121108795,
+          "compositeScore": 0.4318,
+          "poolRank": 67
+        },
+        {
+          "ticker": "AGCO",
+          "name": "AGCO Corporation",
+          "rating": "Sell",
+          "forecastReturn": -0.03711685724309899,
+          "compositeScore": 0.4182,
+          "poolRank": 70
+        }
+      ]
+    },
+    {
+      "ticker": "ACA",
+      "name": "Arcosa, Inc.",
+      "sector": "Engineering & Construction",
+      "price": 145.28,
+      "side": "Short",
+      "rating": "Sell",
+      "score": 0.5924591625851544,
+      "scorePercentile": 81.4,
+      "forecastReturn": -0.08361248464844895,
+      "positionReturn": 0.08361248464844895,
+      "vol": 0.2142,
+      "beta": 1.071,
+      "indivSharpe": 0.22694904130928545,
+      "analysts": 3.0,
+      "targetUpside": 0.009544810022026562,
+      "probAbove": 0.36825,
+      "shortInterest": 0.0171,
+      "mom": 60.58631921824086,
+      "mr": null,
+      "sent": 43.415,
+      "newsSent": 79.0224,
+      "instChange": 46.3668,
+      "insiders": null,
+      "compositeScore": 0.3932,
+      "poolRank": 78,
+      "poolSize": 111,
+      "alternates": [
+        {
+          "ticker": "FAST",
+          "name": "Fastenal Company",
+          "rating": "Sell",
+          "forecastReturn": -0.08723807121108795,
+          "compositeScore": 0.4318,
+          "poolRank": 67
+        },
+        {
+          "ticker": "PNW",
+          "name": "Pinnacle West Capital Corporati",
+          "rating": "Sell",
+          "forecastReturn": -0.0059454696819646324,
+          "compositeScore": 0.325,
+          "poolRank": 88
+        }
+      ]
+    },
+    {
+      "ticker": "LW",
+      "name": "Lamb Weston Holdings, Inc.",
+      "sector": "Packaged Foods",
+      "price": 54.98,
+      "side": "Short",
+      "rating": "Sell",
+      "score": 0.6082793208165382,
+      "scorePercentile": 86.6,
+      "forecastReturn": -0.05048058021771329,
+      "positionReturn": 0.05048058021771329,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": 0.10320386811808856,
+      "analysts": 12.0,
+      "targetUpside": 0.004910876682429954,
+      "probAbove": 0.43575,
+      "shortInterest": 0.0479,
+      "mom": 73.48370215937231,
+      "mr": 34.8065373666977,
+      "sent": 43.415,
+      "newsSent": -89.1378,
+      "instChange": null,
+      "insiders": null,
+      "compositeScore": 0.3659,
+      "poolRank": 80,
+      "poolSize": 111,
+      "alternates": [
+        {
+          "ticker": "PNW",
+          "name": "Pinnacle West Capital Corporati",
+          "rating": "Sell",
+          "forecastReturn": -0.0059454696819646324,
+          "compositeScore": 0.325,
+          "poolRank": 88
+        },
+        {
+          "ticker": "AGCO",
+          "name": "AGCO Corporation",
+          "rating": "Sell",
+          "forecastReturn": -0.03711685724309899,
+          "compositeScore": 0.4182,
+          "poolRank": 70
+        }
+      ]
+    },
+    {
+      "ticker": "PSMT",
+      "name": "PriceSmart, Inc.",
+      "sector": "Discount Stores",
+      "price": 169.34,
+      "side": "Short",
+      "rating": "Sell",
+      "score": 0.5950802064579289,
+      "scorePercentile": 82.6,
+      "forecastReturn": -0.1170421765180304,
+      "positionReturn": 0.1170421765180304,
+      "vol": 0.1574,
+      "beta": 0.787,
+      "indivSharpe": 0.521233650051019,
+      "analysts": 3.0,
+      "targetUpside": -0.0945238573284517,
+      "probAbove": 0.23895,
+      "shortInterest": 0.0654,
+      "mom": 38.304477657978204,
+      "mr": 38.80003456392719,
+      "sent": null,
+      "newsSent": -89.1378,
+      "instChange": 9.6886,
+      "insiders": -100.0,
+      "compositeScore": 0.3591,
+      "poolRank": 81,
+      "poolSize": 111,
+      "alternates": [
+        {
+          "ticker": "PNW",
+          "name": "Pinnacle West Capital Corporati",
+          "rating": "Sell",
+          "forecastReturn": -0.0059454696819646324,
+          "compositeScore": 0.325,
+          "poolRank": 88
+        },
+        {
+          "ticker": "FAST",
+          "name": "Fastenal Company",
+          "rating": "Sell",
+          "forecastReturn": -0.08723807121108795,
+          "compositeScore": 0.4318,
+          "poolRank": 67
+        }
+      ]
+    },
+    {
+      "ticker": "JJSF",
+      "name": "J & J Snack Foods Corp.",
+      "sector": "Packaged Foods",
+      "price": 89.26,
+      "side": "Short",
+      "rating": "Sell",
+      "score": 0.59926834837753,
+      "scorePercentile": 84.2,
+      "forecastReturn": -0.10329035585038882,
+      "positionReturn": 0.10329035585038882,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": 0.455269039002592,
+      "analysts": 2.0,
+      "targetUpside": 0.23795653148106655,
+      "probAbove": 0.2895,
+      "shortInterest": 0.0719,
+      "mom": 39.60138859488376,
+      "mr": 44.96500878606519,
+      "sent": -56.8147,
+      "newsSent": -38.425,
+      "instChange": null,
+      "insiders": null,
+      "compositeScore": 0.3523,
+      "poolRank": 83,
+      "poolSize": 111,
+      "alternates": [
+        {
+          "ticker": "FAST",
+          "name": "Fastenal Company",
+          "rating": "Sell",
+          "forecastReturn": -0.08723807121108795,
+          "compositeScore": 0.4318,
+          "poolRank": 67
+        },
+        {
+          "ticker": "PNW",
+          "name": "Pinnacle West Capital Corporati",
+          "rating": "Sell",
+          "forecastReturn": -0.0059454696819646324,
+          "compositeScore": 0.325,
+          "poolRank": 88
+        }
+      ]
+    },
+    {
+      "ticker": "GEV",
+      "name": "GE Vernova Inc.",
+      "sector": "Specialty Industrial Machinery",
+      "price": 911.93,
+      "side": "Short",
+      "rating": "Sell",
+      "score": 0.6038660522327994,
+      "scorePercentile": 85.7,
+      "forecastReturn": -0.045012642199035446,
+      "positionReturn": 0.045012642199035446,
+      "vol": 0.2066,
+      "beta": 1.033,
+      "indivSharpe": 0.04846390222185597,
+      "analysts": 33.0,
+      "targetUpside": 0.35584068952660863,
+      "probAbove": 0.45435,
+      "shortInterest": 0.0321,
+      "mom": 43.193434060809544,
+      "mr": null,
+      "sent": -20.7504,
+      "newsSent": -25.2546,
+      "instChange": null,
+      "insiders": null,
+      "compositeScore": 0.3455,
+      "poolRank": 84,
+      "poolSize": 111,
+      "alternates": [
+        {
+          "ticker": "FAST",
+          "name": "Fastenal Company",
+          "rating": "Sell",
+          "forecastReturn": -0.08723807121108795,
+          "compositeScore": 0.4318,
+          "poolRank": 67
+        },
+        {
+          "ticker": "PNW",
+          "name": "Pinnacle West Capital Corporati",
+          "rating": "Sell",
+          "forecastReturn": -0.0059454696819646324,
+          "compositeScore": 0.325,
+          "poolRank": 88
+        }
+      ]
+    },
+    {
+      "ticker": "NSC",
+      "name": "Norfolk Southern Corporation",
+      "sector": "Railroads",
+      "price": 348.68,
+      "side": "Short",
+      "rating": "Sell",
+      "score": 0.6035403765179531,
+      "scorePercentile": 85.6,
+      "forecastReturn": -0.048953881292433055,
+      "positionReturn": 0.048953881292433055,
+      "vol": 0.25379999999999997,
+      "beta": 1.269,
+      "indivSharpe": 0.0549798317274746,
+      "analysts": 18.0,
+      "targetUpside": 0.047601726511414366,
+      "probAbove": 0.40135,
+      "shortInterest": 0.034,
+      "mom": 73.1190842374368,
+      "mr": 53.38600208363005,
+      "sent": 43.415,
+      "newsSent": -42.4304,
+      "instChange": null,
+      "insiders": null,
+      "compositeScore": 0.3409,
+      "poolRank": 85,
+      "poolSize": 111,
+      "alternates": [
+        {
+          "ticker": "FAST",
+          "name": "Fastenal Company",
+          "rating": "Sell",
+          "forecastReturn": -0.08723807121108795,
+          "compositeScore": 0.4318,
+          "poolRank": 67
+        },
+        {
+          "ticker": "PNW",
+          "name": "Pinnacle West Capital Corporati",
+          "rating": "Sell",
+          "forecastReturn": -0.0059454696819646324,
+          "compositeScore": 0.325,
+          "poolRank": 88
+        }
+      ]
+    },
+    {
+      "ticker": "JKHY",
+      "name": "Jack Henry & Associates, Inc.",
+      "sector": "Information Technology Services",
+      "price": 169.73,
+      "side": "Short",
+      "rating": "Sell",
+      "score": 0.5935030304218369,
+      "scorePercentile": 81.7,
+      "forecastReturn": -0.09960026820169265,
+      "positionReturn": 0.09960026820169265,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": 0.43066845467795095,
+      "analysts": 15.0,
+      "targetUpside": 0.12845890532021453,
+      "probAbove": 0.28455,
+      "shortInterest": 0.0611,
+      "mom": 66.73185040332436,
+      "mr": null,
+      "sent": 43.415,
+      "newsSent": 79.0224,
+      "instChange": -71.6263,
+      "insiders": null,
+      "compositeScore": 0.3182,
+      "poolRank": 92,
+      "poolSize": 111,
+      "alternates": [
+        {
+          "ticker": "AGCO",
+          "name": "AGCO Corporation",
+          "rating": "Sell",
+          "forecastReturn": -0.03711685724309899,
+          "compositeScore": 0.4182,
+          "poolRank": 70
+        },
+        {
+          "ticker": "BMNR",
+          "name": "BitMine Immersion Technologies,",
+          "rating": "Sell",
+          "forecastReturn": -0.08502371773938833,
+          "compositeScore": 0.3091,
+          "poolRank": 95
+        }
+      ]
+    },
+    {
+      "ticker": "ETR",
+      "name": "Entergy Corporation",
+      "sector": "Utilities - Regulated Electric",
+      "price": 105.75,
+      "side": "Short",
+      "rating": "Sell",
+      "score": 0.6072560321827587,
+      "scorePercentile": 86.4,
+      "forecastReturn": -0.03564933845731688,
+      "positionReturn": 0.03564933845731688,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": 0.0043289230487791866,
+      "analysts": 20.0,
+      "targetUpside": 0.16619385342789594,
+      "probAbove": 0.4492,
+      "shortInterest": 0.0438,
+      "mom": 53.7308320618731,
+      "mr": 52.84440534021692,
+      "sent": 43.415,
+      "newsSent": -38.425,
+      "instChange": -78.8927,
+      "insiders": -50.0,
+      "compositeScore": 0.3182,
+      "poolRank": 93,
+      "poolSize": 111,
+      "alternates": [
+        {
+          "ticker": "FAST",
+          "name": "Fastenal Company",
+          "rating": "Sell",
+          "forecastReturn": -0.08723807121108795,
+          "compositeScore": 0.4318,
+          "poolRank": 67
+        },
+        {
+          "ticker": "PNW",
+          "name": "Pinnacle West Capital Corporati",
+          "rating": "Sell",
+          "forecastReturn": -0.0059454696819646324,
+          "compositeScore": 0.325,
+          "poolRank": 88
+        }
+      ]
+    },
+    {
+      "ticker": "NYT",
+      "name": "New York Times Company (The)",
+      "sector": "Publishing",
+      "price": 68.16,
+      "side": "Short",
+      "rating": "Sell",
+      "score": 0.6093499508511552,
+      "scorePercentile": 86.9,
+      "forecastReturn": -0.07050635529315519,
+      "positionReturn": 0.07050635529315519,
+      "vol": 0.1854,
+      "beta": 0.927,
+      "indivSharpe": 0.19151216447225017,
+      "analysts": 9.0,
+      "targetUpside": 0.13947579225352102,
+      "probAbove": 0.3727,
+      "shortInterest": 0.0861,
+      "mom": 80.86048890841997,
+      "mr": 42.811903472341314,
+      "sent": 43.415,
+      "newsSent": -60.8961,
+      "instChange": null,
+      "insiders": -100.0,
+      "compositeScore": 0.3159,
+      "poolRank": 94,
+      "poolSize": 111,
+      "alternates": [
+        {
+          "ticker": "OPLN",
+          "name": "OPENLANE, Inc.",
+          "rating": "Sell",
+          "forecastReturn": -0.04814743944350297,
+          "compositeScore": 0.4,
+          "poolRank": 74
+        },
+        {
+          "ticker": "AGCO",
+          "name": "AGCO Corporation",
+          "rating": "Sell",
+          "forecastReturn": -0.03711685724309899,
+          "compositeScore": 0.4182,
+          "poolRank": 70
+        }
+      ]
+    },
+    {
+      "ticker": "EQT",
+      "name": "EQT Corporation",
+      "sector": "Oil & Gas E&P",
+      "price": 54.57,
+      "side": "Short",
+      "rating": "Sell",
+      "score": 0.5946703515898425,
+      "scorePercentile": 82.4,
+      "forecastReturn": -0.04480454810369772,
+      "positionReturn": 0.04480454810369772,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": 0.06536365402465141,
+      "analysts": 25.0,
+      "targetUpside": 0.24024189114898298,
+      "probAbove": 0.44625,
+      "shortInterest": 0.031,
+      "mom": 55.3484075688863,
+      "mr": 27.703125063354847,
+      "sent": -38.3614,
+      "newsSent": -89.1378,
+      "instChange": -34.2561,
+      "insiders": -100.0,
+      "compositeScore": 0.2977,
+      "poolRank": 98,
+      "poolSize": 111,
+      "alternates": [
+        {
+          "ticker": "FAST",
+          "name": "Fastenal Company",
+          "rating": "Sell",
+          "forecastReturn": -0.08723807121108795,
+          "compositeScore": 0.4318,
+          "poolRank": 67
+        },
+        {
+          "ticker": "OPLN",
+          "name": "OPENLANE, Inc.",
+          "rating": "Sell",
+          "forecastReturn": -0.04814743944350297,
+          "compositeScore": 0.4,
+          "poolRank": 74
+        }
+      ]
+    },
+    {
+      "ticker": "GLW",
+      "name": "Corning Incorporated",
+      "sector": "Electronic Components",
+      "price": 148.98,
+      "side": "Short",
+      "rating": "Sell",
+      "score": 0.591611485734561,
+      "scorePercentile": 80.9,
+      "forecastReturn": -0.03689941542153763,
+      "positionReturn": 0.03689941542153763,
+      "vol": 0.2296,
+      "beta": 1.148,
+      "indivSharpe": 0.008272715250599416,
+      "analysts": 15.0,
+      "targetUpside": 0.284736206202175,
+      "probAbove": 0.4535,
+      "shortInterest": 0.0227,
+      "mom": 41.53522607781284,
+      "mr": null,
+      "sent": -46.4778,
+      "newsSent": -38.425,
+      "instChange": null,
+      "insiders": null,
+      "compositeScore": 0.2636,
+      "poolRank": 100,
+      "poolSize": 111,
+      "alternates": [
+        {
+          "ticker": "FAST",
+          "name": "Fastenal Company",
+          "rating": "Sell",
+          "forecastReturn": -0.08723807121108795,
+          "compositeScore": 0.4318,
+          "poolRank": 67
+        },
+        {
+          "ticker": "INTA",
+          "name": "Intapp, Inc.",
+          "rating": "Sell",
+          "forecastReturn": -0.02974852744690959,
+          "compositeScore": 0.2227,
+          "poolRank": 105
+        }
+      ]
+    },
+    {
+      "ticker": "SWX",
+      "name": "Southwest Gas Holdings, Inc.",
+      "sector": "Utilities - Regulated Gas",
+      "price": 89.1,
+      "side": "Short",
+      "rating": "Sell",
+      "score": 0.5923836043864259,
+      "scorePercentile": 81.3,
+      "forecastReturn": -0.01111770910486276,
+      "positionReturn": 0.01111770910486276,
+      "vol": 0.15000000000000002,
+      "beta": 0.75,
+      "indivSharpe": -0.15921527263424826,
+      "analysts": 7.0,
+      "targetUpside": 0.15279786756453428,
+      "probAbove": 0.48995,
+      "shortInterest": 0.0266,
+      "mom": 45.348788129175325,
+      "mr": 40.31162753831675,
+      "sent": -88.5911,
+      "newsSent": -4.4807,
+      "instChange": null,
+      "insiders": null,
+      "compositeScore": 0.2114,
+      "poolRank": 106,
+      "poolSize": 111,
+      "alternates": [
+        {
+          "ticker": "FAST",
+          "name": "Fastenal Company",
+          "rating": "Sell",
+          "forecastReturn": -0.08723807121108795,
+          "compositeScore": 0.4318,
+          "poolRank": 67
+        },
+        {
+          "ticker": "PNW",
+          "name": "Pinnacle West Capital Corporati",
+          "rating": "Sell",
+          "forecastReturn": -0.0059454696819646324,
+          "compositeScore": 0.325,
+          "poolRank": 88
+        }
+      ]
+    },
+    {
+      "ticker": "TYL",
+      "name": "Tyler Technologies, Inc.",
+      "sector": "Software - Application",
+      "price": 377.94,
+      "side": "Short",
+      "rating": "Sell",
+      "score": 0.594940801409852,
+      "scorePercentile": 82.6,
+      "forecastReturn": -0.04052798382796141,
+      "positionReturn": 0.04052798382796141,
+      "vol": 0.16180000000000003,
+      "beta": 0.809,
+      "indivSharpe": 0.03416553663758595,
+      "analysts": 22.0,
+      "targetUpside": 0.12884677462031013,
+      "probAbove": 0.43895,
+      "shortInterest": 0.0921,
+      "mom": 82.86928140232281,
+      "mr": 83.76005545393484,
+      "sent": -25.1149,
+      "newsSent": -62.797,
+      "instChange": null,
+      "insiders": null,
+      "compositeScore": 0.1364,
+      "poolRank": 110,
+      "poolSize": 111,
+      "alternates": [
+        {
+          "ticker": "AGCO",
+          "name": "AGCO Corporation",
+          "rating": "Sell",
+          "forecastReturn": -0.03711685724309899,
+          "compositeScore": 0.4182,
+          "poolRank": 70
+        },
+        {
+          "ticker": "NOW",
+          "name": "ServiceNow, Inc.",
+          "rating": "Strong Sell",
+          "forecastReturn": -0.06008116626083271,
+          "compositeScore": 0.6886,
+          "poolRank": 25
+        }
+      ]
+    },
+    {
+      "ticker": "BJRI",
+      "name": "BJ's Restaurants, Inc.",
+      "sector": "Restaurants",
+      "price": 65.12,
+      "side": "Short",
+      "rating": "Sell",
+      "score": 0.5913394632258924,
+      "scorePercentile": 80.7,
+      "forecastReturn": -0.004449090878719142,
+      "positionReturn": 0.004449090878719142,
+      "vol": 0.2636,
+      "beta": 1.318,
+      "indivSharpe": -0.11589874476965425,
+      "analysts": 8.0,
+      "targetUpside": 0.15747850122850116,
+      "probAbove": 0.49625,
+      "shortInterest": 0.0843,
+      "mom": 36.56407900780892,
+      "mr": null,
+      "sent": 43.415,
+      "newsSent": -42.4304,
+      "instChange": -38.7543,
+      "insiders": -100.0,
+      "compositeScore": 0.0659,
+      "poolRank": 111,
+      "poolSize": 111,
+      "alternates": [
+        {
+          "ticker": "FAST",
+          "name": "Fastenal Company",
+          "rating": "Sell",
+          "forecastReturn": -0.08723807121108795,
+          "compositeScore": 0.4318,
+          "poolRank": 67
+        },
+        {
+          "ticker": "PNW",
+          "name": "Pinnacle West Capital Corporati",
+          "rating": "Sell",
+          "forecastReturn": -0.0059454696819646324,
+          "compositeScore": 0.325,
+          "poolRank": 88
+        }
+      ]
+    }
+  ],
+  "longPool": [
+    {
+      "ticker": "WLFC",
+      "poolRank": 1,
+      "poolSize": 172,
+      "compositeScore": 0.9108
+    },
+    {
+      "ticker": "HRB",
+      "poolRank": 2,
+      "poolSize": 172,
+      "compositeScore": 0.8816
+    },
+    {
+      "ticker": "SMCI",
+      "poolRank": 3,
+      "poolSize": 172,
+      "compositeScore": 0.8713
+    },
+    {
+      "ticker": "MTDR",
+      "poolRank": 4,
+      "poolSize": 172,
+      "compositeScore": 0.8611
+    },
+    {
+      "ticker": "PRGS",
+      "poolRank": 5,
+      "poolSize": 172,
+      "compositeScore": 0.8406
+    },
+    {
+      "ticker": "ASO",
+      "poolRank": 6,
+      "poolSize": 172,
+      "compositeScore": 0.8377
+    },
+    {
+      "ticker": "DOX",
+      "poolRank": 7,
+      "poolSize": 172,
+      "compositeScore": 0.8348
+    },
+    {
+      "ticker": "GPRE",
+      "poolRank": 8,
+      "poolSize": 172,
+      "compositeScore": 0.8348
+    },
+    {
+      "ticker": "PARR",
+      "poolRank": 9,
+      "poolSize": 172,
+      "compositeScore": 0.8216
+    },
+    {
+      "ticker": "TNL",
+      "poolRank": 10,
+      "poolSize": 172,
+      "compositeScore": 0.8158
+    },
+    {
+      "ticker": "ZD",
+      "poolRank": 11,
+      "poolSize": 172,
+      "compositeScore": 0.8099
+    },
+    {
+      "ticker": "SMPL",
+      "poolRank": 12,
+      "poolSize": 172,
+      "compositeScore": 0.8012
+    },
+    {
+      "ticker": "PGY",
+      "poolRank": 13,
+      "poolSize": 172,
+      "compositeScore": 0.7997
+    },
+    {
+      "ticker": "WEX",
+      "poolRank": 14,
+      "poolSize": 172,
+      "compositeScore": 0.7997
+    },
+    {
+      "ticker": "TPL",
+      "poolRank": 15,
+      "poolSize": 172,
+      "compositeScore": 0.7909
+    },
+    {
+      "ticker": "BCO",
+      "poolRank": 16,
+      "poolSize": 172,
+      "compositeScore": 0.7909
+    },
+    {
+      "ticker": "UUUU",
+      "poolRank": 17,
+      "poolSize": 172,
+      "compositeScore": 0.7895
+    },
+    {
+      "ticker": "CRGY",
+      "poolRank": 18,
+      "poolSize": 172,
+      "compositeScore": 0.7895
+    },
+    {
+      "ticker": "TALO",
+      "poolRank": 19,
+      "poolSize": 172,
+      "compositeScore": 0.7865
+    },
+    {
+      "ticker": "PAR",
+      "poolRank": 20,
+      "poolSize": 172,
+      "compositeScore": 0.7851
+    },
+    {
+      "ticker": "PLAB",
+      "poolRank": 21,
+      "poolSize": 172,
+      "compositeScore": 0.7763
+    },
+    {
+      "ticker": "BDC",
+      "poolRank": 22,
+      "poolSize": 172,
+      "compositeScore": 0.7661
+    },
+    {
+      "ticker": "LRN",
+      "poolRank": 23,
+      "poolSize": 172,
+      "compositeScore": 0.7602
+    },
+    {
+      "ticker": "FIVN",
+      "poolRank": 24,
+      "poolSize": 172,
+      "compositeScore": 0.7544
+    },
+    {
+      "ticker": "NXST",
+      "poolRank": 25,
+      "poolSize": 172,
+      "compositeScore": 0.7529
+    },
+    {
+      "ticker": "PBI",
+      "poolRank": 26,
+      "poolSize": 172,
+      "compositeScore": 0.7471
+    },
+    {
+      "ticker": "INSW",
+      "poolRank": 27,
+      "poolSize": 172,
+      "compositeScore": 0.7427
+    },
+    {
+      "ticker": "SNDK",
+      "poolRank": 28,
+      "poolSize": 172,
+      "compositeScore": 0.7325
+    },
+    {
+      "ticker": "STGW",
+      "poolRank": 29,
+      "poolSize": 172,
+      "compositeScore": 0.7281
+    },
+    {
+      "ticker": "MH",
+      "poolRank": 30,
+      "poolSize": 172,
+      "compositeScore": 0.7237
+    },
+    {
+      "ticker": "CROX",
+      "poolRank": 31,
+      "poolSize": 172,
+      "compositeScore": 0.7076
+    },
+    {
+      "ticker": "NESR",
+      "poolRank": 32,
+      "poolSize": 172,
+      "compositeScore": 0.7047
+    },
+    {
+      "ticker": "NATL",
+      "poolRank": 33,
+      "poolSize": 172,
+      "compositeScore": 0.7032
+    },
+    {
+      "ticker": "PRG",
+      "poolRank": 34,
+      "poolSize": 172,
+      "compositeScore": 0.6886
+    },
+    {
+      "ticker": "WLY",
+      "poolRank": 35,
+      "poolSize": 172,
+      "compositeScore": 0.6886
+    },
+    {
+      "ticker": "MU",
+      "poolRank": 36,
+      "poolSize": 172,
+      "compositeScore": 0.6827
+    },
+    {
+      "ticker": "FUL",
+      "poolRank": 37,
+      "poolSize": 172,
+      "compositeScore": 0.6798
+    },
+    {
+      "ticker": "FLYW",
+      "poolRank": 38,
+      "poolSize": 172,
+      "compositeScore": 0.6798
+    },
+    {
+      "ticker": "SCSC",
+      "poolRank": 39,
+      "poolSize": 172,
+      "compositeScore": 0.674
+    },
+    {
+      "ticker": "EVER",
+      "poolRank": 40,
+      "poolSize": 172,
+      "compositeScore": 0.6725
+    },
+    {
+      "ticker": "PR",
+      "poolRank": 41,
+      "poolSize": 172,
+      "compositeScore": 0.6652
+    },
+    {
+      "ticker": "ARW",
+      "poolRank": 42,
+      "poolSize": 172,
+      "compositeScore": 0.6506
+    },
+    {
+      "ticker": "SSNC",
+      "poolRank": 43,
+      "poolSize": 172,
+      "compositeScore": 0.6477
+    },
+    {
+      "ticker": "EOG",
+      "poolRank": 44,
+      "poolSize": 172,
+      "compositeScore": 0.6462
+    },
+    {
+      "ticker": "ST",
+      "poolRank": 45,
+      "poolSize": 172,
+      "compositeScore": 0.6404
+    },
+    {
+      "ticker": "GTES",
+      "poolRank": 46,
+      "poolSize": 172,
+      "compositeScore": 0.633
+    },
+    {
+      "ticker": "FANG",
+      "poolRank": 47,
+      "poolSize": 172,
+      "compositeScore": 0.633
+    },
+    {
+      "ticker": "BBW",
+      "poolRank": 48,
+      "poolSize": 172,
+      "compositeScore": 0.633
+    },
+    {
+      "ticker": "SBH",
+      "poolRank": 49,
+      "poolSize": 172,
+      "compositeScore": 0.6287
+    },
+    {
+      "ticker": "SANM",
+      "poolRank": 50,
+      "poolSize": 172,
+      "compositeScore": 0.6213
+    },
+    {
+      "ticker": "CARG",
+      "poolRank": 51,
+      "poolSize": 172,
+      "compositeScore": 0.614
+    },
+    {
+      "ticker": "FOXA",
+      "poolRank": 52,
+      "poolSize": 172,
+      "compositeScore": 0.6096
+    },
+    {
+      "ticker": "PBF",
+      "poolRank": 53,
+      "poolSize": 172,
+      "compositeScore": 0.5965
+    },
+    {
+      "ticker": "STRA",
+      "poolRank": 54,
+      "poolSize": 172,
+      "compositeScore": 0.595
+    },
+    {
+      "ticker": "AVT",
+      "poolRank": 55,
+      "poolSize": 172,
+      "compositeScore": 0.576
+    },
+    {
+      "ticker": "DXC",
+      "poolRank": 56,
+      "poolSize": 172,
+      "compositeScore": 0.5629
+    },
+    {
+      "ticker": "GCT",
+      "poolRank": 57,
+      "poolSize": 172,
+      "compositeScore": 0.5556
+    },
+    {
+      "ticker": "MXL",
+      "poolRank": 58,
+      "poolSize": 172,
+      "compositeScore": 0.5526
+    },
+    {
+      "ticker": "FLOC",
+      "poolRank": 59,
+      "poolSize": 172,
+      "compositeScore": 0.5526
+    },
+    {
+      "ticker": "ENR",
+      "poolRank": 60,
+      "poolSize": 172,
+      "compositeScore": 0.5468
+    },
+    {
+      "ticker": "GPI",
+      "poolRank": 61,
+      "poolSize": 172,
+      "compositeScore": 0.5424
+    },
+    {
+      "ticker": "HLF",
+      "poolRank": 62,
+      "poolSize": 172,
+      "compositeScore": 0.5351
+    },
+    {
+      "ticker": "ACI",
+      "poolRank": 63,
+      "poolSize": 172,
+      "compositeScore": 0.5263
+    },
+    {
+      "ticker": "YELP",
+      "poolRank": 64,
+      "poolSize": 172,
+      "compositeScore": 0.5219
+    },
+    {
+      "ticker": "ABG",
+      "poolRank": 65,
+      "poolSize": 172,
+      "compositeScore": 0.5146
+    },
+    {
+      "ticker": "PSIX",
+      "poolRank": 66,
+      "poolSize": 172,
+      "compositeScore": 0.5146
+    },
+    {
+      "ticker": "LYFT",
+      "poolRank": 67,
+      "poolSize": 172,
+      "compositeScore": 0.5073
+    },
+    {
+      "ticker": "GPN",
+      "poolRank": 68,
+      "poolSize": 172,
+      "compositeScore": 0.5058
+    },
+    {
+      "ticker": "LAD",
+      "poolRank": 69,
+      "poolSize": 172,
+      "compositeScore": 0.5015
+    },
+    {
+      "ticker": "MAT",
+      "poolRank": 70,
+      "poolSize": 172,
+      "compositeScore": 0.5
+    },
+    {
+      "ticker": "WMG",
+      "poolRank": 71,
+      "poolSize": 172,
+      "compositeScore": 0.4971
+    },
+    {
+      "ticker": "SON",
+      "poolRank": 72,
+      "poolSize": 172,
+      "compositeScore": 0.4942
+    },
+    {
+      "ticker": "CDRE",
+      "poolRank": 73,
+      "poolSize": 172,
+      "compositeScore": 0.4927
+    },
+    {
+      "ticker": "CVX",
+      "poolRank": 74,
+      "poolSize": 172,
+      "compositeScore": 0.4883
+    },
+    {
+      "ticker": "CRUS",
+      "poolRank": 75,
+      "poolSize": 172,
+      "compositeScore": 0.4883
+    },
+    {
+      "ticker": "LUV",
+      "poolRank": 76,
+      "poolSize": 172,
+      "compositeScore": 0.4839
+    },
+    {
+      "ticker": "GAP",
+      "poolRank": 77,
+      "poolSize": 172,
+      "compositeScore": 0.4839
+    },
+    {
+      "ticker": "VSEC",
+      "poolRank": 78,
+      "poolSize": 172,
+      "compositeScore": 0.4825
+    },
+    {
+      "ticker": "BLMN",
+      "poolRank": 79,
+      "poolSize": 172,
+      "compositeScore": 0.481
+    },
+    {
+      "ticker": "IT",
+      "poolRank": 80,
+      "poolSize": 172,
+      "compositeScore": 0.4781
+    },
+    {
+      "ticker": "AN",
+      "poolRank": 81,
+      "poolSize": 172,
+      "compositeScore": 0.4737
+    },
+    {
+      "ticker": "KD",
+      "poolRank": 82,
+      "poolSize": 172,
+      "compositeScore": 0.4708
+    },
+    {
+      "ticker": "CENX",
+      "poolRank": 83,
+      "poolSize": 172,
+      "compositeScore": 0.4664
+    },
+    {
+      "ticker": "CTSH",
+      "poolRank": 84,
+      "poolSize": 172,
+      "compositeScore": 0.4649
+    },
+    {
+      "ticker": "BAH",
+      "poolRank": 85,
+      "poolSize": 172,
+      "compositeScore": 0.4649
+    },
+    {
+      "ticker": "FSLR",
+      "poolRank": 86,
+      "poolSize": 172,
+      "compositeScore": 0.4576
+    },
+    {
+      "ticker": "VYX",
+      "poolRank": 87,
+      "poolSize": 172,
+      "compositeScore": 0.4576
+    },
+    {
+      "ticker": "UPBD",
+      "poolRank": 88,
+      "poolSize": 172,
+      "compositeScore": 0.4561
+    },
+    {
+      "ticker": "AMKR",
+      "poolRank": 89,
+      "poolSize": 172,
+      "compositeScore": 0.4547
+    },
+    {
+      "ticker": "AEO",
+      "poolRank": 90,
+      "poolSize": 172,
+      "compositeScore": 0.4518
+    },
+    {
+      "ticker": "CRI",
+      "poolRank": 91,
+      "poolSize": 172,
+      "compositeScore": 0.4518
+    },
+    {
+      "ticker": "KMT",
+      "poolRank": 92,
+      "poolSize": 172,
+      "compositeScore": 0.4474
+    },
+    {
+      "ticker": "YOU",
+      "poolRank": 93,
+      "poolSize": 172,
+      "compositeScore": 0.4401
+    },
+    {
+      "ticker": "GDDY",
+      "poolRank": 94,
+      "poolSize": 172,
+      "compositeScore": 0.4386
+    },
+    {
+      "ticker": "SLGN",
+      "poolRank": 95,
+      "poolSize": 172,
+      "compositeScore": 0.4371
+    },
+    {
+      "ticker": "NSIT",
+      "poolRank": 96,
+      "poolSize": 172,
+      "compositeScore": 0.4357
+    },
+    {
+      "ticker": "HII",
+      "poolRank": 97,
+      "poolSize": 172,
+      "compositeScore": 0.4357
+    },
+    {
+      "ticker": "RELY",
+      "poolRank": 98,
+      "poolSize": 172,
+      "compositeScore": 0.4313
+    },
+    {
+      "ticker": "ACIW",
+      "poolRank": 99,
+      "poolSize": 172,
+      "compositeScore": 0.4298
+    },
+    {
+      "ticker": "SONO",
+      "poolRank": 100,
+      "poolSize": 172,
+      "compositeScore": 0.4269
+    },
+    {
+      "ticker": "CNK",
+      "poolRank": 101,
+      "poolSize": 172,
+      "compositeScore": 0.424
+    },
+    {
+      "ticker": "CPAY",
+      "poolRank": 102,
+      "poolSize": 172,
+      "compositeScore": 0.4167
+    },
+    {
+      "ticker": "SPB",
+      "poolRank": 103,
+      "poolSize": 172,
+      "compositeScore": 0.4167
+    },
+    {
+      "ticker": "BYD",
+      "poolRank": 104,
+      "poolSize": 172,
+      "compositeScore": 0.4123
+    },
+    {
+      "ticker": "ON",
+      "poolRank": 105,
+      "poolSize": 172,
+      "compositeScore": 0.4123
+    },
+    {
+      "ticker": "PCG",
+      "poolRank": 106,
+      "poolSize": 172,
+      "compositeScore": 0.4079
+    },
+    {
+      "ticker": "LMB",
+      "poolRank": 107,
+      "poolSize": 172,
+      "compositeScore": 0.4079
+    },
+    {
+      "ticker": "MCHP",
+      "poolRank": 108,
+      "poolSize": 172,
+      "compositeScore": 0.405
+    },
+    {
+      "ticker": "ARLO",
+      "poolRank": 109,
+      "poolSize": 172,
+      "compositeScore": 0.4035
+    },
+    {
+      "ticker": "WLDN",
+      "poolRank": 110,
+      "poolSize": 172,
+      "compositeScore": 0.3962
+    },
+    {
+      "ticker": "ABM",
+      "poolRank": 111,
+      "poolSize": 172,
+      "compositeScore": 0.3918
+    },
+    {
+      "ticker": "EMN",
+      "poolRank": 112,
+      "poolSize": 172,
+      "compositeScore": 0.3889
+    },
+    {
+      "ticker": "YETI",
+      "poolRank": 113,
+      "poolSize": 172,
+      "compositeScore": 0.3889
+    },
+    {
+      "ticker": "TER",
+      "poolRank": 114,
+      "poolSize": 172,
+      "compositeScore": 0.3889
+    },
+    {
+      "ticker": "FIS",
+      "poolRank": 115,
+      "poolSize": 172,
+      "compositeScore": 0.3845
+    },
+    {
+      "ticker": "KWR",
+      "poolRank": 116,
+      "poolSize": 172,
+      "compositeScore": 0.3845
+    },
+    {
+      "ticker": "NVDA",
+      "poolRank": 117,
+      "poolSize": 172,
+      "compositeScore": 0.383
+    },
+    {
+      "ticker": "FA",
+      "poolRank": 118,
+      "poolSize": 172,
+      "compositeScore": 0.383
+    },
+    {
+      "ticker": "QNST",
+      "poolRank": 119,
+      "poolSize": 172,
+      "compositeScore": 0.3801
+    },
+    {
+      "ticker": "RAMP",
+      "poolRank": 120,
+      "poolSize": 172,
+      "compositeScore": 0.3801
+    },
+    {
+      "ticker": "BLBD",
+      "poolRank": 121,
+      "poolSize": 172,
+      "compositeScore": 0.3772
+    },
+    {
+      "ticker": "OVV",
+      "poolRank": 122,
+      "poolSize": 172,
+      "compositeScore": 0.3772
+    },
+    {
+      "ticker": "CART",
+      "poolRank": 123,
+      "poolSize": 172,
+      "compositeScore": 0.3772
+    },
+    {
+      "ticker": "BG",
+      "poolRank": 124,
+      "poolSize": 172,
+      "compositeScore": 0.3772
+    },
+    {
+      "ticker": "KTB",
+      "poolRank": 125,
+      "poolSize": 172,
+      "compositeScore": 0.3728
+    },
+    {
+      "ticker": "ROCK",
+      "poolRank": 126,
+      "poolSize": 172,
+      "compositeScore": 0.3728
+    },
+    {
+      "ticker": "LNG",
+      "poolRank": 127,
+      "poolSize": 172,
+      "compositeScore": 0.3713
+    },
+    {
+      "ticker": "ATRO",
+      "poolRank": 128,
+      "poolSize": 172,
+      "compositeScore": 0.3699
+    },
+    {
+      "ticker": "APA",
+      "poolRank": 129,
+      "poolSize": 172,
+      "compositeScore": 0.3684
+    },
+    {
+      "ticker": "CF",
+      "poolRank": 130,
+      "poolSize": 172,
+      "compositeScore": 0.3655
+    },
+    {
+      "ticker": "ALB",
+      "poolRank": 131,
+      "poolSize": 172,
+      "compositeScore": 0.364
+    },
+    {
+      "ticker": "BBY",
+      "poolRank": 132,
+      "poolSize": 172,
+      "compositeScore": 0.3626
+    },
+    {
+      "ticker": "HLIT",
+      "poolRank": 133,
+      "poolSize": 172,
+      "compositeScore": 0.3509
+    },
+    {
+      "ticker": "ARHS",
+      "poolRank": 134,
+      "poolSize": 172,
+      "compositeScore": 0.3509
+    },
+    {
+      "ticker": "PRDO",
+      "poolRank": 135,
+      "poolSize": 172,
+      "compositeScore": 0.3494
+    },
+    {
+      "ticker": "ACMR",
+      "poolRank": 136,
+      "poolSize": 172,
+      "compositeScore": 0.345
+    },
+    {
+      "ticker": "NTCT",
+      "poolRank": 137,
+      "poolSize": 172,
+      "compositeScore": 0.3333
+    },
+    {
+      "ticker": "ADI",
+      "poolRank": 138,
+      "poolSize": 172,
+      "compositeScore": 0.3333
+    },
+    {
+      "ticker": "LEA",
+      "poolRank": 139,
+      "poolSize": 172,
+      "compositeScore": 0.3246
+    },
+    {
+      "ticker": "TGLS",
+      "poolRank": 140,
+      "poolSize": 172,
+      "compositeScore": 0.3231
+    },
+    {
+      "ticker": "NTAP",
+      "poolRank": 141,
+      "poolSize": 172,
+      "compositeScore": 0.3202
+    },
+    {
+      "ticker": "TPR",
+      "poolRank": 142,
+      "poolSize": 172,
+      "compositeScore": 0.3187
+    },
+    {
+      "ticker": "SAIC",
+      "poolRank": 143,
+      "poolSize": 172,
+      "compositeScore": 0.3173
+    },
+    {
+      "ticker": "DAR",
+      "poolRank": 144,
+      "poolSize": 172,
+      "compositeScore": 0.3143
+    },
+    {
+      "ticker": "PLUS",
+      "poolRank": 145,
+      "poolSize": 172,
+      "compositeScore": 0.3129
+    },
+    {
+      "ticker": "WWW",
+      "poolRank": 146,
+      "poolSize": 172,
+      "compositeScore": 0.3114
+    },
+    {
+      "ticker": "GNTX",
+      "poolRank": 147,
+      "poolSize": 172,
+      "compositeScore": 0.3085
+    },
+    {
+      "ticker": "ARCB",
+      "poolRank": 148,
+      "poolSize": 172,
+      "compositeScore": 0.3085
+    },
+    {
+      "ticker": "POR",
+      "poolRank": 149,
+      "poolSize": 172,
+      "compositeScore": 0.307
+    },
+    {
+      "ticker": "NRG",
+      "poolRank": 150,
+      "poolSize": 172,
+      "compositeScore": 0.3041
+    },
+    {
+      "ticker": "AU",
+      "poolRank": 151,
+      "poolSize": 172,
+      "compositeScore": 0.2968
+    },
+    {
+      "ticker": "EXPE",
+      "poolRank": 152,
+      "poolSize": 172,
+      "compositeScore": 0.2953
+    },
+    {
+      "ticker": "GHC",
+      "poolRank": 153,
+      "poolSize": 172,
+      "compositeScore": 0.2939
+    },
+    {
+      "ticker": "ADEA",
+      "poolRank": 154,
+      "poolSize": 172,
+      "compositeScore": 0.2909
+    },
+    {
+      "ticker": "ORCL",
+      "poolRank": 155,
+      "poolSize": 172,
+      "compositeScore": 0.2895
+    },
+    {
+      "ticker": "DECK",
+      "poolRank": 156,
+      "poolSize": 172,
+      "compositeScore": 0.288
+    },
+    {
+      "ticker": "ECVT",
+      "poolRank": 157,
+      "poolSize": 172,
+      "compositeScore": 0.2734
+    },
+    {
+      "ticker": "AEIS",
+      "poolRank": 158,
+      "poolSize": 172,
+      "compositeScore": 0.2734
+    },
+    {
+      "ticker": "TPC",
+      "poolRank": 159,
+      "poolSize": 172,
+      "compositeScore": 0.2719
+    },
+    {
+      "ticker": "OGS",
+      "poolRank": 160,
+      "poolSize": 172,
+      "compositeScore": 0.2719
+    },
+    {
+      "ticker": "AYI",
+      "poolRank": 161,
+      "poolSize": 172,
+      "compositeScore": 0.2705
+    },
+    {
+      "ticker": "THRM",
+      "poolRank": 162,
+      "poolSize": 172,
+      "compositeScore": 0.2602
+    },
+    {
+      "ticker": "TTMI",
+      "poolRank": 163,
+      "poolSize": 172,
+      "compositeScore": 0.2602
+    },
+    {
+      "ticker": "AVNT",
+      "poolRank": 164,
+      "poolSize": 172,
+      "compositeScore": 0.2558
+    },
+    {
+      "ticker": "LRCX",
+      "poolRank": 165,
+      "poolSize": 172,
+      "compositeScore": 0.2529
+    },
+    {
+      "ticker": "DAN",
+      "poolRank": 166,
+      "poolSize": 172,
+      "compositeScore": 0.25
+    },
+    {
+      "ticker": "AMAT",
+      "poolRank": 167,
+      "poolSize": 172,
+      "compositeScore": 0.2471
+    },
+    {
+      "ticker": "STRL",
+      "poolRank": 168,
+      "poolSize": 172,
+      "compositeScore": 0.2281
+    },
+    {
+      "ticker": "R",
+      "poolRank": 169,
+      "poolSize": 172,
+      "compositeScore": 0.2281
+    },
+    {
+      "ticker": "CCL",
+      "poolRank": 170,
+      "poolSize": 172,
+      "compositeScore": 0.2149
+    },
+    {
+      "ticker": "DD",
+      "poolRank": 171,
+      "poolSize": 172,
+      "compositeScore": 0.2149
+    },
+    {
+      "ticker": "COP",
+      "poolRank": 172,
+      "poolSize": 172,
+      "compositeScore": 0.2149
+    }
+  ],
+  "shortPool": [
+    {
+      "ticker": "WBD",
+      "poolRank": 1,
+      "poolSize": 111,
+      "compositeScore": 0.9045
+    },
+    {
+      "ticker": "TSLA",
+      "poolRank": 2,
+      "poolSize": 111,
+      "compositeScore": 0.8977
+    },
+    {
+      "ticker": "WMT",
+      "poolRank": 3,
+      "poolSize": 111,
+      "compositeScore": 0.8591
+    },
+    {
+      "ticker": "DE",
+      "poolRank": 4,
+      "poolSize": 111,
+      "compositeScore": 0.8591
+    },
+    {
+      "ticker": "CRWD",
+      "poolRank": 5,
+      "poolSize": 111,
+      "compositeScore": 0.8409
+    },
+    {
+      "ticker": "FWONK",
+      "poolRank": 6,
+      "poolSize": 111,
+      "compositeScore": 0.825
+    },
+    {
+      "ticker": "FWONA",
+      "poolRank": 7,
+      "poolSize": 111,
+      "compositeScore": 0.7864
+    },
+    {
+      "ticker": "NET",
+      "poolRank": 8,
+      "poolSize": 111,
+      "compositeScore": 0.7818
+    },
+    {
+      "ticker": "PANW",
+      "poolRank": 9,
+      "poolSize": 111,
+      "compositeScore": 0.7795
+    },
+    {
+      "ticker": "PM",
+      "poolRank": 10,
+      "poolSize": 111,
+      "compositeScore": 0.775
+    },
+    {
+      "ticker": "CPNG",
+      "poolRank": 11,
+      "poolSize": 111,
+      "compositeScore": 0.7636
+    },
+    {
+      "ticker": "ECL",
+      "poolRank": 12,
+      "poolSize": 111,
+      "compositeScore": 0.7568
+    },
+    {
+      "ticker": "AIP",
+      "poolRank": 13,
+      "poolSize": 111,
+      "compositeScore": 0.7568
+    },
+    {
+      "ticker": "SNOW",
+      "poolRank": 14,
+      "poolSize": 111,
+      "compositeScore": 0.7455
+    },
+    {
+      "ticker": "LBRT",
+      "poolRank": 15,
+      "poolSize": 111,
+      "compositeScore": 0.7455
+    },
+    {
+      "ticker": "AXON",
+      "poolRank": 16,
+      "poolSize": 111,
+      "compositeScore": 0.7273
+    },
+    {
+      "ticker": "SBUX",
+      "poolRank": 17,
+      "poolSize": 111,
+      "compositeScore": 0.7114
+    },
+    {
+      "ticker": "MBC",
+      "poolRank": 18,
+      "poolSize": 111,
+      "compositeScore": 0.7114
+    },
+    {
+      "ticker": "TTWO",
+      "poolRank": 19,
+      "poolSize": 111,
+      "compositeScore": 0.7114
+    },
+    {
+      "ticker": "KO",
+      "poolRank": 20,
+      "poolSize": 111,
+      "compositeScore": 0.7068
+    },
+    {
+      "ticker": "GWRE",
+      "poolRank": 21,
+      "poolSize": 111,
+      "compositeScore": 0.7
+    },
+    {
+      "ticker": "AZO",
+      "poolRank": 22,
+      "poolSize": 111,
+      "compositeScore": 0.6977
+    },
+    {
+      "ticker": "S",
+      "poolRank": 23,
+      "poolSize": 111,
+      "compositeScore": 0.6977
+    },
+    {
+      "ticker": "META",
+      "poolRank": 24,
+      "poolSize": 111,
+      "compositeScore": 0.6932
+    },
+    {
+      "ticker": "NOW",
+      "poolRank": 25,
+      "poolSize": 111,
+      "compositeScore": 0.6886
+    },
+    {
+      "ticker": "CWST",
+      "poolRank": 26,
+      "poolSize": 111,
+      "compositeScore": 0.6705
+    },
+    {
+      "ticker": "MANH",
+      "poolRank": 27,
+      "poolSize": 111,
+      "compositeScore": 0.6659
+    },
+    {
+      "ticker": "NE",
+      "poolRank": 28,
+      "poolSize": 111,
+      "compositeScore": 0.6545
+    },
+    {
+      "ticker": "ORLY",
+      "poolRank": 29,
+      "poolSize": 111,
+      "compositeScore": 0.65
+    },
+    {
+      "ticker": "HP",
+      "poolRank": 30,
+      "poolSize": 111,
+      "compositeScore": 0.6432
+    },
+    {
+      "ticker": "APD",
+      "poolRank": 31,
+      "poolSize": 111,
+      "compositeScore": 0.6295
+    },
+    {
+      "ticker": "LASR",
+      "poolRank": 32,
+      "poolSize": 111,
+      "compositeScore": 0.6159
+    },
+    {
+      "ticker": "IFF",
+      "poolRank": 33,
+      "poolSize": 111,
+      "compositeScore": 0.6068
+    },
+    {
+      "ticker": "DOCN",
+      "poolRank": 34,
+      "poolSize": 111,
+      "compositeScore": 0.6045
+    },
+    {
+      "ticker": "DASH",
+      "poolRank": 35,
+      "poolSize": 111,
+      "compositeScore": 0.5977
+    },
+    {
+      "ticker": "MLM",
+      "poolRank": 36,
+      "poolSize": 111,
+      "compositeScore": 0.5909
+    },
+    {
+      "ticker": "CMG",
+      "poolRank": 37,
+      "poolSize": 111,
+      "compositeScore": 0.5864
+    },
+    {
+      "ticker": "AIN",
+      "poolRank": 38,
+      "poolSize": 111,
+      "compositeScore": 0.575
+    },
+    {
+      "ticker": "CVCO",
+      "poolRank": 39,
+      "poolSize": 111,
+      "compositeScore": 0.5727
+    },
+    {
+      "ticker": "NWS",
+      "poolRank": 40,
+      "poolSize": 111,
+      "compositeScore": 0.5636
+    },
+    {
+      "ticker": "FWRG",
+      "poolRank": 41,
+      "poolSize": 111,
+      "compositeScore": 0.5636
+    },
+    {
+      "ticker": "COST",
+      "poolRank": 42,
+      "poolSize": 111,
+      "compositeScore": 0.55
+    },
+    {
+      "ticker": "SLAB",
+      "poolRank": 43,
+      "poolSize": 111,
+      "compositeScore": 0.55
+    },
+    {
+      "ticker": "HD",
+      "poolRank": 44,
+      "poolSize": 111,
+      "compositeScore": 0.5432
+    },
+    {
+      "ticker": "ORA",
+      "poolRank": 45,
+      "poolSize": 111,
+      "compositeScore": 0.5341
+    },
+    {
+      "ticker": "DDOG",
+      "poolRank": 46,
+      "poolSize": 111,
+      "compositeScore": 0.5295
+    },
+    {
+      "ticker": "WMB",
+      "poolRank": 47,
+      "poolSize": 111,
+      "compositeScore": 0.5273
+    },
+    {
+      "ticker": "XMTR",
+      "poolRank": 48,
+      "poolSize": 111,
+      "compositeScore": 0.5227
+    },
+    {
+      "ticker": "TRNS",
+      "poolRank": 49,
+      "poolSize": 111,
+      "compositeScore": 0.5182
+    },
+    {
+      "ticker": "MDB",
+      "poolRank": 50,
+      "poolSize": 111,
+      "compositeScore": 0.5136
+    },
+    {
+      "ticker": "IBM",
+      "poolRank": 51,
+      "poolSize": 111,
+      "compositeScore": 0.5091
+    },
+    {
+      "ticker": "LOW",
+      "poolRank": 52,
+      "poolSize": 111,
+      "compositeScore": 0.5068
+    },
+    {
+      "ticker": "VRNS",
+      "poolRank": 53,
+      "poolSize": 111,
+      "compositeScore": 0.4977
+    },
+    {
+      "ticker": "ZS",
+      "poolRank": 54,
+      "poolSize": 111,
+      "compositeScore": 0.4932
+    },
+    {
+      "ticker": "SHAK",
+      "poolRank": 55,
+      "poolSize": 111,
+      "compositeScore": 0.4932
+    },
+    {
+      "ticker": "GPC",
+      "poolRank": 56,
+      "poolSize": 111,
+      "compositeScore": 0.4909
+    },
+    {
+      "ticker": "KMX",
+      "poolRank": 57,
+      "poolSize": 111,
+      "compositeScore": 0.4909
+    },
+    {
+      "ticker": "GE",
+      "poolRank": 58,
+      "poolSize": 111,
+      "compositeScore": 0.4773
+    },
+    {
+      "ticker": "KTOS",
+      "poolRank": 59,
+      "poolSize": 111,
+      "compositeScore": 0.4773
+    },
+    {
+      "ticker": "IRDM",
+      "poolRank": 60,
+      "poolSize": 111,
+      "compositeScore": 0.4682
+    },
+    {
+      "ticker": "OKTA",
+      "poolRank": 61,
+      "poolSize": 111,
+      "compositeScore": 0.4659
+    },
+    {
+      "ticker": "PL",
+      "poolRank": 62,
+      "poolSize": 111,
+      "compositeScore": 0.4659
+    },
+    {
+      "ticker": "DKNG",
+      "poolRank": 63,
+      "poolSize": 111,
+      "compositeScore": 0.4591
+    },
+    {
+      "ticker": "DOW",
+      "poolRank": 64,
+      "poolSize": 111,
+      "compositeScore": 0.4568
+    },
+    {
+      "ticker": "NEU",
+      "poolRank": 65,
+      "poolSize": 111,
+      "compositeScore": 0.45
+    },
+    {
+      "ticker": "TRGP",
+      "poolRank": 66,
+      "poolSize": 111,
+      "compositeScore": 0.4341
+    },
+    {
+      "ticker": "FAST",
+      "poolRank": 67,
+      "poolSize": 111,
+      "compositeScore": 0.4318
+    },
+    {
+      "ticker": "VMC",
+      "poolRank": 68,
+      "poolSize": 111,
+      "compositeScore": 0.425
+    },
+    {
+      "ticker": "MEI",
+      "poolRank": 69,
+      "poolSize": 111,
+      "compositeScore": 0.4205
+    },
+    {
+      "ticker": "AGCO",
+      "poolRank": 70,
+      "poolSize": 111,
+      "compositeScore": 0.4182
+    },
+    {
+      "ticker": "FLUT",
+      "poolRank": 71,
+      "poolSize": 111,
+      "compositeScore": 0.4045
+    },
+    {
+      "ticker": "ROL",
+      "poolRank": 72,
+      "poolSize": 111,
+      "compositeScore": 0.4023
+    },
+    {
+      "ticker": "VRSK",
+      "poolRank": 73,
+      "poolSize": 111,
+      "compositeScore": 0.4023
+    },
+    {
+      "ticker": "OPLN",
+      "poolRank": 74,
+      "poolSize": 111,
+      "compositeScore": 0.4
+    },
+    {
+      "ticker": "BV",
+      "poolRank": 75,
+      "poolSize": 111,
+      "compositeScore": 0.4
+    },
+    {
+      "ticker": "HUN",
+      "poolRank": 76,
+      "poolSize": 111,
+      "compositeScore": 0.3977
+    },
+    {
+      "ticker": "EL",
+      "poolRank": 77,
+      "poolSize": 111,
+      "compositeScore": 0.3977
+    },
+    {
+      "ticker": "ACA",
+      "poolRank": 78,
+      "poolSize": 111,
+      "compositeScore": 0.3932
+    },
+    {
+      "ticker": "TSCO",
+      "poolRank": 79,
+      "poolSize": 111,
+      "compositeScore": 0.3909
+    },
+    {
+      "ticker": "LW",
+      "poolRank": 80,
+      "poolSize": 111,
+      "compositeScore": 0.3659
+    },
+    {
+      "ticker": "PSMT",
+      "poolRank": 81,
+      "poolSize": 111,
+      "compositeScore": 0.3591
+    },
+    {
+      "ticker": "MKC",
+      "poolRank": 82,
+      "poolSize": 111,
+      "compositeScore": 0.3568
+    },
+    {
+      "ticker": "JJSF",
+      "poolRank": 83,
+      "poolSize": 111,
+      "compositeScore": 0.3523
+    },
+    {
+      "ticker": "GEV",
+      "poolRank": 84,
+      "poolSize": 111,
+      "compositeScore": 0.3455
+    },
+    {
+      "ticker": "NSC",
+      "poolRank": 85,
+      "poolSize": 111,
+      "compositeScore": 0.3409
+    },
+    {
+      "ticker": "BKR",
+      "poolRank": 86,
+      "poolSize": 111,
+      "compositeScore": 0.3409
+    },
+    {
+      "ticker": "GIS",
+      "poolRank": 87,
+      "poolSize": 111,
+      "compositeScore": 0.3341
+    },
+    {
+      "ticker": "PNW",
+      "poolRank": 88,
+      "poolSize": 111,
+      "compositeScore": 0.325
+    },
+    {
+      "ticker": "CHD",
+      "poolRank": 89,
+      "poolSize": 111,
+      "compositeScore": 0.3205
+    },
+    {
+      "ticker": "RBRK",
+      "poolRank": 90,
+      "poolSize": 111,
+      "compositeScore": 0.3205
+    },
+    {
+      "ticker": "CEVA",
+      "poolRank": 91,
+      "poolSize": 111,
+      "compositeScore": 0.3205
+    },
+    {
+      "ticker": "JKHY",
+      "poolRank": 92,
+      "poolSize": 111,
+      "compositeScore": 0.3182
+    },
+    {
+      "ticker": "ETR",
+      "poolRank": 93,
+      "poolSize": 111,
+      "compositeScore": 0.3182
+    },
+    {
+      "ticker": "NYT",
+      "poolRank": 94,
+      "poolSize": 111,
+      "compositeScore": 0.3159
+    },
+    {
+      "ticker": "BMNR",
+      "poolRank": 95,
+      "poolSize": 111,
+      "compositeScore": 0.3091
+    },
+    {
+      "ticker": "IOT",
+      "poolRank": 96,
+      "poolSize": 111,
+      "compositeScore": 0.3023
+    },
+    {
+      "ticker": "SLB",
+      "poolRank": 97,
+      "poolSize": 111,
+      "compositeScore": 0.3
+    },
+    {
+      "ticker": "EQT",
+      "poolRank": 98,
+      "poolSize": 111,
+      "compositeScore": 0.2977
+    },
+    {
+      "ticker": "SKY",
+      "poolRank": 99,
+      "poolSize": 111,
+      "compositeScore": 0.2932
+    },
+    {
+      "ticker": "GLW",
+      "poolRank": 100,
+      "poolSize": 111,
+      "compositeScore": 0.2636
+    },
+    {
+      "ticker": "CEG",
+      "poolRank": 101,
+      "poolSize": 111,
+      "compositeScore": 0.2636
+    },
+    {
+      "ticker": "NSP",
+      "poolRank": 102,
+      "poolSize": 111,
+      "compositeScore": 0.2614
+    },
+    {
+      "ticker": "VRSN",
+      "poolRank": 103,
+      "poolSize": 111,
+      "compositeScore": 0.2545
+    },
+    {
+      "ticker": "WWD",
+      "poolRank": 104,
+      "poolSize": 111,
+      "compositeScore": 0.2409
+    },
+    {
+      "ticker": "INTA",
+      "poolRank": 105,
+      "poolSize": 111,
+      "compositeScore": 0.2227
+    },
+    {
+      "ticker": "SWX",
+      "poolRank": 106,
+      "poolSize": 111,
+      "compositeScore": 0.2114
+    },
+    {
+      "ticker": "CVNA",
+      "poolRank": 107,
+      "poolSize": 111,
+      "compositeScore": 0.1477
+    },
+    {
+      "ticker": "BLDR",
+      "poolRank": 108,
+      "poolSize": 111,
+      "compositeScore": 0.1364
+    },
+    {
+      "ticker": "KNF",
+      "poolRank": 109,
+      "poolSize": 111,
+      "compositeScore": 0.1364
+    },
+    {
+      "ticker": "TYL",
+      "poolRank": 110,
+      "poolSize": 111,
+      "compositeScore": 0.1364
+    },
+    {
+      "ticker": "BJRI",
+      "poolRank": 111,
+      "poolSize": 111,
+      "compositeScore": 0.0659
+    }
+  ],
+  "stats": {
+    "portfolioReturn": 0.328122,
+    "portfolioVol": 0.059258,
+    "sharpe": 4.9466,
+    "sortino": 6.9955,
+    "long": {
+      "return": 0.234094,
+      "vol": 0.073708,
+      "sharpe": 2.7011
+    },
+    "short": {
+      "return": 0.094029,
+      "vol": 0.043797,
+      "sharpe": 1.3478
+    }
+  },
+  "generatedAt": "2026-08-29T12:54:23Z"
+}

@@ -40,8 +40,8 @@ const COLUMNS: { key: keyof SimRow | 'position'; label: string; className?: stri
 
   { key: 'industryMedian', label: 'Median @ Industry PE' },
   { key: 'industryReturn', label: 'Return @ Industry PE' },
-  { key: 'industryP5', label: 'P5 @ Industry PE' },
-  { key: 'industryP95', label: 'P95 @ Industry PE' },
+  { key: 'industryP20', label: 'P20 @ Industry PE' },
+  { key: 'industryP80', label: 'P80 @ Industry PE' },
 ]
 
 function fmtShares(v: number | null): string {
@@ -157,8 +157,8 @@ export default function SimulationsView() {
         confidence: r.inputs.confidence,
         industryMedian: ind.median,
         industryReturn: r.currentPrice ? ind.median / (r.currentPrice as number) - 1 : 0,
-        industryP5: ind.p5,
-        industryP95: ind.p95,
+        industryP20: ind.p20,
+        industryP80: ind.p80,
         industryProbAbove: ind.probAboveCurrentPrice,
       })
     }
@@ -414,8 +414,8 @@ export default function SimulationsView() {
                     </td>
                     <td className="num">{fmtPrice(r.industryMedian)}</td>
                     <td className={`num ${signClass(r.industryReturn)}`}>{fmtPct(r.industryReturn)}</td>
-                    <td className="num">{fmtPrice(r.industryP5)}</td>
-                    <td className="num">{fmtPrice(r.industryP95)}</td>
+                    <td className="num">{fmtPrice(r.industryP20)}</td>
+                    <td className="num">{fmtPrice(r.industryP80)}</td>
                   </tr>
                 )
               })}

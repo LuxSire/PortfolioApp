@@ -280,7 +280,12 @@ const SCORE_FACTORS = [
     weight: 2,
     note: 'low is better; a separate valuation lens from P/E/P-FCF/EV-EBITDA, stays meaningful when those break down',
   },
-  { label: 'Revenue growth', weight: 8, note: 'high is better; negative ranked worst, not just low' },
+  {
+    label: 'Revenue growth',
+    weight: 4,
+    note: 'high is better; negative ranked worst; credited only up to trailing earnings growth (marked * when capped)',
+  },
+  { label: 'Earnings growth', weight: 3, note: 'trailing YoY; high is better; zero/negative ranked worst' },
   { label: 'Debt / Equity vs. sector average', weight: 5, note: 'low relative to sector is better' },
   { label: 'Liquidity', weight: 2, note: 'avg of high quick ratio + high current ratio ranks' },
   { label: 'Return on equity', weight: 3, note: 'high is better; negative ranked worst, not just low' },
@@ -546,6 +551,14 @@ export default function ScreenerView() {
           const epsTrend = epsTrendParts.length
             ? epsTrendParts.reduce((a, b) => a + b, 0) / epsTrendParts.length
             : null
+          // Revenue growth shown as the value scoring.growth_rank actually
+          // credits: capped at trailing earningsGrowth when earnings lagged
+          // the top line (acquired / low-margin roll-up / unprofitable
+          // expansion). revgRaw keeps the reported figure for the tooltip.
+          const revgRaw = toNum(r.revenueGrowth)
+          const earnG = toNum(r.earningsGrowth)
+          const revg =
+            revgRaw !== null && earnG !== null && earnG < revgRaw ? Math.min(revgRaw, Math.max(earnG, 0)) : revgRaw
           return {
             rank: idx + 1,
             t: r.ticker,
@@ -585,7 +598,9 @@ export default function ScreenerView() {
             tpe: toNum(r.trailingPE),
             tps: toNum(r.trailingPS),
             peg: toNum(r.pegRatio),
-            revg: toNum(r.revenueGrowth),
+            revg,
+            revgRaw,
+            earnG,
             pfcf: toNum(r.priceToFCF),
             evEbitda: toNum(r.enterpriseToEbitda),
             opMargin: toNum(r.operatingMargins),
@@ -701,13 +716,20 @@ export default function ScreenerView() {
   // Mirrors scoring.growth_rank's own GROWTH_CAP: a near-zero-revenue
   // base-effect artifact (a raw revg in the thousands of percent)
   // shouldn't claim the single best subrank just for being the most
-  // extreme value. Capped for this rank computation only -- the r.revg
-  // cell rendered below (fmtPct(r.revg)) stays the actual, uncapped number.
+  // extreme value. Ranked on r.revg, which is already the earningsGrowth-
+  // capped value scoring credits (see the parse step); GROWTH_CAP is
+  // applied on top the same way growth_rank does.
   const revgRank = useMemo(() => {
     if (!rawRows) return new Map<string, number>()
     const GROWTH_RANK_CAP = 3.0 // +300%, mirrors scoring.growth_rank's GROWTH_CAP
     const capped = rawRows.map((r) => (r.revg !== null && r.revg > GROWTH_RANK_CAP ? { ...r, revg: GROWTH_RANK_CAP } : r))
     return rankDescending(capped, 'revg')
+  }, [rawRows])
+  const earnGRank = useMemo(() => {
+    if (!rawRows) return new Map<string, number>()
+    const GROWTH_RANK_CAP = 3.0
+    const capped = rawRows.map((r) => (r.earnG !== null && r.earnG > GROWTH_RANK_CAP ? { ...r, earnG: GROWTH_RANK_CAP } : r))
+    return rankDescending(capped, 'earnG')
   }, [rawRows])
   const liqRank = useMemo(() => (rawRows ? rankDescending(rawRows, 'liq') : new Map<string, number>()), [rawRows])
   const sentRank = useMemo(() => (rawRows ? rankDescending(rawRows, 'sent') : new Map<string, number>()), [rawRows])
@@ -784,6 +806,7 @@ export default function ScreenerView() {
       epsTrendRank: epsTrendRank.get(r.t) ?? null,
       upsideRank: upsideRank.get(r.t) ?? null,
       revgRank: revgRank.get(r.t) ?? null,
+      earnGRank: earnGRank.get(r.t) ?? null,
       diffRank: diffRank.get(r.t) ?? null,
       liqRank: liqRank.get(r.t) ?? null,
       shortIntRank: shortIntRank.get(r.t) ?? null,
@@ -807,6 +830,7 @@ export default function ScreenerView() {
     epsTrendRank,
     upsideRank,
     revgRank,
+    earnGRank,
     diffRank,
     liqRank,
     shortIntRank,
@@ -1137,6 +1161,8 @@ export default function ScreenerView() {
               const upsideClass = r.upside === null ? '' : r.upside >= 0 ? 'perf-pos' : 'perf-neg'
               // Green only above 10% growth, red below 0%, neutral between.
               const revgClass = inversePctThresholdClass(r.revg, 0, 10)
+              const earnGClass = inversePctThresholdClass(r.earnG, 0, 10)
+              const revgAdjusted = r.revgRaw !== null && r.revg !== null && r.revg !== r.revgRaw
               // Same thresholds as the asset page: PEG < 1 cheap relative to
               // growth, > 1 pricey; Liq Ratio > 3 comfortably liquid, < 1 weak;
               // P/FCF, Trailing PE, Fwd PE cheap under 10x, expensive above 50x.
@@ -1275,7 +1301,20 @@ export default function ScreenerView() {
                   <td className={`num ${tpeClass}`}>{fmtNum(r.tpe)} <Subrank rank={r.diffRank} /></td>
                   <td className={`num ${tpsClass}`}>{fmtNum(r.tps)} <Subrank rank={r.tpsRank} /></td>
                   <td className={`num ${pegClass}`}>{fmtNum(r.peg)} <Subrank rank={r.pegRank} /></td>
-                  <td className={`num ${revgClass}`}>{fmtPct(r.revg)} <Subrank rank={r.revgRank} /></td>
+                  <td
+                    className={`num ${revgClass}`}
+                    title={
+                      revgAdjusted
+                        ? `Reported ${fmtPct(r.revgRaw)}, credited as ${fmtPct(r.revg)} — capped at earnings growth ${fmtPct(
+                            r.earnG,
+                          )} (top line not reaching the bottom line)`
+                        : undefined
+                    }
+                  >
+                    {fmtPct(r.revg)}
+                    {revgAdjusted ? '*' : ''} <Subrank rank={r.revgRank} />
+                  </td>
+                  <td className={`num ${earnGClass}`}>{fmtPct(r.earnG)} <Subrank rank={r.earnGRank} /></td>
                   <td className={`num ${pfcfClass}`}>{fmtNum(r.pfcf)} <Subrank rank={r.pfcfRank} /></td>
                   <td className={`num ${evEbitdaClass}`}>{fmtNum(r.evEbitda)} <Subrank rank={r.evEbitdaRank} /></td>
                   <td className={`num ${opMarginClass}`}>{fmtPct(r.opMargin)}</td>

@@ -3,7 +3,7 @@
 Answers "given what we already know about a company's earnings, what's a
 plausible RANGE of fair values today, priced at the industry's own median
 multiple, and how likely is the current price to already sit below that
-range?" -- entirely from fields already in forward_pe.csv (zero network
+range?" -- entirely from fields already in screen_data.csv (zero network
 calls, same "just read what's on disk" contract as main.py's own
 rescore()). Feeds both `python main.py simulations`'s own summary
 printout and the Simulations tab (see web/src/pages/SimulationsView.tsx).
@@ -118,9 +118,22 @@ For a ticker currently trading at price P0:
    less today than a dollar of a low-beta ticker's, rather than
    discounting every ticker at an identical flat rate.
 
-   Next-year EPS is then modeled as Normal(mu_eps, sigma_eps):
+   Next-year EPS is then modeled as a LOGNORMAL around mu_eps -- EPS is a
+   multiplicative quantity (moves in percent terms, can't cross zero), so
+   a Normal draw put 10-25% of the mass below zero for a volatile-
+   earnings name and the old max(eps_i, 0) then piled it onto a spike at
+   exactly 0, biasing every mean/percentile/probability off the array:
 
-     sigma_eps = combinedVol * abs(mu_eps)
+     sigma_log = sqrt(ln(1 + combinedVol ** 2))       # same CV as combinedVol
+     eps_i     = mu_eps * exp(sigma_log * Z)          # Z ~ N(0, 1), median-preserving
+
+   Same coefficient of variation (combinedVol) and same median (mu_eps)
+   as the old Normal, so forecastPrice -- which keys off the median, not
+   the mean -- is essentially unchanged; only the sub-zero spike is gone
+   and the low tail is a smooth right-skew. (sigma_eps = combinedVol *
+   abs(mu_eps), the old Normal's stdev, is still reported in inputs as a
+   linear-space spread descriptor.) mu_eps <= 0 falls back to a
+   degenerate all-mu_eps array.
 
    combinedVol combines two INDEPENDENT uncertainty sources via
    root-sum-square (RSS):
@@ -225,24 +238,25 @@ For a ticker currently trading at price P0:
    never got that same shift -- the two numbers could disagree about
    which side of even a ticker was on for no reason a viewer could see.
 
-   forecastPriceP5/P25/P75/P95 apply that SAME confidence-weighted
-   transform to priceAtIndustryMultiple's own percentiles instead of its
-   median -- an "adjusted" band around forecastPrice, all on its own
-   scale, for charting a bear/median/bull case that isn't three
-   different derivations bolted together. This is NOT the same as the
-   raw priceAtIndustryMultiple percentiles: those are unadjusted (no
-   confidence pull toward currentPrice) and can be dramatically wider,
-   since they're straight percentiles of the eps_i draws (floored only at
-   0, see below) priced at industryPe. There is no longer a separate
-   analyst-target-derived floor/cap PRICE (an earlier version had one,
-   built from targetLowPrice/targetHighPrice converted to EPS -- retired
-   now that forecastPriceP5/P95 give a bear/bull case on forecastPrice's
-   own consistent scale instead).
+   forecastPriceP20/P80 apply that SAME confidence-weighted transform to
+   priceAtIndustryMultiple's own p20/p80 instead of its median -- an
+   "adjusted" 20/50/80 band around forecastPrice, all on its own scale,
+   for charting a bear/median/bull case that isn't three different
+   derivations bolted together. Only the central 60% band is reported --
+   the lognormal eps_i draw (see below) has a fat upper tail whose p95
+   "bull case" isn't wanted. This is NOT the same as the raw
+   priceAtIndustryMultiple p20/p80: those are unadjusted (no confidence
+   pull toward currentPrice) and can be dramatically wider, since they're
+   straight percentiles of the lognormal eps_i draws priced at industryPe.
+   There is no longer a separate analyst-target-derived floor/cap PRICE
+   (an earlier version had one, built from targetLowPrice/targetHighPrice
+   converted to EPS -- retired now that forecastPriceP20/P80 give a
+   bear/bull case on forecastPrice's own consistent scale instead).
 
-   eps_i draws are floored ONLY at 0 -- a below-zero simulated EPS draw
-   isn't sellable through this model, so it's treated as "worth nothing"
-   rather than producing a nonsensical negative price. No analyst-target-
-   derived floor or cap on either side (see CAVEATS): an earlier version
+   eps_i draws are lognormal (step 1) so strictly positive -- the max(.,0)
+   that follows is a no-op kept only for the mu_eps <= 0 degenerate
+   fallback. No analyst-target-derived floor or cap on either side (see
+   CAVEATS): an earlier version
    had both -- eps_floor = min(targetLowPrice/industryPe, abs(forwardEps))
    * (mu_eps/forwardEps), eps_cap the mirror-image on targetHighPrice --
    but whenever the min()/max() picked the abs(forwardEps) branch (common:
@@ -269,18 +283,29 @@ together within a path rather than independently:
 
   z = clip(Normal(0, 1), -SHOCK_CLIP_SD, +SHOCK_CLIP_SD)   (SHOCK_CLIP_SD = 2.0)
 
+  combined_vol = sqrt(epsVolatility**2 + analystDispersion**2) -- the SAME
+               EPS-uncertainty measure forecastPrice's own confidence uses
+               (epsVolatility = historical annual-EPS relative swing,
+               floored at FALLBACK_EPS_REL_STDEV; analystDispersion =
+               (targetHigh - targetLow) / (2*targetMean)). This is the
+               ownGrowthRate noise SCALE, so a volatile-earnings name
+               (memory, autos, other deep cyclicals) widens its simulated
+               distribution instead of only inheriting the peer-valuation
+               spread.
+
   peer_pe_cv = coefficient of variation (stdev / median) of peer
                TRAILING P/E within the SAME industry/sector peer group
                industryPe itself uses, trimmed to [P5, P95] first (see
                _peer_pe_pool_and_cv -- raw stdev/median is not robust to
                real peer-pool outliers, e.g. a 994.9 trailing P/E in
-               Semiconductors). This is the shared noise SCALE: a name
-               in a tightly-clustered-multiple industry gets less
-               randomized spread than one where peers disagree widely.
+               Semiconductors). This is the reversion-SPEED spread only
+               (input 2 below): a name in a tightly-clustered-multiple
+               industry gets less reversion-exponent spread than one where
+               peers disagree widely.
 
 1. ownGrowthRate is redrawn per path:
 
-     own_growth_sigma = peer_pe_cv * max(abs(ownGrowthRate), GROWTH_NOISE_FLOOR)   (floor = 5%)
+     own_growth_sigma = combined_vol * max(abs(ownGrowthRate), GROWTH_NOISE_FLOOR)   (floor = 5%)
      own_growth_i      = ownGrowthRate + z * own_growth_sigma
 
    industryGrowthRate is deliberately left UNSHOCKED (the plain scalar
@@ -301,11 +326,15 @@ together within a path rather than independently:
    so a path's growth, reversion speed, AND year-1 drift all move
    together rather than being drawn independently:
 
+     eps_growth_sigma = epsVolatility / SHOCK_CLIP_SD
      g_fwd_low  = clip(targetLowPrice  / currentPrice - 1, GROWTH_FLOOR, GROWTH_CAP)
      g_fwd_high = clip(targetHighPrice / currentPrice - 1, GROWTH_FLOOR, GROWTH_CAP)
-     sigma_low  = max(0, (g_fwd - g_fwd_low)  / SHOCK_CLIP_SD)
-     sigma_high = max(0, (g_fwd_high - g_fwd) / SHOCK_CLIP_SD)
+     sigma_low  = hypot(max(0, (g_fwd - g_fwd_low)  / SHOCK_CLIP_SD), eps_growth_sigma)
+     sigma_high = hypot(max(0, (g_fwd_high - g_fwd) / SHOCK_CLIP_SD), eps_growth_sigma)
      g_fwd_i    = g_fwd + z * (sigma_low if z < 0 else sigma_high)
+
+   epsVolatility is RSS'd into both half-widths so year 1 widens for a
+   volatile-earnings name even when its analyst target range is tight.
 
    g_fwd_i is a linear function of the Normal z, so it is itself
    (split-)Normally distributed: z = -SHOCK_CLIP_SD lands exactly on
@@ -324,18 +353,18 @@ together within a path rather than independently:
    around g_fwd since there's no real low/high skew to draw from for this
    ticker, just a typical peer WIDTH:
 
-     sigma_industry = industryMedianAnalystDispersion / SHOCK_CLIP_SD
+     sigma_industry = hypot(industryMedianAnalystDispersion / SHOCK_CLIP_SD, eps_growth_sigma)
      g_fwd_i        = clip(g_fwd + z * sigma_industry, GROWTH_FLOOR, GROWTH_CAP)
 
-   Only drops to the single fixed g_fwd (no per-path spread at all) when
-   even the broad sector has no analyst coverage to borrow a typical
-   spread from. Added after confirming live that the earlier "single
-   fixed g_fwd" fallback silently zeroed out one of the three
-   shared-shock inputs' worth of variance for an uncovered ticker: COKE
-   (Coca-Cola Consolidated, no analyst target data on file) had
-   simReturnVol collapse to 2.3% and simSharpe blow up to 18.2 as a
-   direct result, purely from missing analyst coverage rather than any
-   genuine earnings predictability.
+   When even the broad sector has no analyst coverage to borrow a spread
+   from, the last-resort branch is g_fwd + z * eps_growth_sigma (still a
+   real per-path spread from epsVolatility alone, not a single fixed
+   value). This replaced an earlier "single fixed g_fwd" fallback that
+   silently zeroed out one of the three shared-shock inputs' worth of
+   variance for an uncovered ticker: COKE (Coca-Cola Consolidated, no
+   analyst target data on file) had simReturnVol collapse to 2.3% and
+   simSharpe blow up to 18.2 as a direct result, purely from missing
+   analyst coverage rather than any genuine earnings predictability.
 
 The terminal multiple is NOT randomized -- every path prices its
 simulated EPS at the SAME fixed industryPe the deterministic case uses,
@@ -349,8 +378,13 @@ but multiplying by a draw from that shape is a different question than
 earnings uncertainty). Removing it brought simulated mean/median ratios
 from ~1.5-1.6x down to 0.93-1.00x.
 
-SimPrice = mean of the N simulated per-path prices. Deliberately NOT
-confidence-pulled toward currentPrice the way forecastPrice is (step
+SimPrice = mean of the N simulated per-path prices AFTER winsorizing the
+array at its own p5/p95 (multiplicative EPS compounding fattens the
+right tail -- the raw mean sits above the body of the distribution on
+volatile names). The clip leaves the reported p20/p50/p80 untouched;
+only the mean and stdev (and the returns derived from the array) move.
+Deliberately
+NOT confidence-pulled toward currentPrice the way forecastPrice is (step
 4) -- it is meant to stand on its own as the simulated distribution's
 own central tendency, not a second confidence-weighted blend.
 
@@ -409,13 +443,13 @@ CAVEATS -- read before trusting a number out of this
   abs(forwardEps) branch, the rescaling collapsed the bound to EXACTLY
   mu_eps, silently clipping half the Normal draw to a single point.
   Confirmed live on the cap side for PGY (priceAtIndustryMultiple's
-  p50/p75/p95 collapsed to one repeated value) and, worse, on the floor
-  side for 83% of the simulated universe (binding on >25% of draws;
+  upper percentiles collapsed to one repeated value) and, worse, on the
+  floor side for 83% of the simulated universe (binding on >25% of draws;
   several tickers, e.g. COST/IEX/SNEX, had epsFloor == muEps exactly,
   and for the worst cases -- SNEX -- even the median collapsed to the
-  same clipped value as P5/P25). eps_i is now floored only at 0 (a
-  below-zero draw isn't sellable through this model), with no
-  analyst-target guardrail on either side.
+  same clipped value as the lower percentiles). eps_i is now a lognormal
+  draw (strictly positive, step 1), with no analyst-target guardrail on
+  either side.
 """
 
 import math
@@ -487,7 +521,7 @@ MIN_PEERS = 5
 MIN_INDUSTRY_PEERS = 10
 FALLBACK_EPS_REL_STDEV = 0.20
 N_SIMULATIONS = 20000
-PERCENTILES = (5, 25, 50, 75, 95)
+PERCENTILES = (20, 50, 80)
 # Years in the EPS path -- anchorEps (year 0) plus 4 growth steps.
 # See simulate_ticker's own comment.
 EPS_PROJECTION_YEARS = 5
@@ -504,6 +538,16 @@ GROWTH_FLOOR = -0.99
 # sustained growth -- few real businesses compound faster than that for
 # 4 years straight.
 GROWTH_CAP = 1.0
+# No-coverage forwardEps sanity band. For a ticker with NO analyst
+# coverage (numberOfAnalystOpinions absent), if Yahoo's forwardPE is more
+# than 3x or less than 1/3 of its own trailingPE, its forwardEps is almost
+# always stale or split-contaminated data with no analyst estimate behind
+# it (confirmed live: COKE, forwardEps 38.94 vs trailingEps ~7.7 -- a 5x
+# gap Yahoo never corrected). simulate_ticker then swaps in trailingEps as
+# the forward figure (a flat "no growth priced in" assumption) rather than
+# compounding the bad number through g_fwd.
+FWD_TRAILING_PE_RATIO_MIN = 0.33
+FWD_TRAILING_PE_RATIO_MAX = 3.0
 # Year-1 EPS growth is a blend of the concave own->industry schedule rate
 # and g_fwd (the drift implied by forwardEps vs. the price-anchored
 # anchorEps). Y1_SCHEDULE_WEIGHT is the schedule side's share; g_fwd gets
@@ -594,7 +638,7 @@ REVERSION_EXPONENT_MIN = 0.2
 REVERSION_EXPONENT_MAX = 1.5
 
 
-METRIC_KEYS = ("forwardPE", "trailingPE", "epsTrend", "revenueGrowth", "operatingMargin", "grossMargin", "analystDispersion")
+METRIC_KEYS = ("forwardPE", "trailingPE", "epsTrend", "revenueGrowth", "earningsGrowth", "operatingMargin", "grossMargin", "analystDispersion")
 
 
 def _build_peer_pools(data):
@@ -656,6 +700,11 @@ def _build_peer_pools(data):
             "trailingPE": tpe if tpe is not None and tpe > 0 else None,
             "epsTrend": sum(trend_parts) / len(trend_parts) if trend_parts else None,
             "revenueGrowth": to_float(d.get("revenueGrowth")),
+            # Trailing YoY earnings growth -- the peer median caps
+            # ind_margin_adjusted_revenue_growth the same way a ticker's own
+            # earningsGrowth caps its own (see simulate_ticker). Keeps its
+            # sign, like revenueGrowth/operatingMargin.
+            "earningsGrowth": to_float(d.get("earningsGrowth")),
             "operatingMargin": to_float(d.get("operatingMargins")),
             # Non-positive excluded like forwardPE: a real operating company
             # doesn't run a <=0% gross margin -- an exact 0.0 is Yahoo's
@@ -782,7 +831,7 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
     rng = rng or np.random.default_rng()
     row = data.get(ticker)
     if not row:
-        return {"ticker": ticker, "error": "not found in forward_pe.csv"}
+        return {"ticker": ticker, "error": "not found in screen_data.csv"}
 
     fwd_eps = to_float(row.get("forwardEps"))
     current_price = to_float(row.get("price"))
@@ -839,8 +888,10 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
 
     ind_eps_trend, _, _ = _peer_median(ticker, industry, *peer_pools["epsTrend"])
     ind_revenue_growth, _, _ = _peer_median(ticker, industry, *peer_pools["revenueGrowth"])
+    ind_earnings_growth, _, _ = _peer_median(ticker, industry, *peer_pools["earningsGrowth"])
     ind_operating_margin, _, _ = _peer_median(ticker, industry, *peer_pools["operatingMargin"])
     ind_gross_margin, _, _ = _peer_median(ticker, industry, *peer_pools["grossMargin"])
+    earnings_growth = to_float(row.get("earningsGrowth"))
 
     # growth_margin is the cents-of-EPS per incremental revenue dollar that
     # revenueGrowth is scaled by to get an EPS-growth equivalent. For a
@@ -888,6 +939,21 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
     margin_adjusted_revenue_growth = revenue_growth * growth_margin if (
         revenue_growth is not None and growth_margin is not None and not margin_distorted
     ) else None
+    # Corroborate against trailing earningsGrowth, mirroring
+    # scoring.growth_rank: when actual bottom-line growth came in below the
+    # margin-adjusted top-line estimate, credit only up to
+    # max(earningsGrowth, 0). The revenue side stays margin-multiplied
+    # (revenueGrowth * growth_margin, above); the earnings side is taken
+    # raw -- it's already net of margins. Catches acquired / base-effect /
+    # unprofitable revenue the growth_margin scaling alone doesn't (DKS:
+    # +53% revenueGrowth, ~8% margin -> 4.2% here, capped to 0 by -26%
+    # earningsGrowth).
+    if (
+        margin_adjusted_revenue_growth is not None
+        and earnings_growth is not None
+        and earnings_growth < margin_adjusted_revenue_growth
+    ):
+        margin_adjusted_revenue_growth = min(margin_adjusted_revenue_growth, max(earnings_growth, 0.0))
 
     own_growth_rate = _combine_growth(eps_trend, margin_adjusted_revenue_growth)
 
@@ -899,6 +965,16 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
     ind_margin_adjusted_revenue_growth = ind_revenue_growth * ind_growth_margin if (
         ind_revenue_growth is not None and ind_operating_margin is not None and not margin_distorted
     ) else None
+    # Same earningsGrowth cap as the own-ticker term above, on the peer
+    # median (ind_earnings_growth = _peer_median of earningsGrowth).
+    if (
+        ind_margin_adjusted_revenue_growth is not None
+        and ind_earnings_growth is not None
+        and ind_earnings_growth < ind_margin_adjusted_revenue_growth
+    ):
+        ind_margin_adjusted_revenue_growth = min(
+            ind_margin_adjusted_revenue_growth, max(ind_earnings_growth, 0.0)
+        )
     industry_growth_rate = _combine_growth(ind_eps_trend, ind_margin_adjusted_revenue_growth)
 
     # Option C anchor: price / industryPE — the EPS that would justify today's
@@ -928,6 +1004,20 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
         current_price / trailing_pe
         if trailing_pe is not None and trailing_pe > 0 else None
     )
+    # No-coverage forwardEps sanity swap (see FWD_TRAILING_PE_RATIO_* above).
+    # Uncovered name + forwardPE wildly out of line with its own trailingPE
+    # => treat forwardEps as bad data and use trailingEps as the forward
+    # figure instead (flat, no growth priced in). own_pe follows so ownPe
+    # in the output reflects the value actually used.
+    fwd_eps_source = "forwardEps"
+    if (not to_float(row.get("numberOfAnalystOpinions"))
+            and trailing_eps is not None and trailing_eps > 0
+            and trailing_pe is not None and trailing_pe > 0):
+        _pe_ratio = own_pe / trailing_pe
+        if not (FWD_TRAILING_PE_RATIO_MIN <= _pe_ratio <= FWD_TRAILING_PE_RATIO_MAX):
+            fwd_eps = trailing_eps
+            own_pe = trailing_pe
+            fwd_eps_source = "trailingEps (no coverage, forwardPE/trailingPE out of band)"
     if industry_pe is not None and industry_pe > 0:
         anchor_eps = current_price / industry_pe
     elif current_year_eps is not None and current_year_eps > 0:
@@ -967,7 +1057,7 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
     # cost-of-equity estimate (higher systematic risk -> a dollar of this
     # ticker's future earnings is worth less today than a dollar of a
     # low-beta ticker's), addressing the flat-single-rate caveat a plain
-    # DISCOUNT_RATE would otherwise have. beta is forward_pe.csv's own
+    # DISCOUNT_RATE would otherwise have. beta is screen_data.csv's own
     # column (yfinance's 5-year monthly beta); missing beta falls back to
     # 1.0 (market-average risk, i.e. the flat DISCOUNT_RATE unscaled).
     # Clamped to [BETA_FLOOR, BETA_CAP] rather than left at its raw value
@@ -1044,6 +1134,51 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
     # coverage, had simReturnVol collapse to 2.3% and simSharpe blow up
     # to 18.2 as a direct result).
     industry_analyst_dispersion, _, _ = _peer_median(ticker, industry, *peer_pools["analystDispersion"])
+
+    # --- EPS-uncertainty scale (epsVolatility (+) analyst price-target
+    # dispersion, RSS) -------------------------------------------------------
+    # Computed HERE, before the simulated-path block, because that block now
+    # drives its per-path EPS-side noise from combined_vol too -- not just
+    # analyst dispersion + peer_pe_cv. Keeps the Monte Carlo's spread
+    # consistent with the single number forecastPrice's own confidence uses,
+    # so a volatile-earnings name (memory, autos, other deep cyclicals)
+    # widens its simulated distribution instead of looking deceptively
+    # tight and handing simSharpe an overstated risk-adjusted rank.
+    eps_vol = to_float(row.get("epsVolatility"))
+    if eps_vol is None:
+        eps_vol = FALLBACK_EPS_REL_STDEV
+        eps_vol_source = "fallback (no epsVolatility on file)"
+    elif eps_vol < FALLBACK_EPS_REL_STDEV:
+        # Floor epsVolatility at FALLBACK_EPS_REL_STDEV even when on file --
+        # a historical window that was unusually quiet can produce implausibly
+        # tight values (e.g. ELV 1.4%, GLPI 3.9%) that collapse the EPS
+        # distribution to a near-delta-function, making P(price > current) hit
+        # exactly 1.0 even for a modest blended-vs-own PE gap. Forward EPS
+        # estimates carry irreducible analyst-consensus uncertainty of ~15-20%
+        # regardless of how stable recent history was; FALLBACK_EPS_REL_STDEV
+        # (20%) already encodes that lower bound for the no-data case and is
+        # the right floor here too.
+        eps_vol = FALLBACK_EPS_REL_STDEV
+        eps_vol_source = "fallback (epsVolatility below minimum)"
+    else:
+        eps_vol_source = "epsVolatility"
+
+    # Combine historical EPS volatility with analyst price-target dispersion
+    # as independent uncertainty sources (RSS): dispersion = half-range / mean
+    # of analyst price targets, already in the same relative-% space as eps_vol.
+    # target_mean_price/target_high_price/target_low_price were already read
+    # just above.
+    if (target_mean_price is not None and target_mean_price > 0
+            and target_high_price is not None and target_low_price is not None):
+        analyst_dispersion = (target_high_price - target_low_price) / (2.0 * target_mean_price)
+        analyst_dispersion = max(0.0, analyst_dispersion)
+    else:
+        analyst_dispersion = None
+    combined_vol = (math.sqrt(eps_vol ** 2 + analyst_dispersion ** 2)
+                    if analyst_dispersion is not None else eps_vol)
+    sigma_eps = combined_vol * abs(mu_eps)
+    confidence = 1.0 / (1.0 + combined_vol)
+
     sim_price = None
     sim_return = None
     sim_sharpe = None
@@ -1073,8 +1208,21 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
         # paths properly mean-reverting (see that same comment).
         z = np.clip(rng.normal(0.0, 1.0, n), -SHOCK_CLIP_SD, SHOCK_CLIP_SD)
 
-        own_growth_sigma = peer_pe_cv * max(abs(own_growth_rate), GROWTH_NOISE_FLOOR)
+        # ownGrowthRate spread is scaled by combined_vol (epsVolatility RSS
+        # analyst price-target dispersion, computed above) -- the SAME
+        # uncertainty measure forecastPrice's confidence uses -- rather than
+        # peer_pe_cv (kept below purely as the reversion-SPEED spread). This
+        # is what lets a volatile-earnings name widen its simulated
+        # distribution instead of inheriting only the peer-valuation spread.
+        own_growth_sigma = combined_vol * max(abs(own_growth_rate), GROWTH_NOISE_FLOOR)
         own_growth_draws = own_growth_rate + z * own_growth_sigma
+
+        # epsVolatility's own contribution to the year-1 drift spread, in the
+        # per-SD units g_fwd's sigma_low/sigma_high/sigma_industry are in --
+        # RSS'd into each of them below so the year-1 draw widens for a
+        # volatile-earnings name even when its analyst target range is tight
+        # (or, in the final branch, absent).
+        eps_growth_sigma = eps_vol / SHOCK_CLIP_SD
 
         # Per-path g_fwd draw -- explicit instruction: replaces the single
         # fixed g_fwd (computed below, still used as-is by the
@@ -1102,17 +1250,20 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
             # Clamped at 0 -- a data anomaly (e.g. low > mean) should mean
             # "no extra spread on this side," never a sign flip that would
             # make the interpolation run backwards.
-            sigma_low = max(0.0, (g_fwd - g_fwd_low) / SHOCK_CLIP_SD)
-            sigma_high = max(0.0, (g_fwd_high - g_fwd) / SHOCK_CLIP_SD)
+            sigma_low = math.hypot(max(0.0, (g_fwd - g_fwd_low) / SHOCK_CLIP_SD), eps_growth_sigma)
+            sigma_high = math.hypot(max(0.0, (g_fwd_high - g_fwd) / SHOCK_CLIP_SD), eps_growth_sigma)
             g_fwd_draws = np.where(z < 0, g_fwd + z * sigma_low, g_fwd + z * sigma_high)
         elif industry_analyst_dispersion is not None:
             # No real low/high skew to draw from for THIS ticker, just a
             # typical peer WIDTH -- so, unlike the per-ticker case above,
             # the fallback spread is symmetric around g_fwd.
-            sigma_industry = industry_analyst_dispersion / SHOCK_CLIP_SD
+            sigma_industry = math.hypot(industry_analyst_dispersion / SHOCK_CLIP_SD, eps_growth_sigma)
             g_fwd_draws = np.clip(g_fwd + z * sigma_industry, GROWTH_FLOOR, GROWTH_CAP)
         else:
-            g_fwd_draws = g_fwd
+            # No analyst target range for this ticker AND no peer spread to
+            # borrow -- epsVolatility alone still gives year 1 a real
+            # per-path spread instead of collapsing to a single fixed g_fwd.
+            g_fwd_draws = np.clip(g_fwd + z * eps_growth_sigma, GROWTH_FLOOR, GROWTH_CAP)
         p_draws = np.clip(0.5 + z * (peer_pe_cv * 0.5), REVERSION_EXPONENT_MIN, REVERSION_EXPONENT_MAX)
 
         eps_path_sim = np.full(n, anchor_eps)
@@ -1141,16 +1292,37 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
             discounted_sum_sim = discounted_sum_sim + eps_path_sim * discount_weights[t]
             weight_sum_sim += discount_weights[t]
         mu_eps_sim = discounted_sum_sim / weight_sum_sim
-        # Floored at 0 same as eps_draws_floored below -- a below-zero
-        # simulated EPS path isn't sellable through this model either.
+        # Safety floor only -- a path can't actually reach here <= 0 while
+        # anchor_eps > 0 (every (1 + g_t) >= 0.01 via the GROWTH_FLOOR clip),
+        # which holds for every ticker whose anchor is price / industryPE or
+        # a >0-guarded EPS fallback. Kept as a guard for the lone
+        # anchor_eps = fwd_eps branch (negative forwardEps).
         mu_eps_sim_floored = np.maximum(mu_eps_sim, 0.0)
         # Fixed multiple, same as industry_pe below -- see this block's
         # own opening comment on why the multiple itself isn't randomized.
         sim_prices = mu_eps_sim_floored * industry_pe
+        # Winsorize at the 5th/95th percentiles before taking ANY moment of
+        # the distribution. Multiplicative EPS compounding (eps_path =
+        # anchor_eps * prod(1 + g_t)) makes sim_prices lognormal-ish with a
+        # fat right tail -- GROWTH_CAP (+100%/yr) still lets EPS run up
+        # ~16x over the reverting path while the downside is bounded near 0
+        # -- so the raw mean and stdev sit above the body of the
+        # distribution, worst on exactly the volatile-earnings names change
+        # #1 widened. (This is NOT the eps_draws-style chop at 0 -- see
+        # that block below; the PATH prices never cross zero.) Clipping the
+        # two tails to the p5/p95 values pulls SimPrice and simReturnVol
+        # back onto the typical outcome WITHOUT confidence-shrinking toward
+        # current_price the way forecastPrice does. A clip at p5/p95 leaves
+        # every percentile from p5 to p95 (the median included) untouched
+        # -- only mean/stdev, and the returns derived from this array
+        # below, move.
+        p5_price, p95_price = np.percentile(sim_prices, [5, 95])
+        sim_prices = np.clip(sim_prices, p5_price, p95_price)
         stats_sim = _price_stats(sim_prices, current_price)
-        # SimPrice = mean, across the whole simulated distribution, of
-        # each path's own discounted-average price -- deliberately NOT
-        # confidence-pulled toward current_price the way forecastPrice is
+        # SimPrice = mean of the p5/p95-winsorized simulated distribution
+        # (see the np.clip above), each path being its own discounted-
+        # average price -- deliberately NOT confidence-pulled toward
+        # current_price the way forecastPrice is
         # (see _forecast below): that pull exists to compensate for
         # forecastPrice being a single point estimate with no
         # distributional information of its own, and SimPrice already IS
@@ -1188,42 +1360,6 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
         else:
             sim_sharpe = None
 
-    eps_vol = to_float(row.get("epsVolatility"))
-    if eps_vol is None:
-        eps_vol = FALLBACK_EPS_REL_STDEV
-        eps_vol_source = "fallback (no epsVolatility on file)"
-    elif eps_vol < FALLBACK_EPS_REL_STDEV:
-        # Floor epsVolatility at FALLBACK_EPS_REL_STDEV even when on file --
-        # a historical window that was unusually quiet can produce implausibly
-        # tight values (e.g. ELV 1.4%, GLPI 3.9%) that collapse the EPS
-        # distribution to a near-delta-function, making P(price > current) hit
-        # exactly 1.0 even for a modest blended-vs-own PE gap. Forward EPS
-        # estimates carry irreducible analyst-consensus uncertainty of ~15-20%
-        # regardless of how stable recent history was; FALLBACK_EPS_REL_STDEV
-        # (20%) already encodes that lower bound for the no-data case and is
-        # the right floor here too.
-        eps_vol = FALLBACK_EPS_REL_STDEV
-        eps_vol_source = "fallback (epsVolatility below minimum)"
-    else:
-        eps_vol_source = "epsVolatility"
-
-    # Combine historical EPS volatility with analyst price-target dispersion
-    # as independent uncertainty sources (RSS): dispersion = half-range / mean
-    # of analyst price targets, already in the same relative-% space as eps_vol.
-    # target_mean_price/target_high_price/target_low_price were already
-    # read above, before the simulated-path block (see that block's own
-    # g_fwd_draws comment) -- reused here, not re-fetched.
-    if (target_mean_price is not None and target_mean_price > 0
-            and target_high_price is not None and target_low_price is not None):
-        analyst_dispersion = (target_high_price - target_low_price) / (2.0 * target_mean_price)
-        analyst_dispersion = max(0.0, analyst_dispersion)
-    else:
-        analyst_dispersion = None
-    combined_vol = (math.sqrt(eps_vol ** 2 + analyst_dispersion ** 2)
-                    if analyst_dispersion is not None else eps_vol)
-    sigma_eps = combined_vol * abs(mu_eps)
-    confidence = 1.0 / (1.0 + combined_vol)
-
     # No analyst-target-derived floor OR cap. An earlier version capped
     # eps_draws at targetHighPrice's year-1-equivalent, but whenever that
     # analyst-implied bound sat below abs(fwd_eps) (common for a ticker
@@ -1239,12 +1375,37 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
     # e.g. COST/IEX/SNEX, had epsFloor == muEps to the last decimal,
     # clipping the ENTIRE lower half of the distribution -- for SNEX even
     # the median collapsed to the same clipped value as P5/P25). Removed
-    # rather than patched, same reasoning as the cap: eps_draws is only
-    # floored at 0 now (a below-zero simulated EPS draw isn't sellable
-    # through this model, so it's treated as "worth nothing" rather than
-    # producing a nonsensical negative price) -- no analyst-target
+    # rather than patched, same reasoning as the cap -- no analyst-target
     # guardrail on either side.
-    eps_draws = rng.normal(mu_eps, sigma_eps, n) if sigma_eps else np.full(n, mu_eps)
+    #
+    # The terminal EPS draw is LOGNORMAL (was Normal + a floor at 0). EPS
+    # is a multiplicative quantity -- it moves in percent terms and can't
+    # cross zero -- so a Normal(mu_eps, combined_vol*|mu_eps|) draw put
+    # 10-25% of its mass below zero for a volatile-earnings name
+    # (combined_vol 0.8-1.6: SNDK 10%, MU 22%, WDC 26%) and the old
+    # max(.,0) then flattened all of it onto a spike at exactly 0, biasing
+    # every mean / percentile / probability taken off the array. The
+    # lognormal keeps the SAME coefficient of variation (combined_vol) by
+    # construction -- sigma_log = sqrt(ln(1 + combined_vol**2)) -- and the
+    # SAME median (mu_eps), so forecastPrice (which keys off the median
+    # below, not the mean) is essentially unchanged; the sub-zero spike is
+    # simply gone and the low tail is a smooth right-skew instead of a
+    # clip. mu_eps <= 0 (only reachable via the anchor_eps = fwd_eps
+    # branch with a negative forwardEps) has no lognormal form -- fall
+    # back to the degenerate all-mu_eps array, which the max(., 0) below
+    # then handles exactly as the old code did. To make the draw
+    # MEAN-preserving instead of median-preserving (E[eps_draws] = mu_eps,
+    # which pulls the median -- and forecastPrice -- DOWN by
+    # 1/sqrt(1+combined_vol**2) for a high-vol name), subtract
+    # sigma_log**2 / 2 inside the exp.
+    if combined_vol > 0 and mu_eps > 0:
+        sigma_log = math.sqrt(math.log(1.0 + combined_vol ** 2))
+        eps_draws = mu_eps * np.exp(sigma_log * rng.standard_normal(n))
+    else:
+        sigma_log = 0.0
+        eps_draws = np.full(n, mu_eps)
+    # No-op now for the lognormal branch (strictly positive); still guards
+    # the mu_eps <= 0 degenerate fallback above.
     eps_draws_floored = np.maximum(eps_draws, 0.0)
 
     # Single pricing scenario: industry median forwardPE only.
@@ -1276,19 +1437,15 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
     stats_industry = None
     forecast_price = None
     forecast_return = None
-    forecast_price_p5 = None
-    forecast_price_p25 = None
-    forecast_price_p75 = None
-    forecast_price_p95 = None
+    forecast_price_p20 = None
+    forecast_price_p80 = None
     if industry_pe is not None and industry_pe > 0:
         prices_industry = eps_draws_floored * industry_pe
         stats_industry = _price_stats(prices_industry, current_price)
         forecast_price = _forecast(stats_industry["median"])
         forecast_return = forecast_price / current_price - 1
-        forecast_price_p5 = _forecast(stats_industry["p5"])
-        forecast_price_p25 = _forecast(stats_industry["p25"])
-        forecast_price_p75 = _forecast(stats_industry["p75"])
-        forecast_price_p95 = _forecast(stats_industry["p95"])
+        forecast_price_p20 = _forecast(stats_industry["p20"])
+        forecast_price_p80 = _forecast(stats_industry["p80"])
 
     return {
         "ticker": ticker,
@@ -1296,10 +1453,8 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
         "sector": row.get("sector") or None,
         "forecastPrice": forecast_price,
         "forecastReturn": forecast_return,
-        "forecastPriceP5": forecast_price_p5,
-        "forecastPriceP25": forecast_price_p25,
-        "forecastPriceP75": forecast_price_p75,
-        "forecastPriceP95": forecast_price_p95,
+        "forecastPriceP20": forecast_price_p20,
+        "forecastPriceP80": forecast_price_p80,
         # SimPrice: mean of the simulated-path distribution -- see the
         # simulated-path block above for the full design. Deliberately
         # NOT confidence-pulled toward currentPrice the way forecastPrice
@@ -1312,12 +1467,14 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
         "currentPrice": current_price,
         "inputs": {
             "fwdEps": fwd_eps,
+            "fwdEpsSource": fwd_eps_source,
             "currentYearEps": current_year_eps,
             "trailingEps": trailing_eps,
             "anchorEps": anchor_eps,
             "yearReturn": to_float(row.get("yearReturn")),
             "epsTrend": eps_trend,
             "revenueGrowth": revenue_growth,
+            "earningsGrowth": earnings_growth,
             "operatingMargin": operating_margin,
             "grossMargin": gross_margin,
             "growthMargin": growth_margin,
@@ -1325,6 +1482,7 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
             "ownGrowthRate": own_growth_rate,
             "industryEpsTrend": ind_eps_trend,
             "industryRevenueGrowth": ind_revenue_growth,
+            "industryEarningsGrowth": ind_earnings_growth,
             "industryOperatingMargin": ind_operating_margin,
             "industryGrossMargin": ind_gross_margin,
             "industryGrowthRate": industry_growth_rate,
@@ -1334,6 +1492,7 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
             "effectiveDiscountRate": effective_discount_rate,
             "muEps": mu_eps,
             "sigmaEps": sigma_eps,
+            "sigmaEpsLog": sigma_log,
             "epsVolatilitySource": eps_vol_source,
             "analystDispersion": analyst_dispersion,
             "combinedVol": combined_vol,

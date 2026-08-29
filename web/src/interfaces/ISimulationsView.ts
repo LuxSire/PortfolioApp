@@ -53,11 +53,9 @@ export interface SimPriceStats {
   mean: number
   median: number
   stdev: number
-  p5: number
-  p25: number
+  p20: number
   p50: number
-  p75: number
-  p95: number
+  p80: number
   probAboveCurrentPrice: number
 }
 
@@ -88,7 +86,7 @@ export interface SimRow {
   confidence: number
   industryMedian: number
   industryReturn: number
-  industryP5: number
-  industryP95: number
+  industryP20: number
+  industryP80: number
   industryProbAbove: number
 }

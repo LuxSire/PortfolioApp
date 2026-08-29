@@ -22,26 +22,25 @@ export interface SimPriceRangeChartProps {
   currentPrice: number
   forecastPrice?: number | null
   forecastReturn?: number | null
-  // p5/p25/p75/p95 are all the CONFIDENCE-WEIGHTED fair-value figures
-  // (modules/simulations.py's forecastPriceP5/P25/P75/P95) -- the SAME
-  // transform behind forecastPrice, applied to priceAtIndustryMultiple's
-  // own percentiles instead of its median, NOT the raw (much wider,
-  // unadjusted) priceAtIndustryMultiple percentiles. p5/p95 double as
-  // this card's bear/bull case (floor/ceiling).
-  p5: number
-  p25: number
+  // p20/median/p80 are all the CONFIDENCE-WEIGHTED fair-value figures
+  // (modules/simulations.py's forecastPriceP20/P80) -- the SAME transform
+  // behind forecastPrice, applied to priceAtIndustryMultiple's own
+  // p20/p80 instead of its median, NOT the raw (much wider, unadjusted)
+  // priceAtIndustryMultiple percentiles. p20/p80 double as this card's
+  // bear/bull case (the lognormal's fat p95 tail is deliberately not
+  // reported).
+  p20: number
   median: number
-  p75: number
-  p95: number
+  p80: number
   probAboveCurrentPrice: number
   analystLow?: number | null
   analystMean?: number | null
   analystHigh?: number | null
 }
 
-// One-row floating bar spanning the confidence-weighted fair-value P5-P95
-// band (see modules/simulations.py's forecastPriceP5/P95 -- NOT the raw
-// simulated distribution's own, much wider, unadjusted P5/P95), with
+// One-row floating bar spanning the confidence-weighted fair-value
+// P20-P80 band (see modules/simulations.py's forecastPriceP20/P80 -- NOT
+// the raw simulated distribution's own, much wider, unadjusted band), with
 // vertical reference lines marking today's price and the model's
 // forecastPrice -- the actual raw draws never leave the backend (only
 // percentile summary stats do), so this deliberately shows the real
@@ -54,11 +53,9 @@ export default function SimPriceRangeChart({
   currentPrice,
   forecastPrice,
   forecastReturn,
-  p5,
-  p25,
+  p20,
   median,
-  p75,
-  p95,
+  p80,
   probAboveCurrentPrice,
   analystLow,
   analystMean,
@@ -66,9 +63,9 @@ export default function SimPriceRangeChart({
 }: SimPriceRangeChartProps) {
   const hasForecast = forecastPrice != null && forecastReturn != null
   const hasReturn = forecastReturn != null
-  const data = [{ name: 'range', range: [p5, p95] as [number, number] }]
+  const data = [{ name: 'range', range: [p20, p80] as [number, number] }]
   const domainMax =
-    Math.max(p95, currentPrice, hasForecast ? forecastPrice : 0, analystHigh ?? 0) * 1.08
+    Math.max(p80, currentPrice, hasForecast ? forecastPrice : 0, analystHigh ?? 0) * 1.08
 
   return (
     <div className="asset-card">
@@ -101,12 +98,12 @@ export default function SimPriceRangeChart({
           <span className="l">P(above current)</span>
         </div>
         <div className="stat">
-          <span className="n num">{fmtPrice(p5)}</span>
-          <span className="l">Bear target (floor)</span>
+          <span className="n num">{fmtPrice(p20)}</span>
+          <span className="l">Bear target (P20)</span>
         </div>
         <div className="stat">
-          <span className="n num">{fmtPrice(p95)}</span>
-          <span className="l">Bull target (ceiling)</span>
+          <span className="n num">{fmtPrice(p80)}</span>
+          <span className="l">Bull target (P80)</span>
         </div>
       </div>
       <div className="chart-wrap chart-wrap-full-bleed">
@@ -131,18 +128,17 @@ export default function SimPriceRangeChart({
             <YAxis type="category" dataKey="name" hide />
             <Bar dataKey="range" fill="var(--line)" barSize={22} radius={[4, 4, 4, 4]} isAnimationActive={false} />
             <ReferenceLine
-              x={p5}
+              x={p20}
               stroke="var(--bad)"
               strokeDasharray="3 3"
-              label={{ value: 'Bear', position: 'insideBottom', fill: 'var(--bad)', fontSize: 10, fontFamily: CHART_FONT }}
+              label={{ value: 'P20', position: 'insideBottom', fill: 'var(--bad)', fontSize: 10, fontFamily: CHART_FONT }}
             />
-            <ReferenceLine x={p25} stroke="var(--muted)" strokeDasharray="2 2" />
-            <ReferenceLine x={p75} stroke="var(--muted)" strokeDasharray="2 2" />
+            <ReferenceLine x={median} stroke="var(--muted)" strokeDasharray="2 2" />
             <ReferenceLine
-              x={p95}
+              x={p80}
               stroke="var(--good)"
               strokeDasharray="3 3"
-              label={{ value: 'Bull', position: 'insideBottom', fill: 'var(--good)', fontSize: 10, fontFamily: CHART_FONT }}
+              label={{ value: 'P80', position: 'insideBottom', fill: 'var(--good)', fontSize: 10, fontFamily: CHART_FONT }}
             />
             <ReferenceLine
               x={currentPrice}
@@ -177,11 +173,9 @@ export default function SimPriceRangeChart({
         </ResponsiveContainer>
       </div>
       <div className="sim-price-range-legend">
-        <span>P5 {fmtPrice(p5)}</span>
-        <span>P25 {fmtPrice(p25)}</span>
+        <span>P20 {fmtPrice(p20)}</span>
         <span>Median {fmtPrice(median)}</span>
-        <span>P75 {fmtPrice(p75)}</span>
-        <span>P95 {fmtPrice(p95)}</span>
+        <span>P80 {fmtPrice(p80)}</span>
         {analystLow != null && analystMean != null && analystHigh != null && (
           <span>
             Analyst {fmtPrice(analystLow)} / {fmtPrice(analystMean)} / {fmtPrice(analystHigh)}

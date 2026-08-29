@@ -29,7 +29,12 @@ export interface RawScreenerRow {
   tpe: number | null
   tps: number | null
   peg: number | null
+  // revg is the scoring-credited revenue growth (capped at earningsGrowth
+  // when earnings lagged the top line -- see scoring.growth_rank); revgRaw
+  // is the reported figure; earnG is trailing YoY earnings growth.
   revg: number | null
+  revgRaw: number | null
+  earnG: number | null
   pfcf: number | null
   evEbitda: number | null
   opMargin: number | null
@@ -76,6 +81,7 @@ export interface ScreenerRow extends RawScreenerRow {
   epsTrendRank: number | null
   upsideRank: number | null
   revgRank: number | null
+  earnGRank: number | null
   diffRank: number | null
   liqRank: number | null
   shortIntRank: number | null

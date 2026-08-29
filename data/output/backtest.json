@@ -1,0 +1,3462 @@
+{
+  "generatedAt": "2026-08-29T12:53:33Z",
+  "weeks": [
+    {
+      "week": "2026-08-22",
+      "entryDate": "2026-08-21",
+      "exitDate": "2026-08-28",
+      "groups": {
+        "long_strong_buy": {
+          "return": -0.005513,
+          "count": 57
+        },
+        "long_buy": {
+          "return": -0.005888,
+          "count": 105
+        },
+        "long_blocked": {
+          "return": -0.008835,
+          "count": 142
+        },
+        "short_strong_sell": {
+          "return": 0.020185,
+          "count": 18
+        },
+        "short_sell": {
+          "return": -0.004455,
+          "count": 30
+        },
+        "short_blocked": {
+          "return": 0.009715,
+          "count": 218
+        }
+      },
+      "portfolio": {
+        "return": 0.014672,
+        "count": 75
+      },
+      "tickers": [
+        {
+          "ticker": "COKE",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": 0.049656
+        },
+        {
+          "ticker": "PBI",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": 0.044296
+        },
+        {
+          "ticker": "NESR",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": 0.042688
+        },
+        {
+          "ticker": "WLY",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": 0.041295
+        },
+        {
+          "ticker": "AMG",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": 0.041155
+        },
+        {
+          "ticker": "SCSC",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": 0.040478
+        },
+        {
+          "ticker": "JXN",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": 0.032953
+        },
+        {
+          "ticker": "SLDE",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": 0.032542
+        },
+        {
+          "ticker": "HRMY",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": 0.027785
+        },
+        {
+          "ticker": "LPLA",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": 0.025848
+        },
+        {
+          "ticker": "SKWD",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": 0.024609
+        },
+        {
+          "ticker": "CHTR",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": 0.022974
+        },
+        {
+          "ticker": "PWP",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": 0.022276
+        },
+        {
+          "ticker": "HCI",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": 0.020655
+        },
+        {
+          "ticker": "EVER",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": 0.01664
+        },
+        {
+          "ticker": "STRA",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": 0.014625
+        },
+        {
+          "ticker": "PGY",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": 0.013838
+        },
+        {
+          "ticker": "PGNY",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": 0.013645
+        },
+        {
+          "ticker": "HASI",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": 0.013171
+        },
+        {
+          "ticker": "AX",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": 0.012311
+        },
+        {
+          "ticker": "PRGS",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": 0.009017
+        },
+        {
+          "ticker": "PRG",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": 0.008512
+        },
+        {
+          "ticker": "HLNE",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": 0.00655
+        },
+        {
+          "ticker": "SF",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": 0.004076
+        },
+        {
+          "ticker": "AGM",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": 0.002672
+        },
+        {
+          "ticker": "STGW",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": 0.001719
+        },
+        {
+          "ticker": "CROX",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": 0.000983
+        },
+        {
+          "ticker": "LAD",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": -0.000998
+        },
+        {
+          "ticker": "FOXA",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": -0.001751
+        },
+        {
+          "ticker": "PARR",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": -0.002278
+        },
+        {
+          "ticker": "SMCI",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": -0.004296
+        },
+        {
+          "ticker": "ZD",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": -0.004636
+        },
+        {
+          "ticker": "TNL",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": -0.006695
+        },
+        {
+          "ticker": "INSW",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": -0.007134
+        },
+        {
+          "ticker": "CARG",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": -0.00787
+        },
+        {
+          "ticker": "WEX",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": -0.013055
+        },
+        {
+          "ticker": "GOLD",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": -0.014283
+        },
+        {
+          "ticker": "SM",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": -0.015591
+        },
+        {
+          "ticker": "PAR",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": -0.019457
+        },
+        {
+          "ticker": "CPAY",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": -0.022175
+        },
+        {
+          "ticker": "TBBK",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": -0.022176
+        },
+        {
+          "ticker": "HRB",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": -0.022355
+        },
+        {
+          "ticker": "NMRK",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": -0.023442
+        },
+        {
+          "ticker": "MCY",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": -0.025828
+        },
+        {
+          "ticker": "HALO",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": -0.02607
+        },
+        {
+          "ticker": "UUUU",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": -0.031044
+        },
+        {
+          "ticker": "MTDR",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": -0.034087
+        },
+        {
+          "ticker": "ASTH",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": -0.035324
+        },
+        {
+          "ticker": "PR",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": -0.044211
+        },
+        {
+          "ticker": "TALO",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": -0.045793
+        },
+        {
+          "ticker": "REGN",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": -0.047779
+        },
+        {
+          "ticker": "BDC",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": -0.059203
+        },
+        {
+          "ticker": "KTB",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": -0.061212
+        },
+        {
+          "ticker": "COMP",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": -0.066383
+        },
+        {
+          "ticker": "RRR",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": -0.067441
+        },
+        {
+          "ticker": "SNDK",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": -0.069608
+        },
+        {
+          "ticker": "CDRE",
+          "rating": "Strong Buy",
+          "group": "long_strong_buy",
+          "return": -0.099062
+        },
+        {
+          "ticker": "SPT",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": 0.146707
+        },
+        {
+          "ticker": "TTMI",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": 0.073367
+        },
+        {
+          "ticker": "FRSH",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": 0.067797
+        },
+        {
+          "ticker": "CENX",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": 0.060792
+        },
+        {
+          "ticker": "ADBE",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": 0.058918
+        },
+        {
+          "ticker": "NSIT",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": 0.056113
+        },
+        {
+          "ticker": "SEZL",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": 0.042062
+        },
+        {
+          "ticker": "PAYC",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": 0.041297
+        },
+        {
+          "ticker": "FIVN",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": 0.039695
+        },
+        {
+          "ticker": "CTSH",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": 0.035074
+        },
+        {
+          "ticker": "PHAT",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": 0.034949
+        },
+        {
+          "ticker": "FDS",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": 0.030242
+        },
+        {
+          "ticker": "ORCL",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": 0.029904
+        },
+        {
+          "ticker": "AMRC",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": 0.028531
+        },
+        {
+          "ticker": "WLDN",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": 0.028401
+        },
+        {
+          "ticker": "SANM",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": 0.027106
+        },
+        {
+          "ticker": "LOPE",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": 0.025295
+        },
+        {
+          "ticker": "EXPE",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": 0.024283
+        },
+        {
+          "ticker": "RJF",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": 0.023744
+        },
+        {
+          "ticker": "BLKB",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": 0.023148
+        },
+        {
+          "ticker": "PBH",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": 0.022608
+        },
+        {
+          "ticker": "BG",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": 0.020953
+        },
+        {
+          "ticker": "SPB",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": 0.020366
+        },
+        {
+          "ticker": "KWR",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": 0.017728
+        },
+        {
+          "ticker": "LNG",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": 0.017369
+        },
+        {
+          "ticker": "NTCT",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": 0.014809
+        },
+        {
+          "ticker": "NVDA",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": 0.01318
+        },
+        {
+          "ticker": "LYFT",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": 0.013165
+        },
+        {
+          "ticker": "IT",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": 0.012711
+        },
+        {
+          "ticker": "TRU",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": 0.012528
+        },
+        {
+          "ticker": "PLMR",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": 0.011838
+        },
+        {
+          "ticker": "BEN",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": 0.00991
+        },
+        {
+          "ticker": "C",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": 0.009495
+        },
+        {
+          "ticker": "OPCH",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": 0.008439
+        },
+        {
+          "ticker": "ABM",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": 0.008332
+        },
+        {
+          "ticker": "EXEL",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": 0.006842
+        },
+        {
+          "ticker": "AMP",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": 0.006714
+        },
+        {
+          "ticker": "FA",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": 0.006699
+        },
+        {
+          "ticker": "GDDY",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": 0.00649
+        },
+        {
+          "ticker": "SSNC",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": 0.005666
+        },
+        {
+          "ticker": "KDP",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": 0.00437
+        },
+        {
+          "ticker": "RAMP",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": 0.004258
+        },
+        {
+          "ticker": "BPOP",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": 0.004022
+        },
+        {
+          "ticker": "GATX",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": 0.00373
+        },
+        {
+          "ticker": "YOU",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": 0.003234
+        },
+        {
+          "ticker": "MTG",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": 0.002913
+        },
+        {
+          "ticker": "MD",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": 0.001505
+        },
+        {
+          "ticker": "NAVI",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": 0.001058
+        },
+        {
+          "ticker": "WRLD",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": 0.000425
+        },
+        {
+          "ticker": "LAMR",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.002587
+        },
+        {
+          "ticker": "ATEC",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.004219
+        },
+        {
+          "ticker": "RELY",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.004499
+        },
+        {
+          "ticker": "GS",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.00509
+        },
+        {
+          "ticker": "MLI",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.006643
+        },
+        {
+          "ticker": "NMIH",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.00775
+        },
+        {
+          "ticker": "DD",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.009759
+        },
+        {
+          "ticker": "COF",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.010279
+        },
+        {
+          "ticker": "VVX",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.010318
+        },
+        {
+          "ticker": "PRU",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.011226
+        },
+        {
+          "ticker": "AUB",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.011908
+        },
+        {
+          "ticker": "HII",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.01338
+        },
+        {
+          "ticker": "KMT",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.014019
+        },
+        {
+          "ticker": "EMN",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.014307
+        },
+        {
+          "ticker": "R",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.015497
+        },
+        {
+          "ticker": "ARLO",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.016031
+        },
+        {
+          "ticker": "CNK",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.016667
+        },
+        {
+          "ticker": "SCHW",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.019056
+        },
+        {
+          "ticker": "APA",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.01959
+        },
+        {
+          "ticker": "ADEA",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.02019
+        },
+        {
+          "ticker": "ON",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.02156
+        },
+        {
+          "ticker": "DAR",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.0216
+        },
+        {
+          "ticker": "JLL",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.024163
+        },
+        {
+          "ticker": "ROCK",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.026033
+        },
+        {
+          "ticker": "INCY",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.026915
+        },
+        {
+          "ticker": "ARCB",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.027077
+        },
+        {
+          "ticker": "ATRO",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.029359
+        },
+        {
+          "ticker": "ADI",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.030314
+        },
+        {
+          "ticker": "BMRN",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.030435
+        },
+        {
+          "ticker": "PBF",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.0306
+        },
+        {
+          "ticker": "OVV",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.033373
+        },
+        {
+          "ticker": "SONO",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.033481
+        },
+        {
+          "ticker": "MU",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.035086
+        },
+        {
+          "ticker": "RVLV",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.035774
+        },
+        {
+          "ticker": "TPR",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.035953
+        },
+        {
+          "ticker": "HLIT",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.036087
+        },
+        {
+          "ticker": "FLYW",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.038383
+        },
+        {
+          "ticker": "LRCX",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.038535
+        },
+        {
+          "ticker": "MCHP",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.041404
+        },
+        {
+          "ticker": "ARHS",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.042644
+        },
+        {
+          "ticker": "DECK",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.042757
+        },
+        {
+          "ticker": "GMED",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.045334
+        },
+        {
+          "ticker": "SUPN",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.046238
+        },
+        {
+          "ticker": "AMKR",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.047354
+        },
+        {
+          "ticker": "OSCR",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.049001
+        },
+        {
+          "ticker": "YETI",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.050046
+        },
+        {
+          "ticker": "ARQT",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.051834
+        },
+        {
+          "ticker": "INDV",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.054245
+        },
+        {
+          "ticker": "TER",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.055278
+        },
+        {
+          "ticker": "FANG",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.061931
+        },
+        {
+          "ticker": "AMAT",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.062256
+        },
+        {
+          "ticker": "Q",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.066884
+        },
+        {
+          "ticker": "URGN",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.069142
+        },
+        {
+          "ticker": "HRI",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.069796
+        },
+        {
+          "ticker": "QNST",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.069835
+        },
+        {
+          "ticker": "MXL",
+          "rating": "Buy",
+          "group": "long_buy",
+          "return": -0.073262
+        },
+        {
+          "ticker": "LIFE",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": 0.131148
+        },
+        {
+          "ticker": "PD",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": 0.122565
+        },
+        {
+          "ticker": "VYX",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": 0.109987
+        },
+        {
+          "ticker": "PEGA",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": 0.077771
+        },
+        {
+          "ticker": "GEN",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": 0.072243
+        },
+        {
+          "ticker": "GCT",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": 0.066465
+        },
+        {
+          "ticker": "FG",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": 0.062915
+        },
+        {
+          "ticker": "CVI",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": 0.056948
+        },
+        {
+          "ticker": "DOCS",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": 0.05527
+        },
+        {
+          "ticker": "WAY",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": 0.04918
+        },
+        {
+          "ticker": "PCRX",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": 0.044183
+        },
+        {
+          "ticker": "MAT",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": 0.043418
+        },
+        {
+          "ticker": "EPAM",
+          "rating": "Strong Buy",
+          "group": "long_blocked",
+          "return": 0.040421
+        },
+        {
+          "ticker": "DVA",
+          "rating": "Strong Buy",
+          "group": "long_blocked",
+          "return": 0.039466
+        },
+        {
+          "ticker": "TDC",
+          "rating": "Strong Buy",
+          "group": "long_blocked",
+          "return": 0.039003
+        },
+        {
+          "ticker": "ACIW",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": 0.037987
+        },
+        {
+          "ticker": "ENR",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": 0.037261
+        },
+        {
+          "ticker": "WMG",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": 0.033174
+        },
+        {
+          "ticker": "LRN",
+          "rating": "Strong Buy",
+          "group": "long_blocked",
+          "return": 0.029398
+        },
+        {
+          "ticker": "LNC",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": 0.027046
+        },
+        {
+          "ticker": "DOX",
+          "rating": "Strong Buy",
+          "group": "long_blocked",
+          "return": 0.024593
+        },
+        {
+          "ticker": "DINO",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": 0.024558
+        },
+        {
+          "ticker": "VCTR",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": 0.023177
+        },
+        {
+          "ticker": "BGC",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": 0.022785
+        },
+        {
+          "ticker": "MPC",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": 0.022483
+        },
+        {
+          "ticker": "UPBD",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": 0.02234
+        },
+        {
+          "ticker": "NUTX",
+          "rating": "Strong Buy",
+          "group": "long_blocked",
+          "return": 0.018349
+        },
+        {
+          "ticker": "APO",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": 0.01771
+        },
+        {
+          "ticker": "PRDO",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": 0.016657
+        },
+        {
+          "ticker": "JEF",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": 0.014523
+        },
+        {
+          "ticker": "CART",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": 0.014248
+        },
+        {
+          "ticker": "RIGL",
+          "rating": "Strong Buy",
+          "group": "long_blocked",
+          "return": 0.012857
+        },
+        {
+          "ticker": "CRMD",
+          "rating": "Strong Buy",
+          "group": "long_blocked",
+          "return": 0.012195
+        },
+        {
+          "ticker": "ACI",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": 0.012116
+        },
+        {
+          "ticker": "GNW",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": 0.010121
+        },
+        {
+          "ticker": "VLO",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": 0.010033
+        },
+        {
+          "ticker": "VRTS",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": 0.008558
+        },
+        {
+          "ticker": "GPI",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": 0.00802
+        },
+        {
+          "ticker": "CMCSA",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": 0.007821
+        },
+        {
+          "ticker": "MORN",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": 0.007779
+        },
+        {
+          "ticker": "IQV",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": 0.007428
+        },
+        {
+          "ticker": "BRO",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": 0.005348
+        },
+        {
+          "ticker": "PLUS",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": 0.004951
+        },
+        {
+          "ticker": "CI",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": 0.004937
+        },
+        {
+          "ticker": "SMPL",
+          "rating": "Strong Buy",
+          "group": "long_blocked",
+          "return": 0.004596
+        },
+        {
+          "ticker": "SNEX",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": 0.002483
+        },
+        {
+          "ticker": "PHR",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": 0.002475
+        },
+        {
+          "ticker": "FIS",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": 0.002419
+        },
+        {
+          "ticker": "HRTG",
+          "rating": "Strong Buy",
+          "group": "long_blocked",
+          "return": 0.000591
+        },
+        {
+          "ticker": "CVS",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": 0.00043
+        },
+        {
+          "ticker": "AVNT",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": 0.000224
+        },
+        {
+          "ticker": "POR",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": 0.000202
+        },
+        {
+          "ticker": "FCPT",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": 0.0
+        },
+        {
+          "ticker": "ZBH",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.000693
+        },
+        {
+          "ticker": "GTES",
+          "rating": "Strong Buy",
+          "group": "long_blocked",
+          "return": -0.001158
+        },
+        {
+          "ticker": "SBH",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.001207
+        },
+        {
+          "ticker": "SLM",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.00189
+        },
+        {
+          "ticker": "NATL",
+          "rating": "Strong Buy",
+          "group": "long_blocked",
+          "return": -0.003232
+        },
+        {
+          "ticker": "PFE",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.003919
+        },
+        {
+          "ticker": "PSIX",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.004117
+        },
+        {
+          "ticker": "BCO",
+          "rating": "Strong Buy",
+          "group": "long_blocked",
+          "return": -0.004128
+        },
+        {
+          "ticker": "INVA",
+          "rating": "Strong Buy",
+          "group": "long_blocked",
+          "return": -0.004746
+        },
+        {
+          "ticker": "RDN",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.004919
+        },
+        {
+          "ticker": "MH",
+          "rating": "Strong Buy",
+          "group": "long_blocked",
+          "return": -0.006015
+        },
+        {
+          "ticker": "SLGN",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.006841
+        },
+        {
+          "ticker": "IIPR",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.007053
+        },
+        {
+          "ticker": "APLE",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.007199
+        },
+        {
+          "ticker": "OUT",
+          "rating": "Strong Buy",
+          "group": "long_blocked",
+          "return": -0.00771
+        },
+        {
+          "ticker": "PFS",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.008435
+        },
+        {
+          "ticker": "TOWN",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.008477
+        },
+        {
+          "ticker": "CCS",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.008885
+        },
+        {
+          "ticker": "DRH",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.00936
+        },
+        {
+          "ticker": "WPC",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.009691
+        },
+        {
+          "ticker": "PNFP",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.011441
+        },
+        {
+          "ticker": "YELP",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.011935
+        },
+        {
+          "ticker": "SSRM",
+          "rating": "Strong Buy",
+          "group": "long_blocked",
+          "return": -0.012708
+        },
+        {
+          "ticker": "BDX",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.012917
+        },
+        {
+          "ticker": "EPR",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.013256
+        },
+        {
+          "ticker": "LQDA",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.013553
+        },
+        {
+          "ticker": "WAL",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.014309
+        },
+        {
+          "ticker": "ABG",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.01485
+        },
+        {
+          "ticker": "NXST",
+          "rating": "Strong Buy",
+          "group": "long_blocked",
+          "return": -0.01515
+        },
+        {
+          "ticker": "CUBI",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.015165
+        },
+        {
+          "ticker": "EPRT",
+          "rating": "Strong Buy",
+          "group": "long_blocked",
+          "return": -0.01524
+        },
+        {
+          "ticker": "ELV",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.015254
+        },
+        {
+          "ticker": "BYD",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.016217
+        },
+        {
+          "ticker": "CVX",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.016612
+        },
+        {
+          "ticker": "HLF",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.017391
+        },
+        {
+          "ticker": "ALLY",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.01747
+        },
+        {
+          "ticker": "WLFC",
+          "rating": "Strong Buy",
+          "group": "long_blocked",
+          "return": -0.017473
+        },
+        {
+          "ticker": "GPN",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.017863
+        },
+        {
+          "ticker": "SYF",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.017868
+        },
+        {
+          "ticker": "CBT",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.018077
+        },
+        {
+          "ticker": "CDP",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.018245
+        },
+        {
+          "ticker": "LUV",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.018326
+        },
+        {
+          "ticker": "VIRT",
+          "rating": "Strong Buy",
+          "group": "long_blocked",
+          "return": -0.02267
+        },
+        {
+          "ticker": "GLPI",
+          "rating": "Strong Buy",
+          "group": "long_blocked",
+          "return": -0.022732
+        },
+        {
+          "ticker": "AYI",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.023142
+        },
+        {
+          "ticker": "BAH",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.023491
+        },
+        {
+          "ticker": "TGLS",
+          "rating": "Strong Buy",
+          "group": "long_blocked",
+          "return": -0.02486
+        },
+        {
+          "ticker": "ZVRA",
+          "rating": "Strong Buy",
+          "group": "long_blocked",
+          "return": -0.026116
+        },
+        {
+          "ticker": "LPG",
+          "rating": "Strong Buy",
+          "group": "long_blocked",
+          "return": -0.026403
+        },
+        {
+          "ticker": "TPC",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.026624
+        },
+        {
+          "ticker": "CF",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.029398
+        },
+        {
+          "ticker": "WWW",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.02958
+        },
+        {
+          "ticker": "ALGN",
+          "rating": "Strong Buy",
+          "group": "long_blocked",
+          "return": -0.030575
+        },
+        {
+          "ticker": "UHS",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.031592
+        },
+        {
+          "ticker": "ECVT",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.031609
+        },
+        {
+          "ticker": "ARW",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.032867
+        },
+        {
+          "ticker": "ANIP",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.033444
+        },
+        {
+          "ticker": "LEA",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.035164
+        },
+        {
+          "ticker": "LMB",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.036364
+        },
+        {
+          "ticker": "CRGY",
+          "rating": "Strong Buy",
+          "group": "long_blocked",
+          "return": -0.036984
+        },
+        {
+          "ticker": "BVS",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.037552
+        },
+        {
+          "ticker": "CCL",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.037699
+        },
+        {
+          "ticker": "FUL",
+          "rating": "Strong Buy",
+          "group": "long_blocked",
+          "return": -0.040034
+        },
+        {
+          "ticker": "ALB",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.041117
+        },
+        {
+          "ticker": "ST",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.042027
+        },
+        {
+          "ticker": "AOS",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.042803
+        },
+        {
+          "ticker": "BLBD",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.042979
+        },
+        {
+          "ticker": "ADUS",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.043539
+        },
+        {
+          "ticker": "ENOV",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.044513
+        },
+        {
+          "ticker": "FSLR",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.045828
+        },
+        {
+          "ticker": "CWK",
+          "rating": "Strong Buy",
+          "group": "long_blocked",
+          "return": -0.047233
+        },
+        {
+          "ticker": "TRUP",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.047588
+        },
+        {
+          "ticker": "TPL",
+          "rating": "Strong Buy",
+          "group": "long_blocked",
+          "return": -0.050203
+        },
+        {
+          "ticker": "SON",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.050605
+        },
+        {
+          "ticker": "ASO",
+          "rating": "Strong Buy",
+          "group": "long_blocked",
+          "return": -0.05084
+        },
+        {
+          "ticker": "ATLC",
+          "rating": "Strong Buy",
+          "group": "long_blocked",
+          "return": -0.052139
+        },
+        {
+          "ticker": "PCG",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.056818
+        },
+        {
+          "ticker": "TREE",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.06035
+        },
+        {
+          "ticker": "CRI",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.062063
+        },
+        {
+          "ticker": "EOG",
+          "rating": "Strong Buy",
+          "group": "long_blocked",
+          "return": -0.063378
+        },
+        {
+          "ticker": "COLL",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.064921
+        },
+        {
+          "ticker": "FLOC",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.064958
+        },
+        {
+          "ticker": "AU",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.066243
+        },
+        {
+          "ticker": "MGY",
+          "rating": "Strong Buy",
+          "group": "long_blocked",
+          "return": -0.067164
+        },
+        {
+          "ticker": "CORT",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.068466
+        },
+        {
+          "ticker": "BLMN",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.090284
+        },
+        {
+          "ticker": "PLAB",
+          "rating": "Buy",
+          "group": "long_blocked",
+          "return": -0.091118
+        },
+        {
+          "ticker": "GPRE",
+          "rating": "Strong Buy",
+          "group": "long_blocked",
+          "return": -0.097846
+        },
+        {
+          "ticker": "BBW",
+          "rating": "Strong Buy",
+          "group": "long_blocked",
+          "return": -0.232451
+        },
+        {
+          "ticker": "VSAT",
+          "rating": "Strong Sell",
+          "group": "short_strong_sell",
+          "return": 0.098367
+        },
+        {
+          "ticker": "MBC",
+          "rating": "Strong Sell",
+          "group": "short_strong_sell",
+          "return": 0.052689
+        },
+        {
+          "ticker": "COIN",
+          "rating": "Strong Sell",
+          "group": "short_strong_sell",
+          "return": 0.042093
+        },
+        {
+          "ticker": "TSLA",
+          "rating": "Strong Sell",
+          "group": "short_strong_sell",
+          "return": 0.038886
+        },
+        {
+          "ticker": "DKNG",
+          "rating": "Strong Sell",
+          "group": "short_strong_sell",
+          "return": 0.034773
+        },
+        {
+          "ticker": "DE",
+          "rating": "Strong Sell",
+          "group": "short_strong_sell",
+          "return": 0.026472
+        },
+        {
+          "ticker": "HP",
+          "rating": "Strong Sell",
+          "group": "short_strong_sell",
+          "return": 0.022962
+        },
+        {
+          "ticker": "HR",
+          "rating": "Strong Sell",
+          "group": "short_strong_sell",
+          "return": 0.020629
+        },
+        {
+          "ticker": "TTWO",
+          "rating": "Strong Sell",
+          "group": "short_strong_sell",
+          "return": 0.017653
+        },
+        {
+          "ticker": "AIN",
+          "rating": "Strong Sell",
+          "group": "short_strong_sell",
+          "return": 0.01269
+        },
+        {
+          "ticker": "NE",
+          "rating": "Strong Sell",
+          "group": "short_strong_sell",
+          "return": 0.011022
+        },
+        {
+          "ticker": "ATRC",
+          "rating": "Strong Sell",
+          "group": "short_strong_sell",
+          "return": 0.008983
+        },
+        {
+          "ticker": "WMT",
+          "rating": "Strong Sell",
+          "group": "short_strong_sell",
+          "return": 0.005882
+        },
+        {
+          "ticker": "L",
+          "rating": "Strong Sell",
+          "group": "short_strong_sell",
+          "return": 0.001002
+        },
+        {
+          "ticker": "SAFT",
+          "rating": "Strong Sell",
+          "group": "short_strong_sell",
+          "return": -0.000483
+        },
+        {
+          "ticker": "AZO",
+          "rating": "Strong Sell",
+          "group": "short_strong_sell",
+          "return": -0.001356
+        },
+        {
+          "ticker": "WBD",
+          "rating": "Strong Sell",
+          "group": "short_strong_sell",
+          "return": -0.007706
+        },
+        {
+          "ticker": "AXGN",
+          "rating": "Strong Sell",
+          "group": "short_strong_sell",
+          "return": -0.02123
+        },
+        {
+          "ticker": "NHC",
+          "rating": "Sell",
+          "group": "short_sell",
+          "return": 0.045844
+        },
+        {
+          "ticker": "LOW",
+          "rating": "Sell",
+          "group": "short_sell",
+          "return": 0.037207
+        },
+        {
+          "ticker": "BLDR",
+          "rating": "Sell",
+          "group": "short_sell",
+          "return": 0.035465
+        },
+        {
+          "ticker": "NEOG",
+          "rating": "Sell",
+          "group": "short_sell",
+          "return": 0.024268
+        },
+        {
+          "ticker": "NEU",
+          "rating": "Sell",
+          "group": "short_sell",
+          "return": 0.024164
+        },
+        {
+          "ticker": "FFIN",
+          "rating": "Sell",
+          "group": "short_sell",
+          "return": 0.021682
+        },
+        {
+          "ticker": "HOMB",
+          "rating": "Sell",
+          "group": "short_sell",
+          "return": 0.021473
+        },
+        {
+          "ticker": "CAG",
+          "rating": "Sell",
+          "group": "short_sell",
+          "return": 0.020694
+        },
+        {
+          "ticker": "ROL",
+          "rating": "Sell",
+          "group": "short_sell",
+          "return": 0.014359
+        },
+        {
+          "ticker": "JNJ",
+          "rating": "Sell",
+          "group": "short_sell",
+          "return": 0.008141
+        },
+        {
+          "ticker": "TSCO",
+          "rating": "Sell",
+          "group": "short_sell",
+          "return": 0.007433
+        },
+        {
+          "ticker": "MLM",
+          "rating": "Sell",
+          "group": "short_sell",
+          "return": 0.007235
+        },
+        {
+          "ticker": "BV",
+          "rating": "Sell",
+          "group": "short_sell",
+          "return": 0.00708
+        },
+        {
+          "ticker": "PMT",
+          "rating": "Sell",
+          "group": "short_sell",
+          "return": 0.00107
+        },
+        {
+          "ticker": "PNW",
+          "rating": "Sell",
+          "group": "short_sell",
+          "return": -0.002876
+        },
+        {
+          "ticker": "AFL",
+          "rating": "Sell",
+          "group": "short_sell",
+          "return": -0.003877
+        },
+        {
+          "ticker": "UTHR",
+          "rating": "Sell",
+          "group": "short_sell",
+          "return": -0.00456
+        },
+        {
+          "ticker": "CCI",
+          "rating": "Sell",
+          "group": "short_sell",
+          "return": -0.008343
+        },
+        {
+          "ticker": "STAG",
+          "rating": "Sell",
+          "group": "short_sell",
+          "return": -0.013908
+        },
+        {
+          "ticker": "NSP",
+          "rating": "Sell",
+          "group": "short_sell",
+          "return": -0.014207
+        },
+        {
+          "ticker": "EQT",
+          "rating": "Sell",
+          "group": "short_sell",
+          "return": -0.015823
+        },
+        {
+          "ticker": "WHR",
+          "rating": "Sell",
+          "group": "short_sell",
+          "return": -0.019827
+        },
+        {
+          "ticker": "CHD",
+          "rating": "Sell",
+          "group": "short_sell",
+          "return": -0.024899
+        },
+        {
+          "ticker": "GPC",
+          "rating": "Sell",
+          "group": "short_sell",
+          "return": -0.0265
+        },
+        {
+          "ticker": "HLI",
+          "rating": "Sell",
+          "group": "short_sell",
+          "return": -0.030763
+        },
+        {
+          "ticker": "CME",
+          "rating": "Sell",
+          "group": "short_sell",
+          "return": -0.039348
+        },
+        {
+          "ticker": "GIS",
+          "rating": "Sell",
+          "group": "short_sell",
+          "return": -0.03953
+        },
+        {
+          "ticker": "IFF",
+          "rating": "Sell",
+          "group": "short_sell",
+          "return": -0.043545
+        },
+        {
+          "ticker": "UNM",
+          "rating": "Sell",
+          "group": "short_sell",
+          "return": -0.060157
+        },
+        {
+          "ticker": "AGCO",
+          "rating": "Sell",
+          "group": "short_sell",
+          "return": -0.061605
+        },
+        {
+          "ticker": "BURL",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.164012
+        },
+        {
+          "ticker": "GHM",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.151838
+        },
+        {
+          "ticker": "AAOI",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.148934
+        },
+        {
+          "ticker": "HIMS",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": 0.14624
+        },
+        {
+          "ticker": "AZTA",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.118984
+        },
+        {
+          "ticker": "RKLB",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.112719
+        },
+        {
+          "ticker": "PL",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.103634
+        },
+        {
+          "ticker": "LASR",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": 0.093902
+        },
+        {
+          "ticker": "KTOS",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.090432
+        },
+        {
+          "ticker": "HROW",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.089866
+        },
+        {
+          "ticker": "WRBY",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.088921
+        },
+        {
+          "ticker": "CBRS",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": 0.086932
+        },
+        {
+          "ticker": "AIP",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": 0.078694
+        },
+        {
+          "ticker": "SHAK",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": 0.078212
+        },
+        {
+          "ticker": "AVAV",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.076645
+        },
+        {
+          "ticker": "CORZ",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.072993
+        },
+        {
+          "ticker": "TRNS",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.071892
+        },
+        {
+          "ticker": "MTN",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.0712
+        },
+        {
+          "ticker": "RBRK",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.070337
+        },
+        {
+          "ticker": "OLN",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": 0.067935
+        },
+        {
+          "ticker": "TMDX",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.066899
+        },
+        {
+          "ticker": "AOSL",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": 0.066692
+        },
+        {
+          "ticker": "FWRD",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.061844
+        },
+        {
+          "ticker": "VPG",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.060952
+        },
+        {
+          "ticker": "BBIO",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.060123
+        },
+        {
+          "ticker": "CAR",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": 0.057909
+        },
+        {
+          "ticker": "SGRY",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.057163
+        },
+        {
+          "ticker": "DOW",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.056878
+        },
+        {
+          "ticker": "LEU",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.056265
+        },
+        {
+          "ticker": "TXG",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": 0.054975
+        },
+        {
+          "ticker": "HUN",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.05015
+        },
+        {
+          "ticker": "ORA",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.049271
+        },
+        {
+          "ticker": "CTRI",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.048689
+        },
+        {
+          "ticker": "IRDM",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.048591
+        },
+        {
+          "ticker": "LIND",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.048247
+        },
+        {
+          "ticker": "AORT",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.046652
+        },
+        {
+          "ticker": "UNFI",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.046628
+        },
+        {
+          "ticker": "H",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.046604
+        },
+        {
+          "ticker": "UTI",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.046532
+        },
+        {
+          "ticker": "AXON",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": 0.043043
+        },
+        {
+          "ticker": "FRPT",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.042585
+        },
+        {
+          "ticker": "AXSM",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.042114
+        },
+        {
+          "ticker": "AMBA",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": 0.042045
+        },
+        {
+          "ticker": "BRKR",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.041639
+        },
+        {
+          "ticker": "WLK",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": 0.040796
+        },
+        {
+          "ticker": "FLNC",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": 0.040564
+        },
+        {
+          "ticker": "FWRG",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": 0.039908
+        },
+        {
+          "ticker": "TNDM",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": 0.039875
+        },
+        {
+          "ticker": "RYN",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.038679
+        },
+        {
+          "ticker": "TJX",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.038497
+        },
+        {
+          "ticker": "DOCN",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": 0.038309
+        },
+        {
+          "ticker": "IRM",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.037863
+        },
+        {
+          "ticker": "BXMT",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": 0.037842
+        },
+        {
+          "ticker": "CIFR",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": 0.037742
+        },
+        {
+          "ticker": "TRGP",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.037713
+        },
+        {
+          "ticker": "F",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.03678
+        },
+        {
+          "ticker": "HOOD",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.03579
+        },
+        {
+          "ticker": "STWD",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.034799
+        },
+        {
+          "ticker": "SMA",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": 0.034201
+        },
+        {
+          "ticker": "MOS",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": 0.033183
+        },
+        {
+          "ticker": "WY",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.032337
+        },
+        {
+          "ticker": "CALM",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.03128
+        },
+        {
+          "ticker": "CEVA",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": 0.031083
+        },
+        {
+          "ticker": "PUMP",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": 0.030891
+        },
+        {
+          "ticker": "MRCY",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": 0.030867
+        },
+        {
+          "ticker": "FUN",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": 0.030484
+        },
+        {
+          "ticker": "FWONK",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": 0.029922
+        },
+        {
+          "ticker": "FAST",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.028872
+        },
+        {
+          "ticker": "UNF",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.028837
+        },
+        {
+          "ticker": "RDNT",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.028769
+        },
+        {
+          "ticker": "RXO",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.02795
+        },
+        {
+          "ticker": "RGEN",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.026832
+        },
+        {
+          "ticker": "LPX",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": 0.026237
+        },
+        {
+          "ticker": "PRM",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.026081
+        },
+        {
+          "ticker": "MAC",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.025841
+        },
+        {
+          "ticker": "XERS",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": 0.025287
+        },
+        {
+          "ticker": "ANAB",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.025286
+        },
+        {
+          "ticker": "CVCO",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.02429
+        },
+        {
+          "ticker": "RH",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.02428
+        },
+        {
+          "ticker": "FND",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.023222
+        },
+        {
+          "ticker": "BA",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": 0.020448
+        },
+        {
+          "ticker": "PSMT",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.02042
+        },
+        {
+          "ticker": "FEIM",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": 0.019938
+        },
+        {
+          "ticker": "EQIX",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.019692
+        },
+        {
+          "ticker": "BLFS",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": 0.019407
+        },
+        {
+          "ticker": "LBRT",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": 0.017562
+        },
+        {
+          "ticker": "ARM",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.017549
+        },
+        {
+          "ticker": "QXO",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": 0.017442
+        },
+        {
+          "ticker": "GSHD",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": 0.017375
+        },
+        {
+          "ticker": "ILMN",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.017366
+        },
+        {
+          "ticker": "UDR",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": 0.017209
+        },
+        {
+          "ticker": "ESS",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.017197
+        },
+        {
+          "ticker": "IRT",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": 0.016878
+        },
+        {
+          "ticker": "ERIE",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.016802
+        },
+        {
+          "ticker": "GE",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.01662
+        },
+        {
+          "ticker": "ISRG",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.016393
+        },
+        {
+          "ticker": "RLI",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.016366
+        },
+        {
+          "ticker": "HD",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.01615
+        },
+        {
+          "ticker": "WING",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.016027
+        },
+        {
+          "ticker": "KO",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.015807
+        },
+        {
+          "ticker": "MAR",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.014899
+        },
+        {
+          "ticker": "HLT",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.014634
+        },
+        {
+          "ticker": "SNOW",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": 0.014364
+        },
+        {
+          "ticker": "VTR",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.013432
+        },
+        {
+          "ticker": "ATR",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.013427
+        },
+        {
+          "ticker": "AAL",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.013025
+        },
+        {
+          "ticker": "CRL",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.0125
+        },
+        {
+          "ticker": "CPT",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": 0.011525
+        },
+        {
+          "ticker": "RKT",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.011486
+        },
+        {
+          "ticker": "LINC",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.011275
+        },
+        {
+          "ticker": "CAKE",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.011118
+        },
+        {
+          "ticker": "PEN",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": 0.010763
+        },
+        {
+          "ticker": "KRC",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.010115
+        },
+        {
+          "ticker": "ATEX",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.009866
+        },
+        {
+          "ticker": "CRCL",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": 0.009548
+        },
+        {
+          "ticker": "PZZA",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.00919
+        },
+        {
+          "ticker": "RARE",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": 0.008517
+        },
+        {
+          "ticker": "WGS",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": 0.008385
+        },
+        {
+          "ticker": "OMDA",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.008372
+        },
+        {
+          "ticker": "AXP",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.008333
+        },
+        {
+          "ticker": "FLUT",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.008089
+        },
+        {
+          "ticker": "GSAT",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": 0.007285
+        },
+        {
+          "ticker": "AHR",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": 0.007152
+        },
+        {
+          "ticker": "ORLY",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.006845
+        },
+        {
+          "ticker": "BKD",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": 0.00678
+        },
+        {
+          "ticker": "INTC",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.006661
+        },
+        {
+          "ticker": "TFSL",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.006236
+        },
+        {
+          "ticker": "CBSH",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.005824
+        },
+        {
+          "ticker": "VMC",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.005543
+        },
+        {
+          "ticker": "WELL",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": 0.004807
+        },
+        {
+          "ticker": "NMAX",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.003721
+        },
+        {
+          "ticker": "PGR",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": 0.002919
+        },
+        {
+          "ticker": "BOH",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.00271
+        },
+        {
+          "ticker": "UE",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.001867
+        },
+        {
+          "ticker": "MOH",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.001448
+        },
+        {
+          "ticker": "CZR",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": 0.001008
+        },
+        {
+          "ticker": "LYV",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": 0.000935
+        },
+        {
+          "ticker": "HZO",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.000383
+        },
+        {
+          "ticker": "IBM",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": 0.000382
+        },
+        {
+          "ticker": "KMX",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": 0.000322
+        },
+        {
+          "ticker": "QDEL",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": -0.0
+        },
+        {
+          "ticker": "DBRG",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": -0.0
+        },
+        {
+          "ticker": "TECH",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": -0.000415
+        },
+        {
+          "ticker": "BKR",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": -0.001123
+        },
+        {
+          "ticker": "MC",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": -0.001611
+        },
+        {
+          "ticker": "SLAB",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": -0.002477
+        },
+        {
+          "ticker": "SWX",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": -0.002588
+        },
+        {
+          "ticker": "NNI",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": -0.002677
+        },
+        {
+          "ticker": "BZH",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": -0.002717
+        },
+        {
+          "ticker": "MRSH",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": -0.003281
+        },
+        {
+          "ticker": "SHO",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": -0.003543
+        },
+        {
+          "ticker": "CPNG",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": -0.004255
+        },
+        {
+          "ticker": "MAIN",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": -0.00446
+        },
+        {
+          "ticker": "AMN",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": -0.004643
+        },
+        {
+          "ticker": "EW",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": -0.004678
+        },
+        {
+          "ticker": "CRK",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": -0.004923
+        },
+        {
+          "ticker": "YUM",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": -0.005687
+        },
+        {
+          "ticker": "DDOG",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": -0.005772
+        },
+        {
+          "ticker": "FUBO",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": -0.006843
+        },
+        {
+          "ticker": "SBUX",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": -0.007191
+        },
+        {
+          "ticker": "UNH",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": -0.00728
+        },
+        {
+          "ticker": "MIAX",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": -0.009627
+        },
+        {
+          "ticker": "APD",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": -0.0098
+        },
+        {
+          "ticker": "ETR",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": -0.010801
+        },
+        {
+          "ticker": "RHI",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": -0.012514
+        },
+        {
+          "ticker": "MKL",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": -0.012848
+        },
+        {
+          "ticker": "ZS",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": -0.013645
+        },
+        {
+          "ticker": "CEG",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": -0.014182
+        },
+        {
+          "ticker": "EL",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": -0.014224
+        },
+        {
+          "ticker": "CNS",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": -0.016089
+        },
+        {
+          "ticker": "S",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": -0.016517
+        },
+        {
+          "ticker": "NPK",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": -0.017806
+        },
+        {
+          "ticker": "CWST",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": -0.01815
+        },
+        {
+          "ticker": "ECL",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": -0.01818
+        },
+        {
+          "ticker": "JJSF",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": -0.019066
+        },
+        {
+          "ticker": "SEIC",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": -0.019173
+        },
+        {
+          "ticker": "PM",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": -0.019444
+        },
+        {
+          "ticker": "BIO",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": -0.020183
+        },
+        {
+          "ticker": "VITL",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": -0.020814
+        },
+        {
+          "ticker": "AESI",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": -0.021463
+        },
+        {
+          "ticker": "W",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": -0.022065
+        },
+        {
+          "ticker": "NET",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": -0.022856
+        },
+        {
+          "ticker": "LW",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": -0.024218
+        },
+        {
+          "ticker": "OPY",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": -0.026037
+        },
+        {
+          "ticker": "PI",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": -0.027305
+        },
+        {
+          "ticker": "IOT",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": -0.030546
+        },
+        {
+          "ticker": "CMG",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": -0.030623
+        },
+        {
+          "ticker": "BAND",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": -0.031145
+        },
+        {
+          "ticker": "LITE",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": -0.032641
+        },
+        {
+          "ticker": "MNRO",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": -0.032669
+        },
+        {
+          "ticker": "MDGL",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": -0.032937
+        },
+        {
+          "ticker": "AAPL",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": -0.033457
+        },
+        {
+          "ticker": "VRSN",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": -0.035947
+        },
+        {
+          "ticker": "MDB",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": -0.03665
+        },
+        {
+          "ticker": "NYT",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": -0.037601
+        },
+        {
+          "ticker": "PANW",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": -0.038338
+        },
+        {
+          "ticker": "MANH",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": -0.040641
+        },
+        {
+          "ticker": "BMNR",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": -0.042488
+        },
+        {
+          "ticker": "WMB",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": -0.045964
+        },
+        {
+          "ticker": "BTU",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": -0.047447
+        },
+        {
+          "ticker": "OPLN",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": -0.050599
+        },
+        {
+          "ticker": "META",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": -0.051137
+        },
+        {
+          "ticker": "INTA",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": -0.05127
+        },
+        {
+          "ticker": "CVNA",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": -0.059076
+        },
+        {
+          "ticker": "DASH",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": -0.059287
+        },
+        {
+          "ticker": "NEO",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": -0.063015
+        },
+        {
+          "ticker": "VRNS",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": -0.065244
+        },
+        {
+          "ticker": "GTLB",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": -0.076794
+        },
+        {
+          "ticker": "AMR",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": -0.077234
+        },
+        {
+          "ticker": "GWRE",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": -0.08806
+        },
+        {
+          "ticker": "APPN",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": -0.109922
+        },
+        {
+          "ticker": "BRZE",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": -0.111719
+        },
+        {
+          "ticker": "METC",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": -0.117647
+        },
+        {
+          "ticker": "XMTR",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": -0.125852
+        },
+        {
+          "ticker": "NOW",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": -0.126323
+        },
+        {
+          "ticker": "CRWD",
+          "rating": "Strong Sell",
+          "group": "short_blocked",
+          "return": -0.137796
+        },
+        {
+          "ticker": "OKTA",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": -0.230058
+        },
+        {
+          "ticker": "MEI",
+          "rating": "Sell",
+          "group": "short_blocked",
+          "return": -0.27521
+        }
+      ]
+    }
+  ]
+}

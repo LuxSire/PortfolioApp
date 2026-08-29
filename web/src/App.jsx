@@ -34,7 +34,7 @@ const TABS = [
 ]
 
 export default function App() {
-  const [tab, setTab] = useState('screener')
+  const [tab, setTab] = useState('positions')
 
   return (
     <div className="app">

@@ -1285,6 +1285,15 @@ class IBApp:
                         "targetLowPrice": info.get("targetLowPrice"),
                         "numberOfAnalystOpinions": info.get("numberOfAnalystOpinions"),
                         "revenueGrowth": revenue_growth,
+                        # yfinance's trailing YoY earnings growth. Raw, not
+                        # dilution-adjusted -- used by scoring.growth_rank
+                        # only as a corroboration signal on revenueGrowth
+                        # (revenue up but earnings not = acquired / base-
+                        # effect / unprofitable top line, e.g. DKS's
+                        # all-cash Foot Locker deal), never ranked on
+                        # directly. The share-dilution adjustment above only
+                        # catches all-STOCK deals.
+                        "earningsGrowth": info.get("earningsGrowth"),
                         "returnOnEquity": info.get("returnOnEquity"),
                         "profitMargins": info.get("profitMargins"),
                         "operatingMargins": _clamp(info.get("operatingMargins"), MARGIN_FLOOR, MARGIN_CAP),
@@ -1398,7 +1407,7 @@ class IBApp:
         _revenue_per_share_growth) -- a lighter fetch than get_forward_pe's
         full bundle (get_info() + get_shares_full() only, no
         get_eps_trend()/income_stmt), for backfilling this one figure onto
-        tickers whose forward_pe.csv row predates this adjustment, same
+        tickers whose screen_data.csv row predates this adjustment, same
         "refresh one factor without redoing the whole pipeline" role
         get_eps_volatility already plays for that figure. Falls back to
         Yahoo's raw revenueGrowth when the adjustment itself isn't
@@ -1433,7 +1442,7 @@ class IBApp:
     def get_gross_margins(self, tickers, max_workers=2):
         """Returns {ticker: grossMargins} (see scoring.margin_rank's third
         component) -- a lighter fetch than get_forward_pe's full bundle,
-        for backfilling just this figure onto tickers whose forward_pe.csv
+        for backfilling just this figure onto tickers whose screen_data.csv
         row predates it, same "refresh one factor without redoing the
         whole pipeline" role get_eps_volatility/get_revenue_per_share_growth
         already play for theirs. Kept fully separate from
@@ -1463,7 +1472,7 @@ class IBApp:
         """Returns {ticker: heldPercentInsiders} (see scoring.insiders_rank's
         ownership component) -- a lighter fetch than get_forward_pe's full
         bundle, for backfilling just this figure onto tickers whose
-        forward_pe.csv row predates it, same "refresh one factor without
+        screen_data.csv row predates it, same "refresh one factor without
         redoing the whole pipeline" role get_eps_volatility/
         get_revenue_per_share_growth already play for theirs. Kept fully
         separate from get_gross_margins above -- distinct factors,

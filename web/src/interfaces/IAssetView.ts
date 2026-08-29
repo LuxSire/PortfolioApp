@@ -65,20 +65,17 @@ export interface MonteCarloResult {
   forecastPrice?: number | null
   forecastReturn?: number | null
   // The SAME confidence-weighted transform behind forecastPrice, applied
-  // to priceAtIndustryMultiple's own percentiles instead of its median --
-  // an "adjusted" band on forecastPrice's own scale (P5/P95 double as the
-  // bear/bull case), NOT the raw (much wider, unadjusted)
-  // priceAtIndustryMultiple percentiles.
-  forecastPriceP5?: number | null
-  forecastPriceP25?: number | null
-  forecastPriceP75?: number | null
-  forecastPriceP95?: number | null
+  // to priceAtIndustryMultiple's own p20/p80 instead of its median -- an
+  // "adjusted" central 60% band on forecastPrice's own scale (the
+  // lognormal's fat-tailed p95 bull case is deliberately not reported),
+  // NOT the raw (much wider, unadjusted) priceAtIndustryMultiple
+  // percentiles.
+  forecastPriceP20?: number | null
+  forecastPriceP80?: number | null
   priceAtIndustryMultiple?: {
-    p5: number
-    p25: number
+    p20: number
     median: number
-    p75: number
-    p95: number
+    p80: number
     probAboveCurrentPrice: number
   } | null
   analystTargets?: {
