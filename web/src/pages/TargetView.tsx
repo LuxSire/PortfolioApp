@@ -127,14 +127,30 @@ interface TargetRow {
   insiders: number | null   // insider buy/sell ratio × 100
 }
 
+type LegStats = { return: number | null; vol: number | null; sharpe: number | null }
+type Portfolio = {
+  longs: TargetRow[]
+  shorts: TargetRow[]
+  stats: {
+    portfolioReturn: number | null
+    portfolioVol: number | null
+    sharpe: number | null
+    sortino: number | null
+    long?: LegStats
+    short?: LegStats
+  }
+  generatedAt: string
+}
+
 // ─── component ────────────────────────────────────────────────────────────────
 export default function TargetView() {
-  const [portfolio, setPortfolio] = useState<{
-    longs: TargetRow[]
-    shorts: TargetRow[]
-    stats: { portfolioReturn: number | null; portfolioVol: number | null; sharpe: number | null; sortino: number | null }
-    generatedAt: string
-  } | null>(null)
+  const [portfolioAll, setPortfolioAll] = useState<Portfolio | null>(null)
+  const [portfolioEx, setPortfolioEx] = useState<Portfolio | null>(null)
+  // Which target portfolio to show: the full universe, or the variant
+  // with Financial Services + Healthcare + Real Estate excluded
+  // (target_portfolio_ex.json).
+  const [variant, setVariant] = useState<'all' | 'ex'>('all')
+  const portfolio = variant === 'ex' ? portfolioEx : portfolioAll
   const [error, setError] = useState<string | null>(null)
   const [positions, setPositions] = useState<Record<string, { shares: number }>>({})
   const [livePrices, setLivePrices] = useState<LivePricesByTicker>({})
@@ -143,6 +159,9 @@ export default function TargetView() {
   // ScreenerView.tsx/PositionsView.jsx.
   const [dailyHistory3mo, setDailyHistory3mo] = useState<HistoryByTicker>({})
   const [monthlyHistory, setMonthlyHistory] = useState<HistoryByTicker>({})
+  // Long / Short shown on separate tabs -- same tab-bar convention as
+  // PositionsView.tsx / AssetView.tsx.
+  const [tab, setTab] = useState<'long' | 'short'>('long')
 
   useEffect(() => {
     const source = new EventSource(IB_STREAM_URL)
@@ -169,18 +188,29 @@ export default function TargetView() {
   useEffect(() => {
     fetch('/target_portfolio.json')
       .then((r) => (r.ok ? r.json() : Promise.reject('target_portfolio.json')))
-      .then((data) => setPortfolio(data))
+      .then((data) => setPortfolioAll(data))
       .catch((e) => setError(String(e)))
+    // Optional -- if it isn't on disk yet the "all" portfolio still renders
+    // and the Ex-Fin/Health tab just shows a loading state.
+    fetch('/target_portfolio_ex.json')
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((data) => setPortfolioEx(data))
+      .catch(() => {})
   }, [])
 
   const longs: TargetRow[] = portfolio?.longs ?? []
   const shorts: TargetRow[] = portfolio?.shorts ?? []
-  const { portfolioReturn, portfolioVol, sharpe, sortino } = portfolio?.stats ?? {
-    portfolioReturn: null, portfolioVol: null, sharpe: null, sortino: null,
+  const {
+    portfolioReturn,
+    portfolioVol,
+    sharpe,
+    sortino,
+    long: longLeg,
+    short: shortLeg,
+  } = portfolio?.stats ?? {
+    portfolioReturn: null, portfolioVol: null, sharpe: null, sortino: null, long: undefined, short: undefined,
   }
 
-  const n = longs.length + shorts.length
-  const weightPct = n > 0 ? (100 / n).toFixed(1) + '%' : '—'
   const loaded = portfolio !== null
 
   function PositionTable({ rows, side }: { rows: TargetRow[]; side: 'Long' | 'Short' }) {
@@ -303,12 +333,29 @@ export default function TargetView() {
       <header className="masthead">
         <div className="title-block">
           <h1>Target Portfolio</h1>
+          <div className="tab-bar">
+            {(
+              [
+                { key: 'all', label: 'All sectors' },
+                { key: 'ex', label: 'Ex-Fin, Health & Real Estate' },
+              ] as const
+            ).map((v) => (
+              <button
+                key={v.key}
+                type="button"
+                className={`tab-btn${variant === v.key ? ' active' : ''}`}
+                onClick={() => setVariant(v.key)}
+              >
+                {v.label}
+              </button>
+            ))}
+          </div>
         </div>
         {loaded && (
           <div className="stat-row">
             <div
               className="stat"
-              title="Equal-weight portfolio expected annualised return: Σ(positionReturn)/N where longs contribute +annRet, shorts contribute −annRet"
+              title="Expected annualised return, 1/50 per position (each leg 100% gross, dollar-neutral): mean(long forecastReturn) − mean(short forecastReturn)"
             >
               <span className={`n num ${signClass(portfolioReturn)}`}>{fmtPct(portfolioReturn)}</span>
               <span className="l">Expected Return</span>
@@ -334,20 +381,33 @@ export default function TargetView() {
               <span className={`n num ${signClass(sortino)}`}>{fmtRatio(sortino)}</span>
               <span className="l">Sortino</span>
             </div>
-            <div className="stat">
-              <span className="n num">{longs.length}</span>
-              <span className="l">Longs</span>
-            </div>
-            <div className="stat">
-              <span className="n num">{shorts.length}</span>
-              <span className="l">Shorts</span>
+            <div
+              className="stat"
+              title={`Long leg on its own (${longs.length} names, 1/${longs.length} each, 100% gross): mean long forecastReturn`}
+            >
+              <span className={`n num ${signClass(longLeg?.return ?? null)}`}>{fmtPct(longLeg?.return ?? null)}</span>
+              <span className="l">Long Return</span>
             </div>
             <div
               className="stat"
-              title="Equal gross weight per position"
+              title={`Long leg annualised Sharpe: (return − ${(RISK_FREE_ANNUAL * 100).toFixed(1)}% risk-free) / vol ${fmtVol(longLeg?.vol ?? null)}`}
             >
-              <span className="n num">{weightPct}</span>
-              <span className="l">Weight each</span>
+              <span className={`n num ${signClass(longLeg?.sharpe ?? null)}`}>{fmtRatio(longLeg?.sharpe ?? null)}</span>
+              <span className="l">Long Sharpe</span>
+            </div>
+            <div
+              className="stat"
+              title={`Short leg on its own (${shorts.length} names, 1/${shorts.length} each, 100% gross): profit from prices falling, −mean short forecastReturn`}
+            >
+              <span className={`n num ${signClass(shortLeg?.return ?? null)}`}>{fmtPct(shortLeg?.return ?? null)}</span>
+              <span className="l">Short Return</span>
+            </div>
+            <div
+              className="stat"
+              title={`Short leg annualised Sharpe: (return − ${(RISK_FREE_ANNUAL * 100).toFixed(1)}% risk-free) / vol ${fmtVol(shortLeg?.vol ?? null)}`}
+            >
+              <span className={`n num ${signClass(shortLeg?.sharpe ?? null)}`}>{fmtRatio(shortLeg?.sharpe ?? null)}</span>
+              <span className="l">Short Sharpe</span>
             </div>
           </div>
         )}
@@ -356,14 +416,37 @@ export default function TargetView() {
       {error && (
         <div className="asset-card">Failed to load: {error}</div>
       )}
-      {!error && !loaded && (
+      {!error && !loaded && variant === 'ex' && portfolioAll !== null && (
+        <div className="asset-card">
+          Ex-Fin, Health &amp; Real Estate portfolio not generated yet — run <code>python main.py target</code>.
+        </div>
+      )}
+      {!error && !loaded && !(variant === 'ex' && portfolioAll !== null) && (
         <div className="asset-card">Loading…</div>
       )}
 
       {!error && loaded && (
         <>
-          <PositionTable rows={longs} side="Long" />
-          <PositionTable rows={shorts} side="Short" />
+          <div className="tab-bar">
+            {(
+              [
+                { key: 'long', label: `Long (${longs.length})` },
+                { key: 'short', label: `Short (${shorts.length})` },
+              ] as const
+            ).map((t) => (
+              <button
+                key={t.key}
+                type="button"
+                className={`tab-btn${tab === t.key ? ' active' : ''}`}
+                onClick={() => setTab(t.key)}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {tab === 'long' && <PositionTable rows={longs} side="Long" />}
+          {tab === 'short' && <PositionTable rows={shorts} side="Short" />}
         </>
       )}
     </div>

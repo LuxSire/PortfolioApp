@@ -1908,6 +1908,12 @@ export default function RecommendationsView() {
             price: row.price ? Number(row.price) : null,
             beta: row.beta ? Number(row.beta) : null,
             shortPercentOfFloat: row.shortPercentOfFloat ? Number(row.shortPercentOfFloat) : null,
+            // Same FINRA-or-recomputed current pct-of-float sorted_screen.csv
+            // now carries (see main.SCREEN_ONLY_FIELDNAMES) -- effectiveShortPctOfFloat
+            // prefers it, so an audit/held row sourced only from this screener
+            // map no longer falls back to yfinance's stale shortPercentOfFloat
+            // (which reads 32.7% for a recent IPO like NAVN vs. the real ~6.8%).
+            shortPctOfFloatFinra: row.shortPctOfFloatFinra ? Number(row.shortPctOfFloatFinra) : null,
             revenueGrowth: row.revenueGrowth ? Number(row.revenueGrowth) : null,
             heldPercentInsiders: row.heldPercentInsiders ? Number(row.heldPercentInsiders) : null,
             epsRevision0y: row.epsRevision0y ? Number(row.epsRevision0y) : null,

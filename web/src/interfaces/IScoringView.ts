@@ -6,14 +6,18 @@ export interface ScoringFactor {
   label: string
   // Weight [0, 1] applied to this factor for a ticker outside every
   // special sector below / a Financials-sector ticker / a Utilities-
-  // sector ticker / a Real-Estate-sector ticker respectively (see
-  // scoring.py's STANDARD_WEIGHTS/FINANCIALS_WEIGHTS/UTILITIES_WEIGHTS/
-  // REAL_ESTATE_WEIGHTS and is_financials_sector/is_utilities_sector/
-  // is_real_estate_sector). Each column sums to 1.0 across every factor.
+  // sector ticker / a Real-Estate-sector ticker / a high-growth
+  // pre-profitability ticker (revenueGrowth > 20% AND negative current
+  // EV/EBITDA) respectively (see scoring.py's STANDARD_WEIGHTS/
+  // FINANCIALS_WEIGHTS/UTILITIES_WEIGHTS/REAL_ESTATE_WEIGHTS/
+  // GROWTH_WEIGHTS and is_financials_sector/is_utilities_sector/
+  // is_real_estate_sector/is_growth_cohort). Each column sums to 1.0
+  // across every factor.
   standardWeight: number
   financialsWeight: number
   utilitiesWeight: number
   realEstateWeight: number
+  growthWeight: number
 }
 
 // One row of the Rating Breakdown table -- sorted_screen.csv's `rating`

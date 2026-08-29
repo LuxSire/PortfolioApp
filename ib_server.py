@@ -267,7 +267,15 @@ from modules.sec_edgar import FORM4_FILE, THIRTEENF_FILE, THIRTEENF_HOLDERS_FILE
 from modules.social_sentiment import SENTIMENT_FILE
 from modules.theme_classifier import TAXONOMY_FILE, TICKER_THEMES_FILE
 
-MAX_STREAMED_SYMBOLS = 99  # this account's real ceiling — 100 hits IB error 101, "Max number of tickers has been reached"
+# IB caps this account at ~100 CONCURRENT market-data lines (100 hits error
+# 101, "Max number of tickers has been reached"). That pool is shared with
+# fetch_snapshot_prices' reqTickersAsync bursts (SNAPSHOT_CHUNK_SIZE lines
+# at once), NOT just the persistent reqMktData subscriptions here -- the
+# old comment claiming snapshots don't count was wrong (confirmed live:
+# error 101 on every snapshot sweep while 99 persistent lines were held).
+# So this is held well below the ceiling to leave SNAPSHOT_CHUNK_SIZE of
+# headroom: 75 persistent + a 20-line snapshot burst = ~95 peak.
+MAX_STREAMED_SYMBOLS = 75
 # Every JSON file this process writes lives here -- see main.py's DATA_DIR
 # for why. Duplicated rather than imported from main.py's own DATA_DIR
 # since main.py already creates the directory on import and this module
@@ -303,6 +311,7 @@ NEWS_SENTIMENT_FILE = os.path.join(OUTPUT_DIR, "news_sentiment.json")
 # spending reqNewsArticle's paced budget on IB a second time.
 NEWS_BODIES_FILE = os.path.join(IB_DIR, "news_bodies.json")
 RECOMMENDATIONS_FILE = os.path.join(OUTPUT_DIR, "recommendations.json")
+BACKTEST_FILE = os.path.join(OUTPUT_DIR, "backtest.json")
 # See export_daily_history_on_demand -- a one-off multi-year backtest
 # export, IB-derived like everything else under IB_DIR, but -- unlike
 # every other file in it, which stays gitignored generated output (see
@@ -567,6 +576,15 @@ DATASETS = [
         "network": "IBKR Flex Web Service (not IB Gateway)",
         "run": {"kind": "subprocess", "argv": ["ib_server.py", "trades"]},
     },
+    {
+        "id": "backtest",
+        "path": BACKTEST_FILE,
+        "label": "Backtesting",
+        "command": "python main.py backtest",
+        "notes": "offline; scores every data/output/history/sorted_screen <YYYYMMDD>.csv snapshot forward one week against IB's daily bars -- per rating bucket, equal-weight weekly return / vol / Sharpe. New weeks appear by dropping another dated snapshot into that folder; also re-run by `rescore`",
+        "network": None,
+        "run": {"kind": "subprocess", "argv": ["main.py", "backtest"]},
+    },
 ]
 
 # {request path: file path} served fresh from disk on every request (see
@@ -595,6 +613,7 @@ STATIC_FILES = {
     "/sec/13f/institutional_holdings.json": THIRTEENF_FILE,
     "/sec/13f/institutional_holders.json": THIRTEENF_HOLDERS_FILE,
     "/recommendations.json": RECOMMENDATIONS_FILE,
+    "/backtest.json": BACKTEST_FILE,
     "/ARKK_HOLDINGS.csv": os.path.join(DATA_DIR, "ARKK_HOLDINGS.csv"),
 }
 
@@ -1166,19 +1185,23 @@ async def export_daily_history_on_demand(duration, log_fn=None):
 # top-ranked slice) NOT among the MAX_STREAMED_SYMBOLS this process holds
 # a persistent reqMktData subscription for — refreshed periodically via
 # IB's *snapshot* request (reqMktData with snapshot=True), which resolves
-# once and releases its market-data line immediately rather than holding
-# one open. That's what makes this free to run against the whole screener
-# universe without touching the MAX_STREAMED_SYMBOLS budget at all: a
-# snapshot never counts as one of the persistent lines error 101
-# complains about.
-SNAPSHOT_INTERVAL_SECONDS = 1200  # 20 minutes
-# The full screener universe is ~1,600+ tickers — firing that many
-# reqMktData snapshot requests in one burst risks IB's soft ~50
-# messages/sec socket rate limit (unlike reqHistoricalData, ib_insync
-# doesn't pace reqTickersAsync for you). Chunking with a short pause
-# between chunks keeps each burst well under that limit; 20 minutes gives
-# plenty of slack for ~9 chunks of 1s each to add up to nothing.
-SNAPSHOT_CHUNK_SIZE = 200
+# once and releases its market-data line rather than holding one open.
+# A snapshot line is short-lived, but while it's open it still counts
+# toward IB's ~100-concurrent-line cap (confirmed: error 101 when a
+# SNAPSHOT_CHUNK_SIZE burst overlapped the persistent subscriptions) --
+# hence MAX_STREAMED_SYMBOLS is set to leave a chunk's worth of headroom.
+SNAPSHOT_INTERVAL_SECONDS = 300  # 5 minutes
+# reqTickersAsync fires one CONCURRENT snapshot reqMktData line per
+# contract in the chunk and awaits them all, so the chunk size is bounded
+# by IB's ~100-concurrent-line cap MINUS the MAX_STREAMED_SYMBOLS
+# persistent subscriptions this process already holds (they share one
+# pool -- see MAX_STREAMED_SYMBOLS' own comment). 75 persistent + 20 here
+# = ~95 peak, safely under 100. A full ~1,600-ticker sweep is then ~80
+# chunks of (resolve + 1s delay) ≈ 3-4 min, which still fits inside the
+# 5-minute SNAPSHOT_INTERVAL_SECONDS cycle -- 4x more often than the old
+# 20-minute one, so off-live-stream rows (much of the 100-name target
+# portfolio) refresh far sooner AND without tripping error 101.
+SNAPSHOT_CHUNK_SIZE = 20
 SNAPSHOT_CHUNK_DELAY_SECONDS = 1
 
 
@@ -2816,8 +2839,8 @@ def _priority_tickers():
          as a card in Long or Short, interleaved best/worst-score-first
          the same way those two lists sort themselves. This used to be
          nothing but "every Strong Buy/Strong Sell, regardless of
-         gates" -- which meant the scarce 99-line live-stream budget (and
-         the front of a 20-minute snapshot sweep) went to Strong-tier
+         gates" -- which meant the scarce live-stream budget (and
+         the front of the snapshot sweep) went to Strong-tier
          names that FAILED a gate and never even render on the page,
          while a plain Buy/Sell that cleared every gate and IS sitting on
          the page as an actionable idea could go the entire sweep with
@@ -2831,9 +2854,9 @@ def _priority_tickers():
 
     Both stream_prices_and_positions' live-budget fill (see main()) and
     snapshot_loop's periodic sweep order consult this, so the scarce
-    99-line live budget, and whichever ticker gets fetched EARLIEST in a
-    20-minute snapshot cycle, both go to what the Recommendations tab is
-    actually showing right now."""
+    MAX_STREAMED_SYMBOLS live budget, and whichever ticker gets fetched
+    EARLIEST in a snapshot cycle (SNAPSHOT_INTERVAL_SECONDS), both go to what the
+    Recommendations tab is actually showing right now."""
     try:
         with open(SORTED_SCREEN_CSV, newline="") as f:
             rows = list(csv.DictReader(f))
@@ -3751,13 +3774,13 @@ class Handler(BaseHTTPRequestHandler):
     def _handle_scoring_formula(self):
         """GET /api/scoring-formula -> {"factors": [{"key", "label",
         "standardWeight", "financialsWeight", "utilitiesWeight",
-        "realEstateWeight"}, ...]} -- one row per scoring.FACTOR_WEIGHTS
-        entry, in that dict's insertion order (the Scoring tab renders
-        it as-is, no client-side sort). Reads straight from
-        scoring.FACTOR_WEIGHTS -- the exact dict score_rows itself sums
-        over -- rather than hand-copying the numbers into this file or
-        the frontend, so the formula columns the Scoring tab shows can
-        never drift from what actually gets computed into
+        "realEstateWeight", "growthWeight"}, ...]} -- one row per
+        scoring.FACTOR_WEIGHTS entry, in that dict's insertion order (the
+        Scoring tab renders it as-is, no client-side sort). Reads
+        straight from scoring.FACTOR_WEIGHTS -- the exact dict score_rows
+        itself sums over -- rather than hand-copying the numbers into
+        this file or the frontend, so the formula columns the Scoring tab
+        shows can never drift from what actually gets computed into
         sorted_screen.csv's score column."""
         factors = [
             {
@@ -3767,8 +3790,9 @@ class Handler(BaseHTTPRequestHandler):
                 "financialsWeight": financials,
                 "utilitiesWeight": utilities,
                 "realEstateWeight": real_estate,
+                "growthWeight": growth,
             }
-            for key, (label, standard, financials, utilities, real_estate) in FACTOR_WEIGHTS.items()
+            for key, (label, standard, financials, utilities, real_estate, growth) in FACTOR_WEIGHTS.items()
         ]
         self._send_json({"factors": factors})
 
@@ -3835,8 +3859,8 @@ def main():
     # always get a slot) claim theirs. Restricted to RATED_FOR_EXTRAS
     # (Strong Buy/Buy/Sell/Strong Sell, same rating-based scope main.py's
     # SEC/social-sentiment downloads already use) rather than a flat
-    # top-N-by-rank cutoff, so the scarce 99-symbol IB Gateway budget goes
-    # to names worth acting on instead of Hold-rated middle-of-the-pack
+    # top-N-by-rank cutoff, so the scarce MAX_STREAMED_SYMBOLS IB Gateway
+    # budget goes to names worth acting on instead of Hold-rated middle-of-the-pack
     # ones -- whatever's actually rendering as a Long/Short card on the
     # Recommendations tab goes first within that filtered set (see
     # _priority_tickers), just truncated to the budget here.

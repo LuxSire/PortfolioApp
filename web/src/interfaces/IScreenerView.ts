@@ -36,8 +36,14 @@ export interface RawScreenerRow {
   epsVol: number | null
   de: number | null
   liq: number | null
+  // FINRA biweekly settlement (shortPctOfFloatFinra / shortDaysToCover /
+  // shortChangePercent from sorted_screen.csv) -- the exact figures
+  // short_interest_rank scores on -- each falling back to yfinance's
+  // staler shortPercentOfFloat / shortRatio (no yfinance equivalent for
+  // changePercent) when FINRA doesn't report the ticker.
   shortInt: number | null
   shortRatio: number | null
+  shortChg: number | null
   p: number | null
   tgt: number | null
   tgtHigh: number | null

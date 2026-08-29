@@ -38,7 +38,8 @@ For a ticker currently trading at price P0:
      g_t = w_t * ownGrowthRate + (1 - w_t) * industryGrowthRate
 
      Year 1 drift: g_fwd = forwardEps / anchorEps - 1
-                   g_1* = 0.5 * g_1 + 0.5 * g_fwd   (forwardEps half-weight)
+                   g_1* = Y1_SCHEDULE_WEIGHT * g_1 + (1 - Y1_SCHEDULE_WEIGHT) * g_fwd
+                          (schedule 0.6 / g_fwd 0.4)
 
      epsPath = [anchorEps,
                 anchorEps  * (1 + g_1*),            -- year 0 -> year 1
@@ -47,15 +48,20 @@ For a ticker currently trading at price P0:
                 epsPath[3] * (1 + g_4)]              -- year 3 -> year 4
      mu_eps = weighted_mean(discountedEpsPath, weights=discountWeights)  -- see below
 
-         marginAdjustedRevenueGrowth = revenueGrowth * max(operatingMargin, 0) --
+         marginAdjustedRevenueGrowth = revenueGrowth * growth_margin --
      revenue growth converted to its earnings-equivalent (a raw
      revenue-growth % overstates earnings growth for a business that only
-     converts a fraction of each new revenue dollar to profit). Negative
-     operating margins are floored at 0 for this conversion so revenue
-     growth never becomes a bearish signal purely because the company is
-     currently loss-making; the industry-level version uses the peer
-     group's own median revenueGrowth and positive-margin floor the same
-     way. epsTrend is the same 30-day
+     converts a fraction of each new revenue dollar to profit).
+     growth_margin is the ticker's own operatingMargin (floored at 0) when
+     it's profitable; when it's LOSS-MAKING, the operating margin it could
+     credibly reach at scale instead -- its own gross margin less the
+     industry-typical gross-to-operating opex load (industryMedianGross -
+     industryMedianOp), floored at 0.02 (LOSS_MAKER_MARGIN_FLOOR). So a
+     currently loss-making name still gets EPS-growth credit for revenue
+     growth, scaled by its unit economics relative to peers, rather than
+     zeroed out for being pre-profit. The industry-level version uses the
+     peer group's own median revenueGrowth and positive-margin floor.
+     epsTrend is the same 30-day
    consensus estimate revision screenerFactors.js's own "EPS Trend"
    column uses (avg of epsRevision0y/1y, whichever present); industryEpsTrend
    is its peer-median equivalent, from the SAME industry/sector peer
@@ -67,9 +73,9 @@ For a ticker currently trading at price P0:
    year 3 ≈50%, year 4 = 0% (pure industry). This captures that the
    company's own near-term signals are most informative for year 1 but
    unreliable to compound over 4 straight years. forwardEps enters only
-   as a 50% drift on year 1's growth rate (g_fwd = forwardEps/anchorEps
-   - 1): it nudges the first step toward the consensus estimate without
-   fully anchoring the path to it. All growth rates are clamped to
+   as a (1 - Y1_SCHEDULE_WEIGHT) = 40% drift on year 1's growth rate
+   (g_fwd = forwardEps/anchorEps - 1): it nudges the first step toward the
+   consensus estimate without dominating it. All growth rates are clamped to
    [GROWTH_FLOOR (-99%), GROWTH_CAP (+100%)]. Missing
    epsTrend/marginAdjustedRevenueGrowth falls back to whichever is
    present, or 0% (no signal isn't treated as bad news).
@@ -498,6 +504,18 @@ GROWTH_FLOOR = -0.99
 # sustained growth -- few real businesses compound faster than that for
 # 4 years straight.
 GROWTH_CAP = 1.0
+# Year-1 EPS growth is a blend of the concave own->industry schedule rate
+# and g_fwd (the drift implied by forwardEps vs. the price-anchored
+# anchorEps). Y1_SCHEDULE_WEIGHT is the schedule side's share; g_fwd gets
+# (1 - Y1_SCHEDULE_WEIGHT). Raised from 0.5 to 0.6 -- for a name trading
+# well above its peer multiple, anchorEps >> forwardEps makes g_fwd
+# strongly negative (~-0.85), and at a full 50% weight that single
+# year-1 collapse dominated forecastReturn and compressed every richly-
+# valued name in a peer group to roughly the same number regardless of
+# its own projected growth. Shifting 10 points onto the schedule rate
+# lets own_growth_rate carry a bit more of year 1 without abandoning the
+# price-anchored design.
+Y1_SCHEDULE_WEIGHT = 0.6
 # Base annual discount rate (explicit instruction), scaled per ticker by
 # its own beta (also explicit instruction) -- see simulate_ticker's own
 # comment for the effective_discount_rate formula.
@@ -576,7 +594,7 @@ REVERSION_EXPONENT_MIN = 0.2
 REVERSION_EXPONENT_MAX = 1.5
 
 
-METRIC_KEYS = ("forwardPE", "trailingPE", "epsTrend", "revenueGrowth", "operatingMargin", "analystDispersion")
+METRIC_KEYS = ("forwardPE", "trailingPE", "epsTrend", "revenueGrowth", "operatingMargin", "grossMargin", "analystDispersion")
 
 
 def _build_peer_pools(data):
@@ -590,10 +608,13 @@ def _build_peer_pools(data):
     every single ticker (that would otherwise be an O(n^2) rescan).
     Returns {metric_key: (by_industry, by_group)}. forwardPE excludes
     non-positive values (a negative/zero forward P/E carries no
-    "multiple" meaning); epsTrend/revenueGrowth/operatingMargin keep
-    whatever sign they have, including negative (a negative
-    epsTrend/revenueGrowth/operatingMargin is itself real, informative
-    peer signal, not noise to drop). analystDispersion (relative width of
+    "multiple" meaning); epsTrend/revenueGrowth/operatingMargin/
+    grossMargin keep whatever sign they have, including negative (a
+    negative epsTrend/revenueGrowth/operatingMargin is itself real,
+    informative peer signal, not noise to drop -- grossMargin realistically
+    never goes negative, but it's pooled the same way for the
+    industry-median gross margin the loss-maker growth_margin path uses).
+    analystDispersion (relative width of
     a peer's OWN targetLow/targetHigh range, same formula as
     simulate_ticker's own analyst_dispersion) excludes non-positive/
     missing the same way forwardPE does -- it's the industry-median
@@ -636,6 +657,13 @@ def _build_peer_pools(data):
             "epsTrend": sum(trend_parts) / len(trend_parts) if trend_parts else None,
             "revenueGrowth": to_float(d.get("revenueGrowth")),
             "operatingMargin": to_float(d.get("operatingMargins")),
+            # Non-positive excluded like forwardPE: a real operating company
+            # doesn't run a <=0% gross margin -- an exact 0.0 is Yahoo's
+            # "no product revenue / not reported" sentinel (common across
+            # pre-revenue Biotechnology), and leaving those in drags the
+            # peer-median gross margin to 0 and blows up the loss-maker
+            # growth_margin (ownGrossMargin - (indGross - indOp)).
+            "grossMargin": gm if (gm := to_float(d.get("grossMargins"))) is not None and gm > 0 else None,
             "analystDispersion": disp if disp is not None and disp > 0 else None,
         }
         for key, value in values.items():
@@ -776,6 +804,7 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
 
     revenue_growth = to_float(row.get("revenueGrowth"))
     operating_margin = to_float(row.get("operatingMargins"))
+    gross_margin = to_float(row.get("grossMargins"))
     # Revenue growth converted to its EPS-equivalent via the operating
     # positive margin -- a raw revenue-growth % overstates earnings growth
     # for a business that only converts a fraction of each new revenue
@@ -811,20 +840,26 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
     ind_eps_trend, _, _ = _peer_median(ticker, industry, *peer_pools["epsTrend"])
     ind_revenue_growth, _, _ = _peer_median(ticker, industry, *peer_pools["revenueGrowth"])
     ind_operating_margin, _, _ = _peer_median(ticker, industry, *peer_pools["operatingMargin"])
+    ind_gross_margin, _, _ = _peer_median(ticker, industry, *peer_pools["grossMargin"])
 
-    # Base conversion floors a negative operatingMargin at 0. That zeroes
-    # the growth signal outright for a fast-growing but currently loss-
-    # making name (SNOW, NAVN), dragging own_growth_rate down to ~epsTrend/2
-    # even when revenue is compounding at 30%+. When a name is loss-making,
-    # credit its revenue growth at the margin this business would earn once
-    # it converges to its industry's median profitability, less its own
-    # current shortfall, with a small positive floor so growth always
-    # carries some EPS credit:
-    #     growth_margin = max(industryMedianOpMargin + ownOpMargin, 0.02)
-    # A company whose loss is shallower than the peer-median profitability
-    # gets close to full peer-margin credit; one underwater by more than
-    # the peer median earns (SNOW, at -22% vs. an +11% peer median) lands
-    # on the 0.02 floor rather than a flat 0. Applied for either sign of
+    # growth_margin is the cents-of-EPS per incremental revenue dollar that
+    # revenueGrowth is scaled by to get an EPS-growth equivalent. For a
+    # profitable name it's just its own operatingMargin (floored at 0).
+    #
+    # For a LOSS-MAKING name, its current operatingMargin understates what
+    # the business earns per revenue dollar once it stops spending ahead of
+    # profitability, so instead credit revenue growth at the operating
+    # margin it could CREDIBLY reach at scale: its own gross margin, less
+    # the opex load a typical peer carries between gross and operating --
+    #     industryOpexLoad = industryMedianGrossMargin - industryMedianOpMargin
+    #     growth_margin     = max(ownGrossMargin - industryOpexLoad, 0.02)
+    # So a company with peer-typical gross margin lands on roughly the peer
+    # operating margin; one with a better gross margin than peers (stronger
+    # unit economics) gets more credit; one with a worse gross margin gets
+    # less, down to the 0.02 floor. Fully peer-derived -- no fixed
+    # flow-through constant. Falls back to the older
+    # "industryMedianOpMargin + ownOpMargin" convergence term when gross
+    # margin (own or industry) isn't available. Applied for either sign of
     # revenueGrowth: a growing loss-maker gets a partial positive growth
     # signal, a shrinking one a (now margin-scaled) bearish signal.
     LOSS_MAKER_MARGIN_FLOOR = 0.02
@@ -835,7 +870,19 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
         and revenue_growth is not None
         and ind_operating_margin is not None
     ):
-        growth_margin = max(ind_operating_margin + operating_margin, LOSS_MAKER_MARGIN_FLOOR)
+        industry_opex_load = (
+            ind_gross_margin - ind_operating_margin
+            if ind_gross_margin is not None and ind_operating_margin is not None
+            else None
+        )
+        if gross_margin is not None and gross_margin > 0 and industry_opex_load is not None and industry_opex_load > 0:
+            target_operating_margin = gross_margin - industry_opex_load
+        else:
+            # No usable industry gross-to-operating gap (thin peer group, or
+            # a peer set with no real gross-margin coverage) -- fall back to
+            # the older convergence term.
+            target_operating_margin = ind_operating_margin + operating_margin
+        growth_margin = max(target_operating_margin, LOSS_MAKER_MARGIN_FLOOR)
     else:
         growth_margin = max(operating_margin, 0.0)
     margin_adjusted_revenue_growth = revenue_growth * growth_margin if (
@@ -891,7 +938,8 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
         anchor_eps = fwd_eps
 
     # Concave reversion: w_t = sqrt((N-t)/N), own->industry over N steps.
-    # Year 1 blends the schedule rate 50/50 with g_fwd (analyst implied return).
+    # Year 1 blends the schedule rate with g_fwd (analyst implied return),
+    # Y1_SCHEDULE_WEIGHT on the schedule side.
     n_steps = EPS_PROJECTION_YEARS - 1
     eps_path = [anchor_eps]
     for t in range(1, EPS_PROJECTION_YEARS):
@@ -900,7 +948,7 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
         if t == 1:
             g_fwd = (fwd_eps / anchor_eps - 1.0) if abs(anchor_eps) > 1e-9 else 0.0
             g_fwd = max(GROWTH_FLOOR, min(GROWTH_CAP, g_fwd))
-            g_t = 0.5 * g_t + 0.5 * g_fwd
+            g_t = Y1_SCHEDULE_WEIGHT * g_t + (1.0 - Y1_SCHEDULE_WEIGHT) * g_fwd
         g_t = max(GROWTH_FLOOR, min(GROWTH_CAP, g_t))
         eps_path.append(eps_path[-1] * (1.0 + g_t))
 
@@ -1085,9 +1133,9 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
                 # g_fwd_draws: per-path draw from the analyst target range
                 # (see this block's own comment above), not the fixed
                 # deterministic g_fwd -- this is what gives year 1 its own
-                # genuine spread instead of being half-anchored to a
-                # constant.
-                g_t_sim = 0.5 * g_t_sim + 0.5 * g_fwd_draws
+                # genuine spread instead of being anchored to a constant.
+                # Same Y1_SCHEDULE_WEIGHT split as the deterministic path.
+                g_t_sim = Y1_SCHEDULE_WEIGHT * g_t_sim + (1.0 - Y1_SCHEDULE_WEIGHT) * g_fwd_draws
             g_t_sim = np.clip(g_t_sim, GROWTH_FLOOR, GROWTH_CAP)
             eps_path_sim = eps_path_sim * (1.0 + g_t_sim)
             discounted_sum_sim = discounted_sum_sim + eps_path_sim * discount_weights[t]
@@ -1271,11 +1319,14 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
             "epsTrend": eps_trend,
             "revenueGrowth": revenue_growth,
             "operatingMargin": operating_margin,
+            "grossMargin": gross_margin,
+            "growthMargin": growth_margin,
             "marginAdjustedRevenueGrowth": margin_adjusted_revenue_growth,
             "ownGrowthRate": own_growth_rate,
             "industryEpsTrend": ind_eps_trend,
             "industryRevenueGrowth": ind_revenue_growth,
             "industryOperatingMargin": ind_operating_margin,
+            "industryGrossMargin": ind_gross_margin,
             "industryGrowthRate": industry_growth_rate,
             "epsPath": eps_path,
             "discountedEpsPath": discounted_eps_path,

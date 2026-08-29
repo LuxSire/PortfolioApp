@@ -35,7 +35,7 @@ ALGORITHM
    Each signal is rank-percentile-normalised within the pool (0=worst, 1=best),
    then the four percentiles are averaged.
 
-   Pre-screen: keep top CANDIDATE_POOL (default 80) per side by composite
+   Pre-screen: keep top CANDIDATE_POOL (default 160) per side by composite
    score before entering the optimiser.
 
 3. COVARIANCE MATRIX  (factor model — no historical return data required)
@@ -52,18 +52,19 @@ ALGORITHM
 4. GREEDY MAX-SHARPE SELECTION
    Forward-selection: at each step add the candidate whose inclusion most
    increases the equal-weight portfolio Sharpe (expected return / portfolio
-   vol). Runs in O(POOL × N²) — ≈ 32 000 evaluations for pool=80, N=20;
-   completes in < 1 s on any modern machine. The 2nd/3rd-best candidate
+   vol). Runs in O(POOL × N²) — ≈ 400 000 evaluations for pool=160, N=50;
+   completes in well under a second. The 2nd/3rd-best candidate
    evaluated at that same step (i.e. what would have been added instead,
    had the winner not been available — typically a correlated name from
    the same sector, crowded out by SECTOR_CORR) is kept as that position's
    "alternates" for the frontend.
 
 5. PORTFOLIO STATS
-   Equal-weight (1/N) within each leg. Combined portfolio stats use the
-   full 40-position covariance matrix (long-short correlation included):
-     portReturn = 0.5 × meanLong + 0.5 × mean(−shortReturn)
-     portVol    = sqrt(w^T Σ w)  where Σ is the 40×40 covariance matrix
+   Equal-weight 1/50 per position within each leg (each leg 100% gross,
+   200% gross total, dollar-neutral). Combined portfolio stats use the
+   full 100-position covariance matrix (long-short correlation included):
+     portReturn = meanLong + mean(−shortReturn)   (1.0 weight per leg)
+     portVol    = sqrt(w^T Σ w)  where Σ is the 100×100 covariance matrix
      Sharpe     = (portReturn − rf) / portVol
      Sortino    ≈ Sharpe × √2  (half-normal downside vol approximation)
 
@@ -72,8 +73,8 @@ CONSTANTS
   MARKET_VOL   = 0.20   S&P 500 annualised vol proxy
   RF           = 0.035  risk-free rate (same as PortfolioView)
   SECTOR_CORR  = 0.65   same-sector correlation floor
-  CANDIDATE_POOL = 80   pre-screen pool size per side
-  POSITIONS    = 20     final positions selected per side
+  CANDIDATE_POOL = 160  pre-screen pool size per side
+  POSITIONS    = 50     final positions selected per side
   IDIO_VOL     = 0.25   idiosyncratic vol used in CAPM fallback (when no history)
   SHRINKAGE    = 0.10   toward-diagonal shrinkage applied to sample covariance
   MIN_HIST_BARS = 20    minimum daily bars required to use a ticker's history
@@ -89,6 +90,8 @@ import datetime
 
 import numpy as np
 
+from modules.sector_groups import get_sector_group
+
 # ── constants ────────────────────────────────────────────────────────────────
 MARKET_VOL = 0.20
 RF = 0.035
@@ -96,8 +99,8 @@ BETA_FLOOR = 0.75   # clamp low-beta stocks: prevents artificial Sharpe inflatio
 BETA_CAP   = 2.0    # clamp high-beta stocks: prevents extreme vol estimates
 # vol(i) = clamp(|beta_i|, BETA_FLOOR, BETA_CAP) × MARKET_VOL  → range [15%, 40%]
 SECTOR_CORR = 0.65     # same-sector correlation floor (anti-concentration)
-CANDIDATE_POOL = 120   # top N pre-screened per side before the greedy pass
-POSITIONS = 30         # final portfolio size per side
+CANDIDATE_POOL = 160   # top N pre-screened per side before the greedy pass
+POSITIONS = 50         # final portfolio size per side
 IDIO_VOL = 0.25        # idiosyncratic vol added to diagonal in CAPM fallback
 SHRINKAGE = 0.10       # toward-diagonal shrinkage applied to sample covariance
 MIN_HIST_BARS = 20     # minimum daily bars required to use historical returns
@@ -125,6 +128,16 @@ MOMENTUM_OVERBOUGHT = 70
 MOMENTUM_OVERSOLD = 30
 MEAN_REVERSION_OVERBOUGHT = 80
 MEAN_REVERSION_OVERSOLD = 20
+
+# Hard crowded-short gate on the Short pool, matching RecommendationsView.tsx's
+# own MAX_SHORT_INTEREST / notCrowded gate: a name already shorted by more
+# than this fraction of its float is a squeeze-risk trade the optimizer must
+# not build a fresh short into, no matter how well it otherwise scores.
+# shortInterest is the FINRA-preferred pct-of-float _make_candidate resolves
+# (shortPctOfFloatFinra, else the recomputed shortPercentOfFloat). Missing
+# short-interest data does NOT exclude a candidate -- only an actual reading
+# above the bar does.
+MAX_SHORT_INTEREST = 0.10
 
 LONG_RATINGS = {"Strong Buy", "Buy"}
 SHORT_RATINGS = {"Strong Sell", "Sell"}
@@ -533,12 +546,19 @@ def _local_search_max_sharpe(cov, position_returns, n_select):
 
 # ── main entry point ──────────────────────────────────────────────────────────
 
-def build_target_portfolio(rec_file, sim_file):
+def build_target_portfolio(rec_file, sim_file, exclude_groups=None):
     """Read recommendations + simulations, run the optimiser, return result dict.
 
+    exclude_groups: optional iterable of broad sector-group names (see
+    modules.sector_groups.get_sector_group -- e.g. "Financial Services",
+    "Healthcare") to drop from BOTH candidate pools before optimising, so
+    the caller can build a variant portfolio that never touches those
+    sectors. None (default) keeps the full universe.
+
     Returns a dict ready to be JSON-serialised with keys:
-      longs, shorts, stats, generatedAt
+      longs, shorts, longPool, shortPool, stats, generatedAt
     """
+    exclude_groups = set(exclude_groups) if exclude_groups else set()
     with open(rec_file) as f:
         rec_data = json.load(f)
     with open(sim_file) as f:
@@ -610,6 +630,8 @@ def build_target_portfolio(rec_file, sim_file):
             c = _make_candidate(ticker, side)
             if not c:
                 continue
+            if exclude_groups and get_sector_group(c.get("sector")) in exclude_groups:
+                continue
             mom, mr = c.get("mom"), c.get("mr")
             if side == "Long":
                 if (mom is not None and mom > MOMENTUM_OVERBOUGHT) or (
@@ -620,6 +642,9 @@ def build_target_portfolio(rec_file, sim_file):
                 if (mom is not None and mom < MOMENTUM_OVERSOLD) or (
                     mr is not None and mr <= MEAN_REVERSION_OVERSOLD
                 ):
+                    continue
+                si = c.get("shortInterest")
+                if si is not None and si > MAX_SHORT_INTEREST:
                     continue
             raw.append(c)
         return raw
@@ -683,18 +708,47 @@ def build_target_portfolio(rec_file, sim_file):
     longs = results.get("Long", [])
     shorts = results.get("Short", [])
 
-    # Combined portfolio statistics (40-position covariance)
+    # Per-leg statistics -- each leg on its own, 1/50 equal weight (100%
+    # gross), so the long book and the short book can be compared
+    # side by side. The short leg's return is the profit from prices
+    # FALLING (sign -1 on forecastReturn); vol is sign-invariant. Sharpe
+    # uses the same (leg return - RF) / leg vol convention as the combined
+    # stat below.
+    def _leg_stats(positions, sign):
+        if not positions:
+            return {"return": None, "vol": None, "sharpe": None}
+        m = len(positions)
+        w_leg = np.full(m, 1.0 / m)
+        cov_leg = _build_cov(positions, hist_returns)
+        rets_leg = np.array([c["forecastReturn"] for c in positions])
+        leg_ret = sign * float(w_leg @ rets_leg)
+        leg_var = float(w_leg @ cov_leg @ w_leg)
+        leg_vol = math.sqrt(leg_var) if leg_var > 0 else 0.0
+        return {
+            "return": round(leg_ret, 6),
+            "vol": round(leg_vol, 6),
+            "sharpe": round((leg_ret - RF) / leg_vol, 4) if leg_vol > 0 else None,
+        }
+
+    # Combined portfolio statistics (100-position covariance)
     all_pos = longs + shorts
-    stats = {"portfolioReturn": None, "portfolioVol": None, "sharpe": None, "sortino": None}
+    stats = {
+        "portfolioReturn": None, "portfolioVol": None, "sharpe": None, "sortino": None,
+        "long": _leg_stats(longs, 1.0), "short": _leg_stats(shorts, -1.0),
+    }
     if all_pos:
         n = len(all_pos)
-        # Signed weights: +1/N for longs, -1/N for shorts.
-        # This ensures that a long and a short with positive stock-return
-        # correlation reduce portfolio variance (they partially hedge each
-        # other) rather than add to it.
+        # Signed weights: +1/n_longs for each long, -1/n_shorts for each
+        # short -- i.e. 1/50 per position, each leg 100% gross (200% gross
+        # total, dollar-neutral), NOT 1/100 (which would be a half-gross
+        # 50/50 book). The signed form still lets a long and a short with
+        # positive stock-return correlation reduce portfolio variance (they
+        # partially hedge) rather than add to it.
         n_longs = len(longs)
-        signs = np.array([1.0] * n_longs + [-1.0] * (n - n_longs))
-        w = signs / n
+        n_shorts = n - n_longs
+        per_long = 1.0 / n_longs if n_longs else 0.0
+        per_short = 1.0 / n_shorts if n_shorts else 0.0
+        w = np.array([per_long] * n_longs + [-per_short] * n_shorts)
         cov_all = _build_cov(all_pos, hist_returns)
         # Use raw forecastReturn (not positionReturn) since sign is in weights
         raw_returns = np.array([c["forecastReturn"] for c in all_pos])

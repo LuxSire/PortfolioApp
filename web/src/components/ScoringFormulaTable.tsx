@@ -8,11 +8,22 @@ function fmtPct(weight: number): string {
 
 // The composite-score formulas sorted_screen.csv's `score` column is built
 // from (see scoring.py's score_rows/FACTOR_WEIGHTS) -- Standard for
-// everything outside the special sectors below, Financials for a
+// everything outside the special columns below, Financials for a
 // Financials-sector ticker (banks, insurers, asset managers, capital
 // markets -- see scoring.is_financials_sector), Utilities for a
 // Utilities-sector ticker (see scoring.is_utilities_sector), Real Estate
-// for a Real-Estate-sector ticker (see scoring.is_real_estate_sector).
+// for a Real-Estate-sector ticker (see scoring.is_real_estate_sector),
+// and Growth for a ticker outside those three sectors that is
+// high-growth but pre-profitability -- revenueGrowth > 20% AND a
+// negative current EV/EBITDA (see scoring.is_growth_cohort). The sector
+// columns take precedence over Growth when a ticker matches both.
+//
+// Each row is one scoring factor; a few blend more than one signal
+// internally -- e.g. "Simulations (forecast return + Sharpe)" is an
+// equal-weight average of the Monte Carlo forecastReturn rank and the
+// simulated-path Modified-Sharpe rank (see scoring.forecast_return_rank),
+// so the weight shown is on that blend, not on forecastReturn alone.
+//
 // Built after real incidents: Yahoo Finance doesn't populate
 // debtToEquity/quickRatio/currentRatio/enterpriseToEbitda/freeCashflow for
 // Financials at all (confirmed even for JPM/WFC) or for mortgage REITs
@@ -45,6 +56,7 @@ export default function ScoringFormulaTable() {
   const financialsTotal = factors?.reduce((s, f) => s + f.financialsWeight, 0) ?? 0
   const utilitiesTotal = factors?.reduce((s, f) => s + f.utilitiesWeight, 0) ?? 0
   const realEstateTotal = factors?.reduce((s, f) => s + f.realEstateWeight, 0) ?? 0
+  const growthTotal = factors?.reduce((s, f) => s + f.growthWeight, 0) ?? 0
 
   return (
     <>
@@ -73,6 +85,10 @@ export default function ScoringFormulaTable() {
             <span className="n num">{fmtPct(realEstateTotal)}</span>
             <span className="l">real estate score total</span>
           </div>
+          <div className="stat">
+            <span className="n num">{fmtPct(growthTotal)}</span>
+            <span className="l">growth score total</span>
+          </div>
         </div>
       </header>
 
@@ -89,6 +105,7 @@ export default function ScoringFormulaTable() {
                 <th>Financials</th>
                 <th>Utilities</th>
                 <th>Real Estate</th>
+                <th>Growth</th>
               </tr>
             </thead>
             <tbody>
@@ -96,16 +113,22 @@ export default function ScoringFormulaTable() {
                 const financialsChanged = f.standardWeight !== f.financialsWeight
                 const utilitiesChanged = f.standardWeight !== f.utilitiesWeight
                 const realEstateChanged = f.standardWeight !== f.realEstateWeight
+                const growthChanged = f.standardWeight !== f.growthWeight
                 return (
                   <tr
                     key={f.key}
-                    className={financialsChanged || utilitiesChanged || realEstateChanged ? 'scoring-row-changed' : undefined}
+                    className={
+                      financialsChanged || utilitiesChanged || realEstateChanged || growthChanged
+                        ? 'scoring-row-changed'
+                        : undefined
+                    }
                   >
                     <td className="col-left">{f.label}</td>
                     <td className="num">{fmtPct(f.standardWeight)}</td>
                     <td className={`num${financialsChanged ? ' scoring-weight-changed' : ''}`}>{fmtPct(f.financialsWeight)}</td>
                     <td className={`num${utilitiesChanged ? ' scoring-weight-changed' : ''}`}>{fmtPct(f.utilitiesWeight)}</td>
                     <td className={`num${realEstateChanged ? ' scoring-weight-changed' : ''}`}>{fmtPct(f.realEstateWeight)}</td>
+                    <td className={`num${growthChanged ? ' scoring-weight-changed' : ''}`}>{fmtPct(f.growthWeight)}</td>
                   </tr>
                 )
               })}
@@ -117,6 +140,7 @@ export default function ScoringFormulaTable() {
                 <td className="num">{fmtPct(financialsTotal)}</td>
                 <td className="num">{fmtPct(utilitiesTotal)}</td>
                 <td className="num">{fmtPct(realEstateTotal)}</td>
+                <td className="num">{fmtPct(growthTotal)}</td>
               </tr>
             </tfoot>
           </table>

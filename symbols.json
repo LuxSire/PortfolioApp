@@ -1447,7 +1447,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Drug Manufacturers - Specialty & Generic"
   },
   {
@@ -1528,7 +1528,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Banks - Regional"
   },
   {
@@ -1788,7 +1788,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Building Products & Equipment"
   },
   {
@@ -3830,7 +3830,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Security & Protection Services"
   },
   {
@@ -4603,7 +4603,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Banks - Regional"
   },
   {
@@ -5007,7 +5007,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Banks - Regional"
   },
   {
@@ -5571,7 +5571,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Banks - Regional"
   },
   {
@@ -6448,7 +6448,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Electronic Components"
   },
   {
@@ -8458,7 +8458,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Oil & Gas Midstream"
   },
   {
@@ -11144,7 +11144,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Household & Personal Products"
   },
   {
@@ -11351,7 +11351,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Insurance - Property & Casualty"
   },
   {
@@ -12042,7 +12042,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Telecom Services"
   },
   {
@@ -12194,7 +12194,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Grocery Stores"
   },
   {
@@ -12983,7 +12983,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Real Estate - Diversified"
   },
   {
@@ -13523,7 +13523,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Restaurants"
   },
   {
@@ -14241,7 +14241,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Banks - Regional"
   },
   {
@@ -17168,7 +17168,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Utilities - Regulated Gas"
   },
   {
@@ -17375,7 +17375,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Banks - Regional"
   },
   {
@@ -18424,7 +18424,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Banks - Regional"
   },
   {
@@ -18739,7 +18739,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Aerospace & Defense"
   },
   {
@@ -19142,7 +19142,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Credit Services"
   },
   {
@@ -22337,7 +22337,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Banks - Regional"
   },
   {
@@ -23233,7 +23233,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Banks - Regional"
   },
   {

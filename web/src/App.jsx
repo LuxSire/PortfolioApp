@@ -13,9 +13,9 @@ import SimulationsView from './pages/SimulationsView'
 import TargetView from './pages/TargetView'
 import DatasetView from './pages/DatasetView'
 import ScoringView from './pages/ScoringView'
+import BacktestingView from './pages/BacktestingView'
 
 const TABS = [
-  { key: 'screener', label: 'Screener' },
   { key: 'positions', label: 'Positions' },
   { key: 'trades', label: 'Trades' },
   { key: 'portfolio', label: 'Portfolio' },
@@ -29,6 +29,8 @@ const TABS = [
   { key: 'target', label: 'Target' },
   { key: 'dataset', label: 'Dataset' },
   { key: 'scoring', label: 'Scoring' },
+  { key: 'screener', label: 'Screener' },
+  { key: 'backtesting', label: 'Backtesting' },
 ]
 
 export default function App() {
@@ -63,6 +65,7 @@ export default function App() {
       {tab === 'target' && <TargetView />}
       {tab === 'dataset' && <DatasetView />}
       {tab === 'scoring' && <ScoringView />}
+      {tab === 'backtesting' && <BacktestingView />}
     </div>
   )
 }

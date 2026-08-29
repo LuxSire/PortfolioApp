@@ -393,12 +393,13 @@ import csv
 import functools
 import json
 import os
+import shutil
 import socket
 import sys
 import threading
 import urllib.error
 import urllib.request
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from modules.IBApp import IBApp
 from modules.scoring import (
@@ -418,6 +419,7 @@ from modules.chatbot import answer_question
 from modules.finra import SHORT_INTEREST_FILE, fetch_short_interest
 from modules.simulations import run_iter as run_eps_simulations_iter
 from modules.portfolio_optimizer import build_target_portfolio
+from modules.backtest import build_backtest
 from modules.recommendations import write_recommendations
 from modules.sec_edgar import FORM4_FILE, THIRTEENF_FILE, fetch_13f_holdings, fetch_form4, fetch_xbrl_facts
 from modules.social_sentiment import SENTIMENT_FILE, fetch_social_sentiment
@@ -508,6 +510,14 @@ NEWS_SENTIMENT_FILE = os.path.join(OUTPUT_DIR, "news_sentiment.json")
 NEWS_FILE = os.path.join(IB_DIR, "news.json")
 SIMULATIONS_FILE = os.path.join(OUTPUT_DIR, "simulations.json")
 TARGET_PORTFOLIO_FILE = os.path.join(OUTPUT_DIR, "target_portfolio.json")
+# Same optimiser, Financial Services + Healthcare + Real Estate sector
+# groups excluded.
+TARGET_PORTFOLIO_EX_FILE = os.path.join(OUTPUT_DIR, "target_portfolio_ex.json")
+TARGET_PORTFOLIO_EX_GROUPS = {"Financial Services", "Healthcare", "Real Estate"}
+# Dated screen snapshots (sorted_screen <YYYYMMDD>.csv) the backtest scores
+# forward against IB's daily bars -- see modules/backtest.py.
+HISTORY_DIR = os.path.join(OUTPUT_DIR, "history")
+BACKTEST_FILE = os.path.join(OUTPUT_DIR, "backtest.json")
 RECOMMENDATIONS_FILE = os.path.join(OUTPUT_DIR, "recommendations.json")
 SYMBOLS_FILE = "symbols.json"
 MIN_PRICE = 8
@@ -543,8 +553,18 @@ FIELDNAMES = [
     "recommendationMean", "numberOfAnalystOpinions", "momentum", "meanReversion", "epsRevision0y",
     "epsRevision1y", "epsVolatility", "heldPercentInsiders", "earningsTimestampStart", "yearReturn", "lastDownload",
 ]
+# FINRA biweekly short-interest figures (finra.SHORT_INTEREST_FILE +
+# raw_data.json floatShares, via scoring.load_short_interest_scores) -- the
+# EXACT values short_interest_rank scores on, so the Screener's short-
+# interest column shows what scoring actually used rather than yfinance's
+# staler shortPercentOfFloat/shortRatio pair (which, for a recent IPO like
+# NAVN, still reflects the tiny immediate-post-IPO float -- 32.7% vs. the
+# real 6.3%). sorted_screen.csv only, not forward_pe.csv (which predates
+# the FINRA fetch and has no equivalent column). Blank for a ticker FINRA
+# doesn't report -- the frontend falls back to shortPercentOfFloat there.
+SCREEN_ONLY_FIELDNAMES = ["shortPctOfFloatFinra", "shortDaysToCover", "shortChangePercent"]
 # sorted_screen.csv shows sector last instead of right after name.
-SCREEN_FIELDNAMES = [f for f in FIELDNAMES if f != "sector"] + ["sector"]
+SCREEN_FIELDNAMES = [f for f in FIELDNAMES if f != "sector"] + SCREEN_ONLY_FIELDNAMES + ["sector"]
 
 
 def load_tickers(path):
@@ -1533,12 +1553,14 @@ def write_sorted_screen_csv(data):
     short_interest_scores = load_short_interest_scores(SHORT_INTEREST_FILE, RAW_DATA_FILE)
 
     # Inject simReturn (forecastReturn, simulate_ticker's own confidence-
-    # weighted fair value vs. currentPrice) from simulations.json into
-    # each row dict so forecast_return_rank can read it directly.
-    # Tickers not present in the file (not yet simulated, simulated with an
-    # error, or with no industry-multiple scenario to derive a forecast
-    # from) are simply left without the field -- forecast_return_rank ranks
-    # them worst, same treatment as every other factor's missing data.
+    # weighted fair value vs. currentPrice) and simSharpe (the simulated-
+    # path return distribution's Modified Sharpe) from simulations.json
+    # into each row dict so forecast_return_rank can read them directly --
+    # that factor blends a rank on each (see its docstring). Tickers not
+    # present in the file (not yet simulated, simulated with an error, or
+    # with no industry-multiple scenario to derive a forecast from) are
+    # simply left without the fields -- forecast_return_rank ranks them
+    # worst, same treatment as every other factor's missing data.
     try:
         with open(SIMULATIONS_FILE) as _mcf:
             _mc_data = {}
@@ -1547,10 +1569,10 @@ def write_sorted_screen_csv(data):
                     continue
                 _ret = entry.get("forecastReturn")
                 if _ret is not None:
-                    _mc_data[entry["ticker"]] = _ret
+                    _mc_data[entry["ticker"]] = {"simReturn": _ret, "simSharpe": entry.get("simSharpe")}
     except (FileNotFoundError, json.JSONDecodeError):
         _mc_data = {}
-    rows = [(s, {**d, "simReturn": _mc_data[s]} if s in _mc_data else d) for s, d in rows]
+    rows = [(s, {**d, **_mc_data[s]} if s in _mc_data else d) for s, d in rows]
 
     scored = sorted(
         score_rows(rows, sentiment_scores, insider_scores, short_interest_scores), key=lambda item: item[2]
@@ -1568,15 +1590,30 @@ def write_sorted_screen_csv(data):
     ]
     unranked.sort(key=lambda item: item[0])  # alphabetical -- nothing else to rank them by
 
+    def _with_short_interest(symbol, d):
+        """d plus the three FINRA short-interest fields (see
+        SCREEN_ONLY_FIELDNAMES) pulled from the same short_interest_scores
+        map score_rows was just handed -- so the CSV column and the
+        composite score can never disagree about a ticker's short interest."""
+        si = short_interest_scores.get(symbol) or {}
+        return {
+            **d,
+            "shortPctOfFloatFinra": si.get("pctOfFloat"),
+            "shortDaysToCover": si.get("daysToCover"),
+            "shortChangePercent": si.get("changePercent"),
+        }
+
     fieldnames = SCREEN_FIELDNAMES + ["score", "rating"]
     with open(SORTED_SCREEN_CSV, "w", newline="") as f:
         writer = csv.writer(f)
         writer.writerow(fieldnames)
         for i, (symbol, d, score) in enumerate(scored):
             rating = rating_for_percentile(i / n) if n else ""
-            writer.writerow([symbol] + [d.get(field, "") for field in SCREEN_FIELDNAMES[1:]] + [score, rating])
+            row = _with_short_interest(symbol, d)
+            writer.writerow([symbol] + [row.get(field, "") for field in SCREEN_FIELDNAMES[1:]] + [score, rating])
         for symbol, d in unranked:
-            writer.writerow([symbol] + [d.get(field, "") for field in SCREEN_FIELDNAMES[1:]] + ["", RATING_NA])
+            row = _with_short_interest(symbol, d)
+            writer.writerow([symbol] + [row.get(field, "") for field in SCREEN_FIELDNAMES[1:]] + ["", RATING_NA])
     print(f"Wrote {SORTED_SCREEN_CSV}: {len(scored)} ranked + {len(unranked)} unranked (negative forwardPE) ticker(s)")
 
     # Every caller of write_sorted_screen_csv (download_all, download_prices,
@@ -1725,6 +1762,26 @@ def download_all(overwrite=False):
     download_simulations()
     write_sorted_screen_csv(data)
     download_target_portfolio()
+    snapshot_screen_history()
+    download_backtest()
+
+
+def snapshot_screen_history():
+    """Copies the just-written sorted_screen.csv into HISTORY_DIR under the
+    current week's FRIDAY date (sorted_screen <YYYYMMDD>.csv) -- the dated
+    snapshots the Backtesting tab scores forward (see modules/backtest.py).
+
+    Fri/Sat/Sun snapshot under the Friday that just occurred; Mon-Thu
+    ("after Sunday") under the coming Friday -- so every run within one
+    trading week lands on the same filename and just overwrites it, and a
+    new file only appears once the week rolls over."""
+    today = date.today()
+    wd = today.weekday()  # Mon=0 .. Fri=4, Sat=5, Sun=6
+    friday = today - timedelta(days=wd - 4) if wd >= 4 else today + timedelta(days=4 - wd)
+    os.makedirs(HISTORY_DIR, exist_ok=True)
+    dest = os.path.join(HISTORY_DIR, f"sorted_screen {friday:%Y%m%d}.csv")
+    shutil.copyfile(SORTED_SCREEN_CSV, dest)
+    print(f"Snapshotted {SORTED_SCREEN_CSV} -> {dest}")
 
 
 def download_prices():
@@ -1783,6 +1840,7 @@ def rescore():
     download_simulations()
     write_sorted_screen_csv(data)
     download_target_portfolio()
+    download_backtest()
     print(f"Rescored and wrote {SORTED_SCREEN_CSV} (and {OUTPUT_CSV}) -- no network calls made.")
 
 
@@ -2024,24 +2082,52 @@ def download_simulations(tickers=None):
 def download_target_portfolio():
     """Runs the Sharpe-maximising portfolio optimiser (see modules/
     portfolio_optimizer.py) over the current recommendations.json and
-    simulations.json and writes TARGET_PORTFOLIO_FILE. Zero network calls
-    -- purely computes from files already on disk. Run via
-    `python main.py target`, or called automatically at the end of
-    `all`, `prices`, and `rescore` pipelines so TargetView always
-    reflects the latest screener and simulation state."""
+    simulations.json and writes TARGET_PORTFOLIO_FILE (the full universe)
+    plus TARGET_PORTFOLIO_EX_FILE (a variant with the sector groups in
+    TARGET_PORTFOLIO_EX_GROUPS -- Financial Services, Healthcare, Real
+    Estate -- excluded; TargetView switches between the two). Zero network
+    calls -- purely computes from files already on disk. Run via `python
+    main.py target`, or called automatically at the end of `all`,
+    `prices`, and `rescore` pipelines so TargetView always reflects the
+    latest screener and simulation state."""
+    variants = [
+        (TARGET_PORTFOLIO_FILE, None),
+        (TARGET_PORTFOLIO_EX_FILE, TARGET_PORTFOLIO_EX_GROUPS),
+    ]
+    for path, exclude in variants:
+        try:
+            result = build_target_portfolio(RECOMMENDATIONS_FILE, SIMULATIONS_FILE, exclude_groups=exclude)
+        except Exception as exc:
+            print(f"target portfolio optimiser failed ({os.path.basename(path)}): {exc}")
+            continue
+        with open(path, "w") as f:
+            json.dump(result, f, indent=2)
+        n_long = len(result.get("longs", []))
+        n_short = len(result.get("shorts", []))
+        sharpe = result.get("stats", {}).get("sharpe")
+        print(f"Wrote {path}: {n_long}L + {n_short}S"
+              + (f", portfolio Sharpe {sharpe:.2f}" if sharpe is not None else ""))
+
+
+def download_backtest():
+    """Scores every dated screen snapshot in HISTORY_DIR (sorted_screen
+    <YYYYMMDD>.csv) forward one week against IB's daily bars and writes
+    BACKTEST_FILE -- per rating bucket, equal-weight: weekly return,
+    weekly volatility, Sharpe (see modules/backtest.py). Zero network
+    calls; purely computes from files already on disk. Run via `python
+    main.py backtest`, and also chained onto `rescore` so a fresh daily-
+    bar pull is reflected. New weeks appear by dropping another
+    sorted_screen <date>.csv into HISTORY_DIR -- nothing here to change."""
     try:
-        result = build_target_portfolio(RECOMMENDATIONS_FILE, SIMULATIONS_FILE)
+        result = build_backtest(HISTORY_DIR, DAILY_3MO_HISTORY_FILE)
     except Exception as exc:
-        print(f"target portfolio optimiser failed: {exc}")
+        print(f"backtest failed: {exc}")
         return
-    with open(TARGET_PORTFOLIO_FILE, "w") as f:
+    with open(BACKTEST_FILE, "w") as f:
         json.dump(result, f, indent=2)
-    n_long = len(result.get("longs", []))
-    n_short = len(result.get("shorts", []))
-    stats = result.get("stats", {})
-    sharpe = stats.get("sharpe")
-    print(f"Wrote {TARGET_PORTFOLIO_FILE}: {n_long}L + {n_short}S"
-          + (f", portfolio Sharpe {sharpe:.2f}" if sharpe is not None else ""))
+    weeks = result.get("weeks", [])
+    print(f"Wrote {BACKTEST_FILE}: {len(weeks)} week(s) "
+          + ", ".join(f"{w['week']} ({sum(b['count'] for b in w['buckets'].values())} tickers)" for w in weeks))
 
 
 if __name__ == "__main__":
@@ -2094,9 +2180,11 @@ if __name__ == "__main__":
         download_simulations(sys.argv[2:] if len(sys.argv) > 2 else None)
     elif mode == "target":
         download_target_portfolio()
+    elif mode == "backtest":
+        download_backtest()
     else:
         sys.exit(
             f"Unknown mode {mode!r}, expected 'all', 'prices', 'rescore', 'form4', 'xbrl', '13f', 'shortinterest', "
             "'ibprices', 'ibhprices', 'yfprices', 'epsvol', 'epscurrentyear', 'revgrowth', 'grossmargin', 'insiderown', 'themes', 'recommendations', 'chat', "
-            "'symbol', 'simulations', or 'target'"
+            "'symbol', 'simulations', 'target', or 'backtest'"
         )

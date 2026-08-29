@@ -456,13 +456,28 @@ def trailing_ps_rank(rows):
     return rank_ascending(rows, lambda d: to_float(d.get("trailingPS")))
 
 
+# Larger than any real pegRatio in the universe (observed max ~644), so a
+# non-positive PEG sorts to the worst end of the valid-value ranking.
+PEG_NONPOSITIVE_SENTINEL = 1e6
+
+
 def peg_rank(rows):
-    """Low pegRatio ranks better; negative or zero PEG ranked worst, not
-    treated as "cheap"."""
-    return rank_ascending(
-        rows,
-        lambda d: to_float(d.get("pegRatio")) if (to_float(d.get("pegRatio")) or 0) > 0 else None,
-    )
+    """Low pegRatio ranks better. A non-positive PEG (negative earnings,
+    or zero/negative growth) is a real "not actually cheap" signal, not
+    missing data -- it's ranked worst via PEG_NONPOSITIVE_SENTINEL rather
+    than excluded. A genuinely absent pegRatio is different: IB supplies
+    none for ~25% of the universe, disproportionately growth-stage names,
+    so that's data absence rather than a signal and gets a neutral 0.5
+    (missing=0.5) instead of the worst rank -- same reasoning
+    mean_reversion_rank uses for its own structurally-different missing
+    case."""
+    def key(d):
+        peg = to_float(d.get("pegRatio"))
+        if peg is None:
+            return None
+        return peg if peg > 0 else PEG_NONPOSITIVE_SENTINEL
+
+    return rank_ascending(rows, key, missing=0.5)
 
 
 # ---------------------------------------------------------------------- #
@@ -541,16 +556,22 @@ def margin_rank(rows):
 
 
 def eps_volatility_rank(rows):
-    """Low epsVolatility ranks better; missing ranked worst. epsVolatility
-    (see IBApp._eps_volatility) is stdev/mean(|value|) of the last (up
-    to) 5 years' annual Diluted EPS -- always >= 0, so no negative-value
+    """Low epsVolatility ranks better. epsVolatility (see
+    IBApp._eps_volatility) is stdev/mean(|value|) of the last (up to) 5
+    years' annual Diluted EPS -- always >= 0, so no negative-value
     special case is needed the way margin_rank/roe_rank/growth_rank each
     need one; same plain "low is better, never negative" shape as
     trailing_ps_rank. A distinct quality/predictability signal from
     eps_trend_rank (which reads consensus ESTIMATE revisions, forward-
     looking) -- this instead reads how much a company's own REPORTED
-    earnings have actually swung year to year, backward-looking."""
-    return rank_ascending(rows, lambda d: to_float(d.get("epsVolatility")))
+    earnings have actually swung year to year, backward-looking. A
+    missing reading means the company doesn't have the >= 3 annual
+    Diluted EPS prints _eps_volatility needs (a recent listing) -- a
+    handful of names, and data absence rather than "most erratic earnings
+    in the universe" -- so it gets a neutral 0.5 (missing=0.5) rather
+    than the worst rank, same reasoning mean_reversion_rank uses for its
+    own structurally-different missing case."""
+    return rank_ascending(rows, lambda d: to_float(d.get("epsVolatility")), missing=0.5)
 
 
 # ---------------------------------------------------------------------- #
@@ -687,17 +708,29 @@ def eps_trend_rank(rows):
 
 
 def forecast_return_rank(rows):
-    """High Monte Carlo forecastReturn ranks better; missing ranked worst.
-    forecastReturn is the confidence-discounted predicted return from
-    modules/simulations.py's EPS-driven simulation (see that module's
-    own docstring) -- (forecastPrice / currentPrice) - 1, where
-    forecastPrice is today's price shifted by the discounted blended-
-    multiple median move. Injected into each row dict by
-    write_sorted_screen_csv (main.py) from data/output/simulations.json
-    before scoring -- tickers with no simulations entry (not simulated,
-    or simulated with an error) are ranked worst, same treatment as
-    every other factor's missing data."""
-    return rank_ascending(rows, neg_perf("simReturn"))
+    """Equal-weight blend of two ranks from modules/simulations.py's
+    EPS-driven Monte Carlo (see that module's own docstring):
+
+      - high forecastReturn (simReturn): the confidence-discounted
+        predicted return, (forecastPrice / currentPrice) - 1, where
+        forecastPrice is today's price shifted by the discounted blended-
+        multiple median move -- how MUCH upside the simulation sees.
+      - high simSharpe: the Modified (Israelsen 2005) Sharpe of the
+        simulated-path return distribution -- return per unit of downside
+        risk, i.e. how RELIABLE that upside is.
+
+    Both are injected into each row dict by write_sorted_screen_csv
+    (main.py) from data/output/simulations.json before scoring; a
+    successful simulation always carries both, so in practice they are
+    co-present (confirmed: 1655/1655 non-error entries have each).
+    Averaging the two ranks (not the raw values, which are on different
+    scales -- a return vs. a ratio) the same way margin_rank/
+    analyst_conviction_rank blend their own components. A ticker with no
+    simulations entry at all is ranked worst on both legs, same treatment
+    as every other factor's missing data."""
+    return_ranks = rank_ascending(rows, neg_perf("simReturn"))
+    sharpe_ranks = rank_ascending(rows, neg_perf("simSharpe"))
+    return {symbol: (return_ranks[symbol] + sharpe_ranks[symbol]) / 2 for symbol, _ in rows}
 
 
 # ---------------------------------------------------------------------- #
@@ -759,22 +792,25 @@ def load_short_interest_scores(short_interest_file, raw_data_file):
     raw_data.json's own floatShares (already on disk from the normal
     yfinance pass -- no separate fetch needed here) to turn FINRA's raw
     share count into the same percent-of-float scale short_interest_rank
-    always ranked on. Deliberately not yfinance's own shortPercentOfFloat/
-    shortRatio pair: cross-checked against a live example (Alcoa, AA) and
-    confirmed yfinance's sharesShortPriorMonth matches FINRA's PRIOR
-    settlement exactly -- yfinance only ever reflects the month-end
-    settlement, silently skipping the mid-month one, so it's a strict
-    subset of what FINRA itself publishes twice as often. changePercent
-    -- FINRA's own period-over-period % change in short interest -- has
-    no yfinance equivalent at all; it's a genuinely new signal (whether
-    the short build is accelerating or unwinding), not a fresher version
-    of an existing one.
+    always ranked on. changePercent -- FINRA's own period-over-period %
+    change in short interest -- has no yfinance equivalent at all; it's a
+    genuinely new signal (whether the short build is accelerating or
+    unwinding), not a fresher version of an existing one.
 
-    A ticker missing from FINRA's file (thinly-shorted enough not to be
-    reported) or missing floatShares (no raw_data.json entry at all) is
-    left out of the returned map -- short_interest_rank already ranks a
-    missing score worst, same treatment as every other factor's missing
-    data."""
+    For a ticker NOT in FINRA's file (only Buy/Sell-rated tickers get
+    fetched -- see main.download_short_interest -- so ~a third of the
+    universe is missing on any given run), pctOfFloat falls back to
+    raw_data.json's own sharesShort / floatShares. That's still a CURRENT
+    figure, unlike yfinance's PRE-COMPUTED shortPercentOfFloat ratio,
+    which is not: for a recent IPO (NAVN) it still divides by the tiny
+    immediate-post-IPO float and reads 32.7% where sharesShort/floatShares
+    -- and FINRA -- both say ~6.5%. daysToCover/changePercent stay None
+    for these (no yfinance equivalent worth trusting), so their
+    short_interest_rank still leans mostly on whichever FINRA legs it has;
+    only pctOfFloat is filled. A ticker with neither a FINRA row nor
+    usable sharesShort/floatShares is left out entirely --
+    short_interest_rank ranks a missing score worst, same as every other
+    factor's missing data."""
     try:
         with open(short_interest_file) as f:
             finra = json.load(f)
@@ -792,9 +828,29 @@ def load_short_interest_scores(short_interest_file, raw_data_file):
         current = to_float(row.get("currentShortPositionQuantity"))
         pct_of_float = current / float_shares if current is not None and float_shares else None
         scores[ticker] = {
-            "pctOfFloat": pct_of_float,
+            # Rounded to 4 dp (0.01% granularity) so the value that flows
+            # through to sorted_screen.csv / recommendations.json / the UI
+            # is a clean figure, not a full-precision quotient like
+            # 0.06299876351196883. daysToCover/changePercent already come
+            # from FINRA at 2 dp. Ranking is on ordering only, so this has
+            # no meaningful effect on short_interest_rank.
+            "pctOfFloat": round(pct_of_float, 4) if pct_of_float is not None else None,
             "daysToCover": to_float(row.get("daysToCoverQuantity")),
             "changePercent": to_float(row.get("changePercent")),
+        }
+
+    # yfinance-components fallback for every raw_data ticker FINRA didn't cover.
+    for ticker, d in raw.items():
+        if ticker in scores:
+            continue
+        shares_short = to_float(d.get("sharesShort"))
+        float_shares = to_float(d.get("floatShares"))
+        if shares_short is None or not float_shares:
+            continue
+        scores[ticker] = {
+            "pctOfFloat": round(shares_short / float_shares, 4),
+            "daysToCover": None,
+            "changePercent": None,
         }
     return scores
 
@@ -974,9 +1030,41 @@ def is_real_estate_sector(sector):
     return any(k in lower for k in _REAL_ESTATE_KEYWORDS)
 
 
+# Minimum trailing revenue growth for the Growth column (see
+# is_growth_cohort / GROWTH_WEIGHTS). >20% YoY is already well into
+# hyper-growth territory -- the median revenueGrowth across the scored
+# universe is ~13%.
+GROWTH_COHORT_MIN_REVENUE_GROWTH = 0.20
+
+
+def is_growth_cohort(d):
+    """True for a high-growth, pre-profitability company -- trailing
+    revenueGrowth above GROWTH_COHORT_MIN_REVENUE_GROWTH AND a negative
+    current EV/EBITDA (enterpriseToEbitda < 0, i.e. trailing EBITDA is
+    negative). This is what score_rows uses to pick GROWTH_WEIGHTS over
+    STANDARD_WEIGHTS, and it is checked AFTER the three sector predicates
+    (a Financials/Utilities/Real-Estate name that happens to match still
+    gets its sector column -- a regulated utility with negative EBITDA is
+    a distressed utility, not a growth story). A missing revenueGrowth or
+    a missing/blank enterpriseToEbitda fails the test -- the negative
+    EBITDA has to be confirmed, not assumed -- so those names stay on the
+    standard column. Unlike the sector predicates this one reads
+    fundamentals that move quarter to quarter, so a name can enter or
+    leave the cohort as its margins cross zero; that's intended (once
+    EBITDA turns positive it should be scored on normal terms again)."""
+    growth = to_float(d.get("revenueGrowth"))
+    ev_ebitda = to_float(d.get("enterpriseToEbitda"))
+    return (
+        growth is not None
+        and growth > GROWTH_COHORT_MIN_REVENUE_GROWTH
+        and ev_ebitda is not None
+        and ev_ebitda < 0
+    )
+
+
 # {factor key: (label, standard weight, Financials weight, Utilities
-# weight, Real Estate weight)} -- single source of truth for score_rows'
-# weighted sums below
+# weight, Real Estate weight, Growth weight)} -- single source of truth
+# for score_rows' weighted sums below
 # AND for ib_server.py's GET /api/scoring-formula (the Scoring tab's own
 # table), so the page displaying "what the formula is" can never drift
 # from what score_rows actually computes. Every weight column must sum
@@ -1111,33 +1199,75 @@ def is_real_estate_sector(sector):
 #     ev_ebitda (5% -> 4%), and insiders (5% -> 4%) -- deliberately NOT
 #     from sector_pe here (Standard's own sector_pe is already at the
 #     baseline 5%, no room to trim without a disproportionate cut).
+#
+# The Growth column (see is_growth_cohort -- revenueGrowth > 20% AND a
+# negative current EV/EBITDA) is a fundamentals-selected column rather
+# than a sector one, for a cohort the standard column structurally
+# buries: several factors independently fall back to the WORST rank off
+# the same one fact (no trailing GAAP profit yet), stacking a ~15%
+# penalty that revenue growth (4%) and eps_trend (5%) can't offset. It
+# starts from Standard and:
+#   - zeroes roe (3% -> 0): negative ROE just re-expresses the negative
+#     margins margin_rank already reads.
+#   - zeroes ev_ebitda (4% -> 0): its forward-EPS fallback (see
+#     forward_ev_ebitda) collapses to forward P/E when EV ~= market cap,
+#     so it was triple-counting pe/sector_pe for exactly these names.
+#   - zeroes pe_vs_trailing (3% -> 0): negative trailingPE worst-pins it,
+#     and it's redundant with pe once trailing earnings are negative.
+#   - zeroes eps_volatility (5% -> 0): a company transitioning through
+#     zero earnings has a mechanically huge year-to-year EPS swing that
+#     isn't the quality signal this factor is meant to catch.
+# That frees 15%, redistributed onto the cohort's real signal and away
+# from the factors that can't discriminate within it:
+#   sentiment 8% -> 12% and short_interest 8% -> 10% (both per explicit
+#   instruction -- lean the column on news/social/institutional flow and
+#   on the contrarian squeeze signal, both of which move a lot for
+#   heavily-shorted premium-growth names), growth 4% -> 7%, eps_trend
+#   5% -> 7%, sector_pe 5% -> 6% (peer-relative valuation kept as the
+#   discipline that stops the column becoming "pay any price for
+#   growth" -- fcf/trailing_ps/peg/margin are all deliberately left at
+#   standard).
+#
+# forecast_return raised 10% -> 13% in EVERY column (per explicit
+# instruction), alongside blending simSharpe into the factor itself (see
+# forecast_return_rank -- now an equal-weight average of the forecastReturn
+# rank and the simulated-path Modified-Sharpe rank, so the factor rewards
+# reliable simulated upside, not just large simulated upside). The +3% is
+# funded per column:
+#   Standard: 1% each from peg (4% -> 3%), short_interest (8% -> 7%),
+#     eps_trend (5% -> 4%).
+#   Financials: 3% from eps_trend (15% -> 12%).
+#   Utilities: 3% from sector_pe (11% -> 8%).
+#   Real Estate: 3% from eps_trend (10% -> 7%).
+#   Growth: 3% from short_interest (13% -> 10%).
 FACTOR_WEIGHTS = {
-    "pe": ("Forward P/E", 0.03, 0.03, 0.03, 0.03),
-    "sector_pe": ("Forward P/E vs. sector average", 0.05, 0.12, 0.11, 0.07),
-    "eps_volatility": ("Yearly EPS volatility", 0.05, 0.05, 0.05, 0.05),
-    "fcf": ("Price/FCF", 0.05, 0.0, 0.0, 0.05),
-    "ev_ebitda": ("EV/EBITDA", 0.04, 0.0, 0.05, 0.0),
-    "momentum": ("Daily-timeframe strength (MFI/RSI)", 0.05, 0.05, 0.05, 0.05),
-    "mean_reversion": ("Hourly-timeframe overbought/oversold (MFI)", 0.05, 0.05, 0.05, 0.05),
-    "eps_trend": ("EPS-estimate revision trend", 0.05, 0.15, 0.04, 0.10),
-    "analyst": ("Analyst conviction", 0.05, 0.05, 0.05, 0.05),
-    "forecast_return": ("Simulations", 0.10, 0.10, 0.10, 0.10),
-    "pe_vs_trailing": ("Forward P/E vs. Trailing P/E", 0.03, 0.03, 0.03, 0.03),
-    "peg": ("PEG ratio", 0.04, 0.08, 0.05, 0.05),
-    "trailing_ps": ("Trailing P/S", 0.02, 0.02, 0.02, 0.02),
-    "growth": ("Revenue growth", 0.04, 0.06, 0.02, 0.06),
-    "debt": ("Debt/equity vs. sector average", 0.05, 0.0, 0.05, 0.0),
-    "liquidity": ("Quick/current ratio", 0.02, 0.0, 0.0, 0.0),
-    "roe": ("Return on equity", 0.03, 0.03, 0.06, 0.03),
-    "short_interest": ("Short interest (contrarian)", 0.08, 0.05, 0.06, 0.08),
-    "sentiment": ("News/social/institutional sentiment", 0.08, 0.08, 0.08, 0.08),
-    "insiders": ("Insider open-market buy/sell activity", 0.04, 0.05, 0.05, 0.05),
-    "margin": ("Profit/operating margins", 0.05, 0.0, 0.05, 0.05),
+    "pe": ("Forward P/E", 0.03, 0.03, 0.03, 0.03, 0.03),
+    "sector_pe": ("Forward P/E vs. sector average", 0.05, 0.12, 0.08, 0.07, 0.06),
+    "eps_volatility": ("Yearly EPS volatility", 0.05, 0.05, 0.05, 0.05, 0.0),
+    "fcf": ("Price/FCF", 0.05, 0.0, 0.0, 0.05, 0.05),
+    "ev_ebitda": ("EV/EBITDA", 0.04, 0.0, 0.05, 0.0, 0.0),
+    "momentum": ("Daily-timeframe strength (MFI/RSI)", 0.05, 0.05, 0.05, 0.05, 0.05),
+    "mean_reversion": ("Hourly-timeframe overbought/oversold (MFI)", 0.05, 0.05, 0.05, 0.05, 0.05),
+    "eps_trend": ("EPS-estimate revision trend", 0.04, 0.12, 0.04, 0.07, 0.07),
+    "analyst": ("Analyst conviction", 0.05, 0.05, 0.05, 0.05, 0.05),
+    "forecast_return": ("Simulations (forecast return + Sharpe)", 0.13, 0.13, 0.13, 0.13, 0.13),
+    "pe_vs_trailing": ("Forward P/E vs. Trailing P/E", 0.03, 0.03, 0.03, 0.03, 0.0),
+    "peg": ("PEG ratio", 0.03, 0.08, 0.05, 0.05, 0.04),
+    "trailing_ps": ("Trailing P/S", 0.02, 0.02, 0.02, 0.02, 0.02),
+    "growth": ("Revenue growth", 0.04, 0.06, 0.02, 0.06, 0.07),
+    "debt": ("Debt/equity vs. sector average", 0.05, 0.0, 0.05, 0.0, 0.05),
+    "liquidity": ("Quick/current ratio", 0.02, 0.0, 0.0, 0.0, 0.02),
+    "roe": ("Return on equity", 0.03, 0.03, 0.06, 0.03, 0.0),
+    "short_interest": ("Short interest (contrarian)", 0.07, 0.05, 0.06, 0.08, 0.10),
+    "sentiment": ("News/social/institutional sentiment", 0.08, 0.08, 0.08, 0.08, 0.12),
+    "insiders": ("Insider open-market buy/sell activity", 0.04, 0.05, 0.05, 0.05, 0.04),
+    "margin": ("Profit/operating margins", 0.05, 0.0, 0.05, 0.05, 0.05),
 }
 STANDARD_WEIGHTS = {factor: v[1] for factor, v in FACTOR_WEIGHTS.items()}
 FINANCIALS_WEIGHTS = {factor: v[2] for factor, v in FACTOR_WEIGHTS.items()}
 UTILITIES_WEIGHTS = {factor: v[3] for factor, v in FACTOR_WEIGHTS.items()}
 REAL_ESTATE_WEIGHTS = {factor: v[4] for factor, v in FACTOR_WEIGHTS.items()}
+GROWTH_WEIGHTS = {factor: v[5] for factor, v in FACTOR_WEIGHTS.items()}
 
 
 def score_rows(rows, sentiment_scores=None, insider_scores=None, short_interest_scores=None):
@@ -1169,8 +1299,16 @@ def score_rows(rows, sentiment_scores=None, insider_scores=None, short_interest_
     treatment (debt/liquidity/ev_ebitda/margin zeroed, eps_trend/growth
     boosted) except pe_rank/fcf_rank are both left at their standard 5%,
     and this column was never revisited for Financials' later
-    pe/sector_pe/peg/short_interest rebalance above. See FACTOR_WEIGHTS'
-    own comment for the full reasoning on all three. The underlying rank
+    pe/sector_pe/peg/short_interest rebalance above. Finally, a ticker
+    outside all three of those sectors that is in the high-growth,
+    pre-profitability cohort (see is_growth_cohort -- revenueGrowth > 20%
+    AND negative current EV/EBITDA) uses GROWTH_WEIGHTS instead
+    (roe/ev_ebitda/pe_vs_trailing/eps_volatility zeroed, that 15% moved
+    onto short_interest/sentiment/growth/eps_trend/sector_pe -- see
+    FACTOR_WEIGHTS' own comment). The sector checks take precedence: a
+    Financials/Utilities/Real-Estate name that also matches
+    is_growth_cohort still gets its sector column. See FACTOR_WEIGHTS'
+    own comment for the full reasoning on all four. The underlying rank
     computations
     themselves are identical in every case -- only which weight gets
     applied to which ticker differs, so e.g. a Real-Estate ticker's
@@ -1212,6 +1350,8 @@ def score_rows(rows, sentiment_scores=None, insider_scores=None, short_interest_
             weights = UTILITIES_WEIGHTS
         elif is_real_estate_sector(sector):
             weights = REAL_ESTATE_WEIGHTS
+        elif is_growth_cohort(d):
+            weights = GROWTH_WEIGHTS
         else:
             weights = STANDARD_WEIGHTS
         score = sum(ranks_by_factor[factor][symbol] * weight for factor, weight in weights.items())
