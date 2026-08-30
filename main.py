@@ -4,47 +4,34 @@ individual scoring indicator/factor calculation (and score_rows itself,
 which combines them) lives in scoring.py instead -- see that module's own
 docstring for the full list of factor functions and their weights.
 
-download_all():    fetch tickers from symbols.json (active == 1), pull forward/trailing
-                    P/E + price-to-FCF from Yahoo Finance, and concurrently (as
-                    two asyncio tasks on one background thread, started right
-                    away and joined before scoring -- see _refresh_ib_daily_
-                    and_hourly/_run_ib_bar_refresh_in_background) refresh IB
-                    Gateway's own daily AND hourly bars for the WHOLE active
-                    universe (see refresh_ib_daily_history/refresh_ib_hourly_
-                    history -- best-effort, skipped entirely if IB Gateway
-                    isn't reachable), then add the Money Flow Index strength/
-                    overbought-oversold scores (preferring that IB coverage
-                    over the plain yfinance RSI fallback -- daily only;
-                    hourly has no fallback -- wherever it exists), and write
-                    raw_data.json + screen_data.csv + sorted_screen.csv.
-                    Tickers downloaded within the last FRESH_HOURS hours are
-                    skipped (their previous row is reused as-is), and
-                    tickers whose fetch fails this run (e.g. a transient
-                    Yahoo Finance error) fall back to their last successful
-                    row instead of disappearing from the outputs. Right
-                    after raw_data.json is written, also fetches StockTwits
-                    social sentiment (see social_sentiment.py) for every
-                    RATED_FOR_EXTRAS ticker (Strong Buy/Buy/Sell/Strong Sell
-                    -- everything outside the broad Hold middle) of the
-                    ranking as it stood before this run (sorted_screen.csv
-                    isn't rewritten with fresh scores until later in the
-                    same run), writing/merging into social_sentiment.json.
-                    This is a separate, unofficial data source that can
-                    fail without affecting the rest of the pipeline.
-download_prices():  reuse the forward-PE data already in screen_data.csv and
-                    refresh the momentum score built from whatever IB Gateway's
-                    own daily/hourly bars (and yfinance's price_history.json
-                    fallback) currently have on disk, then rewrite screen_data.csv
-                    + sorted_screen.csv. Does NOT refresh IB Gateway's own bars
-                    itself -- unlike download_all, this one stays a quick,
-                    connection-free rescore; run `ibprices`/`ibhprices` (or `all`)
-                    first if those need refreshing too.
-rescore():          rewrite sorted_screen.csv (and screen_data.csv) from screen_data.csv
-                    already on disk with ZERO network calls -- not even the momentum
-                    refresh download_prices() still does. For when only the scoring
-                    itself changed (a scoring.py edit, a manual data fix, a newly
-                    backfilled CSV column) and every field on disk is otherwise still
-                    good. Run via `python main.py rescore`.
+The pipeline is split into two halves, each runnable on its own:
+
+download():        provider fetch only. Merges the raw yfinance `.info`
+                    payload into raw_data.json and the raw yfinance
+                    statement DataFrames (income_stmt / quarterly / eps_trend
+                    / earnings_estimate) into raw_yf_statements.json. Nothing
+                    derived, no screen_data.csv. Tickers fetched within the
+                    last FRESH_HOURS are skipped (a full-universe run);
+                    an explicit ticker list forces a refetch. Run via
+                    `python main.py download`.
+recalc():          rebuild EVERYTHING derived from the raw dumps on disk
+                    -- screen_data.csv (via modules.derive.build_screen_row),
+                    momentum, the revenueGrowth reconcile, sorted_screen.csv,
+                    simulations, target portfolio, backtest. Zero network by
+                    default (`fresh_momentum=True`, used by `all`/`prices`,
+                    adds one yfinance trailing-~1mo close pull for the
+                    momentum factor). Run via `python main.py recalc`
+                    (alias `rescore`).
+download_all():    download() then, concurrently, an IB Gateway daily+hourly
+                    bar refresh for the whole active universe (best-effort,
+                    skipped if IB Gateway isn't reachable) and a StockTwits
+                    social-sentiment fetch for the RATED_FOR_EXTRAS tickers,
+                    then recalc(fresh_momentum=True) and a history snapshot.
+                    `python main.py all` (`all overwrite` bypasses the IB
+                    bar-refresh 3h cooldown).
+download_prices():  recalc(fresh_momentum=True) -- rebuild from the raw dumps
+                    with a fresh momentum-history pull, no `.info`/statement
+                    refetch. `python main.py prices`.
 download_form4():   fetch SEC EDGAR Form 4 insider-transaction filings (see
                     sec_edgar.py) for every RATED_FOR_EXTRAS ticker, same
                     scoping as the social-sentiment fetch above -- a
@@ -124,46 +111,11 @@ download_yfinance_prices(): refresh price_history.json (see
                     price_history.json is meant to cover the whole
                     universe regardless of which download_* entry point
                     wrote it. Run via `python main.py yfprices`.
-download_eps_volatility(): refresh just epsVolatility (see
-                    IBApp.get_eps_volatility/scoring.eps_volatility_rank)
-                    for every ticker already in screen_data.csv, merging
-                    it in and re-deriving sorted_screen.csv's score/
-                    rating -- lighter than `all`/`prices`, which both
-                    also redo the whole forward-PE/momentum fetch just
-                    to pick up this one field. For backfilling it after
-                    adding/changing the factor itself, or for a ticker
-                    `all`'s own FRESH_HOURS skip left without it (that
-                    skip reuses the previous row as-is, so a ticker
-                    fetched before this field existed keeps missing it
-                    indefinitely otherwise). Doesn't add tickers that
-                    aren't already in screen_data.csv. Run via `python
-                    main.py epsvol`.
-download_eps_current_year(): refresh just epsCurrentYear (see
-                    IBApp.get_eps_current_year) for every ticker already
-                    in screen_data.csv -- same "backfill one factor" role
-                    download_eps_volatility plays for that field, for
-                    backfilling this newly-added column into tickers
-                    already in screen_data.csv from before it existed
-                    (modules/simulations.py's anchorEps blends it into
-                    the fallback chain when no industry-median-PE anchor
-                    is available). Doesn't add tickers that aren't
-                    already in screen_data.csv. Run via `python main.py
-                    epscurrentyear`.
-download_revenue_growth(): refresh just revenueGrowth (see
-                    IBApp.get_revenue_per_share_growth), dilution-
-                    adjusting it in place -- same "backfill one factor"
-                    role download_eps_volatility plays for that field,
-                    for the tickers already in screen_data.csv from before
-                    this adjustment existed. Run via `python main.py
-                    revgrowth`.
-download_gross_margins(): refresh just grossMargins (scoring.margin_rank's
-                    third component) -- same "backfill one factor" role
-                    as the two above. Run via `python main.py
-                    grossmargin`.
-download_insider_ownership(): refresh just heldPercentInsiders
-                    (scoring.insiders_rank's ownership component) --
-                    same "backfill one factor" role as the two above.
-                    Run via `python main.py insiderown`.
+                    (The old single-factor backfill commands -- epsvol,
+                    epscurrentyear, revgrowth, grossmargin, insiderown,
+                    stmtcheck -- are gone: recalc() rebuilds every one of
+                    those fields from the raw dumps, so a `download` of the
+                    stale tickers + `recalc` covers the same ground.)
 download_themes():  classifies tickers' business descriptions
                     (raw_data.json's longBusinessSummary) against a fixed
                     theme taxonomy (see theme_classifier.py) for the
@@ -419,9 +371,11 @@ from modules.chatbot import answer_question
 from modules.finra import SHORT_INTEREST_FILE, fetch_short_interest
 from modules.simulations import run_iter as run_eps_simulations_iter
 from modules.portfolio_optimizer import build_target_portfolio
+from modules.sector_groups import get_sector_group
+from modules import derive
 from modules.backtest import build_backtest
 from modules.recommendations import write_recommendations
-from modules.sec_edgar import FORM4_FILE, THIRTEENF_FILE, fetch_13f_holdings, fetch_form4, fetch_xbrl_facts
+from modules.sec_edgar import FORM4_FILE, THIRTEENF_FILE, XBRL_FACTS_FILE, fetch_13f_holdings, fetch_form4, fetch_xbrl_facts
 from modules.social_sentiment import SENTIMENT_FILE, fetch_social_sentiment
 from modules.theme_classifier import classify_themes
 
@@ -465,6 +419,11 @@ os.makedirs(YFINANCE_DIR, exist_ok=True)
 OUTPUT_CSV = os.path.join(YFINANCE_DIR, "screen_data.csv")
 SORTED_SCREEN_CSV = os.path.join(OUTPUT_DIR, "sorted_screen.csv")
 RAW_DATA_FILE = os.path.join(YFINANCE_DIR, "raw_data.json")
+# Raw yfinance statement DataFrames (income_stmt / quarterly_income_stmt /
+# eps_trend / earnings_estimate), serialised. Written by download(),
+# consumed by recalc() via modules.derive. Replaces statement_check.json,
+# whose contents were half our own derivations.
+RAW_STATEMENTS_FILE = os.path.join(YFINANCE_DIR, "raw_yf_statements.json")
 PRICE_HISTORY_FILE = os.path.join(YFINANCE_DIR, "price_history.json")
 # IB Gateway's own bars, not yfinance's -- see IBApp.get_momentum, which
 # blends these in for whatever ticker they cover and falls back to the
@@ -548,7 +507,20 @@ COUNTRY_OVERRIDE_TICKERS = {"ARM", "ASML", "BIRK", "CRSP", "NBIS", "ONON"}
 FIELDNAMES = [
     "ticker", "name", "sector", "forwardPE", "forwardEps", "epsCurrentYear", "trailingPE", "trailingPS", "pegRatio", "priceToFCF",
     "enterpriseValue", "sharesOutstanding", "impliedSharesOutstanding", "enterpriseToEbitda", "beta", "debtToEquity", "LiqRatio", "quickRatio", "currentRatio", "shortRatio", "shortPercentOfFloat",
-    "revenueGrowth", "earningsGrowth", "returnOnEquity", "profitMargins", "operatingMargins", "grossMargins", "price",
+    "revenueGrowth", "revenueGrowthSource",
+    # earningsGrowth is the SCORED blend (see derive.reconcile_earnings_growth);
+    # earningsGrowthQ keeps the raw yfinance most-recent-quarter YoY figure.
+    "earningsGrowth", "earningsGrowthQ", "earningsGrowthSource",
+    # earningsMarginDelta is what earnings_growth_rank actually scores on
+    # (see derive.earnings_margin_delta) -- YoY net-margin change per share.
+    "earningsMarginDelta", "earningsMarginDeltaSource",
+    "returnOnEquity", "profitMargins", "revenuePerShare", "operatingMargins", "grossMargins", "price",
+    # yfinance statement cross-check figures (modules.derive.statement_metrics,
+    # from raw_yf_statements.json) -- used by the revenueGrowth / earningsGrowth
+    # reconciles and available to the Simulations forward-EPS anchor.
+    "annualRevenueGrowth", "ttmRevenueGrowth", "latestQuarterEnd",
+    "dilutedEpsAnnual", "dilutedEpsGrowth",
+    "fwdEps0y", "fwdEps1y", "estimateGrowth1y", "estimateAnalysts",
     "targetMeanPrice", "targetHighPrice", "targetLowPrice", "targetUpside", "recommendationKey",
     "recommendationMean", "numberOfAnalystOpinions", "momentum", "meanReversion", "epsRevision0y",
     "epsRevision1y", "epsVolatility", "heldPercentInsiders", "earningsTimestampStart", "yearReturn", "lastDownload",
@@ -1309,136 +1281,6 @@ def download_yfinance_prices():
     add_momentum_and_persist_history(app, {t: {} for t in tickers})
 
 
-def download_eps_volatility():
-    """Refreshes just epsVolatility (see IBApp.get_eps_volatility) for
-    every ticker already in screen_data.csv, merging it into that file
-    and re-deriving sorted_screen.csv's score/rating from the result --
-    via `python main.py epsvol`. Lighter than `all`/`prices`, which both
-    also redo the whole forward-PE/momentum fetch just to pick up this
-    one field; exists for backfilling it after adding/changing the
-    factor itself, or for a ticker `all`'s own FRESH_HOURS skip left
-    without it (that skip reuses the previous row as-is, so a ticker
-    fetched before this field existed keeps missing it indefinitely
-    otherwise). Tickers not already in screen_data.csv are left alone --
-    this only updates existing rows, it doesn't fetch forward-PE/sector/
-    price from scratch for a ticker that has none yet."""
-    app = IBApp()
-    data = load_pe_data(OUTPUT_CSV)
-    print(f"Loaded {len(data)} tickers from {OUTPUT_CSV}")
-    eps_volatility = app.get_eps_volatility(list(data.keys()))
-    updated = 0
-    for ticker, value in eps_volatility.items():
-        if ticker in data:
-            data[ticker]["epsVolatility"] = value
-            if value is not None:
-                updated += 1
-    write_full_csv(data)
-    write_sorted_screen_csv(data)
-    print(f"Updated epsVolatility for {updated}/{len(data)} tickers")
-
-
-def download_eps_current_year():
-    """Refreshes just epsCurrentYear (see IBApp.get_eps_current_year) for
-    every ticker already in screen_data.csv, merging it into that file and
-    re-deriving sorted_screen.csv's score/rating from the result -- via
-    `python main.py epscurrentyear`. Same "backfill one factor without
-    redoing the whole pipeline" role download_eps_volatility plays for
-    that field; exists specifically for backfilling this newly-added
-    column into tickers already in screen_data.csv from before it existed
-    (modules/simulations.py's anchorEps now blends it into the fallback
-    chain when no industry-median-PE anchor is available). Tickers not
-    already in screen_data.csv are left alone, same as
-    download_eps_volatility."""
-    app = IBApp()
-    data = load_pe_data(OUTPUT_CSV)
-    print(f"Loaded {len(data)} tickers from {OUTPUT_CSV}")
-    eps_current_year = app.get_eps_current_year(list(data.keys()))
-    updated = 0
-    for ticker, value in eps_current_year.items():
-        if ticker in data and value is not None:
-            data[ticker]["epsCurrentYear"] = value
-            updated += 1
-    write_full_csv(data)
-    write_sorted_screen_csv(data)
-    print(f"Updated epsCurrentYear for {updated}/{len(data)} tickers")
-
-
-def download_revenue_growth():
-    """Refreshes just revenueGrowth (see IBApp.get_revenue_per_share_growth)
-    for every ticker already in screen_data.csv, dilution-adjusting it in
-    place, merging into that file and re-deriving sorted_screen.csv's
-    score/rating from the result -- via `python main.py revgrowth`. Same
-    "backfill one factor without redoing the whole pipeline" role
-    download_eps_volatility plays for that field; exists specifically for
-    the ~2340 tickers already in screen_data.csv from before this
-    adjustment existed, whose revenueGrowth is still Yahoo's raw,
-    dilution-blind ratio until backfilled. Tickers not already in
-    screen_data.csv are left alone, same as download_eps_volatility."""
-    app = IBApp()
-    data = load_pe_data(OUTPUT_CSV)
-    print(f"Loaded {len(data)} tickers from {OUTPUT_CSV}")
-    revenue_growth = app.get_revenue_per_share_growth(list(data.keys()))
-    updated = 0
-    for ticker, value in revenue_growth.items():
-        # Unlike epsVolatility (usually already None going in),
-        # revenueGrowth already holds a real -- if unadjusted -- value for
-        # most tickers here; only overwrite it on an actual result, so a
-        # transient per-ticker fetch failure (value is None) leaves the
-        # existing reading in place instead of blanking it out.
-        if ticker in data and value is not None:
-            data[ticker]["revenueGrowth"] = value
-            updated += 1
-    write_full_csv(data)
-    write_sorted_screen_csv(data)
-    print(f"Updated revenueGrowth for {updated}/{len(data)} tickers")
-
-
-def download_gross_margins():
-    """Refreshes just grossMargins (scoring.margin_rank's third component)
-    for every ticker already in screen_data.csv -- via `python main.py
-    grossmargin`. Same "backfill one factor without redoing the whole
-    pipeline" role download_eps_volatility/download_revenue_growth
-    already play for theirs. Kept fully separate from
-    download_insider_ownership below -- distinct factors, distinct
-    commands. Tickers not already in screen_data.csv are left alone, same
-    as the others."""
-    app = IBApp()
-    data = load_pe_data(OUTPUT_CSV)
-    print(f"Loaded {len(data)} tickers from {OUTPUT_CSV}")
-    gross_margins = app.get_gross_margins(list(data.keys()))
-    updated = 0
-    for ticker, value in gross_margins.items():
-        if ticker in data and value is not None:
-            data[ticker]["grossMargins"] = value
-            updated += 1
-    write_full_csv(data)
-    write_sorted_screen_csv(data)
-    print(f"Updated grossMargins for {updated}/{len(data)} tickers")
-
-
-def download_insider_ownership():
-    """Refreshes just heldPercentInsiders (scoring.insiders_rank's
-    ownership component) for every ticker already in screen_data.csv --
-    via `python main.py insiderown`. Same "backfill one factor without
-    redoing the whole pipeline" role download_eps_volatility/
-    download_revenue_growth already play for theirs. Kept fully separate
-    from download_gross_margins above -- distinct factors, distinct
-    commands. Tickers not already in screen_data.csv are left alone, same
-    as the others."""
-    app = IBApp()
-    data = load_pe_data(OUTPUT_CSV)
-    print(f"Loaded {len(data)} tickers from {OUTPUT_CSV}")
-    ownership = app.get_insider_ownership(list(data.keys()))
-    updated = 0
-    for ticker, value in ownership.items():
-        if ticker in data and value is not None:
-            data[ticker]["heldPercentInsiders"] = value
-            updated += 1
-    write_full_csv(data)
-    write_sorted_screen_csv(data)
-    print(f"Updated heldPercentInsiders for {updated}/{len(data)} tickers")
-
-
 FRESH_HOURS = 8
 
 
@@ -1483,6 +1325,124 @@ def write_raw_data(raw_info):
     with open(RAW_DATA_FILE, "w") as f:
         json.dump(raw_info, f, indent=2, default=str)
     print(f"Wrote {RAW_DATA_FILE}")
+
+
+def write_raw_statements(raw_stmts):
+    """Writes the raw serialised yfinance statement DataFrames per ticker
+    (see RAW_STATEMENTS_FILE). Provider output only -- every derived value
+    comes off this in recalc() via modules.derive."""
+    with open(RAW_STATEMENTS_FILE, "w") as f:
+        json.dump(raw_stmts, f, default=str)
+    print(f"Wrote {RAW_STATEMENTS_FILE} ({sum(1 for v in raw_stmts.values() if v)} tickers with data)")
+
+
+def build_screen_rows():
+    """The screen_data.csv row dict for every active ticker that has a raw
+    yfinance .info dump -- built purely from RAW_DATA_FILE +
+    RAW_STATEMENTS_FILE via modules.derive.build_screen_row. No network.
+    This is what IBApp.get_forward_pe used to assemble inline during the
+    fetch. symbols.json sector overrides are layered on by the caller."""
+    raw_info = _load_json_or_empty(RAW_DATA_FILE)
+    raw_stmts = _load_json_or_empty(RAW_STATEMENTS_FILE)
+    active = set(load_tickers(SYMBOLS_FILE))
+    data = {}
+    for ticker, info in raw_info.items():
+        if ticker not in active or not isinstance(info, dict) or info.get("error"):
+            continue
+        data[ticker] = derive.build_screen_row(info, raw_stmts.get(ticker))
+    return data
+
+
+# yfinance statement DataFrames (4 calls/ticker) change quarterly, not
+# hourly, and throttle far harder than .info -- so their freshness is
+# tracked independently (a longer TTL, against RAW_STATEMENTS_FILE's own
+# per-entry _fetchedAt) and they're fetched in chunks that each merge +
+# flush, so a killed/throttled run keeps everything gathered so far.
+STATEMENTS_FRESH_HOURS = 72
+STATEMENTS_CHUNK = 80
+
+
+def download(tickers=None):
+    """Provider fetch only -- no derived output, no screen_data.csv. Merges
+    the raw yfinance `.info` payload into RAW_DATA_FILE and the raw
+    statement DataFrames into RAW_STATEMENTS_FILE. `tickers` defaults to
+    the whole active universe; an explicit list forces a refetch, otherwise
+    a ticker fresh within FRESH_HOURS (.info) / STATEMENTS_FRESH_HOURS
+    (statements) is skipped. Run via `python main.py download`; `python
+    main.py all` runs this then recalc(). SEC / FINRA / IB-bar / sentiment
+    fetches stay their own separate commands."""
+    app = IBApp()
+    explicit = bool(tickers)
+    universe = sorted({t.strip().upper() for t in tickers}) if explicit else load_tickers(SYMBOLS_FILE)
+    print(f"download: {len(universe)} tickers")
+
+    # --- yfinance .info ---
+    raw_info = _load_json_or_empty(RAW_DATA_FILE)
+    info_stale = universe if explicit else [
+        t for t in universe if not is_fresh((raw_info.get(t) or {}).get("lastDownload"))
+    ]
+    if info_stale:
+        fetched = app.get_yf_info(info_stale, usa_only=True, country_overrides=COUNTRY_OVERRIDE_TICKERS)
+        raw_info.update(fetched)
+        write_raw_data(raw_info)
+    print(f"  info: {len(info_stale)} stale, {len(universe) - len(info_stale)} fresh")
+
+    # --- yfinance statements (independent freshness, chunked + merged) ---
+    raw_stmts = _load_json_or_empty(RAW_STATEMENTS_FILE)
+    us = [
+        t for t in universe
+        if isinstance(raw_info.get(t), dict) and not raw_info[t].get("error")
+        and (raw_info[t].get("country") == "United States" or t in (COUNTRY_OVERRIDE_TICKERS or ()))
+    ]
+    stmt_stale = us if explicit else [
+        t for t in us if not is_fresh((raw_stmts.get(t) or {}).get("_fetchedAt"), STATEMENTS_FRESH_HOURS)
+    ]
+    print(f"  statements: {len(stmt_stale)} to fetch (of {len(us)} US-domiciled)")
+    now = datetime.now().isoformat(timespec="seconds")
+    for i in range(0, len(stmt_stale), STATEMENTS_CHUNK):
+        chunk = stmt_stale[i:i + STATEMENTS_CHUNK]
+        got = app.get_yf_statements(chunk, max_workers=2)
+        for ticker, entry in got.items():
+            if entry:  # empty {} = all 4 calls threw; keep any prior entry
+                entry["_fetchedAt"] = now
+                raw_stmts[ticker] = entry
+        write_raw_statements(raw_stmts)
+        with_data = sum(1 for v in raw_stmts.values() if v.get("incomeStmt") or v.get("quarterlyIncomeStmt"))
+        print(f"    [{min(i + STATEMENTS_CHUNK, len(stmt_stale))}/{len(stmt_stale)}] {with_data} tickers with statement data")
+
+
+def recalc(fresh_momentum=False):
+    """Rebuilds every derived artifact from the raw provider dumps on disk.
+    screen_data.csv (from RAW_DATA_FILE + RAW_STATEMENTS_FILE via
+    modules.derive), momentum, the revenueGrowth reconcile against
+    company_facts.json, then sorted_screen.csv + simulations + target
+    portfolio + backtest. Run via `python main.py recalc` (alias
+    `rescore`); `all` runs download() then this.
+
+    fresh_momentum=True (used by `all` / `prices`) does the one yfinance
+    call recalc otherwise avoids -- the trailing ~1mo daily closes that
+    add_momentum_and_persist_history needs for tickers with no IB bars,
+    persisted to price_history.json. The default reads only cached bars,
+    so `recalc` on its own makes ZERO network calls."""
+    app = IBApp()
+    data = build_screen_rows()
+    print(f"recalc: built {len(data)} screen rows from raw dumps")
+    apply_sector_overrides(data, load_sectors(SYMBOLS_FILE))
+    if fresh_momentum:
+        add_momentum_and_persist_history(app, data)
+    else:
+        add_momentum_from_cache(app, data)
+    _xbrl = _load_json_or_empty(XBRL_FACTS_FILE)
+    derive.reconcile_revenue_growth(data, _xbrl)
+    derive.reconcile_earnings_growth(data, _xbrl)
+    add_target_upside(data)
+    add_avg_liquidity_ratio(data)
+    write_full_csv(data)
+    download_simulations()
+    write_sorted_screen_csv(data)
+    download_target_portfolio()
+    download_backtest()
+    print(f"recalc: wrote {SORTED_SCREEN_CSV} (and downstream).")
 
 
 def write_price_history(history):
@@ -1720,58 +1680,29 @@ def download_all(overwrite=False):
     Tickers downloaded within the last FRESH_HOURS hours are skipped and
     their previous screen_data.csv row is reused as-is, rather than
     re-fetched."""
-    app = IBApp()
     tickers = load_tickers(SYMBOLS_FILE)
     print(f"Loaded {len(tickers)} active tickers from {SYMBOLS_FILE}")
 
     ib_bar_thread = threading.Thread(target=_run_ib_bar_refresh_in_background, args=(tickers, overwrite), daemon=True)
     ib_bar_thread.start()
 
-    try:
-        previous = load_pe_data(OUTPUT_CSV)
-    except FileNotFoundError:
-        previous = {}
-    stale = [t for t in tickers if not is_fresh(previous.get(t, {}).get("lastDownload"))]
-    fresh = len(tickers) - len(stale)
-    if fresh:
-        print(f"Skipping {fresh} tickers downloaded within the last {FRESH_HOURS}h")
+    # 1. fetch raw provider data (yfinance .info + statements)
+    download()
 
-    raw_info = {}
-    fetched = app.get_forward_pe(stale, usa_only=True, raw_out=raw_info, country_overrides=COUNTRY_OVERRIDE_TICKERS)
-    print(f"{len(fetched)} are USA-domiciled with Yahoo Finance data")
-
-    data = {t: previous[t] for t in tickers if t not in stale and t in previous}
-    data.update(fetched)
-    fill_missing_from_previous(data, tickers, previous)
-
-    try:
-        with open(RAW_DATA_FILE) as f:
-            all_raw = json.load(f)
-    except FileNotFoundError:
-        all_raw = {}
-    all_raw.update(raw_info)
-    write_raw_data(all_raw)
-
-    # Scoped to the ranking as it stood before this run (sorted_screen.csv
-    # isn't rewritten with fresh scores until below) — see load_rated_tickers.
+    # Social sentiment, scoped to the ranking as it stood before this run
+    # (sorted_screen.csv isn't rewritten with fresh scores until recalc).
     rated_tickers = load_rated_tickers(SORTED_SCREEN_CSV, RATED_FOR_EXTRAS)
     if rated_tickers:
         fetch_social_sentiment(rated_tickers)
     else:
         print(f"No existing {SORTED_SCREEN_CSV} yet; skipping social sentiment download")
 
-    apply_sector_overrides(data, load_sectors(SYMBOLS_FILE))
     print("Waiting for background IB daily/hourly bar refresh to finish before scoring momentum...")
     ib_bar_thread.join()
-    add_momentum_and_persist_history(app, data)
-    add_target_upside(data)
-    add_avg_liquidity_ratio(data)
-    write_full_csv(data)
-    download_simulations()
-    write_sorted_screen_csv(data)
-    download_target_portfolio()
+
+    # 2. rebuild everything derived from the raw dumps
+    recalc(fresh_momentum=True)
     snapshot_screen_history()
-    download_backtest()
 
 
 def snapshot_screen_history():
@@ -1795,63 +1726,14 @@ def snapshot_screen_history():
 
 
 def download_prices():
-    """Reuse forward-PE data already in screen_data.csv; only refresh the
-    momentum score. IB Gateway's own daily bars (see
-    refresh_ib_daily_history) are a separate, on-demand step now --
-    `python main.py ibprices` -- not bundled in here, since IB Gateway
-    apparently won't accept a second simultaneous API connection while
-    ib_server.py is already holding one open (confirmed live: times
-    out regardless of clientId), so this needs to be something the user
-    chooses to run, typically with the live server stopped, rather than
-    something every routine `prices` call silently attempts and skips."""
-    app = IBApp()
-    data = load_pe_data(OUTPUT_CSV)
-    print(f"Loaded {len(data)} tickers from {OUTPUT_CSV}")
-
-    apply_sector_overrides(data, load_sectors(SYMBOLS_FILE))
-    add_momentum_and_persist_history(app, data)
-    add_target_upside(data)
-    add_avg_liquidity_ratio(data)
-    write_full_csv(data)
-    download_simulations()
-    write_sorted_screen_csv(data)
-    download_target_portfolio()
-
-
-def rescore():
-    """Rewrites sorted_screen.csv (and screen_data.csv, for the reapplied
-    sector overrides/derived fields) purely from files already on disk --
-    zero network calls, unlike download_prices (which hits yfinance once
-    per ticker) or download_all. This does include recomputing momentum/
-    meanReversion (see add_momentum_from_cache) from whatever IB Gateway's
-    own daily/hourly bars (DAILY_3MO_HISTORY_FILE/HOURLY_HISTORY_FILE) and
-    price_history.json (yfinance's cached closes, the fallback source)
-    currently have on disk -- e.g. right after `ibprices`/`ibhprices`
-    refreshed those bars, without needing a full `prices`/`all` fetch just
-    to see the new scores. Run `python main.py prices` (or `all`) instead
-    if the underlying files themselves are stale and need re-fetching.
-
-    Otherwise, for when only the scoring itself changed (a scoring.py
-    formula/weight edit, a manual data fix, a newly backfilled CSV
-    column) and every other field on disk is still perfectly good --
-    score_rows, add_target_upside, add_avg_liquidity_ratio, and
-    write_sorted_screen_csv are all pure computation over data already in
-    memory, so there's nothing here that needs a live fetch."""
-    data = load_pe_data(OUTPUT_CSV)
-    print(f"Loaded {len(data)} tickers from {OUTPUT_CSV}")
-
-    app = IBApp()
-    augment_forward_ebitda_inputs(data)
-    add_momentum_from_cache(app, data)
-    apply_sector_overrides(data, load_sectors(SYMBOLS_FILE))
-    add_target_upside(data)
-    add_avg_liquidity_ratio(data)
-    write_full_csv(data)
-    download_simulations()
-    write_sorted_screen_csv(data)
-    download_target_portfolio()
-    download_backtest()
-    print(f"Rescored and wrote {SORTED_SCREEN_CSV} (and {OUTPUT_CSV}) -- no network calls made.")
+    """`recalc(fresh_momentum=True)` -- rebuild everything from the raw
+    dumps on disk, with a fresh yfinance trailing-~1mo daily-close pull for
+    the momentum factor (the one thing plain `recalc` doesn't refetch). Does
+    NOT re-pull `.info` / statements -- run `python main.py download` (or
+    `all`) for that. IB Gateway's own daily bars stay a separate on-demand
+    step (`python main.py ibprices`), since IB Gateway won't accept a second
+    API connection while ib_server.py holds one open."""
+    recalc(fresh_momentum=True)
 
 
 def download_short_interest():
@@ -2013,38 +1895,15 @@ def run_chat(question):
 
 
 def download_symbols(symbols):
-    """Refetch forward-PE + price-performance data for specific tickers only
-    (e.g. ones that hit a transient Yahoo Finance error during a full run
-    and are silently missing from every output), merging the results into
-    the existing screen_data.csv/raw_data.json rather than refetching the
-    whole universe, then rewriting sorted_screen.csv."""
-    symbols = sorted({s.strip().upper() for s in symbols})
-    app = IBApp()
-
-    raw_info = {}
-    fetched = app.get_forward_pe(symbols, usa_only=True, raw_out=raw_info, country_overrides=COUNTRY_OVERRIDE_TICKERS)
-    print(f"Fetched {len(fetched)}/{len(symbols)} requested tickers")
-    missing = sorted(set(symbols) - set(fetched))
-    if missing:
-        print(f"No USA-domiciled Yahoo Finance data for: {missing}")
-
-    try:
-        with open(RAW_DATA_FILE) as f:
-            all_raw = json.load(f)
-    except FileNotFoundError:
-        all_raw = {}
-    all_raw.update(raw_info)
-    write_raw_data(all_raw)
-
-    apply_sector_overrides(fetched, load_sectors(SYMBOLS_FILE))
-    add_momentum_and_persist_history(app, fetched)
-    add_target_upside(fetched)
-    add_avg_liquidity_ratio(fetched)
-
-    data = load_pe_data(OUTPUT_CSV)
-    data.update(fetched)
-    write_full_csv(data)
-    write_sorted_screen_csv(data)
+    """Refetch raw yfinance data for specific tickers only (e.g. ones that
+    hit a transient error during a full run and are missing from every
+    output), then a full recalc. `download()` already merges into
+    RAW_DATA_FILE / RAW_STATEMENTS_FILE without a FRESH_HOURS skip for an
+    explicit ticker list, and recalc() rebuilds screen_data.csv +
+    everything downstream from all the raw dumps. Run via
+    `python main.py symbol TICKER [TICKER ...]`."""
+    download(symbols)
+    recalc(fresh_momentum=True)
 
 
 def download_simulations(tickers=None):
@@ -2146,10 +2005,12 @@ if __name__ == "__main__":
         # `all overwrite` bypasses IB_REFRESH_STATE_FILE's 3h cooldown --
         # see download_all's own overwrite param. The only command that can.
         download_all(overwrite=(len(sys.argv) > 2 and sys.argv[2] == "overwrite"))
+    elif mode == "download":
+        download(sys.argv[2:] if len(sys.argv) > 2 else None)
+    elif mode in ("recalc", "rescore"):
+        recalc()
     elif mode == "prices":
         download_prices()
-    elif mode == "rescore":
-        rescore()
     elif mode == "form4":
         download_form4()
     elif mode == "xbrl":
@@ -2164,16 +2025,6 @@ if __name__ == "__main__":
         download_ib_hourly_prices()
     elif mode == "yfprices":
         download_yfinance_prices()
-    elif mode == "epsvol":
-        download_eps_volatility()
-    elif mode == "epscurrentyear":
-        download_eps_current_year()
-    elif mode == "revgrowth":
-        download_revenue_growth()
-    elif mode == "grossmargin":
-        download_gross_margins()
-    elif mode == "insiderown":
-        download_insider_ownership()
     elif mode == "themes":
         download_themes(sys.argv[2:] if len(sys.argv) > 2 else None)
     elif mode == "recommendations":
@@ -2194,7 +2045,7 @@ if __name__ == "__main__":
         download_backtest()
     else:
         sys.exit(
-            f"Unknown mode {mode!r}, expected 'all', 'prices', 'rescore', 'form4', 'xbrl', '13f', 'shortinterest', "
-            "'ibprices', 'ibhprices', 'yfprices', 'epsvol', 'epscurrentyear', 'revgrowth', 'grossmargin', 'insiderown', 'themes', 'recommendations', 'chat', "
-            "'symbol', 'simulations', 'target', or 'backtest'"
+            f"Unknown mode {mode!r}, expected 'all', 'download', 'recalc' ('rescore'), 'prices', 'form4', "
+            "'xbrl', '13f', 'shortinterest', 'ibprices', 'ibhprices', 'yfprices', 'themes', "
+            "'recommendations', 'chat', 'symbol', 'simulations', 'target', or 'backtest'"
         )

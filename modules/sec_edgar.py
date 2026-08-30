@@ -138,6 +138,25 @@ XBRL_CONCEPTS = {
         "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest",
     ],
     "dilutedEPS": ["EarningsPerShareDiluted"],
+    # Weighted-average diluted share count -- an independent read on
+    # sharesOutstanding, which yfinance's summary field gets wrong for
+    # names with a recent split / ticker migration (confirmed live: it
+    # had Gold.com at ~29M vs a real ~1.7B). A loss-maker's diluted count
+    # collapses to basic (anti-dilutive), so the basic and combined tags
+    # are in the fallback chain.
+    "dilutedShares": [
+        "WeightedAverageNumberOfDilutedSharesOutstanding",
+        "WeightedAverageNumberOfShareOutstandingBasicAndDiluted",
+        "WeightedAverageNumberOfSharesOutstandingBasic",
+    ],
+}
+# Non-USD XBRL units, keyed by the XBRL_CONCEPTS metric name. EPS is filed
+# under "USD/shares", share counts under "shares"; everything else is
+# plain "USD". (fetch_xbrl_facts_for_ticker was previously hardcoded to
+# "USD", which silently produced ZERO dilutedEPS rows for every ticker.)
+XBRL_CONCEPT_UNITS = {
+    "dilutedEPS": "USD/shares",
+    "dilutedShares": "shares",
 }
 # totalAssets/stockholdersEquity are balance-sheet figures reported as of a
 # single instant (just `end`, no `start`); every other concept here is an
@@ -412,7 +431,8 @@ def fetch_form4(tickers, max_workers=MAX_WORKERS, lookback_days=FORM4_LOOKBACK_D
 # ---------------------------------------------------------------------- #
 def _annual_facts(concept_data, instant):
     """[{end, val, fy}, ...] oldest to newest, one entry per fiscal
-    year-end, from a single XBRL concept's 'USD' unit array (see
+    year-end, from a single XBRL concept's unit array (USD, or USD/shares
+    for EPS and shares for share counts -- see XBRL_CONCEPT_UNITS and
     fetch_xbrl_facts_for_ticker). Restricted to form=="10-K" (the annual
     report's own reported figures, not a 10-Q's quarterly one) -- duration
     concepts (instant=False) are further restricted to entries whose
@@ -444,6 +464,40 @@ def _annual_facts(concept_data, instant):
     )
 
 
+def _quarterly_facts(concept_data, annual, keep_last=20):
+    """[{end, val}, ...] oldest->newest of DISCRETE 3-month revenue, from a
+    concept's pooled duration points. 10-Q filings carry the 3-month figure
+    for Q1-Q3 directly (start..end span 80-100 days); Q4 is never in a
+    10-Q, so it's derived as the fiscal-year total (from `annual`, the
+    _annual_facts output) minus the three discrete quarters that end within
+    it. Dedup by end date, most-recently-filed wins. Used to rebuild a
+    trailing-quarter revenue-growth blend (see main._blend_quarterly)."""
+    by_end = {}
+    for point in concept_data:
+        val, end, start = point.get("val"), point.get("end"), point.get("start")
+        if val is None or not end or not start:
+            continue
+        span_days = (datetime.fromisoformat(end) - datetime.fromisoformat(start)).days
+        if not (80 < span_days < 100):
+            continue
+        existing = by_end.get(end)
+        if existing is None or point.get("filed", "") >= existing[1]:
+            by_end[end] = (val, point.get("filed", ""))
+    quarters = {end: v for end, (v, _) in by_end.items()}
+    for a in annual:
+        fy_end = a["end"]
+        if fy_end in quarters:
+            continue
+        fe = datetime.fromisoformat(fy_end)
+        preceding = sorted(
+            e for e in quarters if 0 < (fe - datetime.fromisoformat(e)).days < 320
+        )
+        if len(preceding) >= 3:
+            quarters[fy_end] = a["val"] - sum(quarters[e] for e in preceding[-3:])
+    ordered = sorted(({"end": e, "val": v} for e, v in quarters.items()), key=lambda x: x["end"])
+    return ordered[-keep_last:]
+
+
 def fetch_xbrl_facts_for_ticker(cik):
     """{metric: [{end, val, fy}, ...]} for every XBRL_CONCEPTS metric this
     issuer has annual (10-K) data for. Every fallback tag in a metric's
@@ -464,14 +518,19 @@ def fetch_xbrl_facts_for_ticker(cik):
     result = {}
     for metric, tags in XBRL_CONCEPTS.items():
         instant = metric in XBRL_INSTANT_CONCEPTS
+        unit = XBRL_CONCEPT_UNITS.get(metric, "USD")
         combined = []
         for tag in tags:
-            usd = usgaap.get(tag, {}).get("units", {}).get("USD")
-            if usd:
-                combined.extend(usd)
+            points = usgaap.get(tag, {}).get("units", {}).get(unit)
+            if points:
+                combined.extend(points)
         annual = _annual_facts(combined, instant)
         if annual:
             result[metric] = annual
+        if metric == "revenue":
+            quarterly = _quarterly_facts(combined, annual)
+            if quarterly:
+                result["revenueQuarterly"] = quarterly
     return result
 
 

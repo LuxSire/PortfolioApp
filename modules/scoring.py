@@ -593,18 +593,21 @@ def growth_rank(rows):
     can't claim the single best rank ahead of a company with a real,
     still-exceptional growth number -- see GROWTH_CAP's own comment.
 
-    revenueGrowth is dilution-adjusted at the source (see
-    IBApp._revenue_per_share_growth) so all-STOCK acquisitions don't count
-    as organic growth. The number ranked here is corroborated one step
-    further, against trailing earningsGrowth: when earnings grew slower
-    than revenue (or shrank), revenue growth is credited only up to
-    max(earningsGrowth, 0). That catches what the per-share adjustment
-    can't -- an all-CASH acquisition (DKS: +53% revenueGrowth / -26%
-    earningsGrowth from the Foot Locker deal, then -27% the next week), a
-    low-margin roll-up, or unprofitable top-line expansion. Missing
-    earningsGrowth (~28% of the universe) just means no corroboration cap.
-    The raw revenueGrowth is untouched everywhere else (row dict,
-    screen_data.csv, sorted_screen.csv, the screener UI)."""
+    revenueGrowth here is corroborated against trailing earningsGrowth:
+    when earnings grew slower than revenue (or shrank), revenue growth is
+    credited only up to max(earningsGrowth, 0). That catches inorganic /
+    low-quality top-line growth -- an all-cash acquisition (DKS: +53%
+    revenueGrowth / -26% earningsGrowth from the Foot Locker deal, then
+    -27% the next week), a low-margin roll-up, unprofitable expansion, or
+    an all-stock deal where issuance inflates the total-company figure.
+    Missing earningsGrowth just means no corroboration cap.
+
+    Both revenueGrowth and earningsGrowth are the RECONCILED figures by
+    the time they reach here (see modules.derive) -- a recency-weighted
+    trailing-quarter blend for revenue, a 0.5 Q + 0.5 filed-FY blend for
+    earnings, each with a Tier-A corruption override -- not Yahoo's raw
+    single-quarter ratios. The raw quarterly figures stay visible as
+    earningsGrowthQ / the R_ columns."""
     def key(d):
         value = to_float(d.get("revenueGrowth"))
         if value is None or value <= 0:
@@ -618,22 +621,24 @@ def growth_rank(rows):
 
 
 def earnings_growth_rank(rows):
-    """High trailing earningsGrowth (yfinance's YoY figure) ranks better,
-    shrinking earnings worse, on a smooth scale -- the value is clamped to
-    +/-GROWTH_CAP first so a near-zero-prior-year base-effect blowup (a
-    $0.01 -> $1.00 EPS reads as +9,900%, or the mirror on the way down)
-    can't claim the best or worst rank outright, then negated for
-    rank_ascending. A MISSING earningsGrowth (~29% of the universe --
-    Yahoo just doesn't supply it) is ranked NEUTRAL (missing=0.5), not
-    worst: data absence isn't a bearish signal, same reasoning peg_rank/
-    eps_volatility_rank use, and the same fail-open growth_rank already
-    applies to its own earningsGrowth cap. Its own factor alongside
-    growth_rank (revenue growth) -- top-line and bottom-line growth are
-    distinct signals, and growth_rank only uses earningsGrowth as a
-    one-way CAP on revenue growth, never as a reward in its own right."""
+    """Scores on earningsMarginDelta -- the year-over-year change in net
+    margin in per-share terms, (dilutedEPS_FYn - dilutedEPS_FYn-1) /
+    revenuePerShare (see modules.derive.earnings_margin_delta). Higher =
+    margin expanding = better. Chosen over a raw EPS growth RATE because a
+    rate blows up off a tiny/negative prior-year EPS (MU $0.70 -> $7.59 is
+    +984% but only +0.30 here; a loss -> profit swing is just a positive
+    difference, no artifact). Already clamped to +/-EARN_MARGIN_DELTA_CAP
+    at source. A MISSING value is ranked NEUTRAL (missing=0.5), not worst:
+    data absence isn't a bearish signal, same as peg_rank/
+    eps_volatility_rank.
+
+    Its own factor alongside growth_rank (revenue growth) -- top-line and
+    bottom-line trend are distinct signals. growth_rank separately uses
+    the reconciled earningsGrowth RATE as a one-way cap on revenue growth
+    (a different question -- did earnings keep pace), never as a reward."""
     def key(d):
-        value = to_float(d.get("earningsGrowth"))
-        return -max(-GROWTH_CAP, min(value, GROWTH_CAP)) if value is not None else None
+        value = to_float(d.get("earningsMarginDelta"))
+        return -value if value is not None else None
     return rank_ascending(rows, key, missing=0.5)
 
 

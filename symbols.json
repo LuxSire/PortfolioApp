@@ -10540,13 +10540,13 @@
     "sector": "Telecom Services"
   },
   {
-    "symbol": "GOLD",
+    "symbol": "B",
     "type": "STOCK",
     "currency": "USD",
     "market": "SMART",
     "country": "US",
     "active": 1,
-    "sector": "Capital Markets"
+    "sector": "Gold"
   },
   {
     "symbol": "GOLF",

@@ -638,7 +638,7 @@ REVERSION_EXPONENT_MIN = 0.2
 REVERSION_EXPONENT_MAX = 1.5
 
 
-METRIC_KEYS = ("forwardPE", "trailingPE", "epsTrend", "revenueGrowth", "earningsGrowth", "operatingMargin", "grossMargin", "analystDispersion")
+METRIC_KEYS = ("forwardPE", "trailingPE", "epsTrend", "revenueGrowth", "earningsGrowth", "earningsMarginDelta", "operatingMargin", "grossMargin", "analystDispersion")
 
 
 def _build_peer_pools(data):
@@ -705,6 +705,10 @@ def _build_peer_pools(data):
             # earningsGrowth caps its own (see simulate_ticker). Keeps its
             # sign, like revenueGrowth/operatingMargin.
             "earningsGrowth": to_float(d.get("earningsGrowth")),
+            # YoY net-margin change per share (modules.derive) -- the peer
+            # median is the industry target the per-year margin-trend
+            # overlay fades toward in simulate_ticker.
+            "earningsMarginDelta": to_float(d.get("earningsMarginDelta")),
             "operatingMargin": to_float(d.get("operatingMargins")),
             # Non-positive excluded like forwardPE: a real operating company
             # doesn't run a <=0% gross margin -- an exact 0.0 is Yahoo's
@@ -939,22 +943,13 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
     margin_adjusted_revenue_growth = revenue_growth * growth_margin if (
         revenue_growth is not None and growth_margin is not None and not margin_distorted
     ) else None
-    # Corroborate against trailing earningsGrowth, mirroring
-    # scoring.growth_rank: when actual bottom-line growth came in below the
-    # margin-adjusted top-line estimate, credit only up to
-    # max(earningsGrowth, 0). The revenue side stays margin-multiplied
-    # (revenueGrowth * growth_margin, above); the earnings side is taken
-    # raw -- it's already net of margins. Catches acquired / base-effect /
-    # unprofitable revenue the growth_margin scaling alone doesn't (DKS:
-    # +53% revenueGrowth, ~8% margin -> 4.2% here, capped to 0 by -26%
-    # earningsGrowth).
-    if (
-        margin_adjusted_revenue_growth is not None
-        and earnings_growth is not None
-        and earnings_growth < margin_adjusted_revenue_growth
-    ):
-        margin_adjusted_revenue_growth = min(margin_adjusted_revenue_growth, max(earnings_growth, 0.0))
-
+    # The old max(earningsGrowth, 0) cap on margin_adjusted_revenue_growth
+    # is gone -- it worked in growth-RATE space off a possibly tiny/negative
+    # prior-year EPS. The earnings-quality correction is now a per-year
+    # dollar overlay on the EPS path (own_delta_anchor / ind_delta_anchor,
+    # computed below) that fades own -> industry, so a name whose growth
+    # isn't reaching the bottom line gets a negative overlay instead of a
+    # rate cap.
     own_growth_rate = _combine_growth(eps_trend, margin_adjusted_revenue_growth)
 
     # Same exclusion as margin_adjusted_revenue_growth above --
@@ -1027,11 +1022,34 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
     else:
         anchor_eps = fwd_eps
 
+    # --- margin-trend EPS overlay ------------------------------------------
+    # earningsMarginDelta (modules.derive) = YoY change in net margin, as a
+    # fraction of revenue per share ((dilutedEPS_FYn - dilutedEPS_FYn-1) /
+    # revenuePerShare), clamped at source to +/-EARN_MARGIN_DELTA_CAP
+    # (modules.derive, currently 0.9). Scale it to a $/share figure on the
+    # EPS path's own basis by multiplying by anchor_eps -- ownDeltaAnchor is
+    # then bounded to +/-EARN_MARGIN_DELTA_CAP * anchor_eps and never
+    # depends on the ticker's own (possibly negative or
+    # near-zero) net margin. An earlier version divided by net_margin_now
+    # to reconstruct the ticker's "true" revenue per share; that was exact
+    # for a healthy positive-margin name but undefined for a loss-maker
+    # (net margin <= 0 floored to 0.03 -> a fixed ~33x amplifier), which
+    # blew up the overlay for essentially the whole Biotechnology sector.
+    # Applied as a per-year additive overlay in the EPS path below that
+    # fades own -> industry via the same concave weight w_t the growth rate
+    # uses: year 1 = this company's own margin trend, year N = the
+    # peer-median margin trend (industryMarginDelta).
+    own_margin_delta = to_float(row.get("earningsMarginDelta"))
+    ind_margin_delta, _, _ = _peer_median(ticker, industry, *peer_pools["earningsMarginDelta"])
+    own_delta_anchor = own_margin_delta * anchor_eps if own_margin_delta is not None else 0.0
+    ind_delta_anchor = ind_margin_delta * anchor_eps if ind_margin_delta is not None else 0.0
+
     # Concave reversion: w_t = sqrt((N-t)/N), own->industry over N steps.
     # Year 1 blends the schedule rate with g_fwd (analyst implied return),
     # Y1_SCHEDULE_WEIGHT on the schedule side.
     n_steps = EPS_PROJECTION_YEARS - 1
     eps_path = [anchor_eps]
+    growth_path = anchor_eps  # pure multiplicative growth, no overlay
     for t in range(1, EPS_PROJECTION_YEARS):
         w = math.sqrt((n_steps - t) / n_steps) if t < n_steps else 0.0
         g_t = w * own_growth_rate + (1.0 - w) * industry_growth_rate
@@ -1040,7 +1058,12 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
             g_fwd = max(GROWTH_FLOOR, min(GROWTH_CAP, g_fwd))
             g_t = Y1_SCHEDULE_WEIGHT * g_t + (1.0 - Y1_SCHEDULE_WEIGHT) * g_fwd
         g_t = max(GROWTH_FLOOR, min(GROWTH_CAP, g_t))
-        eps_path.append(eps_path[-1] * (1.0 + g_t))
+        growth_path = growth_path * (1.0 + g_t)
+        # Fading additive margin-trend overlay: NOT cumulative (a single
+        # term per year), bounded by own_delta_anchor, -> ind_delta_anchor
+        # by year N (w = 0).
+        md_t = w * own_delta_anchor + (1.0 - w) * ind_delta_anchor
+        eps_path.append(growth_path + md_t)
 
     # mu_eps averages the DISCOUNTED path, not the raw nominal one
     # (explicit instruction: discount everything at a 5% rate) --
@@ -1267,6 +1290,7 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
         p_draws = np.clip(0.5 + z * (peer_pe_cv * 0.5), REVERSION_EXPONENT_MIN, REVERSION_EXPONENT_MAX)
 
         eps_path_sim = np.full(n, anchor_eps)
+        growth_path_sim = np.full(n, anchor_eps)  # pure growth, no overlay
         discounted_sum_sim = eps_path_sim * discount_weights[0]
         weight_sum_sim = discount_weights[0]
         for t in range(1, EPS_PROJECTION_YEARS):
@@ -1288,7 +1312,12 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
                 # Same Y1_SCHEDULE_WEIGHT split as the deterministic path.
                 g_t_sim = Y1_SCHEDULE_WEIGHT * g_t_sim + (1.0 - Y1_SCHEDULE_WEIGHT) * g_fwd_draws
             g_t_sim = np.clip(g_t_sim, GROWTH_FLOOR, GROWTH_CAP)
-            eps_path_sim = eps_path_sim * (1.0 + g_t_sim)
+            growth_path_sim = growth_path_sim * (1.0 + g_t_sim)
+            # Same fading additive margin-trend overlay as the deterministic
+            # path; w_sim is the per-path concave weight so the overlay
+            # converges own -> industry alongside the growth rate.
+            md_t_sim = w_sim * own_delta_anchor + (1.0 - w_sim) * ind_delta_anchor
+            eps_path_sim = growth_path_sim + md_t_sim
             discounted_sum_sim = discounted_sum_sim + eps_path_sim * discount_weights[t]
             weight_sum_sim += discount_weights[t]
         mu_eps_sim = discounted_sum_sim / weight_sum_sim
@@ -1473,8 +1502,25 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
             "anchorEps": anchor_eps,
             "yearReturn": to_float(row.get("yearReturn")),
             "epsTrend": eps_trend,
+            # revenueGrowth / earningsGrowth here are the RECONCILED blends
+            # from screen_data.csv (see modules.derive) -- a recency-weighted
+            # trailing-quarter blend for revenue, 0.5 Q + 0.5 filed-FY for
+            # earnings, each with a Tier-A corruption override -- NOT
+            # yfinance's raw single-quarter ratios. *Source names which path
+            # produced it; earningsGrowthQ is the raw quarterly figure.
             "revenueGrowth": revenue_growth,
+            "revenueGrowthSource": row.get("revenueGrowthSource") or None,
             "earningsGrowth": earnings_growth,
+            "earningsGrowthSource": row.get("earningsGrowthSource") or None,
+            "earningsGrowthQ": to_float(row.get("earningsGrowthQ")),
+            # Margin-trend overlay: earningsMarginDelta (YoY net-margin
+            # change / share) put on anchorEps's basis; added per year in
+            # the EPS path, fading own -> industry. ownGrowthRate no longer
+            # carries an earningsGrowth-rate cap -- this replaces it.
+            "earningsMarginDelta": own_margin_delta,
+            "industryMarginDelta": ind_margin_delta,
+            "ownDeltaAnchor": own_delta_anchor,
+            "industryDeltaAnchor": ind_delta_anchor,
             "operatingMargin": operating_margin,
             "grossMargin": gross_margin,
             "growthMargin": growth_margin,
