@@ -72,6 +72,20 @@ export interface MonteCarloResult {
   // percentiles.
   forecastPriceP20?: number | null
   forecastPriceP80?: number | null
+  // Simulated-path price = p5/p95-winsorized MEAN of the Monte Carlo path
+  // distribution, scaled by the risk-premium multiple haircut (a more
+  // uncertain earnings stream priced at a lower multiple). simReturn =
+  // simPrice / currentPrice - 1. simPriceDistribution is that same haircut
+  // distribution's own percentile summary -- this is what AssetView's
+  // price-distribution card renders now (was forecastPrice/Return).
+  simPrice?: number | null
+  simReturn?: number | null
+  simPriceDistribution?: {
+    p20: number
+    median: number
+    p80: number
+    probAboveCurrentPrice: number
+  } | null
   priceAtIndustryMultiple?: {
     p20: number
     median: number

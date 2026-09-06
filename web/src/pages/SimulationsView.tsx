@@ -33,7 +33,7 @@ const COLUMNS: { key: keyof SimRow | 'position'; label: string; className?: stri
   { key: 'simPrice', label: 'SimPrice' },
   { key: 'simVol', label: 'Sim Vol' },
   { key: 'simSharpe', label: 'Sim Sharpe' },
-  { key: 'forecastReturn', label: 'Forecast Return' },
+  { key: 'simReturn', label: 'Sim Return' },
   { key: 'industryProbAbove', label: 'P(above)' },
   { key: 'ownPe', label: 'Own PE' },
   { key: 'industryPe', label: 'Industry Median PE' },
@@ -70,10 +70,10 @@ function probClass(v: number | null): string {
   return ''
 }
 
-// Positive forecastReturn (the confidence-weighted fair-value-vs-current
-// signal) is the page's core "attractive for a long" signal -- green/red
-// on sign alone, same as ScreenerView's own epsTrend/sentiment/etc.
-// perf-pos/perf-neg cells.
+// Positive simReturn (the risk-premium-haircut simulated-path
+// price-vs-current signal) is the page's core "attractive for a long"
+// signal -- green/red on sign alone, same as ScreenerView's own epsTrend/
+// sentiment/etc. perf-pos/perf-neg cells.
 function signClass(v: number | null): string {
   if (v === null || v === undefined) return ''
   return v >= 0 ? 'perf-pos' : 'perf-neg'
@@ -98,7 +98,7 @@ export default function SimulationsView() {
   const [search, setSearch] = useState('')
   const [selectedIndustries, setSelectedIndustries] = useState<Set<string>>(new Set())
   const [selectedGroups, setSelectedGroups] = useState<Set<string>>(new Set())
-  const [sortKey, setSortKey] = useState('forecastReturn')
+  const [sortKey, setSortKey] = useState('simReturn')
   const [sortDir, setSortDir] = useState(-1)
   const [page, setPage] = useState(0)
   const [positions, setPositions] = useState<PositionsByTicker>({})
@@ -143,6 +143,7 @@ export default function SimulationsView() {
         forecastPrice: r.forecastPrice ?? null,
         forecastReturn: r.forecastReturn ?? null,
         simPrice: r.simPrice ?? null,
+        simReturn: r.simReturn ?? null,
         simVol: r.simPriceDistribution?.stdev ?? null,
         simSharpe: r.simSharpe ?? null,
         muEps: r.inputs.muEps,
@@ -167,11 +168,13 @@ export default function SimulationsView() {
 
   // Fixed rank (best = 1) on the page's own "attractive for a long"
   // signal, independent of sort/filter -- same "doesn't move around"
-  // convention ScreenerView's own subranks use. Ranked on forecastReturn
-  // (forecastPrice vs. current price -- see modules/simulations.py's own
-  // docstring), the model's single confidence-weighted ranking signal.
+  // convention ScreenerView's own subranks use. Ranked on simReturn
+  // (simPrice vs. current price -- the risk-premium-haircut simulated-path
+  // price, see modules/simulations.py's own docstring), the model's
+  // headline ranking signal (also what scoring.forecast_return_rank now
+  // scores on).
   const diffPctRank = useMemo(
-    () => (rows ? rankDescending(rows, 'forecastReturn') : new Map<string, number>()),
+    () => (rows ? rankDescending(rows, 'simReturn') : new Map<string, number>()),
     [rows]
   )
 
@@ -397,8 +400,8 @@ export default function SimulationsView() {
                     </td>
                     <td className="num">{fmtPrice(r.simVol)}</td>
                     <td className={`num ${signClass(r.simSharpe)}`}>{fmtNum(r.simSharpe)}</td>
-                    <td className={`num ${signClass(r.forecastReturn)}`}>
-                      {fmtPct(r.forecastReturn)} <Subrank rank={diffPctRank.get(r.t)} />
+                    <td className={`num ${signClass(r.simReturn)}`}>
+                      {fmtPct(r.simReturn)} <Subrank rank={diffPctRank.get(r.t)} />
                     </td>
                     <td className={`num ${probClass(r.industryProbAbove)}`}>{fmtProb(r.industryProbAbove)}</td>
                     <td className="num">{fmtNum(r.ownPe)}</td>

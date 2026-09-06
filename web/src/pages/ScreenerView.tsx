@@ -283,7 +283,7 @@ const SCORE_FACTORS = [
   {
     label: 'Revenue growth',
     weight: 4,
-    note: 'high is better; negative ranked worst; credited only up to trailing earnings growth (marked * when capped)',
+    note: 'shows reported YoY growth; high is better, negative ranked worst; in scoring credited only up to trailing earnings growth (marked * when the credited value is lower)',
   },
   { label: 'Earnings growth', weight: 3, note: 'trailing YoY; high is better; zero/negative ranked worst' },
   { label: 'Debt / Equity vs. sector average', weight: 5, note: 'low relative to sector is better' },
@@ -297,7 +297,7 @@ const SCORE_FACTORS = [
   {
     label: 'News + social + institutional sentiment',
     weight: 5,
-    note: 'avg of StockTwits social sentiment + FinBERT-scored news sentiment (neutral news excluded) + institutional QoQ share-change (SEC 13F, clipped to ±50%); missing ranked worst',
+    note: 'avg of StockTwits social sentiment + FinBERT-scored news sentiment (neutral news excluded) + institutional QoQ share-change (SEC 13F, clipped to ±50%); missing ranked neutral',
   },
   {
     label: 'Insiders',
@@ -551,10 +551,11 @@ export default function ScreenerView() {
           const epsTrend = epsTrendParts.length
             ? epsTrendParts.reduce((a, b) => a + b, 0) / epsTrendParts.length
             : null
-          // Revenue growth shown as the value scoring.growth_rank actually
-          // credits: capped at trailing earningsGrowth when earnings lagged
-          // the top line (acquired / low-margin roll-up / unprofitable
-          // expansion). revgRaw keeps the reported figure for the tooltip.
+          // The cell shows revgRaw (the reported YoY figure). revg is the
+          // value scoring.growth_rank actually credits -- capped at trailing
+          // earningsGrowth when earnings lagged the top line (acquired /
+          // low-margin roll-up / unprofitable expansion) -- and still drives
+          // the subrank + the "*" marker/tooltip, just not the number shown.
           const revgRaw = toNum(r.revenueGrowth)
           const earnG = toNum(r.earningsGrowth)
           const revg =
@@ -1160,7 +1161,7 @@ export default function ScreenerView() {
               const insidersClass = r.insiders === null ? '' : r.insiders >= 0 ? 'perf-pos' : 'perf-neg'
               const upsideClass = r.upside === null ? '' : r.upside >= 0 ? 'perf-pos' : 'perf-neg'
               // Green only above 10% growth, red below 0%, neutral between.
-              const revgClass = inversePctThresholdClass(r.revg, 0, 10)
+              const revgClass = inversePctThresholdClass(r.revgRaw, 0, 10)
               const earnGClass = inversePctThresholdClass(r.earnG, 0, 10)
               const revgAdjusted = r.revgRaw !== null && r.revg !== null && r.revg !== r.revgRaw
               // Same thresholds as the asset page: PEG < 1 cheap relative to
@@ -1305,13 +1306,13 @@ export default function ScreenerView() {
                     className={`num ${revgClass}`}
                     title={
                       revgAdjusted
-                        ? `Reported ${fmtPct(r.revgRaw)}, credited as ${fmtPct(r.revg)} — capped at earnings growth ${fmtPct(
+                        ? `Reported ${fmtPct(r.revgRaw)} — credited as ${fmtPct(r.revg)} in scoring, capped at trailing earnings growth ${fmtPct(
                             r.earnG,
-                          )} (top line not reaching the bottom line)`
+                          )} (top line not reaching the bottom line); the * subrank reflects the credited value`
                         : undefined
                     }
                   >
-                    {fmtPct(r.revg)}
+                    {fmtPct(r.revgRaw)}
                     {revgAdjusted ? '*' : ''} <Subrank rank={r.revgRank} />
                   </td>
                   <td className={`num ${earnGClass}`}>{fmtPct(r.earnG)} <Subrank rank={r.earnGRank} /></td>

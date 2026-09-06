@@ -20,15 +20,13 @@ function fmtProb(v: number): string {
 export interface SimPriceRangeChartProps {
   title?: string
   currentPrice: number
-  forecastPrice?: number | null
-  forecastReturn?: number | null
-  // p20/median/p80 are all the CONFIDENCE-WEIGHTED fair-value figures
-  // (modules/simulations.py's forecastPriceP20/P80) -- the SAME transform
-  // behind forecastPrice, applied to priceAtIndustryMultiple's own
-  // p20/p80 instead of its median, NOT the raw (much wider, unadjusted)
-  // priceAtIndustryMultiple percentiles. p20/p80 double as this card's
-  // bear/bull case (the lognormal's fat p95 tail is deliberately not
-  // reported).
+  simPrice?: number | null
+  simReturn?: number | null
+  // p20/median/p80 are the simulated-path price distribution's own
+  // percentiles (modules/simulations.py's simPriceDistribution), scaled by
+  // the same risk-premium multiple haircut as simPrice -- so the band
+  // matches the headline number. p20/p80 double as this card's bear/bull
+  // case (the lognormal's fat p95 tail is deliberately not reported).
   p20: number
   median: number
   p80: number
@@ -38,11 +36,10 @@ export interface SimPriceRangeChartProps {
   analystHigh?: number | null
 }
 
-// One-row floating bar spanning the confidence-weighted fair-value
-// P20-P80 band (see modules/simulations.py's forecastPriceP20/P80 -- NOT
-// the raw simulated distribution's own, much wider, unadjusted band), with
-// vertical reference lines marking today's price and the model's
-// forecastPrice -- the actual raw draws never leave the backend (only
+// One-row floating bar spanning the simulated-path P20-P80 band (see
+// modules/simulations.py's simPriceDistribution, risk-premium-haircut
+// scaled), with vertical reference lines marking today's price and the
+// model's simPrice -- the actual raw draws never leave the backend (only
 // percentile summary stats do), so this deliberately shows the real
 // percentile points rather than reconstructing an approximate density
 // curve. The analyst low/mean/high target band (a separate, independent
@@ -51,8 +48,8 @@ export interface SimPriceRangeChartProps {
 export default function SimPriceRangeChart({
   title = 'Simulated Price Distribution',
   currentPrice,
-  forecastPrice,
-  forecastReturn,
+  simPrice,
+  simReturn,
   p20,
   median,
   p80,
@@ -61,30 +58,30 @@ export default function SimPriceRangeChart({
   analystMean,
   analystHigh,
 }: SimPriceRangeChartProps) {
-  const hasForecast = forecastPrice != null && forecastReturn != null
-  const hasReturn = forecastReturn != null
+  const hasSim = simPrice != null && simReturn != null
+  const hasReturn = simReturn != null
   const data = [{ name: 'range', range: [p20, p80] as [number, number] }]
   const domainMax =
-    Math.max(p80, currentPrice, hasForecast ? forecastPrice : 0, analystHigh ?? 0) * 1.08
+    Math.max(p80, currentPrice, hasSim ? simPrice : 0, analystHigh ?? 0) * 1.08
 
   return (
     <div className="asset-card">
       <h2>{title}</h2>
       <div className="stat-row">
-        {hasForecast ? (
+        {hasSim ? (
           <>
             <div className="stat">
-              <span className="n num">{fmtPrice(forecastPrice)}</span>
-              <span className="l">Forecast price</span>
+              <span className="n num">{fmtPrice(simPrice)}</span>
+              <span className="l">SimPrice</span>
             </div>
             <div className="stat">
-              <span className={`n num ${forecastReturn >= 0 ? 'good' : 'bad'}`}>{fmtPct(forecastReturn)}</span>
-              <span className="l">Forecast return</span>
+              <span className={`n num ${simReturn >= 0 ? 'good' : 'bad'}`}>{fmtPct(simReturn)}</span>
+              <span className="l">Sim return</span>
             </div>
           </>
         ) : hasReturn ? (
           <div className="stat">
-            <span className={`n num ${forecastReturn >= 0 ? 'good' : 'bad'}`}>{fmtPct(forecastReturn)}</span>
+            <span className={`n num ${simReturn >= 0 ? 'good' : 'bad'}`}>{fmtPct(simReturn)}</span>
             <span className="l">Median return</span>
           </div>
         ) : (
@@ -146,15 +143,15 @@ export default function SimPriceRangeChart({
               strokeWidth={2}
               label={{ value: 'Current', position: 'insideBottom', fill: 'var(--ink)', fontSize: 10, fontFamily: CHART_FONT }}
             />
-            {hasForecast && (
+            {hasSim && (
               <ReferenceLine
-                x={forecastPrice}
-                stroke={forecastReturn >= 0 ? 'var(--good)' : 'var(--bad)'}
+                x={simPrice}
+                stroke={simReturn >= 0 ? 'var(--good)' : 'var(--bad)'}
                 strokeWidth={2}
                 label={{
-                  value: 'Forecast',
+                  value: 'SimPrice',
                   position: 'top',
-                  fill: forecastReturn >= 0 ? 'var(--good)' : 'var(--bad)',
+                  fill: simReturn >= 0 ? 'var(--good)' : 'var(--bad)',
                   fontSize: 10,
                   fontFamily: CHART_FONT,
                 }}

@@ -1,5 +1,14 @@
-import { useEffect, useMemo, useState } from 'react'
-import { GROUPS, GROUP_LABEL, type Backtest, type GroupKey } from '../interfaces/IBacktestingView'
+import { Fragment, useEffect, useMemo, useState } from 'react'
+import {
+  GATE_REASON_LABEL,
+  GROUPS,
+  GROUP_LABEL,
+  type Backtest,
+  type BacktestModel,
+  type BacktestWeek,
+  type GateReason,
+  type GroupKey,
+} from '../interfaces/IBacktestingView'
 
 function fmtPct(v: number | null | undefined): string {
   if (v === null || v === undefined) return '—'
@@ -39,6 +48,17 @@ export default function BacktestingView() {
   const [data, setData] = useState<Backtest | null>(null)
   const [error, setError] = useState(false)
   const [groupFilter, setGroupFilter] = useState<GroupKey | 'all'>('all')
+  // 'actual' = the rating each snapshot actually shipped with that week
+  // (whatever scoring.py was live then). 'current' = the SAME week's
+  // factor columns re-scored with TODAY's scoring.py (modules/backtest.py's
+  // _rescore_current_model) -- "what would the current model have called
+  // at the start of that week," not just "did the old picks survive the
+  // new gates." The two summary tables below (Recommendation groups, Why
+  // blocked) show both side by side unconditionally; this toggle only
+  // switches which one the per-ticker Candidates table (much wider
+  // per-week already) and the masthead's candidate count reflect.
+  const [modelView, setModelView] = useState<'actual' | 'current'>('actual')
+  const modelOf = (w: BacktestWeek): BacktestModel => (modelView === 'current' ? w.currentModel : w)
 
   useEffect(() => {
     fetch('/backtest.json')
@@ -51,12 +71,16 @@ export default function BacktestingView() {
 
   // ticker -> { rating & group from its most recent week, P&L per week }
   const tickerRows = useMemo(() => {
-    const map = new Map<string, { ticker: string; rating: string; group: GroupKey; byWeek: Record<string, number> }>()
+    const map = new Map<
+      string,
+      { ticker: string; rating: string; group: GroupKey; blockedBy: GateReason[]; byWeek: Record<string, number> }
+    >()
     for (const w of weeks) {
-      for (const t of w.tickers) {
-        const row = map.get(t.ticker) ?? { ticker: t.ticker, rating: t.rating, group: t.group, byWeek: {} }
+      for (const t of modelOf(w).tickers) {
+        const row = map.get(t.ticker) ?? { ticker: t.ticker, rating: t.rating, group: t.group, blockedBy: t.blockedBy, byWeek: {} }
         row.rating = t.rating
         row.group = t.group // weeks are oldest-first, so this ends on the latest
+        row.blockedBy = t.blockedBy
         row.byWeek[w.week] = t.return
         map.set(t.ticker, row)
       }
@@ -68,13 +92,28 @@ export default function BacktestingView() {
       const rb = latest ? (b.byWeek[latest] ?? -Infinity) : 0
       return rb - ra
     })
-  }, [weeks])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [weeks, modelView])
 
   const visibleRows = groupFilter === 'all' ? tickerRows : tickerRows.filter((r) => r.group === groupFilter)
 
-  const totalLatest = weeks.length
-    ? GROUPS.reduce((s, g) => s + (weeks[weeks.length - 1].groups[g]?.count ?? 0), 0)
-    : 0
+  // Every gate reason that fired at least once, for either side, in ANY
+  // week under EITHER model -- so a reason that only shows up in one
+  // week/model still gets its own row (with '—' where it didn't fire),
+  // rather than the row set changing between the Actual/Current columns.
+  const blockedReasons = useMemo(() => {
+    const long = new Set<GateReason>()
+    const short = new Set<GateReason>()
+    for (const w of weeks) {
+      for (const bb of [w.blockedBreakdown, w.currentModel.blockedBreakdown]) {
+        for (const r of Object.keys(bb.long ?? {})) long.add(r as GateReason)
+        for (const r of Object.keys(bb.short ?? {})) short.add(r as GateReason)
+      }
+    }
+    return { long: [...long], short: [...short] }
+  }, [weeks])
+
+  const totalLatest = weeks.length ? GROUPS.reduce((s, g) => s + (modelOf(weeks[weeks.length - 1]).groups[g]?.count ?? 0), 0) : 0
 
   return (
     <div className="positions-page dataset-page">
@@ -94,7 +133,7 @@ export default function BacktestingView() {
             </div>
             <div className="stat">
               <span className="n num">{totalLatest}</span>
-              <span className="l">candidates (latest)</span>
+              <span className="l">candidates (latest, {modelView === 'current' ? 'current model' : 'actual'})</span>
             </div>
           </div>
         )}
@@ -122,15 +161,33 @@ export default function BacktestingView() {
               <table>
                 <thead>
                   <tr>
-                    <th className="col-left">Group</th>
+                    <th className="col-left" rowSpan={2}>
+                      Group
+                    </th>
                     {weeks.map((w) => (
                       <th
                         key={w.week}
                         className="num"
+                        colSpan={2}
                         title={w.entryDate && w.exitDate ? `${w.entryDate} → ${w.exitDate}` : undefined}
                       >
                         {fmtWeek(w.week)}
                       </th>
+                    ))}
+                  </tr>
+                  <tr>
+                    {weeks.map((w) => (
+                      <Fragment key={w.week}>
+                        <th className="num" title="The rating this snapshot actually shipped with that week.">
+                          Actual
+                        </th>
+                        <th
+                          className="num"
+                          title="Same week's factor columns re-scored with TODAY's scoring.py and gates."
+                        >
+                          Current
+                        </th>
+                      </Fragment>
                     ))}
                   </tr>
                 </thead>
@@ -139,15 +196,17 @@ export default function BacktestingView() {
                     <tr key={g}>
                       <td className={`col-left ${GROUP_CLASS[g]}`}>{GROUP_LABEL[g]}</td>
                       {weeks.map((w) => {
-                        const s = w.groups[g]
+                        const a = w.groups[g]
+                        const c = w.currentModel.groups[g]
                         return (
-                          <td
-                            key={w.week}
-                            className={`num ${signClass(s?.return ?? null)}`}
-                            title={s?.count ? `${s.count} names` : undefined}
-                          >
-                            {fmtPct(s?.return ?? null)}
-                          </td>
+                          <Fragment key={w.week}>
+                            <td className={`num ${signClass(a?.return ?? null)}`} title={a?.count ? `${a.count} names` : undefined}>
+                              {fmtPct(a?.return ?? null)}
+                            </td>
+                            <td className={`num ${signClass(c?.return ?? null)}`} title={c?.count ? `${c.count} names` : undefined}>
+                              {fmtPct(c?.return ?? null)}
+                            </td>
+                          </Fragment>
                         )
                       })}
                     </tr>
@@ -156,15 +215,20 @@ export default function BacktestingView() {
                 <tfoot>
                   <tr>
                     <td className="col-left">Portfolio (Strong Buy + Strong Sell)</td>
-                    {weeks.map((w) => (
-                      <td
-                        key={w.week}
-                        className={`num ${signClass(w.portfolio?.return ?? null)}`}
-                        title={w.portfolio?.count ? `${w.portfolio.count} names` : undefined}
-                      >
-                        {fmtPct(w.portfolio?.return ?? null)}
-                      </td>
-                    ))}
+                    {weeks.map((w) => {
+                      const a = w.portfolio
+                      const c = w.currentModel.portfolio
+                      return (
+                        <Fragment key={w.week}>
+                          <td className={`num ${signClass(a?.return ?? null)}`} title={a?.count ? `${a.count} names` : undefined}>
+                            {fmtPct(a?.return ?? null)}
+                          </td>
+                          <td className={`num ${signClass(c?.return ?? null)}`} title={c?.count ? `${c.count} names` : undefined}>
+                            {fmtPct(c?.return ?? null)}
+                          </td>
+                        </Fragment>
+                      )
+                    })}
                   </tr>
                 </tfoot>
               </table>
@@ -172,15 +236,96 @@ export default function BacktestingView() {
             <p className="dataset-note">
               Equal-weight mean position P&amp;L: +stock return for Long groups, −stock return for Short groups, so
               positive always means the pick worked. n (hover a cell) = candidates with IB daily bars in the window.
-              "blocked" = failed a Recommendations entry gate (overbought / oversold momentum or mean-reversion, growth
-              threshold, crowded short, EPS-trend) — a working gate makes the blocked group worse than its un-blocked
-              counterpart. Portfolio = the gated Strong Buy long leg + gated Strong Sell short leg summed (dollar-neutral,
-              each leg equal-weight 100% gross).
+              "blocked" = failed a Recommendations entry gate (falling-knife/overbought or oversold/strong-uptrend
+              momentum, mean-reversion) — a working gate makes the blocked group worse than its un-blocked counterpart.
+              Portfolio = the gated Strong Buy long leg + gated Strong Sell short leg summed (dollar-neutral, each leg
+              equal-weight 100% gross). <strong>Actual</strong> = the rating each snapshot shipped with that week;{' '}
+              <strong>Current</strong> = that same week's factor columns re-scored with today's scoring.py and gates
+              (see modules/backtest.py's own _rescore_current_model for exactly what that can and can't reconstruct).
             </p>
           </section>
 
+          {(blockedReasons.long.length > 0 || blockedReasons.short.length > 0) && (
+            <section className="target-section">
+              <h2 className="section-heading">Why blocked — by gate reason</h2>
+              <p className="dataset-note">
+                Breaks each *_blocked group down by the SPECIFIC gate that fired, so an underperforming (or
+                outperforming) blocked group can be traced to one rule instead of "some unspecified mix." A row can
+                fail more than one gate at once, so counts here don't sum back to the Long/Short blocked group's own
+                count above.
+              </p>
+              {(['long', 'short'] as const).map((side) =>
+                blockedReasons[side].length > 0 ? (
+                  <div className="table-wrap" key={side}>
+                    <table>
+                      <thead>
+                        <tr>
+                          <th className="col-left" rowSpan={2}>
+                            {side === 'long' ? 'Long blocked' : 'Short blocked'} — reason
+                          </th>
+                          {weeks.map((w) => (
+                            <th key={w.week} className="num" colSpan={2}>
+                              {fmtWeek(w.week)}
+                            </th>
+                          ))}
+                        </tr>
+                        <tr>
+                          {weeks.map((w) => (
+                            <Fragment key={w.week}>
+                              <th className="num">Actual</th>
+                              <th className="num">Current</th>
+                            </Fragment>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {blockedReasons[side].map((reason) => (
+                          <tr key={reason}>
+                            <td className="col-left">{GATE_REASON_LABEL[reason]}</td>
+                            {weeks.map((w) => {
+                              const a = w.blockedBreakdown[side]?.[reason]
+                              const c = w.currentModel.blockedBreakdown[side]?.[reason]
+                              return (
+                                <Fragment key={w.week}>
+                                  <td className={`num ${signClass(a?.return ?? null)}`} title={a?.count ? `${a.count} names` : undefined}>
+                                    {fmtPct(a?.return ?? null)}
+                                  </td>
+                                  <td className={`num ${signClass(c?.return ?? null)}`} title={c?.count ? `${c.count} names` : undefined}>
+                                    {fmtPct(c?.return ?? null)}
+                                  </td>
+                                </Fragment>
+                              )
+                            })}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : null
+              )}
+            </section>
+          )}
+
           <section className="target-section">
             <h2 className="section-heading">Candidates — weekly P&amp;L</h2>
+            <div className="tab-bar">
+              <button
+                type="button"
+                className={`tab-btn${modelView === 'actual' ? ' active' : ''}`}
+                onClick={() => setModelView('actual')}
+                title="The rating this snapshot actually shipped with that week."
+              >
+                Actual
+              </button>
+              <button
+                type="button"
+                className={`tab-btn${modelView === 'current' ? ' active' : ''}`}
+                onClick={() => setModelView('current')}
+                title="Same week's factor columns re-scored with today's scoring.py and gates."
+              >
+                Current model
+              </button>
+            </div>
             <div className="tab-bar">
               {(['all', ...GROUPS] as const).map((g) => (
                 <button
@@ -199,6 +344,7 @@ export default function BacktestingView() {
                   <tr>
                     <th className="col-left">Ticker</th>
                     <th className="col-left">Group</th>
+                    <th className="col-left">Blocked by</th>
                     <th className="col-left">Rating</th>
                     {weeks.map((w) => (
                       <th key={w.week}>{fmtWeek(w.week)}</th>
@@ -219,6 +365,9 @@ export default function BacktestingView() {
                         </a>
                       </td>
                       <td className={`col-left ${GROUP_CLASS[r.group]}`}>{GROUP_LABEL[r.group]}</td>
+                      <td className="col-left">
+                        {r.blockedBy.length ? r.blockedBy.map((g) => GATE_REASON_LABEL[g]).join(', ') : '—'}
+                      </td>
                       <td className="col-left">{r.rating}</td>
                       {weeks.map((w) => {
                         const v = r.byWeek[w.week]

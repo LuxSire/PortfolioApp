@@ -1363,7 +1363,8 @@ class IBApp:
         return text
 
     def get_momentum(
-        self, tickers, max_workers=2, history_out=None, daily_3mo_by_ticker=None, hourly_by_ticker=None
+        self, tickers, max_workers=2, history_out=None, daily_3mo_by_ticker=None,
+        hourly_by_ticker=None, checkpoint=None, checkpoint_every=200
     ):
         """
         Returns {ticker: {"momentum": ..., "mean_reversion": ...}} -- two
@@ -1407,6 +1408,11 @@ class IBApp:
         universe, not just the ones missing IB data. If history_out is a
         dict, that fetch's daily close series is stored into it as
         {ticker: [{date, close}, ...]}.
+
+        checkpoint, if given, is called with a shallow copy of history_out
+        every `checkpoint_every` completed fetches -- so a long run that's
+        interrupted keeps the closes it already pulled and the next run can
+        skip them. No-op unless history_out is also a dict.
         """
         daily_3mo_by_ticker = daily_3mo_by_ticker or {}
         hourly_by_ticker = hourly_by_ticker or {}
@@ -1454,10 +1460,20 @@ class IBApp:
                     time.sleep(1.5)
 
         momentum = {}
+        do_checkpoint = checkpoint is not None and history_out is not None
+        total = len(tickers)
         with ThreadPoolExecutor(max_workers=max_workers) as ex:
             futures = {ex.submit(fetch, s): s for s in tickers}
-            for sym, result in (f.result() for f in as_completed(futures)):
+            for done, (sym, result) in enumerate(
+                (f.result() for f in as_completed(futures)), start=1
+            ):
                 momentum[sym] = result
+                if do_checkpoint and done % checkpoint_every == 0 and done < total:
+                    try:
+                        checkpoint(dict(history_out))
+                        print(f"  price-history checkpoint at {done}/{total}")
+                    except Exception as e:
+                        print(f"  price-history checkpoint failed: {e}")
 
         return momentum
 

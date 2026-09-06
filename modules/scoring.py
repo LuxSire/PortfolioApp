@@ -77,15 +77,17 @@ def rank_ascending(rows, value_fn, missing=1.0):
     rows where value_fn returns None get `missing` (default the worst
     rank, 1.0 -- the right default almost everywhere else in this file,
     where "no data" plausibly correlates with something real about the
-    company). mean_reversion_rank passes missing=0.5 (neutral) instead
-    -- see that function's own docstring for why "missing" means
-    something structurally different there: IB Gateway only ever fetches
-    hourly bars for ~40% of the universe (CANDLESTICK_TOP_N ranked/
-    RATED_FOR_EXTRAS/held), so most of a "missing" reading here is a
-    coverage-scope artifact, not a signal about the ticker. Confirmed
-    live with the worst-default: mean_reversion_rank's own average
-    percentile was 0.7-0.8 in EVERY sector group checked, none anywhere
-    near neutral -- not sector bias, a universal one."""
+    company). mean_reversion_rank, eps_trend_rank and sentiment_rank pass
+    missing=0.5 (neutral) instead -- for all three, "missing"
+    overwhelmingly means a thinly-covered small-cap (no hourly bars / no
+    analyst estimate-revision history / no news+social coverage), a
+    data-coverage artifact rather than a bearish signal about the ticker,
+    so scoring it worst systematically buried those names regardless of
+    fundamentals. Confirmed live for mean_reversion_rank under the
+    worst-default: its own average percentile was 0.7-0.8 in EVERY sector
+    group checked, none near neutral -- not sector bias, a universal one.
+    peg_rank/eps_volatility_rank/earnings_growth_rank pass missing=0.5 for
+    the same reason."""
     valid = [(symbol, value_fn(d)) for symbol, d in rows if value_fn(d) is not None]
     valid.sort(key=lambda item: item[1])
     n = len(valid)
@@ -201,9 +203,9 @@ def load_sentiment_scores(social_sentiment_file, news_sentiment_file, institutio
     never run), a ticker whose news was entirely neutral, or a ticker
     with no institutional-holdings match, just means that ticker falls
     back to whatever subset of sources it has, or (if none apply) an
-    empty map -- sentiment_rank already ranks a missing score worst, same
-    treatment as every other factor's missing data, so this never blocks
-    scoring. Takes all file paths as arguments (rather than importing
+    empty map -- sentiment_rank ranks a missing score NEUTRAL (0.5), so
+    this never blocks scoring and a thinly-covered name isn't buried for
+    the coverage gap. Takes all file paths as arguments (rather than importing
     them from main.py) so main.py can import from this module without a
     circular import back the other way. institutional_holdings_file
     defaults to None (skipped entirely, same as if it were missing) so
@@ -247,12 +249,21 @@ def load_sentiment_scores(social_sentiment_file, news_sentiment_file, institutio
 
 def sentiment_rank(rows, sentiment_scores):
     """High combined news+social sentiment (see load_sentiment_scores)
-    ranks better; missing ranked worst. rank_ascending's value_fn only
-    ever sees a row's own dict, not its symbol, so sentiment_scores (keyed
-    by symbol) is injected into a copy of each row's dict first rather
-    than looked up by symbol inside the key function."""
+    ranks better; missing ranked NEUTRAL (0.5), not worst. rank_ascending's
+    value_fn only ever sees a row's own dict, not its symbol, so
+    sentiment_scores (keyed by symbol) is injected into a copy of each
+    row's dict first rather than looked up by symbol inside the key
+    function. Missing = neutral (same reasoning as mean_reversion_rank/
+    eps_trend_rank): no news/social coverage overwhelmingly means a
+    thinly-followed small-cap, not a bearish signal -- ranking it worst
+    systematically buried those names under a heavy factor weight
+    regardless of fundamentals."""
     augmented = [(symbol, {**d, "_sentimentScore": sentiment_scores.get(symbol)}) for symbol, d in rows]
-    return rank_ascending(augmented, lambda d: -d["_sentimentScore"] if d.get("_sentimentScore") is not None else None)
+    return rank_ascending(
+        augmented,
+        lambda d: -d["_sentimentScore"] if d.get("_sentimentScore") is not None else None,
+        missing=0.5,
+    )
 
 
 # ---------------------------------------------------------------------- #
@@ -724,53 +735,46 @@ def mean_reversion_rank(rows):
 
 def eps_trend_rank(rows):
     """Average of high epsRevision0y and high epsRevision1y ranks;
-    missing ranked worst. Each is the consensus EPS estimate's 30-day
-    revision trend -- the capped (current estimate - the estimate 30 days
-    ago) / abs(30-days-ago estimate), for the current ("0y") and next
-    ("+1y") fiscal year respectively (see IBApp.get_forward_pe /
-    IBApp._eps_revision, from yfinance's get_eps_trend()). Positive means
-    analysts have been raising the estimate over the last month (a
-    bullish signal distinct from analyst_conviction_rank's point-in-time
-    target-price/recommendation snapshot -- this one's a trend), negative
-    means cuts. Averages the two periods' ranks, same "independently-
-    meaningful sub-metrics on incompatible scales" pattern as
-    margin_rank/liquidity_rank/short_interest_rank -- a ticker missing
-    just one period still gets dragged toward (not all the way to) worst
-    by that period's missing-ranked-worst contribution to the average,
-    the same partial penalty every other averaged-rank factor here
-    applies."""
-    rev_0y_ranks = rank_ascending(rows, neg_eps_revision("epsRevision0y"))
-    rev_1y_ranks = rank_ascending(rows, neg_eps_revision("epsRevision1y"))
+    missing ranked NEUTRAL (0.5), not worst. Each is the consensus EPS
+    estimate's 30-day revision trend -- the capped (current estimate -
+    the estimate 30 days ago) / abs(30-days-ago estimate), for the
+    current ("0y") and next ("+1y") fiscal year respectively (see
+    IBApp.get_forward_pe / IBApp._eps_revision, from yfinance's
+    get_eps_trend()). Positive means analysts have been raising the
+    estimate over the last month (a bullish signal distinct from
+    analyst_conviction_rank's point-in-time target-price/recommendation
+    snapshot -- this one's a trend), negative means cuts. Averages the
+    two periods' ranks, same "independently-meaningful sub-metrics on
+    incompatible scales" pattern as margin_rank/liquidity_rank/
+    short_interest_rank. Missing = neutral (same reasoning as
+    mean_reversion_rank): a thinly-covered small-cap with no
+    estimate-revision history isn't sending a bearish signal, it's a
+    coverage gap -- scoring it worst systematically penalised exactly
+    those names (e.g. small-cap shipping) regardless of fundamentals."""
+    rev_0y_ranks = rank_ascending(rows, neg_eps_revision("epsRevision0y"), missing=0.5)
+    rev_1y_ranks = rank_ascending(rows, neg_eps_revision("epsRevision1y"), missing=0.5)
     return {symbol: (rev_0y_ranks[symbol] + rev_1y_ranks[symbol]) / 2 for symbol, _ in rows}
 
 
 def forecast_return_rank(rows):
-    """Equal-weight blend of two predicted-return ranks from
+    """Ranks on simReturn = (simPrice / currentPrice) - 1 from
     modules/simulations.py's EPS-driven Monte Carlo (see that module's own
-    docstring) -- one from the forecast price, one from the simulated
-    price, so a name has to look attractive on BOTH the shrunk point
-    estimate and the raw distribution to rank well:
+    docstring). simPrice is the p5/p95-winsorized MEAN of the simulated-
+    path price distribution, scaled by the risk-premium multiple haircut
+    (a more uncertain earnings stream priced at a lower multiple). Higher
+    simReturn ranks better.
 
-      - high forecastReturn: (forecastPrice / currentPrice) - 1, the
-        confidence-discounted point estimate -- today's price shifted by
-        the discounted blended-multiple median move, then pulled back
-        toward current price by 1/(1+combinedVol).
-      - high simReturn: (simPrice / currentPrice) - 1, where simPrice is
-        the MEAN of the simulated-path price distribution -- the raw
-        earnings-path outcome, NOT confidence-shrunk.
+    Injected into each row dict by write_sorted_screen_csv (main.py) from
+    data/output/simulations.json before scoring. A ticker with no
+    simulations entry is ranked worst, same treatment as every other
+    factor's missing data.
 
-    Both are injected into each row dict by write_sorted_screen_csv
-    (main.py) from data/output/simulations.json before scoring; a
-    successful simulation carries both. Averaging the two ranks (not the
-    raw values -- forecastReturn is deliberately compressed toward 0,
-    simReturn is not) the same way margin_rank/analyst_conviction_rank
-    blend their own components. A ticker with no simulations entry at all
-    is ranked worst on both legs, same treatment as every other factor's
-    missing data. (simSharpe is still injected for reference but no longer
-    scored here.)"""
-    forecast_ranks = rank_ascending(rows, neg_perf("forecastReturn"))
-    sim_ranks = rank_ascending(rows, neg_perf("simReturn"))
-    return {symbol: (forecast_ranks[symbol] + sim_ranks[symbol]) / 2 for symbol, _ in rows}
+    forecastReturn was an equal-weight second leg until it was dropped:
+    its confidence shrink toward current price and the risk-premium
+    haircut on simPrice serve overlapping purposes, and simReturn is the
+    one that carries the uncertainty markdown. forecastReturn / simSharpe
+    are still injected for reference but no longer scored here."""
+    return rank_ascending(rows, neg_perf("simReturn"))
 
 
 # ---------------------------------------------------------------------- #
@@ -1303,7 +1307,7 @@ FACTOR_WEIGHTS = {
     "mean_reversion": ("Hourly-timeframe overbought/oversold (MFI)", 0.05, 0.05, 0.05, 0.05, 0.05),
     "eps_trend": ("EPS-estimate revision trend", 0.04, 0.12, 0.04, 0.07, 0.07),
     "analyst": ("Analyst conviction", 0.05, 0.05, 0.05, 0.05, 0.05),
-    "forecast_return": ("Simulations (forecast return + sim return)", 0.10, 0.10, 0.10, 0.10, 0.13),
+    "forecast_return": ("Simulations (sim return)", 0.10, 0.10, 0.10, 0.10, 0.13),
     "pe_vs_trailing": ("Forward P/E vs. Trailing P/E", 0.03, 0.03, 0.03, 0.03, 0.0),
     "peg": ("PEG ratio", 0.03, 0.08, 0.05, 0.05, 0.04),
     "trailing_ps": ("Trailing P/S", 0.02, 0.02, 0.02, 0.02, 0.02),

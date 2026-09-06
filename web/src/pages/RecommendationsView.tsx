@@ -3,6 +3,7 @@ import { AlertTriangle, Flag, Info, Search, ThumbsDown, ThumbsUp } from 'lucide-
 import { parseCSV } from '../csv'
 import { businessMillisBetween, fmtEarningsDate, useNowTick } from '../earnings'
 import { IB_STREAM_URL } from '../ibStream'
+import { useCashEquivalents } from '../nonEquityHoldings'
 import { fmtPct, fmtPrice, ratingClass } from '../screenerFactors'
 import { getSectorGroup, sectorGroupLabel } from '../sectorGroups'
 import RecommendationsChatbot from '../components/RecommendationsChatbot'
@@ -188,10 +189,9 @@ function CardFooter({ c, inTargetPortfolio }: { c: Candidate; inTargetPortfolio?
 // genuinely neutral (not just "small"). The polarity mirrors by side for
 // every factor here: a reading that's bullish for the stock is good news
 // for a Long and bad news for a Short, and vice versa -- same mirroring
-// RecommendationsView's own eligibleToBuy/eligibleToSell,
-// meanReversionOkForLong/OkForShort, and epsTrendOkForLong/OkForShort
-// gates already use, just turned into a per-line signal instead of a
-// pass/fail gate.
+// RecommendationsView's own eligibleToBuy/eligibleToSell and
+// meanReversionOkForLong/OkForShort gates already use, just turned into a
+// per-line signal instead of a pass/fail gate.
 type Signal = 'good' | 'bad' | null
 
 // A stable per-factor key, one per distinct rationale line rationaleLines
@@ -256,16 +256,15 @@ function sidedSignal(value: number, side: 'Long' | 'Short'): Signal {
   return null
 }
 
-// Same idea-list entry gate as momentum (sufficientGrowthForLong/
-// notTooMuchGrowthForShort below), same "show the reader the gate it
-// already cleared" reasoning as that comment -- explicit instruction:
-// added on top of the other rationale lines. revenueGrowth lives on
-// tickerScreener, not the recommendations.json candidate itself (see
-// sufficientGrowthForLong's own comment) -- the longs/shorts pool
-// builders copy it onto each RankedCandidate for exactly this line;
-// CloseRow already gets it from the same tickerScreener merge its own
-// close-reasons check uses. Plain sign, same as momentum/EPS trend --
-// positive growth good for a Long/bad for a Short, negative the mirror.
+// Informational rationale line only -- revenue growth no longer GATES the
+// idea lists (the sim-return gate, simReturnOkForLong/ForShort, replaced
+// it), but the reported figure is still shown as context on the card.
+// revenueGrowth lives on tickerScreener, not the recommendations.json
+// candidate itself -- the longs/shorts pool builders copy it onto each
+// RankedCandidate for exactly this line; CloseRow already gets it from the
+// same tickerScreener merge its own close-reasons check uses. Plain sign,
+// same as momentum/EPS trend -- positive growth good for a Long/bad for a
+// Short, negative the mirror.
 function revenueGrowthLine(c: Candidate, side: 'Long' | 'Short'): RationaleLine | null {
   if (c.revenueGrowth === null || c.revenueGrowth === undefined) return null
   return {
@@ -287,31 +286,52 @@ function revenueGrowthLine(c: Candidate, side: 'Long' | 'Short'): RationaleLine 
 // (MOMENTUM_OVERSOLD/MOMENTUM_OVERBOUGHT) rather than a plain sign check
 // -- there's no "positive/negative" on a 0-100 scale, only "is this an
 // actual overbought/oversold extreme."
+// The five MSI zones -- see MOMENTUM_OVERSOLD/NO_BUY/NO_SELL/OVERBOUGHT.
 function momentumZone(value: number): string {
-  if (value > MOMENTUM_OVERBOUGHT) return 'overbought'
-  if (value < MOMENTUM_OVERSOLD) return 'oversold'
+  if (value >= MOMENTUM_OVERBOUGHT) return 'overbought'
+  if (value >= MOMENTUM_NO_SELL) return 'strong uptrend'
+  if (value <= MOMENTUM_OVERSOLD) return 'oversold'
+  if (value <= MOMENTUM_NO_BUY) return 'falling knife'
   return 'neutral'
 }
 
-// Mean-reversion signal, not continuation -- see MOMENTUM_OVERSOLD/
-// MOMENTUM_OVERBOUGHT's own comment. Oversold favors a Long/disfavors a
-// Short, overbought the mirror; anything in between is neither extreme
-// and carries no signal at all (null), not a mild lean either way.
+// True when MSI blocks a trade on THIS side (see eligibleToBuy/Sell). The
+// two INNER bands are the no-go zones; the far extremes keep their old
+// mean-reversion meaning and block the OTHER side only:
+//   Long  blocked in the falling-knife band (OVERSOLD < m <= NO_BUY) or
+//         overbought (m >= OVERBOUGHT). A deep-oversold m <= OVERSOLD is
+//         the classic buy-the-dip -- NOT blocked.
+//   Short blocked in the strong-uptrend band (NO_SELL <= m < OVERBOUGHT)
+//         or oversold (m <= SHORT_OVERSOLD, a lower floor than the long
+//         side's OVERSOLD). A deep-overbought m >= OVERBOUGHT is
+//         short-the-top -- NOT blocked.
+function momentumBlocks(value: number, side: 'Long' | 'Short'): boolean {
+  return side === 'Long'
+    ? (value > MOMENTUM_OVERSOLD && value <= MOMENTUM_NO_BUY) || value >= MOMENTUM_OVERBOUGHT
+    : (value >= MOMENTUM_NO_SELL && value < MOMENTUM_OVERBOUGHT) || value <= MOMENTUM_SHORT_OVERSOLD
+}
+
+// For a Long: deep-oversold (bounce) and strong-uptrend (continuation) are
+// both GOOD; falling knife / blow-off are BAD; mid-range is neutral. Mirror
+// for a Short: deep-overbought (short the top) and the falling-knife band
+// (downtrend continuation) are GOOD. The falling-knife "good" is bounded
+// BELOW at MOMENTUM_OVERSOLD -- without that bound it reached into the
+// oversold-label zone, so a short at MSI 16-20 (allowed, since the short
+// block is at MOMENTUM_SHORT_OVERSOLD=15) showed a card reading "oversold"
+// with a thumb up. Now that sliver carries no signal: shortable, but MSI
+// isn't a point in the short's favor there. Symmetric with the Long
+// branch's own bounded continuation band (>= NO_SELL).
 function momentumSignal(value: number, side: 'Long' | 'Short'): Signal {
-  if (side === 'Long') {
-    if (value < MOMENTUM_OVERSOLD) return 'good'
-    if (value > MOMENTUM_OVERBOUGHT) return 'bad'
-    return null
-  }
-  if (value > MOMENTUM_OVERBOUGHT) return 'good'
-  if (value < MOMENTUM_OVERSOLD) return 'bad'
-  return null
+  if (momentumBlocks(value, side)) return 'bad'
+  if (side === 'Long') return value <= MOMENTUM_OVERSOLD || value >= MOMENTUM_NO_SELL ? 'good' : null
+  return value >= MOMENTUM_OVERBOUGHT || (value > MOMENTUM_OVERSOLD && value <= MOMENTUM_NO_BUY) ? 'good' : null
 }
 
 function momentumLine(c: Candidate, side: 'Long' | 'Short'): RationaleLine | null {
   if (c.momentum === null || c.momentum === undefined) return null
+  const suffix = momentumBlocks(c.momentum, side) ? ` — no ${side === 'Long' ? 'buy' : 'short'}` : ''
   return {
-    text: `MSI ${c.momentum.toFixed(0)} (${momentumZone(c.momentum)})`,
+    text: `MSI ${c.momentum.toFixed(0)} (${momentumZone(c.momentum)}${suffix})`,
     signal: momentumSignal(c.momentum, side),
     factor: 'momentum',
   }
@@ -352,10 +372,10 @@ function meanReversionLine(c: Candidate, side: 'Long' | 'Short'): RationaleLine 
   }
 }
 
-// Same "always shown, not just when the gate/reason fires" treatment as
-// meanReversionLine above -- explicit instruction, EPS revision trend
-// gates entry now too (see epsTrendOkForLong/epsTrendOkForShort), so a
-// reader should see the reading on every card. Reuses epsTrendValue
+// Same "always shown, not just when a gate/reason fires" treatment as
+// meanReversionLine above -- informational only now (the entry-side
+// EPS-trend gate was removed, see that removal's own comment), but the
+// reading is still worth showing on every card. Reuses epsTrendValue
 // (below) rather than a separate field -- see that function's own
 // comment for the epsRevision0y/1y averaging it does.
 function epsTrendLine(c: Candidate, side: 'Long' | 'Short'): RationaleLine | null {
@@ -368,16 +388,17 @@ function epsTrendLine(c: Candidate, side: 'Long' | 'Short'): RationaleLine | nul
   }
 }
 
-// effectiveShortPctOfFloat (defined below, alongside notCrowded) prefers
-// FINRA's fresher biweekly figure over yfinance's stale month-end one --
-// shown on every card with data, not just when it crosses MAX_SHORT_INTEREST,
-// since it's a contrarian scoring input either way (see short_interest_rank),
-// not only a risk flag on the Short side. Signal: explicit instruction --
-// more than MAX_SHORT_INTEREST of float already short is a GOOD sign for a
+// effectiveShortPctOfFloat (defined below) prefers FINRA's fresher
+// biweekly figure over yfinance's stale month-end one -- shown on every
+// card with data, not just when it crosses MAX_SHORT_INTEREST, since it's
+// a contrarian scoring input either way (see short_interest_rank), not
+// only a risk flag on the Short side. Signal: explicit instruction -- more
+// than MAX_SHORT_INTEREST of float already short is a GOOD sign for a
 // Long (squeeze potential, upside risk) and a BAD one for a Short (squeeze
-// risk against the position, the same crowded-short reasoning notCrowded's
-// own gate already uses) -- at or under that bar, short interest isn't a
-// discriminating signal either way, no icon.
+// risk against the position -- no longer an idea-list BLOCK, see
+// MAX_SHORT_INTEREST's own comment, but still real risk on an open
+// position) -- at or under that bar, short interest isn't a discriminating
+// signal either way, no icon.
 function shortInterestLine(c: Candidate, side: 'Long' | 'Short'): RationaleLine | null {
   const pct = effectiveShortPctOfFloat(c)
   if (pct === null || pct === undefined) return null
@@ -1210,17 +1231,32 @@ function RecommendationSection<T>({
 // opposite extreme -- oversold for a Long, overbought for a Short) are
 // still eligible; the thumb icon just won't show a strong opinion (or
 // will show a positive one) on them.
-const MOMENTUM_OVERSOLD = 30
-const MOMENTUM_OVERBOUGHT = 70
-// Explicit instruction: block, don't require -- a Long is only excluded
-// when MSI is overbought (chasing risk); anything else (neutral OR
-// oversold) is fine to recommend. Short is the mirror: only excluded
-// when oversold, neutral or overbought both fine.
+// Five MSI (daily MFI/RSI, 0-100) zones:
+//
+//   <= 15  SHORT-OVERSOLD  no SHORT (bounce risk)
+//   <= 20  OVERSOLD        LONG allowed -- buy the dip (20..35 below still blocks LONG)
+//   20..35 NO-BUY zone     no LONG  (falling knife -- moderate downtrend)
+//   35..65 neutral         both sides eligible
+//   65..80 NO-SELL zone    no SHORT (strong uptrend -- continuation / squeeze; the HP case)
+//   >= 80  OVERBOUGHT      no LONG  (blow-off); SHORT allowed -- short the top
+//
+// The two INNER bands are the new "don't fight the trend" no-go zones; the
+// far extremes keep the old mean-reversion meaning and block the OTHER
+// side only. The short no-short floor sits LOWER than the long buy-the-dip
+// line (15 vs 20) -- asymmetric on purpose, backtest zone analysis showed
+// MSI 15-20 names kept falling so they stay shortable. Keep in sync with
+// ib_server.py's _REC_MOMENTUM_* and portfolio_optimizer.py's MOMENTUM_*
+// by hand.
+const MOMENTUM_OVERSOLD = 20
+const MOMENTUM_SHORT_OVERSOLD = 15
+const MOMENTUM_NO_BUY = 35
+const MOMENTUM_NO_SELL = 65
+const MOMENTUM_OVERBOUGHT = 80
 function eligibleToBuy(c: Candidate): boolean {
-  return c.momentum !== null && c.momentum !== undefined && c.momentum <= MOMENTUM_OVERBOUGHT
+  return c.momentum !== null && c.momentum !== undefined && !momentumBlocks(c.momentum, 'Long')
 }
 function eligibleToSell(c: Candidate): boolean {
-  return c.momentum !== null && c.momentum !== undefined && c.momentum >= MOMENTUM_OVERSOLD
+  return c.momentum !== null && c.momentum !== undefined && !momentumBlocks(c.momentum, 'Short')
 }
 
 // FINRA's biweekly-settlement pct-of-float (shortPctOfFloatFinra) is
@@ -1233,20 +1269,13 @@ function effectiveShortPctOfFloat(c: Candidate): number | null | undefined {
   return c.shortPctOfFloatFinra ?? c.shortPercentOfFloat
 }
 
-// Short-only: a name already shorted by more than MAX_SHORT_INTEREST of its
-// float is a crowded short -- squeeze risk that makes it a worse short idea
-// regardless of how it scores otherwise. Explicit instruction: "any company
-// with more than 10% of short interest should be blocked and not presented
-// as a short opportunity" on the Short list -- originally 0.2, lowered to
-// 0.1 per that follow-up instruction. Unlike the momentum gate above (an
-// absolute "never" that treats unknown as disqualifying), this is a
-// risk-avoidance cap on a known-bad condition -- a candidate with no
-// short-interest data at all isn't assumed crowded, so it still passes.
+// MAX_SHORT_INTEREST is no longer an idea-list gate (removed: backtesting
+// showed the crowded-short block was consistently counterproductive --
+// every blocked-for-crowding name would have made a good short in both
+// measured weeks) -- kept only as the threshold the informational
+// short-interest rationale line (below) and buildCloseReasons' "short has
+// become crowded since entry" flag on an already-open position still use.
 const MAX_SHORT_INTEREST = 0.1
-function notCrowded(c: Candidate): boolean {
-  const pct = effectiveShortPctOfFloat(c)
-  return pct === null || pct === undefined || pct <= MAX_SHORT_INTEREST
-}
 
 // insiderOwnershipLine's own materiality bar -- explicit instruction: 5%.
 // Below this, ownership isn't treated as a real skin-in-the-game signal
@@ -1254,25 +1283,24 @@ function notCrowded(c: Candidate): boolean {
 // applies to the short-interest line above.
 const MIN_INSIDER_OWNERSHIP = 0.05
 
-// Revenue-growth gate on the idea lists themselves (separate from the To
-// close fundamentals check above, which flags a HELD position after the
-// fact) -- explicit instruction: never recommend shorting a name still
-// growing revenue faster than REVENUE_GROWTH_THRESHOLD (a real grower is a
-// bad short candidate regardless of how it scores), and never recommend a
-// long that isn't clearing that same bar (a low/no-growth name is a weak
-// long idea even at a great score). Same fail-open treatment as
-// notCrowded's shortPercentOfFloat above, not the momentum gate's
-// fail-closed one: a candidate with no revenueGrowth data isn't assumed to
-// violate either side, so it still passes. revenueGrowth lives on
-// tickerScreener (sorted_screen.csv covers the whole universe), not on the
-// recommendations.json candidate itself -- see the longs/shorts pools
-// below, which look it up by ticker rather than expecting it on `c`.
-const REVENUE_GROWTH_THRESHOLD = 0.1
-function sufficientGrowthForLong(revenueGrowth: number | null | undefined): boolean {
-  return revenueGrowth === null || revenueGrowth === undefined || revenueGrowth >= REVENUE_GROWTH_THRESHOLD
+// Sim-return gate on the idea lists themselves (separate from the To close
+// fundamentals check above, which flags a HELD position after the fact) --
+// explicit instruction: never recommend a long whose simulation says the
+// price should FALL (simReturn < 0), and never recommend a short whose
+// simulation says it should RISE (simReturn > 0). simReturn is
+// modules/simulations.py's risk-premium-haircut simulated-path
+// price-vs-current return -- the same signal scoring.forecast_return_rank
+// scores on. Replaced the old revenueGrowth >= / <= 10% gate. Same
+// fail-open treatment as every other data-dependent gate here (not the
+// momentum gate's fail-closed one): a candidate with no simulation entry
+// isn't assumed to violate either side, so it still passes. simReturn
+// lives on tickerSimPerf (from simulations.json), looked up by ticker in
+// the longs/shorts pools below rather than expected on `c`.
+function simReturnOkForLong(simReturn: number | null | undefined): boolean {
+  return simReturn === null || simReturn === undefined || simReturn >= 0
 }
-function notTooMuchGrowthForShort(revenueGrowth: number | null | undefined): boolean {
-  return revenueGrowth === null || revenueGrowth === undefined || revenueGrowth <= REVENUE_GROWTH_THRESHOLD
+function simReturnOkForShort(simReturn: number | null | undefined): boolean {
+  return simReturn === null || simReturn === undefined || simReturn <= 0
 }
 
 // Short-term mean-reversion gate on the idea lists (mirrors the growth gate
@@ -1313,24 +1341,15 @@ function meanReversionOkForShort(meanReversion: number | null | undefined): bool
   return meanReversion === null || meanReversion === undefined || meanReversion > MEAN_REVERSION_OVERSOLD
 }
 
-// Entry-side EPS-estimate-trend gate -- same "even at a great score"
-// reasoning already applied to revenueGrowth above (explicit instruction:
-// EPS revision trend is important enough to gate NEW ideas on, not just
-// flag on a position already held -- buildCloseReasons' own epsTrend
-// check further below predates this and only ever looked at open
-// positions). Reuses epsTrendValue's own epsRevision0y/1y averaging (see
-// its comment) and its same plain-sign check (0), not a magnitude bar
-// like REVENUE_GROWTH_THRESHOLD -- "estimates have been cut/raised at
-// all in the last 30 days" is itself the signal, no dead zone needed the
-// way mean-reversion's ordinary-noise band does. Same fail-open
-// treatment as every other idea-list gate: a candidate with no
-// epsRevision0y/1y data isn't assumed to violate either side.
-function epsTrendOkForLong(epsTrend: number | null): boolean {
-  return epsTrend === null || epsTrend >= 0
-}
-function epsTrendOkForShort(epsTrend: number | null): boolean {
-  return epsTrend === null || epsTrend <= 0
-}
+// The entry-side EPS-estimate-trend gate (epsTrendOkForLong/ForShort) was
+// removed -- backtesting showed it was consistently counterproductive on
+// the short side (the largest blocked population every week, and
+// consistently positive -- i.e. a bad short -- across every week/model
+// measured), the same shape of finding that got crowded_short removed.
+// epsTrendValue/epsTrendLine below stay as informational context on the
+// card, and buildCloseReasons' own epsTrend check still flags an already-
+// open position whose estimate trend has reversed -- only the "block a
+// NEW idea" use is gone.
 
 // To close only (not an opening gate) -- explicit instruction, "review"
 // tier: a held position reporting earnings within EARNINGS_REVIEW_HOURS is
@@ -1530,19 +1549,16 @@ function buildCloseReasons({ shares, c, now }: { shares: number; c: Candidate; n
 // conviction behind them -- did NOT make the Long/Short idea list, even
 // though it cleared the highest ratings bar. Runs the exact same gates the
 // longs/shorts pools filter on (eligibleToBuy/eligibleToSell,
-// sufficientGrowthForLong/notTooMuchGrowthForShort, notCrowded,
-// meanReversionOkForLong/meanReversionOkForShort,
-// epsTrendOkForLong/epsTrendOkForShort) rather than a second copy of the
-// thresholds, so this can never drift out of sync with what actually
+// simReturnOkForLong/simReturnOkForShort,
+// meanReversionOkForLong/meanReversionOkForShort) rather than a second
+// copy of the thresholds, so this can never drift out of sync with what actually
 // gates the pools. Long/Short have no ranking cutoff of their own (every
 // qualifying candidate is shown), so a nonempty result here always means
 // a real gate failure, never "just didn't rank high enough."
 function buildRejectionReasons({ c, tickerScreener }: { c: Candidate; tickerScreener: ScreenerByTicker }): Reason[] {
   const reasons: Reason[] = []
   const screenerRow = tickerScreener[c.ticker]
-  const revenueGrowth = screenerRow?.revenueGrowth
   const meanReversion = screenerRow?.meanReversion
-  const epsTrend = epsTrendValue(screenerRow)
 
   if (c.rating === 'Strong Buy') {
     if (!eligibleToBuy(c)) {
@@ -1551,25 +1567,21 @@ function buildRejectionReasons({ c, tickerScreener }: { c: Candidate; tickerScre
         text:
           c.momentum === null || c.momentum === undefined
             ? 'MSI data is unavailable.'
-            : `MSI is ${c.momentum.toFixed(0)}, overbought (above ${MOMENTUM_OVERBOUGHT}).`,
+            : c.momentum >= MOMENTUM_OVERBOUGHT
+              ? `MSI is ${c.momentum.toFixed(0)}, overbought (≥ ${MOMENTUM_OVERBOUGHT}) — blow-off, chasing risk.`
+              : `MSI is ${c.momentum.toFixed(0)}, in the falling-knife zone (${MOMENTUM_OVERSOLD}–${MOMENTUM_NO_BUY}) — don't buy into a downtrend.`,
       })
     }
-    if (!sufficientGrowthForLong(revenueGrowth)) {
+    if (!simReturnOkForLong(c.simReturn)) {
       reasons.push({
-        type: 'revenue-growth',
-        text: `Revenue growth is ${fmtPct(revenueGrowth as number)}, below ${fmtPctAbs(REVENUE_GROWTH_THRESHOLD)}.`,
+        type: 'sim-return',
+        text: `Sim return is ${fmtPct(c.simReturn as number)} — simulation says the price should fall.`,
       })
     }
     if (!meanReversionOkForLong(meanReversion)) {
       reasons.push({
         type: 'mean-reversion',
         text: `ST-MSI overbought (${(meanReversion as number).toFixed(0)}) — already spiked.`,
-      })
-    }
-    if (!epsTrendOkForLong(epsTrend)) {
-      reasons.push({
-        type: 'eps-trend',
-        text: `EPS est cut (trend ${fmtPct(epsTrend as number)}).`,
       })
     }
   } else if (c.rating === 'Strong Sell') {
@@ -1579,19 +1591,15 @@ function buildRejectionReasons({ c, tickerScreener }: { c: Candidate; tickerScre
         text:
           c.momentum === null || c.momentum === undefined
             ? 'MSI data is unavailable.'
-            : `MSI is ${c.momentum.toFixed(0)}, oversold (below ${MOMENTUM_OVERSOLD}).`,
+            : c.momentum <= MOMENTUM_SHORT_OVERSOLD
+              ? `MSI is ${c.momentum.toFixed(0)}, oversold (≤ ${MOMENTUM_SHORT_OVERSOLD}) — already crashed, bounce risk.`
+              : `MSI is ${c.momentum.toFixed(0)}, in the strong-uptrend zone (${MOMENTUM_NO_SELL}–${MOMENTUM_OVERBOUGHT}) — don't short into strength.`,
       })
     }
-    if (!notCrowded(c)) {
+    if (!simReturnOkForShort(c.simReturn)) {
       reasons.push({
-        type: 'crowded-short',
-        text: `${fmtPctAbs(effectiveShortPctOfFloat(c) as number)} of float already short, over ${fmtPctAbs(MAX_SHORT_INTEREST)}.`,
-      })
-    }
-    if (!notTooMuchGrowthForShort(revenueGrowth)) {
-      reasons.push({
-        type: 'revenue-growth',
-        text: `Revenue growth is ${fmtPct(revenueGrowth as number)}, above ${fmtPctAbs(REVENUE_GROWTH_THRESHOLD)}.`,
+        type: 'sim-return',
+        text: `Sim return is ${fmtPct(c.simReturn as number)} — simulation says the price should rise.`,
       })
     }
     if (!meanReversionOkForShort(meanReversion)) {
@@ -1600,21 +1608,15 @@ function buildRejectionReasons({ c, tickerScreener }: { c: Candidate; tickerScre
         text: `ST-MSI oversold (${(meanReversion as number).toFixed(0)}) — already dropped.`,
       })
     }
-    if (!epsTrendOkForShort(epsTrend)) {
-      reasons.push({
-        type: 'eps-trend',
-        text: `EPS est raised (trend ${fmtPct(epsTrend as number)}).`,
-      })
-    }
   }
 
   return reasons
 }
 
-// Plain-English mirrors of eligibleToBuy/eligibleToSell/notCrowded/
-// sufficientGrowthForLong/notTooMuchGrowthForShort/
-// epsTrendOkForLong/epsTrendOkForShort (Long/Short) and
-// buildCloseReasons (To close) above -- kept as their own lists (rather
+// Plain-English mirrors of eligibleToBuy/eligibleToSell/
+// simReturnOkForLong/simReturnOkForShort/meanReversionOkForLong/
+// meanReversionOkForShort (Long/Short) and buildCloseReasons (To close)
+// above -- kept as their own lists (rather
 // than generated from the functions) the same way PeTable.jsx's
 // SCORE_FACTORS mirrors scoring.py's weights: there's no live endpoint
 // serving the rule sets themselves, only the resulting candidates/reason
@@ -1622,18 +1624,14 @@ function buildRejectionReasons({ c, tickerScreener }: { c: Candidate; tickerScre
 // corresponding filter/reason function changes.
 const LONG_RULES = [
   { label: 'Rating', note: 'Strong Buy or Buy.' },
-  { label: 'MSI', note: `Not overbought (${MOMENTUM_OVERBOUGHT} or below) — a mean-reversion read, not continuation; blocks only the overbought extreme, doesn't require oversold. Unknown MSI excluded.` },
+  { label: 'MSI', note: `Blocked in the falling-knife zone (${MOMENTUM_OVERSOLD}–${MOMENTUM_NO_BUY}, buying into a downtrend) and overbought (≥ ${MOMENTUM_OVERBOUGHT}, blow-off). Deep oversold (≤ ${MOMENTUM_OVERSOLD}) and everything ${MOMENTUM_NO_BUY}–${MOMENTUM_OVERBOUGHT} is fine. Unknown MSI excluded.` },
   {
-    label: 'Revenue growth',
-    note: `Trailing revenue growth at or above ${fmtPctAbs(REVENUE_GROWTH_THRESHOLD)}; unknown growth not excluded.`,
+    label: 'Sim return',
+    note: `Simulated-path return not negative — the simulation must not say the price should fall; unknown sim return not excluded.`,
   },
   {
     label: 'ST-MSI',
     note: `ST-MSI not significantly overbought — excludes a stock that's already spiked and would be chased; unknown not excluded.`,
-  },
-  {
-    label: 'EPS trend',
-    note: 'Consensus EPS estimates not cut; unknown not excluded.',
   },
   {
     label: 'Ranking',
@@ -1643,22 +1641,14 @@ const LONG_RULES = [
 
 const SHORT_RULES = [
   { label: 'Rating', note: 'Strong Sell or Sell.' },
-  { label: 'MSI', note: `Not oversold (${MOMENTUM_OVERSOLD} or above) — the mirror of Long's rule; blocks only the oversold extreme, doesn't require overbought. Unknown MSI excluded.` },
+  { label: 'MSI', note: `Blocked at/below ${MOMENTUM_SHORT_OVERSOLD} (oversold — bounce risk) and in the strong-uptrend zone (${MOMENTUM_NO_SELL}–${MOMENTUM_OVERBOUGHT}, shorting into strength / squeeze risk). Everything ${MOMENTUM_SHORT_OVERSOLD}–${MOMENTUM_NO_SELL} and deep overbought (≥ ${MOMENTUM_OVERBOUGHT}) is fine. Unknown MSI excluded.` },
   {
-    label: 'Not crowded',
-    note: `No more than ${fmtPctAbs(MAX_SHORT_INTEREST)} of float already sold short; unknown short interest not excluded.`,
-  },
-  {
-    label: 'Revenue growth',
-    note: `Trailing revenue growth at or below ${fmtPctAbs(REVENUE_GROWTH_THRESHOLD)}; unknown growth not excluded.`,
+    label: 'Sim return',
+    note: `Simulated-path return not positive — the simulation must not say the price should rise; unknown sim return not excluded.`,
   },
   {
     label: 'ST-MSI',
     note: `ST-MSI not significantly oversold — excludes a stock that's already dropped and would be chased; unknown not excluded.`,
-  },
-  {
-    label: 'EPS trend',
-    note: 'Consensus EPS estimates not raised; unknown not excluded.',
   },
   {
     label: 'Ranking',
@@ -1991,15 +1981,33 @@ export default function RecommendationsView() {
   // Buy-rated is a contradiction the To close group flags below, not a
   // reason to highlight it as "In portfolio" on the Long grid. heldCount
   // (all nonzero positions, either side) is only for the masthead's stat.
+  // Cash-equivalent lines (data/cash.json -- IB01, SGOV, ...) are held but
+  // aren't directional equity bets -- keep them out of the held-long/short
+  // sets so they don't drive hedge matching, concentration, or a "To
+  // close" suggestion (see nonEquityHoldings).
+  const cashTickers = useCashEquivalents()
   const heldLongTickers = useMemo(
-    () => new Set(Object.entries(positions).filter(([, p]) => (p?.shares ?? 0) > 0).map(([t]) => t)),
-    [positions]
+    () =>
+      new Set(
+        Object.entries(positions)
+          .filter(([t, p]) => (p?.shares ?? 0) > 0 && !cashTickers.has(t))
+          .map(([t]) => t)
+      ),
+    [positions, cashTickers]
   )
   const heldShortTickers = useMemo(
-    () => new Set(Object.entries(positions).filter(([, p]) => (p?.shares ?? 0) < 0).map(([t]) => t)),
-    [positions]
+    () =>
+      new Set(
+        Object.entries(positions)
+          .filter(([t, p]) => (p?.shares ?? 0) < 0 && !cashTickers.has(t))
+          .map(([t]) => t)
+      ),
+    [positions, cashTickers]
   )
-  const heldCount = useMemo(() => Object.values(positions).filter((p) => p?.shares).length, [positions])
+  const heldCount = useMemo(
+    () => Object.entries(positions).filter(([t, p]) => p?.shares && !cashTickers.has(t)).length,
+    [positions, cashTickers]
+  )
 
   // A non-held candidate that hedges an existing OPPOSITE-side position
   // (same industry or sector -- see buildOppositeMatcher) is nudged ahead of
@@ -2029,9 +2037,8 @@ export default function RecommendationsView() {
         (c) =>
           BUY_RATINGS.has(c.rating as string) &&
           eligibleToBuy(c) &&
-          sufficientGrowthForLong(tickerScreener[c.ticker]?.revenueGrowth) &&
-          meanReversionOkForLong(tickerScreener[c.ticker]?.meanReversion) &&
-          epsTrendOkForLong(epsTrendValue(tickerScreener[c.ticker]))
+          simReturnOkForLong(tickerSimPerf[c.ticker]?.simReturn) &&
+          meanReversionOkForLong(tickerScreener[c.ticker]?.meanReversion)
       )
       .map((c) => {
         const held = heldLongTickers.has(c.ticker)
@@ -2060,7 +2067,7 @@ export default function RecommendationsView() {
         }
       })
     return pool.sort((a, b) => a._sortScore - b._sortScore)
-  }, [data, heldShortTickers, heldLongTickers, tickerSector, tickerScreener, tickerForecast, tickerTargetSide, tickerTargetPool])
+  }, [data, heldShortTickers, heldLongTickers, tickerSector, tickerScreener, tickerForecast, tickerSimPerf, tickerTargetSide, tickerTargetPool])
 
   const shorts: RankedCandidate[] = useMemo(() => {
     if (!data) return []
@@ -2071,10 +2078,8 @@ export default function RecommendationsView() {
         (c) =>
           SELL_RATINGS.has(c.rating as string) &&
           eligibleToSell(c) &&
-          notCrowded(c) &&
-          notTooMuchGrowthForShort(tickerScreener[c.ticker]?.revenueGrowth) &&
-          meanReversionOkForShort(tickerScreener[c.ticker]?.meanReversion) &&
-          epsTrendOkForShort(epsTrendValue(tickerScreener[c.ticker]))
+          simReturnOkForShort(tickerSimPerf[c.ticker]?.simReturn) &&
+          meanReversionOkForShort(tickerScreener[c.ticker]?.meanReversion)
       )
       .map((c) => {
         const held = heldShortTickers.has(c.ticker)
@@ -2103,7 +2108,7 @@ export default function RecommendationsView() {
         }
       })
     return pool.sort((a, b) => b._sortScore - a._sortScore)
-  }, [data, heldLongTickers, heldShortTickers, tickerSector, tickerScreener, tickerForecast, tickerTargetSide, tickerTargetPool])
+  }, [data, heldLongTickers, heldShortTickers, tickerSector, tickerScreener, tickerForecast, tickerSimPerf, tickerTargetSide, tickerTargetPool])
 
   // Held positions whose own rating now contradicts the side they're held
   // on -- a long position that's drifted to Hold/Sell/Strong Sell, or a
@@ -2197,74 +2202,65 @@ export default function RecommendationsView() {
     return rows.sort((a, b) => b._severity - a._severity)
   }, [heldMerged, now])
 
-  // Every held position whose daily MSI OR hourly ST-MSI is currently
-  // overbought/oversold -- explicit instruction: either reading alone is
-  // enough to list a position here (a held name can be genuinely
-  // overbought/oversold on one timeframe and neutral on the other; OR,
-  // not AND, so a position isn't silently missed just because only one
-  // of the two timeframes has caught the extreme). A Portfolio-wide
-  // momentum-extremes read, independent of (and can overlap with) the
-  // close-reason flags above. Not conditioned on side the way
-  // eligibleToBuy/Sell's BLOCK is -- "overbought" here just means the
-  // raw MSI/ST-MSI reading itself is past its own threshold, regardless
-  // of whether that's good or bad news for whichever side actually
-  // holds it (a held Short sitting overbought is a GOOD sign for that
-  // position, a held Long sitting overbought is a warning --
-  // rationaleLines' own thumb icon still shows that distinction on the
-  // card, this list just surfaces "worth a look" candidates on shape
-  // alone). reasons/hasRatingReason/_severity are CloseRow-shaped (so
-  // these can reuse CloseCard) but carry no actual close-worthiness
-  // here -- always "Review", never "Close". _severity is the more
-  // extreme of the two triggering readings (both are 0-100 oscillators
-  // on the same scale, so directly comparable for ranking) -- when only
-  // one triggers, that's the one used.
-  const overboughtPositions: CloseRow[] = useMemo(() => {
-    const rows: CloseRow[] = []
+  // Four mutually-exclusive MSI-shape buckets for held positions, checked
+  // extremes-first so a name is filed once:
+  //   oversold      MSI <= OVERSOLD  or ST-MSI oversold  (mean-reversion: bounce due)
+  //   overbought    MSI >= OVERBOUGHT or ST-MSI overbought (mean-reversion: reversal due)
+  //   falling knife OVERSOLD < MSI <= NO_BUY   (continuation: downtrend)
+  //   strong uptrend NO_SELL <= MSI < OVERBOUGHT (continuation: uptrend)
+  // ST-MSI (hourly, mean-reversion only) folds into the two extreme
+  // buckets; the two inner bands are daily-MSI only. Not conditioned on
+  // side -- whether the shape helps or hurts depends on which way the
+  // position is held, shown by each card's own MSI thumb and the
+  // goodSign/badSign passed to CloseCard below. reasons/hasRatingReason/
+  // _severity are CloseRow-shaped so these reuse CloseCard; always
+  // "Review", never "Close".
+  const msiSections = useMemo(() => {
+    const oversold: CloseRow[] = []
+    const overbought: CloseRow[] = []
+    const fallingKnife: CloseRow[] = []
+    const strongUptrend: CloseRow[] = []
     for (const { shares, c } of heldMerged) {
-      const momOver = c.momentum !== null && c.momentum !== undefined && c.momentum > MOMENTUM_OVERBOUGHT
-      const mrOver =
-        c.meanReversion !== null && c.meanReversion !== undefined && c.meanReversion >= MEAN_REVERSION_OVERBOUGHT
-      if (!momOver && !mrOver) continue
-      const reasons: Reason[] = []
-      if (momOver) reasons.push({ type: 'momentum', text: `MSI ${(c.momentum as number).toFixed(0)} — overbought.` })
-      if (mrOver) {
-        reasons.push({ type: 'mean-reversion', text: `ST-MSI ${(c.meanReversion as number).toFixed(0)} — overbought.` })
-      }
-      rows.push({
+      const m = typeof c.momentum === 'number' ? c.momentum : null
+      const mr = typeof c.meanReversion === 'number' ? c.meanReversion : null
+      const row = (reasons: Reason[], severity: number): CloseRow => ({
         ...c,
         closeSide: shares > 0 ? 'Long' : 'Short',
         shares,
         reasons,
         hasRatingReason: false,
-        _severity: Math.max(momOver ? (c.momentum as number) : -Infinity, mrOver ? (c.meanReversion as number) : -Infinity),
+        _severity: severity,
       })
-    }
-    return rows.sort((a, b) => b._severity - a._severity)
-  }, [heldMerged])
+      const msiLow = m !== null && m <= MOMENTUM_OVERSOLD
+      const msiHigh = m !== null && m >= MOMENTUM_OVERBOUGHT
+      const stLow = mr !== null && mr <= MEAN_REVERSION_OVERSOLD
+      const stHigh = mr !== null && mr >= MEAN_REVERSION_OVERBOUGHT
 
-  const oversoldPositions: CloseRow[] = useMemo(() => {
-    const rows: CloseRow[] = []
-    for (const { shares, c } of heldMerged) {
-      const momUnder = c.momentum !== null && c.momentum !== undefined && c.momentum < MOMENTUM_OVERSOLD
-      const mrUnder =
-        c.meanReversion !== null && c.meanReversion !== undefined && c.meanReversion <= MEAN_REVERSION_OVERSOLD
-      if (!momUnder && !mrUnder) continue
-      const reasons: Reason[] = []
-      if (momUnder) reasons.push({ type: 'momentum', text: `MSI ${(c.momentum as number).toFixed(0)} — oversold.` })
-      if (mrUnder) {
-        reasons.push({ type: 'mean-reversion', text: `ST-MSI ${(c.meanReversion as number).toFixed(0)} — oversold.` })
+      if (msiLow || stLow) {
+        const reasons: Reason[] = []
+        if (msiLow) reasons.push({ type: 'momentum', text: `MSI ${(m as number).toFixed(0)} — oversold.` })
+        if (stLow) reasons.push({ type: 'mean-reversion', text: `ST-MSI ${(mr as number).toFixed(0)} — oversold.` })
+        oversold.push(row(reasons, -Math.min(msiLow ? (m as number) : Infinity, stLow ? (mr as number) : Infinity)))
+      } else if (msiHigh || stHigh) {
+        const reasons: Reason[] = []
+        if (msiHigh) reasons.push({ type: 'momentum', text: `MSI ${(m as number).toFixed(0)} — overbought.` })
+        if (stHigh) reasons.push({ type: 'mean-reversion', text: `ST-MSI ${(mr as number).toFixed(0)} — overbought.` })
+        overbought.push(row(reasons, Math.max(msiHigh ? (m as number) : -Infinity, stHigh ? (mr as number) : -Infinity)))
+      } else if (m !== null && m <= MOMENTUM_NO_BUY) {
+        fallingKnife.push(row([{ type: 'momentum', text: `MSI ${m.toFixed(0)} — falling knife.` }], -m))
+      } else if (m !== null && m >= MOMENTUM_NO_SELL) {
+        strongUptrend.push(row([{ type: 'momentum', text: `MSI ${m.toFixed(0)} — strong uptrend.` }], m))
       }
-      rows.push({
-        ...c,
-        closeSide: shares > 0 ? 'Long' : 'Short',
-        shares,
-        reasons,
-        hasRatingReason: false,
-        _severity: -Math.min(momUnder ? (c.momentum as number) : Infinity, mrUnder ? (c.meanReversion as number) : Infinity),
-      })
     }
-    return rows.sort((a, b) => b._severity - a._severity)
+    const bySeverity = (a: CloseRow, b: CloseRow) => b._severity - a._severity
+    return {
+      oversold: oversold.sort(bySeverity),
+      overbought: overbought.sort(bySeverity),
+      fallingKnife: fallingKnife.sort(bySeverity),
+      strongUptrend: strongUptrend.sort(bySeverity),
+    }
   }, [heldMerged])
+  const { oversold: oversoldPositions, overbought: overboughtPositions, fallingKnife: fallingKnifePositions, strongUptrend: strongUptrendPositions } = msiSections
 
   // Every held position NOT already in one of the three lists above --
   // explicit instruction: the "nothing to see here" bucket, so every
@@ -2273,14 +2269,18 @@ export default function RecommendationsView() {
   // a checklist, not a ranked idea list, same reasoning rejectedStrong's
   // own comment gives).
   const stayPositions: CloseRow[] = useMemo(() => {
-    const flagged = new Set([...closes, ...overboughtPositions, ...oversoldPositions].map((c) => c.ticker))
+    const flagged = new Set(
+      [...closes, ...overboughtPositions, ...oversoldPositions, ...fallingKnifePositions, ...strongUptrendPositions].map(
+        (c) => c.ticker
+      )
+    )
     const rows: CloseRow[] = []
     for (const { ticker, shares, c } of heldMerged) {
       if (flagged.has(ticker)) continue
       rows.push({ ...c, closeSide: shares > 0 ? 'Long' : 'Short', shares, reasons: [], hasRatingReason: false, _severity: 0 })
     }
     return rows.sort((a, b) => a.ticker.localeCompare(b.ticker))
-  }, [heldMerged, closes, overboughtPositions, oversoldPositions])
+  }, [heldMerged, closes, overboughtPositions, oversoldPositions, fallingKnifePositions, strongUptrendPositions])
 
   // Strong Buy/Strong Sell candidates -- the top-conviction rating on
   // either end -- that still didn't clear a Long/Short opening gate.
@@ -2324,7 +2324,7 @@ export default function RecommendationsView() {
       rows.push({ ...c, reasons })
     }
     return rows.sort((a, b) => a.ticker.localeCompare(b.ticker))
-  }, [data, tickerScreener, tickerForecast, tickerTargetSide, tickerTargetPool])
+  }, [data, tickerScreener, tickerForecast, tickerSimPerf, tickerTargetSide, tickerTargetPool])
   const rejectedStrongBuy = useMemo(() => rejectedStrong.filter((c) => c.rating === 'Strong Buy'), [rejectedStrong])
   const rejectedStrongSell = useMemo(() => rejectedStrong.filter((c) => c.rating === 'Strong Sell'), [rejectedStrong])
 
@@ -2395,9 +2395,11 @@ export default function RecommendationsView() {
     for (const c of closes) tally(c, c.closeSide)
     for (const c of overboughtPositions) tally(c, c.closeSide)
     for (const c of oversoldPositions) tally(c, c.closeSide)
+    for (const c of fallingKnifePositions) tally(c, c.closeSide)
+    for (const c of strongUptrendPositions) tally(c, c.closeSide)
     for (const c of stayPositions) tally(c, c.closeSide)
     return THUMB_FILTER_ITEMS.map((item) => [item.name, counts.get(`${item.factor}:${item.signal}`) ?? 0])
-  }, [longs, shorts, rejectedStrongBuy, rejectedStrongSell, closes, overboughtPositions, oversoldPositions, stayPositions])
+  }, [longs, shorts, rejectedStrongBuy, rejectedStrongSell, closes, overboughtPositions, oversoldPositions, fallingKnifePositions, strongUptrendPositions, stayPositions])
 
   return (
     <div className="positions-page positions-unbounded">
@@ -2540,25 +2542,8 @@ export default function RecommendationsView() {
             emptyMessage="No held position currently has a rating/MSI contradiction or a risk flag."
           />
           <RecommendationSection
-            title="Overbought"
-            subtitle={`Held positions with a daily MSI above ${MOMENTUM_OVERBOUGHT} OR an hourly ST-MSI at/above ${MEAN_REVERSION_OVERBOUGHT} — not itself a close signal, just a shape worth a look (a held Short sitting here is a good sign, a held Long is a warning)`}
-            rows={filterByThumbs(filterBySector(filterBySymbol(overboughtPositions)), (c) => c.closeSide)}
-            renderCard={(c) => (
-              <CloseCard
-                key={c.ticker}
-                c={c}
-                live={livePrices[c.ticker]}
-                dailyHistory3mo={dailyHistory3mo}
-                monthlyHistory={monthlyHistory}
-                goodSign={c.closeSide === 'Short'}
-                badSign={c.closeSide === 'Long'}
-              />
-            )}
-            emptyMessage="No held position currently has an overbought MSI or ST-MSI."
-          />
-          <RecommendationSection
             title="Oversold"
-            subtitle={`Held positions with a daily MSI below ${MOMENTUM_OVERSOLD} OR an hourly ST-MSI at/below ${MEAN_REVERSION_OVERSOLD} — not itself a close signal, just a shape worth a look (a held Long sitting here is a good sign, a held Short is a warning)`}
+            subtitle={`Held positions with a daily MSI at/below ${MOMENTUM_OVERSOLD}, or an hourly ST-MSI at/below ${MEAN_REVERSION_OVERSOLD} — already crashed, a bounce may be due. Not a close signal, just a shape worth a look (a held Long here is a good sign, a held Short a warning).`}
             rows={filterByThumbs(filterBySector(filterBySymbol(oversoldPositions)), (c) => c.closeSide)}
             renderCard={(c) => (
               <CloseCard
@@ -2574,8 +2559,59 @@ export default function RecommendationsView() {
             emptyMessage="No held position currently has an oversold MSI or ST-MSI."
           />
           <RecommendationSection
+            title="Falling knife"
+            subtitle={`Held positions with a daily MSI in ${MOMENTUM_OVERSOLD}–${MOMENTUM_NO_BUY} — a moderate downtrend that tends to continue. Not a close signal, just a shape worth a look (a held Short here is a good sign, a held Long a warning).`}
+            rows={filterByThumbs(filterBySector(filterBySymbol(fallingKnifePositions)), (c) => c.closeSide)}
+            renderCard={(c) => (
+              <CloseCard
+                key={c.ticker}
+                c={c}
+                live={livePrices[c.ticker]}
+                dailyHistory3mo={dailyHistory3mo}
+                monthlyHistory={monthlyHistory}
+                goodSign={c.closeSide === 'Short'}
+                badSign={c.closeSide === 'Long'}
+              />
+            )}
+            emptyMessage="No held position is currently in the falling-knife MSI zone."
+          />
+          <RecommendationSection
+            title="Strong uptrend"
+            subtitle={`Held positions with a daily MSI in ${MOMENTUM_NO_SELL}–${MOMENTUM_OVERBOUGHT} — a strong uptrend that tends to continue. Not a close signal, just a shape worth a look (a held Long here is a good sign, a held Short a warning).`}
+            rows={filterByThumbs(filterBySector(filterBySymbol(strongUptrendPositions)), (c) => c.closeSide)}
+            renderCard={(c) => (
+              <CloseCard
+                key={c.ticker}
+                c={c}
+                live={livePrices[c.ticker]}
+                dailyHistory3mo={dailyHistory3mo}
+                monthlyHistory={monthlyHistory}
+                goodSign={c.closeSide === 'Long'}
+                badSign={c.closeSide === 'Short'}
+              />
+            )}
+            emptyMessage="No held position is currently in the strong-uptrend MSI zone."
+          />
+          <RecommendationSection
+            title="Overbought"
+            subtitle={`Held positions with a daily MSI at/above ${MOMENTUM_OVERBOUGHT}, or an hourly ST-MSI at/above ${MEAN_REVERSION_OVERBOUGHT} — blow-off, a reversal may be due. Not a close signal, just a shape worth a look (a held Short here is a good sign, a held Long a warning).`}
+            rows={filterByThumbs(filterBySector(filterBySymbol(overboughtPositions)), (c) => c.closeSide)}
+            renderCard={(c) => (
+              <CloseCard
+                key={c.ticker}
+                c={c}
+                live={livePrices[c.ticker]}
+                dailyHistory3mo={dailyHistory3mo}
+                monthlyHistory={monthlyHistory}
+                goodSign={c.closeSide === 'Short'}
+                badSign={c.closeSide === 'Long'}
+              />
+            )}
+            emptyMessage="No held position currently has an overbought MSI or ST-MSI."
+          />
+          <RecommendationSection
             title="Stay"
-            subtitle="Held positions not flagged To review, Overbought, or Oversold — nothing here needs attention right now"
+            subtitle="Held positions not flagged To review, Oversold, Falling knife, Strong uptrend, or Overbought — nothing here needs attention right now"
             rows={filterByThumbs(filterBySector(filterBySymbol(stayPositions)), (c) => c.closeSide)}
             renderCard={(c) => (
               <CloseCard
@@ -2594,7 +2630,7 @@ export default function RecommendationsView() {
           <RecommendationSection
             title="Long"
             titleInfo={<RulesInfo label="Selection rules" header="Every candidate must clear all of these" rules={LONG_RULES} />}
-            subtitle={`Strong Buy / Buy with MSI not overbought (≤ ${MOMENTUM_OVERBOUGHT}) and revenue growth ≥ ${fmtPctAbs(REVENUE_GROWTH_THRESHOLD)}, best composite score first`}
+            subtitle={`Strong Buy / Buy with MSI not in the falling-knife zone (${MOMENTUM_OVERSOLD}–${MOMENTUM_NO_BUY}) or overbought (≥ ${MOMENTUM_OVERBOUGHT}), and sim return not negative, best composite score first`}
             rows={filterByThumbs(filterBySector(filterBySymbol(longs)), 'Long')}
             renderCard={(c) => (
               <RecommendationCard
@@ -2613,7 +2649,7 @@ export default function RecommendationsView() {
           {activeSection === 'longBlocked' && (
           <RecommendationSection
             title="Strong Buy — blocked"
-            subtitle="Strong Buy candidates that still failed an MSI, revenue-growth, or ST-MSI gate — see Long's Selection rules for what each gate checks"
+            subtitle="Strong Buy candidates that still failed an MSI, sim-return, or ST-MSI gate — see Long's Selection rules for what each gate checks"
             rows={filterByThumbs(filterBySector(filterBySymbol(rejectedStrongBuy)), 'Long')}
             renderCard={(c) => (
               <RejectedCard
@@ -2633,7 +2669,7 @@ export default function RecommendationsView() {
           <RecommendationSection
             title="Short"
             titleInfo={<RulesInfo label="Selection rules" header="Every candidate must clear all of these" rules={SHORT_RULES} />}
-            subtitle={`Strong Sell / Sell with MSI not oversold (≥ ${MOMENTUM_OVERSOLD}) and revenue growth ≤ ${fmtPctAbs(REVENUE_GROWTH_THRESHOLD)}, worst composite score first — excludes crowded shorts (>${fmtPctAbs(MAX_SHORT_INTEREST)} of float already short)`}
+            subtitle={`Strong Sell / Sell with MSI not oversold (≤ ${MOMENTUM_SHORT_OVERSOLD}) or in the strong-uptrend zone (${MOMENTUM_NO_SELL}–${MOMENTUM_OVERBOUGHT}), and sim return not positive, worst composite score first`}
             rows={filterByThumbs(filterBySector(filterBySymbol(shorts)), 'Short')}
             renderCard={(c) => (
               <RecommendationCard
@@ -2652,7 +2688,7 @@ export default function RecommendationsView() {
           {activeSection === 'shortBlocked' && (
           <RecommendationSection
             title="Strong Sell — blocked"
-            subtitle="Strong Sell candidates that still failed an MSI, revenue-growth, ST-MSI, or crowded-short gate — see Short's Selection rules for what each gate checks"
+            subtitle="Strong Sell candidates that still failed an MSI, sim-return, or ST-MSI gate — see Short's Selection rules for what each gate checks"
             rows={filterByThumbs(filterBySector(filterBySymbol(rejectedStrongSell)), 'Short')}
             renderCard={(c) => (
               <RejectedCard

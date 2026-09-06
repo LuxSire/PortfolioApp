@@ -18,8 +18,12 @@ INPUTS (both must be fresh before running this module)
 ALGORITHM
 ---------
 1. PRE-FILTER
-   Longs  : Strong Buy / Buy  AND forecastReturn > 0
-   Shorts : Strong Sell / Sell AND forecastReturn < 0
+   Longs  : Strong Buy / Buy  AND simReturn > 0
+   Shorts : Strong Sell / Sell AND simReturn < 0
+   (simReturn = modules/simulations.py's risk-premium-haircut simulated-
+   path price-vs-current return -- the same signal scoring.forecast_return_
+   rank and RecommendationsView's own long/short gate use. Replaced
+   forecastReturn, the confidence-shrunk point estimate, here too.)
 
 2. COMPOSITE CANDIDATE SCORE  (4 equally-weighted rank-percentile signals)
    For each candidate compute a quality score independent of correlation:
@@ -110,34 +114,39 @@ ANNUALIZE = 252        # trading days per year
 _HIST_IB_FILE = os.path.join("data", "IB", "price_history_daily_3mo.json")
 _HIST_YF_FILE = os.path.join("data", "yfinance", "price_history.json")
 
-# Hard overbought/oversold gate on the Long/Short pools, matching
-# RecommendationsView.tsx's own MOMENTUM_OVERBOUGHT/OVERSOLD and
-# MEAN_REVERSION_OVERBOUGHT/OVERSOLD zone thresholds exactly (MSI/ST-MSI
-# in that page's own column labels -- "mom"/"mr" here, same raw [0, 100]
-# values, no rescaling). Explicit instruction: don't let the optimizer
-# select an already-overbought stock for the Long side or an already-
-# oversold stock for the Short side, regardless of how well it otherwise
-# scores -- a stock at a momentum/mean-reversion extreme in the wrong
-# direction for its side is exactly the "chasing the move" entry the
-# Recommendations page's own eligibleToBuy/eligibleToSell gates already
-# warn against for live trade signals, and the target portfolio shouldn't
-# recommend building a fresh position into that same risk. Missing mom/mr
-# data does NOT exclude a candidate -- only an actual extreme reading
-# does.
-MOMENTUM_OVERBOUGHT = 70
-MOMENTUM_OVERSOLD = 30
+# Hard MSI/ST-MSI gate on the Long/Short pools, matching
+# RecommendationsView.tsx's own MOMENTUM_* / MEAN_REVERSION_* zone
+# thresholds exactly ("mom"/"mr" here, same raw [0, 100] values). MSI
+# blocks a side in one INNER band plus one far extreme:
+#   Long  blocked in the falling-knife band (OVERSOLD < mom <= NO_BUY,
+#         moderate downtrend) or overbought (mom >= OVERBOUGHT, blow-off).
+#         Deep-oversold (mom <= OVERSOLD) is the buy-the-dip case -- NOT
+#         blocked.
+#   Short blocked in the strong-uptrend band (NO_SELL <= mom < OVERBOUGHT,
+#         shorting into strength) or oversold (mom <= OVERSOLD, bounce
+#         risk). Deep-overbought (mom >= OVERBOUGHT) is short-the-top --
+#         NOT blocked.
+# ST-MSI keeps its simpler far-extreme-only block. Missing mom/mr does NOT
+# exclude a candidate. Keep in sync with RecommendationsView.tsx and
+# ib_server.py by hand.
+MOMENTUM_OVERSOLD = 20
+# Short-side no-short floor, lowered below MOMENTUM_OVERSOLD on purpose --
+# MSI 15-20 names kept falling in backtest zone analysis, so shorting
+# them stays allowed; only < 15 is treated as bounce risk. Long side
+# still uses MOMENTUM_OVERSOLD for its buy-the-dip zone.
+MOMENTUM_SHORT_OVERSOLD = 15
+MOMENTUM_NO_BUY = 35
+MOMENTUM_NO_SELL = 65
+MOMENTUM_OVERBOUGHT = 80
 MEAN_REVERSION_OVERBOUGHT = 80
 MEAN_REVERSION_OVERSOLD = 20
 
-# Hard crowded-short gate on the Short pool, matching RecommendationsView.tsx's
-# own MAX_SHORT_INTEREST / notCrowded gate: a name already shorted by more
-# than this fraction of its float is a squeeze-risk trade the optimizer must
-# not build a fresh short into, no matter how well it otherwise scores.
-# shortInterest is the FINRA-preferred pct-of-float _make_candidate resolves
-# (shortPctOfFloatFinra, else the recomputed shortPercentOfFloat). Missing
-# short-interest data does NOT exclude a candidate -- only an actual reading
-# above the bar does.
-MAX_SHORT_INTEREST = 0.10
+# The crowded-short hard gate (a name already shorted by more than 10% of
+# float excluded from the Short pool) was removed -- backtesting showed it
+# was consistently counterproductive, the excluded names would have made
+# good shorts in both measured weeks. shortInterest still feeds the
+# composite score below (a squeeze-risk/contrarian signal, penalizing a
+# crowded short's rank rather than excluding it outright).
 
 LONG_RATINGS = {"Strong Buy", "Buy"}
 SHORT_RATINGS = {"Strong Sell", "Sell"}
@@ -576,7 +585,7 @@ def build_target_portfolio(rec_file, sim_file, exclude_groups=None):
         sim = sim_by_ticker.get(ticker)
         if not rec or not sim:
             return None
-        fr = sim.get("forecastReturn")
+        fr = sim.get("simReturn")
         if fr is None:
             return None
         beta_raw = sim.get("inputs", {}).get("beta")
@@ -588,7 +597,7 @@ def build_target_portfolio(rec_file, sim_file, exclude_groups=None):
         prob_above = (sim.get("priceAtIndustryMultiple") or {}).get("probAboveCurrentPrice")
         # FINRA's fresher biweekly-settlement figure preferred over
         # yfinance's staler month-end one -- same preference order as
-        # RecommendationsView.tsx's own crowded-short gate (see
+        # RecommendationsView.tsx's own effectiveShortPctOfFloat (see
         # recommendations.py's own shortPctOfFloatFinra comment).
         short_interest = rec.get("shortPctOfFloatFinra")
         if short_interest is None:
@@ -602,7 +611,7 @@ def build_target_portfolio(rec_file, sim_file, exclude_groups=None):
             "rating": rec.get("rating"),
             "score": rec.get("score"),
             "scorePercentile": rec.get("scorePercentile"),
-            "forecastReturn": fr,
+            "simReturn": fr,
             "positionReturn": position_return,
             "vol": vol,
             "beta": beta,
@@ -624,7 +633,7 @@ def build_target_portfolio(rec_file, sim_file, exclude_groups=None):
             sim = sim_by_ticker.get(ticker)
             if not sim:
                 continue
-            fr = sim.get("forecastReturn")
+            fr = sim.get("simReturn")
             if fr is None or not direction(fr):
                 continue
             c = _make_candidate(ticker, side)
@@ -634,17 +643,18 @@ def build_target_portfolio(rec_file, sim_file, exclude_groups=None):
                 continue
             mom, mr = c.get("mom"), c.get("mr")
             if side == "Long":
-                if (mom is not None and mom > MOMENTUM_OVERBOUGHT) or (
-                    mr is not None and mr >= MEAN_REVERSION_OVERBOUGHT
-                ):
+                mom_blocks = mom is not None and (
+                    (MOMENTUM_OVERSOLD < mom <= MOMENTUM_NO_BUY)  # falling knife
+                    or mom >= MOMENTUM_OVERBOUGHT                  # blow-off
+                )
+                if mom_blocks or (mr is not None and mr >= MEAN_REVERSION_OVERBOUGHT):
                     continue
             else:
-                if (mom is not None and mom < MOMENTUM_OVERSOLD) or (
-                    mr is not None and mr <= MEAN_REVERSION_OVERSOLD
-                ):
-                    continue
-                si = c.get("shortInterest")
-                if si is not None and si > MAX_SHORT_INTEREST:
+                mom_blocks = mom is not None and (
+                    (MOMENTUM_NO_SELL <= mom < MOMENTUM_OVERBOUGHT)  # strong uptrend
+                    or mom <= MOMENTUM_SHORT_OVERSOLD                 # already crashed
+                )
+                if mom_blocks or (mr is not None and mr <= MEAN_REVERSION_OVERSOLD):
                     continue
             raw.append(c)
         return raw
@@ -696,7 +706,7 @@ def build_target_portfolio(rec_file, sim_file, exclude_groups=None):
                     "ticker": pool[i]["ticker"],
                     "name": pool[i]["name"],
                     "rating": pool[i]["rating"],
-                    "forecastReturn": pool[i]["forecastReturn"],
+                    "simReturn": pool[i]["simReturn"],
                     "compositeScore": pool[i]["compositeScore"],
                     "poolRank": pool[i]["poolRank"],
                 }
@@ -711,7 +721,7 @@ def build_target_portfolio(rec_file, sim_file, exclude_groups=None):
     # Per-leg statistics -- each leg on its own, 1/50 equal weight (100%
     # gross), so the long book and the short book can be compared
     # side by side. The short leg's return is the profit from prices
-    # FALLING (sign -1 on forecastReturn); vol is sign-invariant. Sharpe
+    # FALLING (sign -1 on simReturn); vol is sign-invariant. Sharpe
     # uses the same (leg return - RF) / leg vol convention as the combined
     # stat below.
     def _leg_stats(positions, sign):
@@ -720,7 +730,7 @@ def build_target_portfolio(rec_file, sim_file, exclude_groups=None):
         m = len(positions)
         w_leg = np.full(m, 1.0 / m)
         cov_leg = _build_cov(positions, hist_returns)
-        rets_leg = np.array([c["forecastReturn"] for c in positions])
+        rets_leg = np.array([c["simReturn"] for c in positions])
         leg_ret = sign * float(w_leg @ rets_leg)
         leg_var = float(w_leg @ cov_leg @ w_leg)
         leg_vol = math.sqrt(leg_var) if leg_var > 0 else 0.0
@@ -750,8 +760,8 @@ def build_target_portfolio(rec_file, sim_file, exclude_groups=None):
         per_short = 1.0 / n_shorts if n_shorts else 0.0
         w = np.array([per_long] * n_longs + [-per_short] * n_shorts)
         cov_all = _build_cov(all_pos, hist_returns)
-        # Use raw forecastReturn (not positionReturn) since sign is in weights
-        raw_returns = np.array([c["forecastReturn"] for c in all_pos])
+        # Use raw simReturn (not positionReturn) since sign is in weights
+        raw_returns = np.array([c["simReturn"] for c in all_pos])
         port_ret = float(w @ raw_returns)
         port_var = float(w @ cov_all @ w)
         port_vol = math.sqrt(port_var) if port_var > 0 else 0.0

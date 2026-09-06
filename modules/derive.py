@@ -331,6 +331,25 @@ def blend_quarterly(y0, sec_quarterly, latest_quarter_end):
     return w0 * y0 + w1 * y1 + w2 * y2
 
 
+def _filed_revenue_growth(xe, row):
+    """(mean, sec_g, stmt_g) or None -- the mean of the two FILED annual
+    revenue-growth figures (SEC XBRL FY-YoY from sec_fy_revenue_growth and
+    yfinance income_stmt FY-YoY from row['annualRevenueGrowth']) when they
+    agree within _REVGROWTH_FILED_AGREE_TOL and are each under
+    _REVGROWTH_FILED_SANE_MAX. The trustworthy fallback for BOTH a corrupt
+    info.revenueGrowth (Tier A) and a corrupt quarterly blend (below --
+    SEC revenueQuarterly can carry a YTD / stub / segment value for a
+    single quarter-end, e.g. PRG's $3.7M and $1.8B "quarters" for a
+    ~$600M/qtr company, which blend to +829%)."""
+    sec_g = sec_fy_revenue_growth(xe)
+    stmt_g = to_float(row.get("annualRevenueGrowth"))
+    if (sec_g is not None and stmt_g is not None
+            and abs(sec_g - stmt_g) <= _REVGROWTH_FILED_AGREE_TOL
+            and abs((sec_g + stmt_g) / 2.0) < _REVGROWTH_FILED_SANE_MAX):
+        return round((sec_g + stmt_g) / 2.0, 6), sec_g, stmt_g
+    return None
+
+
 def reconcile_revenue_growth(data, xbrl):
     """Mutates `data` in place: rewrites each row's revenueGrowth and
     stamps revenueGrowthSource. `xbrl` = loaded company_facts.json. The
@@ -345,15 +364,12 @@ def reconcile_revenue_growth(data, xbrl):
         xe = xbrl.get(ticker) or {}
 
         if abs(info_g) > _REVGROWTH_INFO_IMPLAUSIBLE:
-            sec_g = sec_fy_revenue_growth(xe)
-            stmt_g = to_float(row.get("annualRevenueGrowth"))
-            if (sec_g is not None and stmt_g is not None
-                    and abs(sec_g - stmt_g) <= _REVGROWTH_FILED_AGREE_TOL
-                    and abs((sec_g + stmt_g) / 2.0) < _REVGROWTH_FILED_SANE_MAX):
-                filed = round((sec_g + stmt_g) / 2.0, 6)
-                print(f"reconcile revenueGrowth: {ticker} {info_g:+.1%} -> {filed:+.1%} "
+            filed = _filed_revenue_growth(xe, row)
+            if filed is not None:
+                val, sec_g, stmt_g = filed
+                print(f"reconcile revenueGrowth: {ticker} {info_g:+.1%} -> {val:+.1%} "
                       f"(Tier A: SEC {sec_g:+.1%}, yf-stmt {stmt_g:+.1%})")
-                row["revenueGrowth"] = filed
+                row["revenueGrowth"] = val
                 row["revenueGrowthSource"] = "reconciled-filed"
                 counts["reconciled-filed"] += 1
             continue
@@ -362,6 +378,21 @@ def reconcile_revenue_growth(data, xbrl):
             continue
 
         blended = blend_quarterly(info_g, xe.get("revenueQuarterly"), row.get("latestQuarterEnd"))
+
+        if blended is not None and abs(blended) > _REVGROWTH_INFO_IMPLAUSIBLE:
+            # The quarterly blend itself is corrupt -- same +200% bar and
+            # same filed-annual fallback as a corrupt info figure above.
+            filed = _filed_revenue_growth(xe, row)
+            if filed is not None:
+                val, sec_g, stmt_g = filed
+                print(f"reconcile revenueGrowth: {ticker} blend {blended:+.1%} -> {val:+.1%} "
+                      f"(blend corrupt; Tier A: SEC {sec_g:+.1%}, yf-stmt {stmt_g:+.1%})")
+                row["revenueGrowth"] = val
+                row["revenueGrowthSource"] = "reconciled-filed"
+                counts["reconciled-filed"] += 1
+                continue
+            blended = None  # fall through to blend-annual
+
         if blended is not None:
             row["revenueGrowth"] = round(blended, 6)
             row["revenueGrowthSource"] = "blend-q"
@@ -404,6 +435,8 @@ def reconcile_revenue_growth(data, xbrl):
 #   eg-tier-a -- |Q| > +/-200% AND a sane filed FY (|FY| < +/-100%) -> FY.
 #   eg-blend  -- 0.5*Q + 0.5*FY when both present.
 #   eg-q / eg-fy -- only one of the two available.
+#   eg-est -- analyst +1y estimate growth fallback when neither actual-Q nor
+#     filed-FY EPS growth is available.
 #
 # FY = SEC XBRL dilutedEPS FY-YoY, else yfinance income_stmt "Diluted EPS"
 # FY-YoY (row["dilutedEpsGrowth"] / dilutedEpsPrior / dilutedEpsAnnual from
@@ -411,6 +444,26 @@ def reconcile_revenue_growth(data, xbrl):
 _EARNGROWTH_INFO_IMPLAUSIBLE = 2.0   # Tier A: |Q| must exceed +/-200%
 _EARNGROWTH_FILED_SANE_MAX = 1.0     # ...and |FY| must be under +/-100%
 _EARNGROWTH_BLEND_WEIGHTS = (0.5, 0.5)  # Q, FY
+# Floor on any earnings-growth RATE. A profit -> loss year (prev EPS > 0,
+# latest < 0) gives latest/prev - 1 < -100% -- HPE (small profit -> -$0.04)
+# read -102%, HP ($3.43 -> -$1.66) read -148%. You can't lose more than all
+# of last year's earnings, so the sub -100% tail is meaningless as a rate;
+# it also drags the peer-median earningsGrowth. Floored at -1.0 it still
+# trips growth_rank's revenue-corroboration cap (max(rate, 0) = 0) exactly
+# the same way, just without the nonsense magnitude.
+_EARNGROWTH_RATE_FLOOR = -1.0
+# Mirror of _EARNGROWTH_RATE_FLOOR on the UP side. A near-zero-but-positive
+# prior FY EPS (a one-time-charge year, a cycle trough) makes latest/prev-1
+# explode -- INCY ($0.15 charge year -> $6.41) read +4173%, MU ($0.70
+# trough -> $7.59) +984%. There's no natural ceiling on real EPS growth, so
+# instead of a flat cap the PRIOR-year denominator is floored at this
+# fraction of the latest year (same trick earnings_margin_delta uses for
+# revps_old): prev can't count as less than a quarter of latest, bounding
+# the ratio at 1/FRAC - 1 = +300% when prev is an artifact, and only
+# biting once growth exceeds ~4x. Every consumer reads earningsGrowth as
+# max(rate, 0) in a one-way cap, so +300% vs +984% is invisible to scoring
+# -- this just stops the nonsense magnitude polluting the peer median / UI.
+_EARNGROWTH_PRIOR_FLOOR_FRAC = 0.25
 
 # earningsMarginDelta = clip(margin_new, +/-SANITY) - clip(margin_old, +/-SANITY)
 # where margin_new = dilutedEPS_FYn   / revenuePerShare_FYn
@@ -529,25 +582,51 @@ def earnings_margin_delta(entry, row):
 
 
 def fy_diluted_eps_growth(entry, row):
-    """(fy_growth or None, is_turnaround). fy_growth = latest FY diluted
-    EPS / prior FY - 1, from SEC company_facts.json (`entry`) first, then
-    yfinance income_stmt (fields on `row`). is_turnaround is True when the
-    prior FY was a loss (<= 0) and the latest FY a profit (> 0) -- no
-    meaningful %, but a real signal."""
+    """(fy_growth or None, is_turnaround, source). fy_growth = latest FY
+    diluted EPS / prior FY - 1, from SEC company_facts.json (`entry`) first,
+    then yfinance income_stmt (fields on `row`). For the SEC path the
+    PRIOR-year denominator is floored at _EARNGROWTH_PRIOR_FLOOR_FRAC *
+    latest so a near-zero artifact prior year can't blow the ratio up.
+
+    A trailing rate that would hit _EARNGROWTH_RATE_FLOOR (earnings
+    collapsed to a loss -- a > 100% drop, uninformative as a rate) is
+    REPLACED by the forward analyst estimate estimateGrowth1y when
+    available, clamped to +/-1.0 (explicit instruction: a forward number
+    beats reporting -100%; the estimate itself is often off a small or
+    negative base, hence the clamp). `source` is "fy" for a real trailing
+    rate, "est" when the forward estimate stood in, None when nothing was
+    available. is_turnaround is True when the prior FY was a loss (<= 0)
+    and the latest FY a profit (> 0) -- no meaningful %, but a real
+    signal."""
+    est_g = to_float(row.get("estimateGrowth1y"))
+    est_clamped = max(-1.0, min(1.0, est_g)) if est_g is not None else None
+
+    def _floor(raw):
+        # raw > -1.0: a real decline, keep it. raw <= -1.0 (profit -> loss):
+        # prefer the clamped forward estimate, else the -1.0 floor.
+        if raw > _EARNGROWTH_RATE_FLOOR:
+            return raw, False, "fy"
+        if est_clamped is not None:
+            return est_clamped, False, "est"
+        return _EARNGROWTH_RATE_FLOOR, False, "fy"
+
     e = (entry or {}).get("dilutedEPS") or []
     if len(e) >= 2:
         prev, latest = e[-2].get("val"), e[-1].get("val")
         if prev is not None and latest is not None:
             if prev > 0:
-                return latest / prev - 1.0, False
-            return None, latest > 0
+                prev_eff = max(prev, _EARNGROWTH_PRIOR_FLOOR_FRAC * latest) if latest > 0 else prev
+                return _floor(latest / prev_eff - 1.0)
+            return None, latest > 0, None
     yf_g = to_float(row.get("dilutedEpsGrowth"))
     if yf_g is not None:
-        return yf_g, False
+        return _floor(yf_g)
     prior, latest = to_float(row.get("dilutedEpsPrior")), to_float(row.get("dilutedEpsAnnual"))
     if prior is not None and latest is not None:
-        return None, prior <= 0 < latest
-    return None, False
+        return None, prior <= 0 < latest, None
+    if est_clamped is not None:
+        return est_clamped, False, "est"
+    return None, False, None
 
 
 def reconcile_earnings_growth(data, xbrl):
@@ -555,7 +634,7 @@ def reconcile_earnings_growth(data, xbrl):
     reconciled figure (the value every scoring site reads), preserving the
     raw quarterly figure as earningsGrowthQ and stamping
     earningsGrowthSource. `xbrl` = loaded company_facts.json."""
-    counts = {"eg-turnaround": 0, "eg-tier-a": 0, "eg-blend": 0, "eg-q": 0, "eg-fy": 0}
+    counts = {"eg-turnaround": 0, "eg-tier-a": 0, "eg-blend": 0, "eg-q": 0, "eg-fy": 0, "eg-est": 0}
     md_n = 0
     for ticker, row in data.items():
         # earningsMarginDelta -- the value earnings_growth_rank scores on.
@@ -572,8 +651,9 @@ def reconcile_earnings_growth(data, xbrl):
 
         q = to_float(row.get("earningsGrowth"))
         if q is not None:
-            row["earningsGrowthQ"] = q
-        fy, turnaround = fy_diluted_eps_growth(xbrl.get(ticker), row)
+            row["earningsGrowthQ"] = q          # raw MRQ figure, unfloored
+            q = max(q, _EARNGROWTH_RATE_FLOOR)  # a profit -> loss quarter can also print < -100%
+        fy, turnaround, fy_src = fy_diluted_eps_growth(xbrl.get(ticker), row)
 
         if turnaround:
             # No reconciled rate -- a % off a <=0 prior year is meaningless.
@@ -582,6 +662,15 @@ def reconcile_earnings_growth(data, xbrl):
             row["earningsGrowth"] = None
             row["earningsGrowthSource"] = "eg-turnaround"
             counts["eg-turnaround"] += 1
+            continue
+        if fy_src == "est":
+            # Trailing FY collapsed to a loss (or no trailing data at all);
+            # the clamped forward analyst estimate stands in. It IS the
+            # reconciled view for such a name -- don't blend it with the
+            # (equally broken) quarterly figure.
+            row["earningsGrowth"] = round(fy, 6)
+            row["earningsGrowthSource"] = "eg-est"
+            counts["eg-est"] += 1
             continue
         if q is None:
             if fy is not None:

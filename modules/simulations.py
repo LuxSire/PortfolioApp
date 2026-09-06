@@ -379,14 +379,34 @@ earnings uncertainty). Removing it brought simulated mean/median ratios
 from ~1.5-1.6x down to 0.93-1.00x.
 
 SimPrice = mean of the N simulated per-path prices AFTER winsorizing the
-array at its own p5/p95 (multiplicative EPS compounding fattens the
-right tail -- the raw mean sits above the body of the distribution on
-volatile names). The clip leaves the reported p20/p50/p80 untouched;
-only the mean and stdev (and the returns derived from the array) move.
-Deliberately
-NOT confidence-pulled toward currentPrice the way forecastPrice is (step
-4) -- it is meant to stand on its own as the simulated distribution's
-own central tendency, not a second confidence-weighted blend.
+array at its own p5/p95 (multiplicative EPS compounding fattens the right
+tail -- the raw mean sits above the body of the distribution on volatile
+names; the clip leaves p20/p50/p80 untouched), then scaled down by a
+RISK-PREMIUM MULTIPLE HAIRCUT:
+
+  excess     = max(combinedVol - RISK_PREMIUM_COMBVOL_BASELINE, 0)
+  pe_haircut = max(1 - RISK_PREMIUM_K * excess, RISK_PREMIUM_PE_FLOOR)
+  SimPrice   = median(simPathPrices) * pe_haircut
+  simPriceDistribution (p20/p50/p80/mean/stdev/probAboveCurrentPrice) is
+             the SAME haircut distribution, so the reported band matches
+             the headline number.
+
+The concept: a more uncertain earnings stream should be priced at a LOWER
+multiple (a higher demanded risk premium), so SimPrice does not just fan
+further from centre as combinedVol rises -- it also gets marked down.
+combinedVol (epsVolatility RSS analystDispersion) is the same uncertainty
+currency forecastPrice's `confidence` and simSharpe already use. Only the
+EXCESS over BASELINE (0.35) is charged -- combinedVol is ~0.32 for nearly
+every name (epsVolatility floored at 0.20, analystDispersion ~0.25) and
+that normal level is already in the industry multiple, so charging it
+would just be a flat tax. K = 0.5 -> a name at combinedVol 1.0 loses ~33%
+of its multiple; the floor caps the worst case at a 40% haircut. This is
+applied to
+SimPrice / SimReturn / simPriceDistribution ONLY -- NOT to forecastPrice
+(which keeps its own confidence shrink toward currentPrice, a different
+mechanism) and NOT to simSharpe's inputs (which stay on the un-haircut
+mean/vol, so risk sits in the Sharpe denominator only, never double-
+counted against the premium now in the price).
 
 simSharpe uses the Modified (Israelsen 2005) Sharpe Ratio rather than
 the plain formula, because a plain excess_return / volatility ratio
@@ -636,6 +656,27 @@ GROWTH_NOISE_FLOOR = 0.05
 # near-instant (small p) reversion shape.
 REVERSION_EXPONENT_MIN = 0.2
 REVERSION_EXPONENT_MAX = 1.5
+
+# ── SimPrice risk-premium multiple haircut ──────────────────────────────────
+# A more uncertain earnings stream is priced at a LOWER multiple. SimPrice
+# (the simulated-path price) is scaled by
+#   excess     = max(combinedVol - RISK_PREMIUM_COMBVOL_BASELINE, 0)
+#   pe_haircut = max(1 - RISK_PREMIUM_K * excess, RISK_PREMIUM_PE_FLOOR)
+# combinedVol = sqrt(epsVolatility**2 + analystDispersion**2) is the same
+# uncertainty currency `confidence` and simSharpe already use. Only
+# uncertainty ABOVE the baseline is penalised -- epsVolatility is floored
+# at 0.20 and analystDispersion runs ~0.25, so combinedVol is ~0.32 for
+# essentially every name and that "normal" level is already priced into the
+# industry multiple itself; without the baseline the haircut is a near-
+# uniform ~10-15% tax instead of a differentiator. BASELINE 0.35 -> a
+# typical name gets no haircut; K = 0.5 -> a name at combinedVol 1.0 loses
+# ~33% of its multiple; the floor caps the worst case at a 40% haircut.
+# Applied to SimPrice / SimReturn / simPriceDistribution ONLY -- forecastPrice
+# keeps its own confidence shrink, and simSharpe stays on the un-haircut
+# mean/vol so the premium isn't double-counted against the Sharpe denominator.
+RISK_PREMIUM_COMBVOL_BASELINE = 0.35
+RISK_PREMIUM_K = 0.5
+RISK_PREMIUM_PE_FLOOR = 0.6
 
 
 METRIC_KEYS = ("forwardPE", "trailingPE", "epsTrend", "revenueGrowth", "earningsGrowth", "earningsMarginDelta", "operatingMargin", "grossMargin", "analystDispersion")
@@ -1347,16 +1388,23 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
         # below, move.
         p5_price, p95_price = np.percentile(sim_prices, [5, 95])
         sim_prices = np.clip(sim_prices, p5_price, p95_price)
-        stats_sim = _price_stats(sim_prices, current_price)
-        # SimPrice = mean of the p5/p95-winsorized simulated distribution
-        # (see the np.clip above), each path being its own discounted-
-        # average price -- deliberately NOT confidence-pulled toward
-        # current_price the way forecastPrice is
-        # (see _forecast below): that pull exists to compensate for
-        # forecastPrice being a single point estimate with no
-        # distributional information of its own, and SimPrice already IS
-        # a distribution mean, so pulling it again would double-count the
-        # same uncertainty it's meant to represent.
+
+        # --- risk-premium multiple haircut (SimPrice / SimReturn /
+        # simPriceDistribution ONLY) --------------------------------------
+        # A more uncertain earnings stream is priced at a lower multiple.
+        # pe_haircut scales the whole simulated price distribution down by
+        # RISK_PREMIUM_K * combinedVol (floored) -- so higher uncertainty
+        # doesn't just fan SimPrice further from centre, it also marks it
+        # down. NOT applied to forecastPrice (its own confidence shrink) or
+        # to simSharpe's mean/vol below (which stay on the un-haircut array,
+        # keeping risk in the Sharpe denominator only). See RISK_PREMIUM_K.
+        _rp_excess = max(combined_vol - RISK_PREMIUM_COMBVOL_BASELINE, 0.0)
+        pe_haircut = max(1.0 - RISK_PREMIUM_K * _rp_excess, RISK_PREMIUM_PE_FLOOR)
+        sim_prices_hc = sim_prices * pe_haircut
+        stats_sim = _price_stats(sim_prices_hc, current_price)
+        # SimPrice = mean of the p5/p95-winsorized haircut distribution,
+        # deliberately NOT confidence-pulled toward current_price the way
+        # forecastPrice is.
         sim_price = stats_sim["mean"]
         sim_return = sim_price / current_price - 1
         # simSharpe -- explicit instruction: a risk-adjusted return built
@@ -1374,6 +1422,10 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
         # thinly-traded/newly-listed names anyway).
         sim_returns = sim_prices / current_price - 1.0
         sim_return_vol = float(np.std(sim_returns, ddof=1))
+        # simSharpe's numerator is the RAW (un-haircut) winsorized-mean
+        # return -- the risk-premium haircut belongs in SimPrice, not here,
+        # or it would be counted twice against sim_return_vol below.
+        sim_mean_return = float(sim_returns.mean())
         # Modified Sharpe (Israelsen 2005) -- explicit instruction: the
         # plain excess_return/vol formula ranks BACKWARDS once excess
         # return goes negative (dividing by a SMALLER vol makes it MORE
@@ -1383,7 +1435,7 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
         # instead, restoring the correct direction: for a negative excess
         # return, higher vol now makes the score MORE negative (correctly
         # worse), lower vol LESS negative (correctly less bad).
-        excess_return = sim_return - SIM_RF
+        excess_return = sim_mean_return - SIM_RF
         if sim_return_vol > 1e-9:
             sim_sharpe = excess_return / sim_return_vol if excess_return >= 0 else excess_return * sim_return_vol
         else:
@@ -1484,12 +1536,14 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
         "forecastReturn": forecast_return,
         "forecastPriceP20": forecast_price_p20,
         "forecastPriceP80": forecast_price_p80,
-        # SimPrice: mean of the simulated-path distribution -- see the
-        # simulated-path block above for the full design. Deliberately
-        # NOT confidence-pulled toward currentPrice the way forecastPrice
-        # is; forecastPrice stays the headline, confidence-adjusted
-        # number, SimPrice sits alongside it as the raw simulated-
-        # distribution mean.
+        # SimPrice: p5/p95-winsorized mean of the simulated-path price
+        # distribution, scaled down by the risk-premium multiple haircut
+        # (pe_haircut, see RISK_PREMIUM_K) -- so a more uncertain earnings
+        # stream is priced at a lower multiple.
+        # See the simulated-path block in this module's docstring. NOT
+        # confidence-pulled toward currentPrice (that is forecastPrice's
+        # separate mechanism); simSharpe is built from the un-haircut
+        # mean/vol so the premium isn't double-counted.
         "simPrice": sim_price,
         "simReturn": sim_return,
         "simSharpe": sim_sharpe,
@@ -1543,6 +1597,10 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
             "analystDispersion": analyst_dispersion,
             "combinedVol": combined_vol,
             "confidence": confidence,
+            # Risk-premium multiple haircut actually applied to SimPrice /
+            # SimReturn / simPriceDistribution (1.0 = none; floored at
+            # RISK_PREMIUM_PE_FLOOR). None when the simulated path didn't run.
+            "simPeHaircut": pe_haircut if stats_sim is not None else None,
             "ownPe": own_pe,
             "industryMedianPe": industry_pe,
             "peerCount": peer_n,

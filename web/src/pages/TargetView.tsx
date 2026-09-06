@@ -74,12 +74,12 @@ interface Alternate {
   ticker: string
   name: string | null
   rating: string | null
-  forecastReturn: number | null
+  simReturn: number | null
   compositeScore: number
   poolRank: number
 }
 
-// One "Nth Choice" cell -- ticker (linked) + name, with forecastReturn as a
+// One "Nth Choice" cell -- ticker (linked) + name, with simReturn as a
 // signed subvalue so a runner-up's own directional thesis is visible at a
 // glance without opening its own asset page. '—' when this slot ran out of
 // candidates (a thin pool, e.g. a niche sector with few Strong Buy/Sell names).
@@ -90,8 +90,8 @@ function AlternateCell({ alt }: { alt: Alternate | undefined }) {
       <a href={`#/asset/${encodeURIComponent(alt.ticker)}`} target="_blank" rel="noopener noreferrer" className="ticker-link">
         {alt.ticker}
       </a>
-      {alt.forecastReturn != null && (
-        <span className={`live-price ${signClass(alt.forecastReturn)}`}>{fmtPct(alt.forecastReturn)}</span>
+      {alt.simReturn != null && (
+        <span className={`live-price ${signClass(alt.simReturn)}`}>{fmtPct(alt.simReturn)}</span>
       )}
     </td>
   )
@@ -107,8 +107,8 @@ interface TargetRow {
   rating: string | null
   score: number | null
   scorePercentile: number | null
-  forecastReturn: number    // confidence-weighted fair-value-vs-current return from simulation (simulations.py step 5)
-  positionReturn: number    // +forecastReturn for longs, −forecastReturn for shorts
+  simReturn: number       // risk-premium-haircut simulated-path price-vs-current return (simulations.py)
+  positionReturn: number    // +simReturn for longs, −simReturn for shorts
   vol: number               // β × MARKET_VOL (annualised price vol proxy)
   beta: number
   indivSharpe: number       // (positionReturn − rf) / vol
@@ -226,7 +226,7 @@ export default function TargetView() {
                 <th className="col-left">Sector</th>
                 <th>Rating</th>
                 <th>Price</th>
-                <th title="Confidence-weighted fair value vs. current price, from 5-year DCF simulation">Forecast</th>
+                <th title="Simulated-path price vs. current price (risk-premium-haircut), from the EPS Monte Carlo — the long/short gate and the optimiser's expected-return input">Sim return</th>
                 <th title={`Annualised vol proxy: β × ${(MARKET_VOL * 100).toFixed(0)}%`}>Vol</th>
                 <th title="Simulation probability of price being above current, at the industry-median PE">P(↑)</th>
                 <th title="FINRA pctOfFloat (fresher), else yfinance shortPercentOfFloat -- high short interest favors a long (squeeze/contrarian upside) and penalizes a short (crowded-trade squeeze risk)">Short Int.</th>
@@ -298,7 +298,7 @@ export default function TargetView() {
                         </span>
                       )}
                     </td>
-                    <td className={`num ${signClass(r.forecastReturn)}`}>{fmtPct(r.forecastReturn)}</td>
+                    <td className={`num ${signClass(r.simReturn)}`}>{fmtPct(r.simReturn)}</td>
                     <td className="num">{fmtVol(r.vol)}</td>
                     <td className={`num ${r.probAbove != null ? r.probAbove > 0.66 ? 'good' : r.probAbove < 0.33 ? 'bad' : '' : ''}`}>{r.probAbove != null ? (r.probAbove * 100).toFixed(0) + '%' : '—'}</td>
                     <td className={`num ${shortInterestClass(r.shortInterest, r.side)}`}>
@@ -317,7 +317,7 @@ export default function TargetView() {
                 <tr className="empty-row">
                   <td colSpan={14}>
                     No {side.toLowerCase()} candidates with{' '}
-                    {side === 'Long' ? 'positive' : 'negative'} forecast return found.
+                    {side === 'Long' ? 'positive' : 'negative'} sim return found.
                   </td>
                 </tr>
               )}
@@ -355,7 +355,7 @@ export default function TargetView() {
           <div className="stat-row">
             <div
               className="stat"
-              title="Expected annualised return, 1/50 per position (each leg 100% gross, dollar-neutral): mean(long forecastReturn) − mean(short forecastReturn)"
+              title="Expected annualised return, 1/50 per position (each leg 100% gross, dollar-neutral): mean(long simReturn) − mean(short simReturn)"
             >
               <span className={`n num ${signClass(portfolioReturn)}`}>{fmtPct(portfolioReturn)}</span>
               <span className="l">Expected Return</span>
@@ -383,7 +383,7 @@ export default function TargetView() {
             </div>
             <div
               className="stat"
-              title={`Long leg on its own (${longs.length} names, 1/${longs.length} each, 100% gross): mean long forecastReturn`}
+              title={`Long leg on its own (${longs.length} names, 1/${longs.length} each, 100% gross): mean long simReturn`}
             >
               <span className={`n num ${signClass(longLeg?.return ?? null)}`}>{fmtPct(longLeg?.return ?? null)}</span>
               <span className="l">Long Return</span>
@@ -397,7 +397,7 @@ export default function TargetView() {
             </div>
             <div
               className="stat"
-              title={`Short leg on its own (${shorts.length} names, 1/${shorts.length} each, 100% gross): profit from prices falling, −mean short forecastReturn`}
+              title={`Short leg on its own (${shorts.length} names, 1/${shorts.length} each, 100% gross): profit from prices falling, −mean short simReturn`}
             >
               <span className={`n num ${signClass(shortLeg?.return ?? null)}`}>{fmtPct(shortLeg?.return ?? null)}</span>
               <span className="l">Short Return</span>

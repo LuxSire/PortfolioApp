@@ -519,12 +519,15 @@ export default function AssetView({ ticker }: { ticker: string }) {
             <SimPriceRangeChart
               title="Simulated Price Distribution — Industry Multiple"
               currentPrice={sim.currentPrice ?? (lastPrice as number)}
-              forecastPrice={sim.forecastPrice}
-              forecastReturn={sim.forecastReturn}
-              p20={sim.forecastPriceP20 ?? sim.priceAtIndustryMultiple.p20}
-              median={sim.priceAtIndustryMultiple.median}
-              p80={sim.forecastPriceP80 ?? sim.priceAtIndustryMultiple.p80}
-              probAboveCurrentPrice={sim.priceAtIndustryMultiple.probAboveCurrentPrice}
+              simPrice={sim.simPrice}
+              simReturn={sim.simReturn}
+              p20={sim.simPriceDistribution?.p20 ?? sim.priceAtIndustryMultiple.p20}
+              median={sim.simPriceDistribution?.median ?? sim.priceAtIndustryMultiple.median}
+              p80={sim.simPriceDistribution?.p80 ?? sim.priceAtIndustryMultiple.p80}
+              probAboveCurrentPrice={
+                sim.simPriceDistribution?.probAboveCurrentPrice ??
+                sim.priceAtIndustryMultiple.probAboveCurrentPrice
+              }
               analystLow={sim.analystTargets?.low}
               analystMean={sim.analystTargets?.mean}
               analystHigh={sim.analystTargets?.high}

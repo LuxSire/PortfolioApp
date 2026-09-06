@@ -27,10 +27,10 @@ const TABS = [
   { key: 'recommendations', label: 'Recommendations' },
   { key: 'simulations', label: 'Simulations' },
   { key: 'target', label: 'Target' },
-  { key: 'dataset', label: 'Dataset' },
-  { key: 'scoring', label: 'Scoring' },
   { key: 'screener', label: 'Screener' },
   { key: 'backtesting', label: 'Backtesting' },
+  { key: 'dataset', label: 'Dataset' },
+  { key: 'scoring', label: 'Scoring' },
 ]
 
 export default function App() {

@@ -4,6 +4,7 @@ import { earningsUrgencyClass } from '../earnings'
 import { getSectorGroup, sectorGroupLabel } from '../sectorGroups'
 import { getSectorIcon } from '../sectorIcons'
 import { IB_STREAM_URL } from '../ibStream'
+import { useCashEquivalents } from '../nonEquityHoldings'
 import { avgInsiderScore, avgNewsSentiment, fmtNum, fmtPct as fmtPctFactor, rankTo100, ratingClass, toNum } from '../screenerFactors'
 import { assetPnlClass, rangeClass } from '../colorRules'
 import { FACTOR_COLUMNS, computeFactorAverages } from '../components/factorTable'
@@ -708,6 +709,15 @@ export default function PositionsView() {
     })
   }, [positions, prices, tickerInfo, dailyHistory3mo, monthlyHistory, trades, pnl, factorsByTicker, sectorAvgPE])
 
+  // The directional trading book: `rows` minus cash-equivalent holdings
+  // (data/cash.json via useCashEquivalents -- IB01, SGOV, ...). Those
+  // carry a dollar value but are not stock bets, so they must stay out of
+  // every exposure / long-short / beta / vol / forecast number below. They
+  // are still listed on their own under the table.
+  const cashTickers = useCashEquivalents()
+  const bookRows = useMemo(() => rows.filter((r) => !cashTickers.has(r.ticker)), [rows, cashTickers])
+  const nonEquityRows = useMemo(() => rows.filter((r) => cashTickers.has(r.ticker)), [rows, cashTickers])
+
   // Long/short split first — the book's two fundamentally different
   // exposures, rendered as their own leftmost rowSpan column — sector
   // subgrouping second, nested underneath exactly like before. A short
@@ -717,8 +727,8 @@ export default function PositionsView() {
   const sideGroups: SideGroup[] = useMemo(() => {
     const sides = (
       [
-        { side: 'Long', sideRows: rows.filter((r) => (r.shares ?? 0) >= 0) },
-        { side: 'Short', sideRows: rows.filter((r) => (r.shares ?? 0) < 0) },
+        { side: 'Long', sideRows: bookRows.filter((r) => (r.shares ?? 0) >= 0) },
+        { side: 'Short', sideRows: bookRows.filter((r) => (r.shares ?? 0) < 0) },
       ] as { side: 'Long' | 'Short'; sideRows: PositionRow[] }[]
     ).filter((s) => s.sideRows.length > 0)
 
@@ -742,7 +752,7 @@ export default function PositionsView() {
       const dayPnl = sideRows.reduce((s, r) => s + (r.dayPnl ?? 0), 0)
       return { side, sectorGroups, total, dayPnl, rowCount: sideRows.length }
     })
-  }, [rows])
+  }, [bookRows])
 
   // Value-weighted average of every screener factor (see FactorCells.jsx's
   // FACTOR_KEYS/computeFactorAverages), one row per side (Long/Short)
@@ -757,7 +767,7 @@ export default function PositionsView() {
   const weightedSideFactors: WeightedSideFactor[] = useMemo(() => {
     const netLiq = account.NetLiquidation
     return sideGroups.map((g) => {
-      const sideRows = rows.filter((r) => (g.side === 'Long' ? (r.shares ?? 0) >= 0 : (r.shares ?? 0) < 0))
+      const sideRows = bookRows.filter((r) => (g.side === 'Long' ? (r.shares ?? 0) >= 0 : (r.shares ?? 0) < 0))
       const { factors, count, sumWeight } = computeFactorAverages(sideRows, (r: PositionRow) => Math.abs(r.value ?? 0))
       // Sum of each position's own % of NAV (see the positions table's own
       // % of NAV column) — the side's gross exposure (sumWeight) expressed
@@ -772,20 +782,33 @@ export default function PositionsView() {
       // P&L stat already use — reused as-is, not recomputed.
       return { side: g.side, count, netValue: g.total, sumWeightPct, factors, beta, dollarPer1PctMove, dayPnl: g.dayPnl }
     })
-  }, [sideGroups, rows, account])
+  }, [sideGroups, bookRows, account])
+
+  // Same value-weighted summary as the Long/Short rows above, but for the
+  // cash/bond-equivalent holdings (nonEquityRows -- see the "Bonds & cash
+  // equivalents" table below) instead of the trading book. They carry no
+  // screener factor data (not part of the ranked universe) or a beta, so
+  // those cells render as "—"; Pos Value/% of NAV/Daily P&L are real sums.
+  const cashFactorRow = useMemo(() => {
+    const netLiq = account.NetLiquidation
+    const { factors, count, sumWeight } = computeFactorAverages(nonEquityRows, (r: PositionRow) => Math.abs(r.value ?? 0))
+    const netValue = nonEquityRows.reduce((s, r) => s + (r.value ?? 0), 0)
+    const dayPnl = nonEquityRows.reduce((s, r) => s + (r.dayPnl ?? 0), 0)
+    return { count, netValue, sumWeightPct: netLiq ? sumWeight / netLiq : null, dayPnl, factors }
+  }, [nonEquityRows, account])
 
   // Net: long and short values offset (a short's value is negative, since
   // its shares are negative) — the portfolio's actual directional exposure.
   // Gross: every position's magnitude summed regardless of side — total
   // capital at work either way.
-  const netValue = rows.reduce((s, r) => s + (r.value ?? 0), 0)
-  const grossValue = rows.reduce((s, r) => s + Math.abs(r.value ?? 0), 0)
+  const netValue = bookRows.reduce((s, r) => s + (r.value ?? 0), 0)
+  const grossValue = bookRows.reduce((s, r) => s + Math.abs(r.value ?? 0), 0)
   // Sum of each position's dollar dayPnl (see rows above) — same IB-vs-
   // yfinance daily proxy as the Daily % column, just summed in dollars.
   // This is the unrealized side only (today's mark-to-market on
   // currently-open positions); closedPositionsRealizedPnl below is the
   // realized side, and Daily P&L is their sum.
-  const positionsDayPnl = rows.reduce((s, r) => s + (r.dayPnl ?? 0), 0)
+  const positionsDayPnl = bookRows.reduce((s, r) => s + (r.dayPnl ?? 0), 0)
   // Today's REALIZED P&L — the mark-to-market gain/loss attributable to a
   // symbol traded today that's now fully closed out (shares back to 0). A
   // symbol only PARTIALLY closed today doesn't need separate handling:
@@ -886,7 +909,7 @@ export default function PositionsView() {
   // P&L purely from today's own entry price(s), with no prior close in
   // the math at all, which is exactly "P&L from the opening."
   const openedTodayRows: OpenedPositionRow[] = useMemo(() => {
-    return rows
+    return bookRows
       .filter((r) => {
         const trade = trades[r.ticker]
         if (!trade || Math.abs(trade.qty) < 1e-6 || r.shares === null) return false
@@ -894,7 +917,7 @@ export default function PositionsView() {
       })
       .map((r) => ({ ticker: r.ticker, name: r.name, price: r.price, dayPnl: r.dayPnl }))
       .sort((a, b) => Math.abs(b.dayPnl ?? 0) - Math.abs(a.dayPnl ?? 0))
-  }, [rows, trades])
+  }, [bookRows, trades])
   // Net/gross as a share of the account's actual liquidation value —
   // e.g. gross > 100% means leverage (more capital at work than the
   // account is worth).
@@ -903,8 +926,8 @@ export default function PositionsView() {
   const grossValuePct = netLiq ? grossValue / netLiq : null
 
   const portfolioVol = useMemo(
-    () => portfolioVolatilityDecomposition(rows, dailyHistory3mo, monthlyHistory),
-    [rows, dailyHistory3mo, monthlyHistory]
+    () => portfolioVolatilityDecomposition(bookRows, dailyHistory3mo, monthlyHistory),
+    [bookRows, dailyHistory3mo, monthlyHistory]
   )
   // Portfolio Vol.'s small-font subvalue: the dollar figure as a % of the
   // account's actual NetLiquidation, same "how big is this next to my
@@ -948,7 +971,7 @@ export default function PositionsView() {
   const { expectedReturn, coveredValue } = useMemo(() => {
     let weightedReturn = 0
     let covered = 0
-    for (const r of rows) {
+    for (const r of bookRows) {
       if (!r.shares || !r.value) continue
       const fr = tickerForecast[r.ticker]
       if (fr === null || fr === undefined) continue
@@ -958,12 +981,12 @@ export default function PositionsView() {
       covered += weight
     }
     return { expectedReturn: netLiq ? weightedReturn / netLiq : null, coveredValue: covered }
-  }, [rows, tickerForecast, netLiq])
+  }, [bookRows, tickerForecast, netLiq])
 
   const sharpe =
     expectedReturn !== null && annualizedVolPct ? (expectedReturn - RF) / annualizedVolPct : null
 
-  const portfolioBeta = useMemo(() => portfolioBetaExposure(rows), [rows])
+  const portfolioBeta = useMemo(() => portfolioBetaExposure(bookRows), [bookRows])
 
   // Same tab-bar convention as AssetView.tsx: page-level headers (Account,
   // masthead, Expected Portfolio Performance) always visible above the tab
@@ -1028,7 +1051,7 @@ export default function PositionsView() {
             <span className="l">Realized P&amp;L</span>
           </div>
           <div className="stat">
-            <span className="n num">{rows.length}</span>
+            <span className="n num">{bookRows.length}</span>
             <span className="l">Positions</span>
           </div>
           <div
@@ -1236,6 +1259,24 @@ export default function PositionsView() {
                     dollarPer1PctMove={w.dollarPer1PctMove}
                   />
                 ))}
+                {nonEquityRows.length > 0 && (
+                  <tr>
+                    <td className="col-left col-ticker side-group-cell">
+                      <span className="side-group-label">Cash equivalent</span>
+                    </td>
+                    <td className="col-left col-name">
+                      {cashFactorRow.count} position{cashFactorRow.count === 1 ? '' : 's'}
+                    </td>
+                    <td className="num">{fmtMoney(cashFactorRow.netValue || null)}</td>
+                    <td className="num">{fmtPct(cashFactorRow.sumWeightPct)}</td>
+                    <td className={`num ${cashFactorRow.dayPnl === 0 ? '' : cashFactorRow.dayPnl >= 0 ? 'good' : 'bad'}`}>
+                      {fmtMoney(cashFactorRow.dayPnl || null)}
+                    </td>
+                    <FactorCells factors={cashFactorRow.factors} />
+                    <td className="num">—</td>
+                    <td className="num">—</td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -1282,7 +1323,7 @@ export default function PositionsView() {
             </tr>
           </thead>
           <tbody>
-            {rows.length === 0 && (
+            {bookRows.length === 0 && (
               <tr className="status-row">
                 <td colSpan={20}>
                   No open positions — or ib_server.py isn't running / hasn't reported positions yet.
@@ -1384,6 +1425,44 @@ export default function PositionsView() {
           </tbody>
         </table>
       </div>
+      )}
+
+      {tab === 'positions' && nonEquityRows.length > 0 && (
+        <div className="table-wrap positions-table-wrap">
+          <h2 title="Cash / short-term-Treasury-equivalent holdings (data/cash.json — e.g. IB01, SGOV). Listed here for completeness but deliberately excluded from every exposure, % of NAV, beta, volatility and long/short figure above — they are not directional equity positions.">
+            Bonds &amp; cash equivalents
+          </h2>
+          <table>
+            <thead>
+              <tr>
+                <th className="col-left">Position</th>
+                <th className="col-left col-name">Asset / Security</th>
+                <th>Shares</th>
+                <th>Value</th>
+                <th title="Value divided by the account's Net Liquidation. Shown for reference only — NOT added into the exposure totals above.">
+                  % of NAV
+                </th>
+                <th>Avg Price</th>
+                <th>Price</th>
+                <th>Daily $</th>
+              </tr>
+            </thead>
+            <tbody>
+              {nonEquityRows.map((r) => (
+                <tr key={r.ticker}>
+                  <td className="col-left">{r.ticker}</td>
+                  <td className="col-left col-name">{r.name}</td>
+                  <td className="num">{fmtShares(r.shares)}</td>
+                  <td className="num">{fmtMoney(r.value)}</td>
+                  <td className="num">{netLiq && r.value !== null ? fmtPct(r.value / netLiq) : '—'}</td>
+                  <td className="num">{fmtPrice(r.avgCost)}</td>
+                  <td className="num">{fmtPrice(r.price)}</td>
+                  <td className={`num ${r.dayPnl === null ? '' : r.dayPnl >= 0 ? 'good' : 'bad'}`}>{fmtDollars(r.dayPnl)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   )

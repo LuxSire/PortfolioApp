@@ -72,6 +72,7 @@ export interface SimRow {
   forecastPrice: number | null
   forecastReturn: number | null
   simPrice: number | null
+  simReturn: number | null
   simVol: number | null
   simSharpe: number | null
   muEps: number

@@ -351,7 +351,7 @@ import sys
 import threading
 import urllib.error
 import urllib.request
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from modules.IBApp import IBApp
 from modules.scoring import (
@@ -651,7 +651,7 @@ def _load_json_or_empty(path):
         return {}
 
 
-def add_momentum(app, data, history_out=None):
+def add_momentum(app, data, history_out=None, checkpoint=None):
     """Adds momentum + meanReversion (see IBApp.get_momentum -- momentum
     from DAILY_3MO_HISTORY_FILE where it covers a ticker, else the plain
     trailing-~1-month yfinance calculation; meanReversion from
@@ -659,10 +659,12 @@ def add_momentum(app, data, history_out=None):
     place. If history_out is a dict, also captures each ticker's daily
     close series from that same yfinance fetch (see write_price_history)
     — no extra network round-trip since IBApp.get_momentum already pulls
-    it."""
+    it. checkpoint is passed straight through to get_momentum (partial
+    price-history save mid-fetch)."""
     momentum = app.get_momentum(
         list(data.keys()),
         history_out=history_out,
+        checkpoint=checkpoint,
         daily_3mo_by_ticker=_load_json_or_empty(DAILY_3MO_HISTORY_FILE),
         hourly_by_ticker=_load_json_or_empty(HOURLY_HISTORY_FILE),
     )
@@ -693,26 +695,76 @@ def add_momentum_from_cache(app, data):
         d["meanReversion"] = result.get("mean_reversion")
 
 
-def add_momentum_and_persist_history(app, data):
+def _latest_expected_close_date(now=None):
+    """ISO date of the most recent trading day whose daily close should
+    already be published. Weekend-aware (steps back over Sat/Sun) and
+    steps back one more day when it's still early in the UTC day and the
+    US cash close for `today` may not have landed yet. Holidays are NOT
+    modelled: on a market holiday this points at a day with no bar, so
+    every ticker just looks stale and gets refetched -- harmless, just the
+    old full-refresh behaviour for that one run."""
+    now = now or datetime.now(timezone.utc)
+    d = now.date()
+    if now.hour < 22:  # ~US cash close + settle margin, in UTC
+        d -= timedelta(days=1)
+    while d.weekday() >= 5:  # Sat=5, Sun=6
+        d -= timedelta(days=1)
+    return d.isoformat()
+
+
+def add_momentum_and_persist_history(app, data, force=False):
     """add_momentum, plus merging the close-series it captures into
     price_history.json — the common case across all three download_*
     entry points (download_all/download_prices/download_yfinance_prices
     -- the last of these is `python main.py yfprices`, the dedicated
     yfinance-only command). Also updates MISSINGS_FILE's "yfinance" key
-    (see _update_missings) with every ticker `history` came back with no
+    (see _update_missings) with every ticker the fetch came back with no
     closes for at all -- yf.Ticker(symbol).history() either raised on
     all 3 attempts (see IBApp.get_momentum's own fetch closure) or
-    returned zero rows."""
+    returned zero rows.
+
+    Incremental by default: a ticker whose cached price_history.json
+    series already ends on _latest_expected_close_date() is NOT re-fetched
+    -- its momentum/meanReversion are recomputed from the cached closes
+    (get_momentum_from_disk) instead, and only the stale/missing tickers
+    hit the network. get_momentum also checkpoints price_history.json part
+    way through the fetch, so an interrupted run keeps its progress and
+    the next run resumes on just the remainder. force=True re-fetches the
+    whole universe regardless (CLI: `prices overwrite` / `yfprices
+    overwrite`)."""
+    cached = _load_json_or_empty(PRICE_HISTORY_FILE)
+    expected = _latest_expected_close_date()
+
+    def _is_fresh(t):
+        series = cached.get(t)
+        return bool(series) and (series[-1].get("date") or "") >= expected
+
+    fresh = set() if force else {t for t in data if _is_fresh(t)}
+    stale = [t for t in data if t not in fresh]
+    if fresh:
+        print(f"price_history.json: {len(fresh)} ticker(s) already current "
+              f"(close on {expected}); fetching {len(stale)}")
+
     history = {}
-    add_momentum(app, data, history_out=history)
-    try:
-        with open(PRICE_HISTORY_FILE) as f:
-            all_history = json.load(f)
-    except FileNotFoundError:
-        all_history = {}
-    all_history.update(history)
+    if stale:
+        add_momentum(
+            app, {t: data[t] for t in stale}, history_out=history,
+            checkpoint=lambda partial: write_price_history({**cached, **partial}),
+        )
+    if fresh:
+        disk_mom = app.get_momentum_from_disk(
+            sorted(fresh),
+            daily_3mo_by_ticker=_load_json_or_empty(DAILY_3MO_HISTORY_FILE),
+            hourly_by_ticker=_load_json_or_empty(HOURLY_HISTORY_FILE),
+            yfinance_history_by_ticker=cached,
+        )
+        for t, m in disk_mom.items():
+            data[t]["momentum"] = m.get("momentum")
+            data[t]["meanReversion"] = m.get("mean_reversion")
+
+    all_history = {**_load_json_or_empty(PRICE_HISTORY_FILE), **history}
     write_price_history(all_history)
-    _update_missings("yfinance", [t for t in data if not history.get(t)])
+    _update_missings("yfinance", [t for t in stale if not history.get(t)])
 
 
 def _ib_gateway_reachable(host="127.0.0.1", port=4001, timeout=2):
@@ -1257,10 +1309,12 @@ def download_ib_hourly_prices():
     asyncio.run(refresh_ib_hourly_history(app, load_tickers(SYMBOLS_FILE)))
 
 
-def download_yfinance_prices():
+def download_yfinance_prices(force=False):
     """Refreshes price_history.json (see
     add_momentum_and_persist_history/write_price_history) on its own, via
-    `python main.py yfprices` -- the yfinance-only counterpart to
+    `python main.py yfprices` (add `overwrite` to force a full re-pull
+    instead of the default incremental "only stale tickers" fetch) -- the
+    yfinance-only counterpart to
     download_ib_prices/`python main.py ibprices`, same "standalone
     refresh without the rest of the pipeline" reasoning, just for the
     other data source. Doesn't touch IB Gateway at all: get_momentum's
@@ -1278,7 +1332,7 @@ def download_yfinance_prices():
     app = IBApp()
     tickers = load_tickers(SYMBOLS_FILE)
     print(f"Loaded {len(tickers)} active tickers from {SYMBOLS_FILE}")
-    add_momentum_and_persist_history(app, {t: {} for t in tickers})
+    add_momentum_and_persist_history(app, {t: {} for t in tickers}, force=force)
 
 
 FRESH_HOURS = 8
@@ -1411,7 +1465,7 @@ def download(tickers=None):
         print(f"    [{min(i + STATEMENTS_CHUNK, len(stmt_stale))}/{len(stmt_stale)}] {with_data} tickers with statement data")
 
 
-def recalc(fresh_momentum=False):
+def recalc(fresh_momentum=False, force_prices=False):
     """Rebuilds every derived artifact from the raw provider dumps on disk.
     screen_data.csv (from RAW_DATA_FILE + RAW_STATEMENTS_FILE via
     modules.derive), momentum, the revenueGrowth reconcile against
@@ -1422,14 +1476,16 @@ def recalc(fresh_momentum=False):
     fresh_momentum=True (used by `all` / `prices`) does the one yfinance
     call recalc otherwise avoids -- the trailing ~1mo daily closes that
     add_momentum_and_persist_history needs for tickers with no IB bars,
-    persisted to price_history.json. The default reads only cached bars,
-    so `recalc` on its own makes ZERO network calls."""
+    persisted to price_history.json. That fetch is INCREMENTAL: only
+    tickers whose cached close isn't already current get re-pulled unless
+    force_prices=True. The default (fresh_momentum=False) reads only
+    cached bars, so `recalc` on its own makes ZERO network calls."""
     app = IBApp()
     data = build_screen_rows()
     print(f"recalc: built {len(data)} screen rows from raw dumps")
     apply_sector_overrides(data, load_sectors(SYMBOLS_FILE))
     if fresh_momentum:
-        add_momentum_and_persist_history(app, data)
+        add_momentum_and_persist_history(app, data, force=force_prices)
     else:
         add_momentum_from_cache(app, data)
     _xbrl = _load_json_or_empty(XBRL_FACTS_FILE)
@@ -1700,9 +1756,15 @@ def download_all(overwrite=False):
     print("Waiting for background IB daily/hourly bar refresh to finish before scoring momentum...")
     ib_bar_thread.join()
 
-    # 2. rebuild everything derived from the raw dumps
-    recalc(fresh_momentum=True)
+    # 2. rebuild everything derived from the raw dumps -- `all overwrite`
+    # also forces the full (non-incremental) yfinance daily-close re-pull.
+    recalc(fresh_momentum=True, force_prices=overwrite)
     snapshot_screen_history()
+    # recalc() already built the backtest once, but BEFORE this run's own
+    # sorted_screen <Friday>.csv snapshot existed -- re-run it here, at the
+    # very end, so backtest.json reflects the snapshot just written (and the
+    # freshest IB daily bars from the join above). Zero network, ~1s.
+    download_backtest()
 
 
 def snapshot_screen_history():
@@ -1725,15 +1787,18 @@ def snapshot_screen_history():
         print(f"Snapshotted {src} -> {dest}")
 
 
-def download_prices():
+def download_prices(force=False):
     """`recalc(fresh_momentum=True)` -- rebuild everything from the raw
     dumps on disk, with a fresh yfinance trailing-~1mo daily-close pull for
-    the momentum factor (the one thing plain `recalc` doesn't refetch). Does
-    NOT re-pull `.info` / statements -- run `python main.py download` (or
-    `all`) for that. IB Gateway's own daily bars stay a separate on-demand
-    step (`python main.py ibprices`), since IB Gateway won't accept a second
-    API connection while ib_server.py holds one open."""
-    recalc(fresh_momentum=True)
+    the momentum factor (the one thing plain `recalc` doesn't refetch).
+    That pull is INCREMENTAL -- only tickers whose cached daily close isn't
+    already current get re-fetched; `python main.py prices overwrite`
+    forces the full universe. Does NOT re-pull `.info` / statements -- run
+    `python main.py download` (or `all`) for that. IB Gateway's own daily
+    bars stay a separate on-demand step (`python main.py ibprices`), since
+    IB Gateway won't accept a second API connection while ib_server.py
+    holds one open."""
+    recalc(fresh_momentum=True, force_prices=force)
 
 
 def download_short_interest():
@@ -2010,7 +2075,7 @@ if __name__ == "__main__":
     elif mode in ("recalc", "rescore"):
         recalc()
     elif mode == "prices":
-        download_prices()
+        download_prices(force=(len(sys.argv) > 2 and sys.argv[2] == "overwrite"))
     elif mode == "form4":
         download_form4()
     elif mode == "xbrl":
@@ -2024,7 +2089,7 @@ if __name__ == "__main__":
     elif mode == "ibhprices":
         download_ib_hourly_prices()
     elif mode == "yfprices":
-        download_yfinance_prices()
+        download_yfinance_prices(force=(len(sys.argv) > 2 and sys.argv[2] == "overwrite"))
     elif mode == "themes":
         download_themes(sys.argv[2:] if len(sys.argv) > 2 else None)
     elif mode == "recommendations":
