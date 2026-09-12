@@ -200,26 +200,68 @@ def get_estimates(ticker):
     return _get(f"/equity/estimates/{ticker}")
 
 
-def get_forward_eps(ticker, today=None):
-    """(fwd_eps0y, fwd_eps1y) -- Eulerpool's own two NEAREST-FUTURE fiscal
-    years' consensus EPS estimates from get_estimates, i.e. the same pair
-    of numbers this project's own fwdEps0y (current, not-yet-completed
-    fiscal year) / fwdEps1y (the one after) already carries from
-    yfinance -- see modules.derive's own fy_diluted_eps_growth for where
-    that pair is used. Picked by comparing each row's `period` (fiscal
-    year end, 'YYYY-MM-DD') against `today` (defaults to date.today()),
-    NOT by trusting array order or the presence of a `year` field alone
+def get_forward_estimates(ticker, today=None):
+    """(fwd_eps0y, fwd_eps1y, fwd_eps2y, fwd_revenue0y, fwd_revenue1y,
+    fwd_revenue2y) -- Eulerpool's own THREE nearest-future fiscal years'
+    consensus EPS AND revenue, all pulled from the SAME get_estimates call
+    (each row already carries epsEstimate and revenueEstimate together --
+    no reason to hit the endpoint twice for two metrics off one array).
+    The 0y/1y EPS pair is the same shape this project's own fwdEps0y
+    (current, not-yet-completed fiscal year) / fwdEps1y (the one after)
+    already carries from yfinance -- see modules.derive's own
+    fy_diluted_eps_growth for where that pair is used. fwd_eps2y/
+    fwd_revenue2y (the year after THAT, for both metrics) have no
+    yfinance counterpart at all -- yfinance's own earningsEstimate
+    statement only ever carries '0y'/'+1y' (see modules.derive.
+    statement_metrics), and never gave this project a forward revenue
+    estimate at any horizon (only a TRAILING revenueGrowth -- see
+    modules.derive.reconcile_revenue_growth) -- so both are genuinely new,
+    Eulerpool-only figures, not something to blend; see modules.derive.
+    reconcile_forward_eps, which passes fwd_eps2y through as-is
+    (eulerFwdEps2y) and derives eulerRevGrowth2y =
+    fwd_revenue2y/fwd_revenue1y - 1 the same way it derives
+    eulerRevGrowth1y from the 0y/1y pair. modules.simulations blends both
+    into the year-2 consensus drift nudge (the same role forwardEps/
+    anchorEps - 1 plays for year 1, one year further out and averaged
+    across an EPS-implied and a revenue-implied reading instead of just
+    one) and years 3+ are left on the plain concave reversion-to-peer-
+    median schedule -- no third year of drift is pulled from Eulerpool.
+
+    fwd_revenue1y/fwd_revenue0y - 1 (the ORIGINAL, still-used pair) also
+    feeds modules.simulations' own ownGrowthRate/industryGrowthRate as a
+    third, equally-weighted leg alongside epsTrend and
+    marginAdjustedRevenueGrowth -- see that function's own docstring.
+
+    Picked by comparing each row's `period` (fiscal year end,
+    'YYYY-MM-DD') against `today` (defaults to date.today()), NOT by
+    trusting array order or the presence of a `year` field alone
     (get_estimates mixes past actuals into the same array -- see that
-    function's own docstring). None for either slot a ticker doesn't have
-    at least that many future fiscal years of coverage for."""
+    function's own docstring). None for any slot a ticker doesn't have at
+    least that many future fiscal years of coverage for, or doesn't carry
+    that particular metric on its estimates row."""
     today = (today or date.today()).isoformat()
     rows = get_estimates(ticker)
     future = sorted(
-        (r for r in rows if r.get("period") and r["period"] > today and r.get("epsEstimate") is not None),
+        (r for r in rows if r.get("period") and r["period"] > today),
         key=lambda r: r["period"],
     )
-    fwd_eps0y = future[0]["epsEstimate"] if len(future) >= 1 else None
-    fwd_eps1y = future[1]["epsEstimate"] if len(future) >= 2 else None
+
+    def _pick(i, key):
+        return future[i].get(key) if len(future) > i else None
+
+    return (
+        _pick(0, "epsEstimate"), _pick(1, "epsEstimate"), _pick(2, "epsEstimate"),
+        _pick(0, "revenueEstimate"), _pick(1, "revenueEstimate"), _pick(2, "revenueEstimate"),
+    )
+
+
+def get_forward_eps(ticker, today=None):
+    """(fwd_eps0y, fwd_eps1y) -- thin wrapper over get_forward_estimates
+    for callers that only want the near-term EPS pair; see that function's
+    own docstring for the full picture (the 2-years-ahead EPS/revenue
+    figures come from the same underlying call, at no extra API cost, for
+    anything that wants them)."""
+    fwd_eps0y, fwd_eps1y, _, _, _, _ = get_forward_estimates(ticker, today)
     return fwd_eps0y, fwd_eps1y
 
 
@@ -266,6 +308,100 @@ def get_rating_changes(ticker):
     history instead, maintain included, so percentage-of-each-action-type
     context (see modules.scoring.analyst_grade_mix) isn't thrown away."""
     return [g for g in get_analyst_grades(ticker) if g.get("action") in ("upgrade", "downgrade")]
+
+
+# --------------------------------------------------------------------------- #
+#  Short selling
+# --------------------------------------------------------------------------- #
+
+def get_short_volume(ticker, limit=90):
+    """[{date, shortVolume, shortExemptVolume, totalVolume, shortRatio,
+    market}, ...], newest first -- FINRA's DAILY short-sale volume tape
+    (what fraction of that day's trading was short-sold), not to be
+    confused with FINRA's biweekly short INTEREST settlement file this
+    project already fetches directly in modules.finra (outstanding short
+    POSITIONS, a level, updated every two weeks). This is a flow/activity
+    read at daily frequency -- genuinely new data this project has never
+    ingested, not a fresher copy of something it already has (unlike
+    Eulerpool's own /equity/short-interest-positions endpoint, confirmed
+    live to just re-wrap the same FINRA settlement file modules.finra
+    already pulls straight from the source -- deliberately NOT wrapped
+    here, no reason to add a third-party hop in front of data already on
+    disk). shortRatio here is shortVolume/totalVolume for that ONE day,
+    not FINRA's days-to-cover metric of the same name in the settlement
+    file -- see fetch_short_volume, which smooths this over a trailing
+    window rather than using a single (noisy) day's reading."""
+    return _get(f"/equity/short-volume/{ticker}", limit=limit)
+
+
+SHORT_VOLUME_FILE = os.path.join("data", "eulerpool", "short_volume.json")
+# Trading days averaged into shortVolumeRatio -- smooths the day-to-day
+# noise confirmed live (AAPL's own daily ratio swung 0.49 -> 0.59 -> 0.63
+# across three consecutive days) while staying far fresher than FINRA's
+# biweekly settlement file (modules.finra's own changePercent leg).
+SHORT_VOLUME_WINDOW_DAYS = 10
+
+
+def fetch_short_volume(tickers, out_file=SHORT_VOLUME_FILE, window_days=SHORT_VOLUME_WINDOW_DAYS, max_workers=4):
+    """Fetch get_short_volume for every ticker in `tickers`, reduce each
+    to a single trailing-window average, OVERWRITE out_file with
+    {ticker: {"shortVolumeRatio": ..., "days": N}} -- same same-day-
+    snapshot, full-overwrite (no merge, no staleness cooldown) shape as
+    fetch_fair_values: the window average is recomputed fresh from
+    whatever the last `window_days` trading days look like as of today,
+    so there's no meaningful history to preserve across runs the way
+    fetch_analyst_grades preserves grade history.
+
+    shortVolumeRatio is the plain mean of each day's shortVolume/
+    totalVolume over the most recent `window_days` rows get_short_volume
+    returns (skips a day with totalVolume 0 or missing rather than
+    counting it as a zero -- a data gap, not a genuine no-short-activity
+    day). None (ticker excluded from the result) if fewer than
+    window_days // 2 usable days are available, so a name with a
+    thin/gappy FINRA tape doesn't get a ratio built off 1-2 noisy points.
+
+    Feeds modules.scoring.load_short_interest_scores, which merges this
+    in as a fourth leg of short_interest_rank alongside pctOfFloat/
+    daysToCover/changePercent (see that function's own docstring) --
+    equal 1/4 weight, same contrarian direction (higher ratio = more of
+    that name's trading is short-side = better). Same thread-pool-over-a-
+    shared-rate-limit shape as fetch_analyst_grades/fetch_fair_values --
+    errors logged and skipped per-ticker rather than aborting the batch."""
+    results = {}
+    errors = []
+
+    def _one(ticker):
+        rows = get_short_volume(ticker, limit=window_days)
+        ratios = [
+            r["shortVolume"] / r["totalVolume"]
+            for r in rows[:window_days]
+            if r.get("totalVolume")
+        ]
+        if len(ratios) < max(1, window_days // 2):
+            return None
+        return sum(ratios) / len(ratios), len(ratios)
+
+    with ThreadPoolExecutor(max_workers=max_workers) as ex:
+        futures = {ex.submit(_one, t): t for t in tickers}
+        for fut in as_completed(futures):
+            ticker = futures[fut]
+            try:
+                result = fut.result()
+                if result is not None:
+                    ratio, n_days = result
+                    results[ticker] = {"shortVolumeRatio": ratio, "days": n_days}
+            except Exception as e:
+                errors.append((ticker, str(e)))
+
+    os.makedirs(os.path.dirname(out_file), exist_ok=True)
+    with open(out_file, "w") as f:
+        json.dump(results, f)
+
+    print(f"fetch_short_volume: wrote {out_file} ({len(tickers)} requested, "
+          f"{len(results)} with a usable ratio, {len(errors)} failed)")
+    if errors:
+        print("  failed:", ", ".join(t for t, _ in errors[:20]), "..." if len(errors) > 20 else "")
+    return results
 
 
 # --------------------------------------------------------------------------- #
@@ -469,27 +605,39 @@ FORWARD_EPS_FILE = os.path.join("data", "eulerpool", "forward_eps.json")
 
 
 def fetch_forward_eps(tickers, out_file=FORWARD_EPS_FILE, max_workers=4):
-    """Fetch get_forward_eps for every ticker in `tickers`, OVERWRITE
-    out_file with {ticker: {"fwdEps0y": ..., "fwdEps1y": ...}} -- same
-    same-day-snapshot, full-overwrite (no merge, no staleness cooldown)
-    shape as fetch_fair_values, for the same reason: get_forward_eps
-    reads get_estimates fresh each call, so there's no history here to
-    preserve across runs. Feeds modules.derive.reconcile_forward_eps,
-    which blends this 50/50 with this project's own yfinance-sourced
-    fwdEps0y/fwdEps1y into "our own" forward EPS (see that function's own
-    docstring). Same thread-pool-over-a-shared-rate-limit shape as
-    fetch_analyst_grades/fetch_fair_values -- errors logged and skipped
-    per-ticker rather than aborting the batch."""
+    """Fetch get_forward_estimates for every ticker in `tickers`, OVERWRITE
+    out_file with {ticker: {"fwdEps0y": ..., "fwdEps1y": ..., "fwdEps2y":
+    ..., "fwdRevenue0y": ..., "fwdRevenue1y": ..., "fwdRevenue2y": ...}}
+    -- same same-day-snapshot, full-overwrite (no merge, no staleness
+    cooldown) shape as fetch_fair_values, for the same reason:
+    get_forward_estimates reads get_estimates fresh each call, so there's
+    no history here to preserve across runs. Feeds modules.derive/
+    modules.simulations: reconcile_forward_eps blends the 0y/1y EPS pair
+    50/50 with this project's own yfinance-sourced fwdEps0y/fwdEps1y into
+    "our own" forward EPS; fwdEps2y/fwdRevenue2y have no yfinance
+    counterpart to blend against (fwdEps2y passed through as-is,
+    fwdRevenue2y turned into eulerRevGrowth2y alongside fwdRevenue1y),
+    both feeding simulate_ticker's year-2 consensus drift nudge (an
+    EPS-implied and a revenue-implied reading, averaged); and
+    fwdRevenue1y/fwdRevenue0y - 1 (the ORIGINAL pair, no yfinance
+    counterpart either -- only a TRAILING revenueGrowth exists there) is
+    a genuinely new forward growth signal feeding ownGrowthRate/
+    industryGrowthRate as a third leg. Same thread-pool-over-a-shared-
+    rate-limit shape as fetch_analyst_grades/fetch_fair_values -- errors
+    logged and skipped per-ticker rather than aborting the batch."""
     results = {}
     errors = []
     with ThreadPoolExecutor(max_workers=max_workers) as ex:
-        futures = {ex.submit(get_forward_eps, t): t for t in tickers}
+        futures = {ex.submit(get_forward_estimates, t): t for t in tickers}
         for fut in as_completed(futures):
             ticker = futures[fut]
             try:
-                fwd_eps0y, fwd_eps1y = fut.result()
-                if fwd_eps0y is not None or fwd_eps1y is not None:
-                    results[ticker] = {"fwdEps0y": fwd_eps0y, "fwdEps1y": fwd_eps1y}
+                fwd_eps0y, fwd_eps1y, fwd_eps2y, fwd_rev0y, fwd_rev1y, fwd_rev2y = fut.result()
+                if any(v is not None for v in (fwd_eps0y, fwd_eps1y, fwd_eps2y, fwd_rev0y, fwd_rev1y, fwd_rev2y)):
+                    results[ticker] = {
+                        "fwdEps0y": fwd_eps0y, "fwdEps1y": fwd_eps1y, "fwdEps2y": fwd_eps2y,
+                        "fwdRevenue0y": fwd_rev0y, "fwdRevenue1y": fwd_rev1y, "fwdRevenue2y": fwd_rev2y,
+                    }
             except Exception as e:
                 errors.append((ticker, str(e)))
 

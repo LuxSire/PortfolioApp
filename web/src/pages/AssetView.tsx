@@ -5,7 +5,7 @@ import { earningsUrgencyClass, fmtEarningsDate, useNowTick } from '../earnings'
 import { IB_NEWS_ARTICLE_URL, IB_NEWS_URL } from '../ibStream'
 import type { AssetInfo, CandlePoint, Holder, MonteCarloResult, NewsArticle, PricePoint } from '../interfaces/IAssetView'
 import { SENTIMENT_LABEL, fmtNewsTime, importanceStars, importanceTitle, sentimentClass } from '../news'
-import { ratingClass, toNum } from '../screenerFactors'
+import { computeShortInterestRanks, IMPLIED_PE_MIN_EPS_FRACTION, ratingClass, toNum } from '../screenerFactors'
 import CandlestickChart from '../components/CandlestickChart'
 import PriceChart from '../components/PriceChart'
 import SimPriceRangeChart from '../components/SimPriceRangeChart'
@@ -70,6 +70,7 @@ function fmtPct(v: unknown): string {
   if (typeof v !== 'number') return '—'
   return (v * 100).toFixed(1) + '%'
 }
+
 
 function fmtNum(v: unknown): string {
   if (typeof v !== 'number') return '—'
@@ -373,11 +374,17 @@ export default function AssetView({ ticker }: { ticker: string }) {
     momentum: number | null
     meanReversion: number | null
     rating: string | null
+    eulerRevGrowth1y: number | null
+    blendedForwardEps: number | null
+    shortIntRank: number | null
   }>({
     ticker: null,
     momentum: null,
     meanReversion: null,
     rating: null,
+    eulerRevGrowth1y: null,
+    blendedForwardEps: null,
+    shortIntRank: null,
   })
   useEffect(() => {
     let cancelled = false
@@ -385,16 +392,46 @@ export default function AssetView({ ticker }: { ticker: string }) {
       .then((r) => (r.ok ? r.text() : ''))
       .then((text) => {
         if (cancelled) return
-        const row = parseCSV(text).find((r) => r.ticker === ticker)
+        const rows = parseCSV(text)
+        const row = rows.find((r) => r.ticker === ticker)
         setMomentum({
           ticker,
           momentum: toNum(row?.momentum),
           meanReversion: toNum(row?.meanReversion),
           rating: row?.rating || null,
+          // Eulerpool's own forward revenue-growth consensus (see
+          // modules.derive.reconcile_forward_eps) -- CSV-only, not part of
+          // raw_data.json's yfinance payload the rest of `info` comes
+          // from, so it rides along on this same sorted_screen.csv fetch
+          // rather than a fifth one just for one field.
+          eulerRevGrowth1y: toNum(row?.eulerRevGrowth1y),
+          // forwardEps here is the POST-BLEND figure (50/50 yfinance/
+          // Eulerpool, see modules.derive.reconcile_forward_eps) --
+          // info.forwardEps below is raw_data.json's unblended yfinance
+          // value, so this rides along on the same CSV fetch rather than
+          // overwriting that field, and is used only to derive the
+          // implied "Fwd PE (blend)" stat below.
+          blendedForwardEps: toNum(row?.forwardEps),
+          // Same 4-leg blended short-interest rank ScreenerView.tsx's own
+          // Subrank shows (see screenerFactors.computeShortInterestRanks'
+          // own docstring) -- needs the FULL row set (a cross-sectional
+          // rank, not a per-ticker value), which is why this fetch parses
+          // every row rather than just this ticker's.
+          shortIntRank: computeShortInterestRanks(rows).get(ticker) ?? null,
         })
       })
       .catch(() => {
-        if (!cancelled) setMomentum({ ticker, momentum: null, meanReversion: null, rating: null })
+        if (!cancelled) {
+          setMomentum({
+            ticker,
+            momentum: null,
+            meanReversion: null,
+            rating: null,
+            eulerRevGrowth1y: null,
+            blendedForwardEps: null,
+            shortIntRank: null,
+          })
+        }
       })
     return () => {
       cancelled = true
@@ -404,7 +441,19 @@ export default function AssetView({ ticker }: { ticker: string }) {
     momentum: ltMomentum,
     meanReversion: stMomentum,
     rating,
-  } = momentum.ticker === ticker ? momentum : { momentum: null, meanReversion: null, rating: null }
+    eulerRevGrowth1y,
+    blendedForwardEps,
+    shortIntRank,
+  } = momentum.ticker === ticker
+    ? momentum
+    : {
+        momentum: null,
+        meanReversion: null,
+        rating: null,
+        eulerRevGrowth1y: null,
+        blendedForwardEps: null,
+        shortIntRank: null,
+      }
 
   // data/output/simulations.json's own per-ticker simulation result (see
   // modules/simulations.py) -- an ARRAY (one entry per attempted ticker,
@@ -442,6 +491,27 @@ export default function AssetView({ ticker }: { ticker: string }) {
         .sort((a, b) => a[0].localeCompare(b[0]))
     : null
   const lastPrice = loaded ? (info.currentPrice ?? info.regularMarketPrice) : null
+  // Implied Fwd PE off the BLENDED forward EPS (blendedForwardEps, see the
+  // sorted_screen.csv fetch above) rather than yfinance's own unblended
+  // forwardEps info.forwardPE is computed from -- this project's own
+  // number, not a copy of a ratio yfinance already publishes.
+  //
+  // Negative/zero EPS -> 'N/M' (not meaningful), standard convention for
+  // a P/E with no real earnings base -- confirmed live, CIFR blends
+  // yfinance's own +0.217 fwdEps1y with Eulerpool's -0.270 into -0.027 (a
+  // near-zero denominator from two sources disagreeing on SIGN, not a
+  // data error), which without this guard divides out to price/-0.027 =
+  // an absurd -630x. A P/E computed off an EPS this close to (or past)
+  // zero isn't informative regardless of which side of zero it lands on,
+  // so both a negative AND a near-zero-but-positive blend get the same
+  // 'N/M' treatment (see IMPLIED_PE_MIN_EPS_FRACTION below) rather than
+  // silently trusting the sign.
+  const impliedFwdPEBlend =
+    typeof lastPrice === 'number' && typeof blendedForwardEps === 'number'
+      ? blendedForwardEps > lastPrice * IMPLIED_PE_MIN_EPS_FRACTION
+        ? lastPrice / blendedForwardEps
+        : 'N/M'
+      : null
 
   return (
     <div className="app">
@@ -571,6 +641,13 @@ export default function AssetView({ ticker }: { ticker: string }) {
           <Section title="PE">
             <Stat label="Fwd PE" value={fmtNum(info.forwardPE)} valueClass={rangeClass(info.forwardPE as number, 10, 30)} />
             <Stat
+              label="Fwd PE (blend)"
+              value={impliedFwdPEBlend === 'N/M' ? 'N/M' : fmtNum(impliedFwdPEBlend)}
+              valueClass={
+                typeof impliedFwdPEBlend === 'number' ? rangeClass(impliedFwdPEBlend, 10, 30) : undefined
+              }
+            />
+            <Stat
               label="Trailing PE"
               value={fmtNum(info.trailingPE)}
               valueClass={rangeClass(info.trailingPE as number, 10, 30)}
@@ -608,6 +685,11 @@ export default function AssetView({ ticker }: { ticker: string }) {
               label="Revenue Growth"
               value={fmtPct(info.revenueGrowth)}
               valueClass={inversePctThresholdClass(info.revenueGrowth as number, 0, 10)}
+            />
+            <Stat
+              label="Rev Growth (exp)"
+              value={typeof eulerRevGrowth1y === 'number' ? `(${fmtPct(eulerRevGrowth1y)})` : '—'}
+              valueClass={inversePctThresholdClass(eulerRevGrowth1y as number, 0, 10)}
             />
             <Stat
               label="Trailing PEG Ratio"
@@ -652,6 +734,7 @@ export default function AssetView({ ticker }: { ticker: string }) {
               valueClass={rangeClass(info.shortRatio as number, 2, 10)}
             />
             <Stat label="Short % of Float" value={fmtPct(info.shortPercentOfFloat)} />
+            <Stat label="Short Interest (blend)" value={shortIntRank !== null ? `#${shortIntRank}` : '—'} />
           </Section>
 
           <Section title="Price Targets">

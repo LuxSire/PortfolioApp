@@ -209,6 +209,13 @@ _INFO_PASSTHROUGH = {
     "name": "shortName",
     "forwardPE": "forwardPE",
     "forwardEps": "forwardEps",
+    # Per-share book value (yfinance's own .info field) -- feeds
+    # modules.simulations' own fundamental price floor
+    # (BOOK_VALUE_FLOOR_MULTIPLE), a pure balance-sheet number independent
+    # of that module's own projected epsPath (unlike the earlier, removed
+    # bookValue+sum(epsPath) floor -- see that module's own CAVEATS
+    # section for why that one was pulled).
+    "bookValue": "bookValue",
     "epsCurrentYear": "epsCurrentYear",
     "trailingPS": "priceToSalesTrailing12Months",
     "pegRatio": "pegRatio",
@@ -587,22 +594,47 @@ def reconcile_forward_eps(data, eulerpool_forward_eps):
     used everywhere from here on, not two competing ones.
 
     `eulerpool_forward_eps` = loaded FORWARD_EPS_FILE, i.e.
-    {ticker: {"fwdEps0y": ..., "fwdEps1y": ...}}.
+    {ticker: {"fwdEps0y": ..., "fwdEps1y": ..., "fwdRevenue0y": ...,
+    "fwdRevenue1y": ...}}.
 
-    Per slot: average of the two sources when both are present; whichever
-    one is present when only one is (graceful degrade, same as every other
-    reconcile_* in this file) rather than leaving the field untouched --
-    a ticker Eulerpool doesn't cover keeps its yfinance-only number, a
-    ticker with only an Eulerpool figure (e.g. yfinance's estimate
-    statement was empty) still gets one. Nothing changes for a ticker with
-    neither.
+    Per EPS slot: average of the two sources when both are present;
+    whichever one is present when only one is (graceful degrade, same as
+    every other reconcile_* in this file) rather than leaving the field
+    untouched -- a ticker Eulerpool doesn't cover keeps its yfinance-only
+    number, a ticker with only an Eulerpool figure (e.g. yfinance's
+    estimate statement was empty) still gets one. Nothing changes for a
+    ticker with neither.
 
     Also overwrites forwardEps with the blended fwdEps1y: forwardEps is
     the field modules.simulations actually reads (as fwd_eps, the anchor
     for its EPS-path g_fwd), and it was confirmed empirically
     (AAPL/TSLA/MSFT) to already equal fwdEps1y from yfinance alone -- so
     this is the one line that makes simulations.py inherit the blend
-    without any changes of its own."""
+    without any changes of its own.
+
+    Additionally stamps eulerRevGrowth1y = fwdRevenue1y/fwdRevenue0y - 1
+    when both Eulerpool revenue figures are present (None otherwise) --
+    NOT a blend, since yfinance never gave this project a forward revenue
+    estimate to blend against (only revenueGrowth, a TRAILING figure --
+    see reconcile_revenue_growth). This is a genuinely new forward-looking
+    growth signal, consumed by modules.simulations' own ownGrowthRate/
+    industryGrowthRate as a third, equally-weighted leg alongside
+    epsTrend and marginAdjustedRevenueGrowth (explicit instruction: 1/3
+    each).
+
+    Also passes eulerFwdEps2y straight through from Eulerpool's own
+    fwdEps2y (no blend -- yfinance's own earningsEstimate statement only
+    ever carries '0y'/'+1y', nothing two years out, so there's no second
+    source to average against), and stamps eulerRevGrowth2y =
+    fwdRevenue2y/fwdRevenue1y - 1 the same way eulerRevGrowth1y comes from
+    the 0y/1y pair. modules.simulations averages an EPS-implied
+    (eulerFwdEps2y) and a revenue-implied (eulerRevGrowth2y) reading into
+    its year-2 consensus drift nudge -- the same role forwardEps/
+    anchorEps - 1 plays for year 1, one year further out and from two
+    Eulerpool-only sources instead of one blended one. Years 3+ get no
+    equivalent drift at all -- see that module's own comment on
+    Y2_SCHEDULE_WEIGHT for why the drift stops at year 2 and years 3+ are
+    left on the plain concave reversion-to-peer-median schedule."""
     for ticker, row in data.items():
         eu = eulerpool_forward_eps.get(ticker) or {}
         for slot in ("fwdEps0y", "fwdEps1y"):
@@ -616,6 +648,21 @@ def reconcile_forward_eps(data, eulerpool_forward_eps):
 
         if row.get("fwdEps1y") is not None:
             row["forwardEps"] = row["fwdEps1y"]
+
+        eps2y = to_float(eu.get("fwdEps2y"))
+        row["eulerFwdEps2y"] = round(eps2y, 6) if eps2y is not None else None
+
+        fwd_rev0y = to_float(eu.get("fwdRevenue0y"))
+        fwd_rev1y = to_float(eu.get("fwdRevenue1y"))
+        fwd_rev2y = to_float(eu.get("fwdRevenue2y"))
+        if fwd_rev0y is not None and fwd_rev1y is not None and fwd_rev0y != 0:
+            row["eulerRevGrowth1y"] = round(fwd_rev1y / fwd_rev0y - 1, 6)
+        else:
+            row["eulerRevGrowth1y"] = None
+        if fwd_rev1y is not None and fwd_rev2y is not None and fwd_rev1y != 0:
+            row["eulerRevGrowth2y"] = round(fwd_rev2y / fwd_rev1y - 1, 6)
+        else:
+            row["eulerRevGrowth2y"] = None
 
 
 def reconcile_eps_volatility(data, xbrl, raw_stmts):

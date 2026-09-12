@@ -14,6 +14,7 @@ import TargetView from './pages/TargetView'
 import DatasetView from './pages/DatasetView'
 import ScoringView from './pages/ScoringView'
 import BacktestingView from './pages/BacktestingView'
+import MathsView from './pages/MathsView'
 
 const TABS = [
   { key: 'positions', label: 'Positions' },
@@ -31,6 +32,7 @@ const TABS = [
   { key: 'backtesting', label: 'Backtesting' },
   { key: 'dataset', label: 'Dataset' },
   { key: 'scoring', label: 'Scoring' },
+  { key: 'maths', label: 'Maths' },
 ]
 
 export default function App() {
@@ -66,6 +68,7 @@ export default function App() {
       {tab === 'dataset' && <DatasetView />}
       {tab === 'scoring' && <ScoringView />}
       {tab === 'backtesting' && <BacktestingView />}
+      {tab === 'maths' && <MathsView />}
     </div>
   )
 }

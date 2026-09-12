@@ -49,6 +49,12 @@ export interface RawScreenerRow {
   shortInt: number | null
   shortRatio: number | null
   shortChg: number | null
+  // shortVolumeRatio from sorted_screen.csv -- Eulerpool's own 10-trading-
+  // day trailing average of FINRA's daily short-sale volume tape, a
+  // fourth and independent leg of short_interest_rank (no yfinance
+  // fallback, no biweekly-settlement equivalent -- see scoring.
+  // load_short_interest_scores).
+  shortVol: number | null
   p: number | null
   tgt: number | null
   tgtHigh: number | null

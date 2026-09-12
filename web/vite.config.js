@@ -34,6 +34,7 @@ const STATIC_DATA_PATHS = [
   '/sec/13f/institutional_holders.json',
   '/recommendations.json',
   '/backtest.json',
+  '/cash.json',
   '/ARKK_HOLDINGS.csv',
 ]
 

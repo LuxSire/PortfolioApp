@@ -31,8 +31,14 @@ For a ticker currently trading at price P0:
    reverts from ownGrowthRate to industryGrowthRate via a concave (sqrt)
    schedule:
 
-     ownGrowthRate      = avg(epsTrend, marginAdjustedRevenueGrowth)        -- THIS ticker's own
-     industryGrowthRate = avg(industryEpsTrend, industryMarginAdjRevGrowth) -- peer MEDIAN
+     ownGrowthRate      = avg(epsTrend, marginAdjustedRevenueGrowth,        -- THIS ticker's own,
+                              eulerRevGrowth1y)                            1/3 each when all
+                                                                            three present (see
+                                                                            _combine_growth)
+     industryGrowthRate = avg(industryEpsTrend,                            -- peer MEDIAN of
+                              industryMarginAdjRevGrowth,                     each leg, same
+                              industryEulerRevGrowth)                         3-way blend as
+                                                                               ownGrowthRate
      N = EPS_PROJECTION_YEARS - 1   (= 4 growth steps)
      w_t = sqrt((N - t) / N)        -- concave weight; w_1 ≈ 0.87, w_4 = 0
      g_t = w_t * ownGrowthRate + (1 - w_t) * industryGrowthRate
@@ -156,20 +162,27 @@ For a ticker currently trading at price P0:
 
 2. The SAME N simulated eps_i draws are priced ONE way, against a single
    FIXED multiple (no multiple-level distribution/spread; all of the
-   price distribution's shape comes from the EPS side alone). No
-   fundamental (book-value/cumulative-earnings) floor -- an earlier
-   version of this module had one; removed (see CAVEATS: a floor built
-   from this module's own projected epsPath just inherited that
-   projection's own uncertainty, and was binding -- silently overriding
-   the model's own confidence-weighted view -- for over a quarter of the
-   universe in practice). An earlier version of this design also priced a
-   second, ownPe-scaled scenario alongside the industry one ("at today's
-   own multiple" vs. "at the industry median") -- retired once mu_eps
-   itself moved to anchoring off industryPe (step 1 above): pricing that
-   same industry-anchored EPS at the ticker's OWN multiple no longer
-   isolates an independent signal, so only the industry scenario remains:
+   price distribution's shape comes from the EPS side alone). An earlier
+   version of this design also priced a second, ownPe-scaled scenario
+   alongside the industry one ("at today's own multiple" vs. "at the
+   industry median") -- retired once mu_eps itself moved to anchoring off
+   industryPe (step 1 above): pricing that same industry-anchored EPS at
+   the ticker's OWN multiple no longer isolates an independent signal, so
+   only the industry scenario remains:
 
-     price_i = max(eps_i, 0) * industryPe
+     price_i = max(max(eps_i, 0) * industryPe, bookValueFloor)
+
+   bookValueFloor = BOOK_VALUE_FLOOR_MULTIPLE (0.75) * bookValue -- a pure
+   balance-sheet floor, deliberately NOT the earlier book-value +
+   cumulative-earnings floor this module used to have (see CAVEATS: that
+   one was built from this SAME module's own projected epsPath, so it
+   inherited that projection's own uncertainty and was binding -- silently
+   overriding the model's own confidence-weighted view -- for over a
+   quarter of the universe in practice). At 3/4 of book value, this floor
+   should almost never bind for a solvent company -- it exists only to
+   catch a pathological simulated price compounding down toward zero, not
+   to express a fair-value opinion the way the old floor effectively did.
+   None (no floor applied) when bookValue is missing or non-positive.
 
    industryPe is the peer group's MEDIAN forwardPE -- the ticker's own
    granular industry when that industry has at least MIN_INDUSTRY_PEERS
@@ -447,13 +460,19 @@ CAVEATS -- read before trusting a number out of this
   beta reading (e.g. a raw beta of 5+) can't over-discount mu_eps's own
   5-year EPS path in step 1 -- mu_eps can still differ substantially
   across high/low-beta names, just not by an unbounded amount.
-- No fundamental price floor (removed). An earlier version added one
-  (bookValue + sum(epsPath)), but it was built from this SAME module's
-  own projected epsPath, so it inherited that projection's uncertainty
-  rather than acting as an independent sanity check -- confirmed live: it
-  was binding (forecastPrice pinned exactly to the floor) for over a
-  fifth of the universe, and for 17 tickers it overrode a genuinely
-  bearish confidence-weighted signal outright.
+- Fundamental price floor: 0.75x bookValue (BOOK_VALUE_FLOOR_MULTIPLE),
+  applied to both prices_industry and sim_prices. A prior version of this
+  floor (bookValue + sum(epsPath)) was removed for being built from this
+  SAME module's own projected epsPath, inheriting that projection's own
+  uncertainty rather than acting as an independent sanity check --
+  confirmed live: it was binding (forecastPrice pinned exactly to the
+  floor) for over a fifth of the universe, and for 17 tickers it overrode
+  a genuinely bearish confidence-weighted signal outright. The CURRENT
+  floor uses only a pure balance-sheet number at 3/4 of its value
+  specifically to avoid that failure mode -- it should bind rarely, only
+  for a genuinely pathological simulated price, not as a routine
+  constraint. Watch for the same failure mode recurring if this multiple
+  is ever raised much closer to 1.0.
 - No analyst-target-derived EPS floor OR cap (both removed -- see step
   5). An earlier version had both: eps_i draws capped at
   targetHighPrice's year-1-equivalent and floored at targetLowPrice's.
@@ -584,6 +603,28 @@ FWD_TRAILING_PE_RATIO_MAX = 3.0
 # lets own_growth_rate carry a bit more of year 1 without abandoning the
 # price-anchored design.
 Y1_SCHEDULE_WEIGHT = 0.6
+# Year-2 EPS growth gets the same treatment as year 1 -- a blend of the
+# concave schedule rate with a consensus drift, this time from TWO
+# Eulerpool-only, no-yfinance-counterpart readings (see modules.derive.
+# reconcile_forward_eps), averaged rather than trusting either alone:
+#   EPS-implied:     eulerFwdEps2y / fwd_eps - 1     (fwd_eps = blended
+#                     year-1 EPS -- the implied growth from year 1's
+#                     consensus to year 2's)
+#   revenue-implied:  eulerRevGrowth2y                (used as-is, no
+#                     margin conversion, same precedent as
+#                     eulerRevGrowth1y in ownGrowthRate)
+# Weighted MORE toward the schedule than year 1 (0.8 vs. 0.6) -- a
+# 2-years-out consensus figure is thinner, less-covered, and more
+# speculative than the 1-year one (see HASI/BKKT-style thin-coverage cases
+# already documented on eulerRevGrowth1y), so it earns less influence over
+# the path, not equal footing with the nearer-term drift. Years 3+ get no
+# equivalent drift at all -- past year 2, the path is pure concave
+# reversion toward the peer group's own industryGrowthRate (the
+# cross-sectional mean), no further per-year consensus pull. Missing both
+# eulerFwdEps2y and eulerRevGrowth2y (no Eulerpool coverage that far out)
+# leaves year 2 on the plain schedule rate, unchanged from before this
+# existed; missing just one still uses the other alone.
+Y2_SCHEDULE_WEIGHT = 0.8
 # g_fwd itself (forwardEps/anchorEps - 1) is blended toward the analyst
 # price target's own implied 1-year return, targetMeanPrice/currentPrice -
 # 1 -- explicit instruction, confirmed live on FEIM: anchorEps falls back
@@ -685,6 +726,20 @@ SHOCK_CLIP_SD = 2.0
 # plausibly be positive or negative even when today's point estimate
 # reads flat, and the simulated distribution should reflect that.
 GROWTH_NOISE_FLOOR = 0.05
+# Below this many analysts, a ticker's OWN targetLow/targetMean/targetHigh
+# range isn't treated as a real measurement of disagreement -- with 1-2
+# contributors, a tight (or exactly zero, at n=1) range reflects sample
+# size, not genuine consensus. Confirmed live: BKKT (1 analyst) reads
+# analystDispersion = 0.0 -- the single most "certain" reading a wider-
+# covered peer with real disagreement could never produce -- purely an
+# artifact of n=1, not evidence this name is unusually predictable.
+# Below MIN_CREDIBLE_ANALYSTS, both combined_vol's own analyst_dispersion
+# term and the per-path g_fwd_i draw route through the SAME peer-typical
+# fallback this module already uses for a ticker with NO target range at
+# all (see industry_analyst_dispersion below) -- treating "too thin to
+# trust" the same as "missing," rather than trusting a too-small sample's
+# own degenerate spread.
+MIN_CREDIBLE_ANALYSTS = 3
 # Reversion-speed exponent: the deterministic schedule's
 # w_t = sqrt((N-t)/N) is the p=0.5 case of w_t = ((N-t)/N)**p; each
 # simulated path's p moves with the SAME shared shock around 0.5, clipped
@@ -714,8 +769,34 @@ RISK_PREMIUM_COMBVOL_BASELINE = 0.35
 RISK_PREMIUM_K = 0.5
 RISK_PREMIUM_PE_FLOOR = 0.6
 
+# ── Fundamental price floor ──────────────────────────────────────────────────
+# Explicit instruction: reintroduce a fundamental floor, but a MUCH more
+# conservative one than the earlier version this module's own CAVEATS
+# section describes removing. That one was bookValue + sum(epsPath) -- built
+# from this SAME module's own projected earnings, so it inherited that
+# projection's own uncertainty rather than acting as an independent sanity
+# check, and was binding (silently pinning the output) for over a fifth of
+# the universe. This floor uses ONLY a pure balance-sheet number (yfinance's
+# own per-share bookValue, no epsPath involved at all) at a fraction deep
+# enough that it should almost never bind for a solvent company -- it exists
+# to catch pathological simulation outputs (a deeply cyclical or loss-making
+# name's price compounding down toward zero across enough bad-growth paths),
+# not to express a view on fair value the way the old floor effectively did.
+# Missing/non-positive bookValue -> no floor applied (graceful degrade, same
+# as every other optional input in this file) -- a stock this doesn't cover
+# is simply left on the unfloored distribution, same as before this existed.
+# Raised from 0.5 to 0.75 (explicit instruction) -- verified live first at
+# 0.5 that the floor binds rarely (1 of 1652 tickers with a usable
+# bookValueFloor, ERIC), so there's room to raise it without recreating the
+# old floor's failure mode of binding broadly across the universe.
+BOOK_VALUE_FLOOR_MULTIPLE = 0.75
 
-METRIC_KEYS = ("forwardPE", "trailingPE", "epsTrend", "revenueGrowth", "earningsGrowth", "earningsMarginDelta", "operatingMargin", "grossMargin", "analystDispersion")
+
+METRIC_KEYS = (
+    "forwardPE", "trailingPE", "epsTrend", "revenueGrowth", "earningsGrowth",
+    "earningsMarginDelta", "operatingMargin", "grossMargin", "analystDispersion",
+    "eulerRevGrowth1y",
+)
 
 
 def _build_peer_pools(data):
@@ -723,8 +804,9 @@ def _build_peer_pools(data):
     {industry: [(ticker, value), ...]} / {sector_group: [(ticker, value),
     ...]} pools for each of METRIC_KEYS -- so every _peer_median lookup
     (the P/E peer-median in step 2, and the industry/sector-median
-    epsTrend/revenueGrowth/operatingMargin feeding years 3-5 of the EPS
-    projection in step 1) is O(peer group size) per ticker instead of
+    epsTrend/revenueGrowth/operatingMargin/eulerRevGrowth1y feeding years
+    3-5 of the EPS projection in step 1) is O(peer group size) per ticker
+    instead of
     O(len(data)) -- matters once a full-universe `--all` run calls it for
     every single ticker (that would otherwise be an O(n^2) rescan).
     Returns {metric_key: (by_industry, by_group)}. forwardPE excludes
@@ -795,6 +877,13 @@ def _build_peer_pools(data):
             # growth_margin (ownGrossMargin - (indGross - indOp)).
             "grossMargin": gm if (gm := to_float(d.get("grossMargins"))) is not None and gm > 0 else None,
             "analystDispersion": disp if disp is not None and disp > 0 else None,
+            # Eulerpool's own forward revenue-growth consensus (see
+            # modules.derive.reconcile_forward_eps) -- pooled here so
+            # industry_growth_rate gets the SAME forward-looking Eulerpool
+            # leg ownGrowthRate already has (explicit instruction: the
+            # asymmetry where only the near-term own-rate saw this signal
+            # was worth closing). Keeps its sign, like revenueGrowth.
+            "eulerRevGrowth1y": to_float(d.get("eulerRevGrowth1y")),
         }
         for key, value in values.items():
             if value is None:
@@ -886,13 +975,21 @@ def _price_stats(prices, current_price):
     }
 
 
-def _combine_growth(eps_trend, margin_adjusted_revenue_growth):
-    """avg(eps_trend, margin_adjusted_revenue_growth), whichever are
-    present, clamped to [GROWTH_FLOOR, GROWTH_CAP]; 0.0 (flat) when both
-    are missing -- shared by both the ticker's own year-1 growth rate and
-    the industry/sector-median rate used for years 2+ (see
-    simulate_ticker's own comment on why they differ)."""
-    parts = [v for v in (eps_trend, margin_adjusted_revenue_growth) if v is not None]
+def _combine_growth(eps_trend, margin_adjusted_revenue_growth, euler_rev_growth=None):
+    """avg(eps_trend, margin_adjusted_revenue_growth, euler_rev_growth),
+    whichever are present, clamped to [GROWTH_FLOOR, GROWTH_CAP]; 0.0
+    (flat) when all are missing -- shared by both the ticker's own year-1
+    growth rate and the industry/sector-median rate used for years 2+ (see
+    simulate_ticker's own comment on why they differ). euler_rev_growth is
+    THIS ticker's own eulerRevGrowth1y at the own-rate call site, and the
+    peer-pooled MEDIAN eulerRevGrowth1y (see METRIC_KEYS/_build_peer_pools)
+    at the industry-median call site -- explicit instruction: closing the
+    asymmetry where only the near-term own-rate saw Eulerpool's forward
+    consensus and the years-2+ industry reversion target didn't. Equal 1/3
+    weight alongside eps_trend and margin_adjusted_revenue_growth when all
+    three are present, not a 50/50 blend folded into either of the other
+    two, at BOTH call sites."""
+    parts = [v for v in (eps_trend, margin_adjusted_revenue_growth, euler_rev_growth) if v is not None]
     if not parts:
         return 0.0
     return min(max(sum(parts) / len(parts), GROWTH_FLOOR), GROWTH_CAP)
@@ -920,6 +1017,16 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
     if fwd_eps is None or current_price is None or own_pe is None or own_pe <= 0:
         return {"ticker": ticker, "error": "missing forwardEps, price, or forwardPE"}
 
+    # Fundamental price floor (see BOOK_VALUE_FLOOR_MULTIPLE's own
+    # comment) -- applied to both the deterministic priceAtIndustryMultiple
+    # array and the Monte Carlo sim_prices array below, right where each is
+    # first computed. None (no floor applied) when bookValue is missing or
+    # non-positive.
+    book_value = to_float(row.get("bookValue"))
+    book_value_floor = (
+        book_value * BOOK_VALUE_FLOOR_MULTIPLE if book_value is not None and book_value > 0 else None
+    )
+
     industry = row.get("sector")
     peer_pools = peer_pools if peer_pools is not None else _build_peer_pools(data)
 
@@ -933,6 +1040,25 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
     eps_trend = sum(eps_trend_parts) / len(eps_trend_parts) if eps_trend_parts else None
 
     revenue_growth = to_float(row.get("revenueGrowth"))
+    # Eulerpool's own forward revenue-growth consensus for THIS ticker
+    # (fwdRevenue1y/fwdRevenue0y - 1, see modules.derive.
+    # reconcile_forward_eps) -- a genuinely new forward-looking growth
+    # signal, not a blend of two measurements of the same thing the way
+    # forwardEps is: yfinance's own revenueGrowth above is TRAILING, this
+    # is analyst consensus for the year ahead. Folded into own_growth_rate
+    # below as an equal third leg, not into margin_adjusted_revenue_growth
+    # -- it's already a growth RATE, not a revenue level, so running it
+    # through growth_margin (a trailing-revenue-to-EPS conversion) would
+    # apply a transform it doesn't need.
+    euler_rev_growth = to_float(row.get("eulerRevGrowth1y"))
+    # Eulerpool's own year-after-next EPS and revenue consensus (see
+    # modules.derive.reconcile_forward_eps) -- no yfinance counterpart for
+    # either, both used only as the year-2 drift nudge below
+    # (Y2_SCHEDULE_WEIGHT's own comment): an EPS-implied and a revenue-
+    # implied reading, averaged, the same "don't trust one source alone"
+    # spirit as anchor_eps's own fallback chain.
+    euler_fwd_eps2y = to_float(row.get("eulerFwdEps2y"))
+    euler_rev_growth2y = to_float(row.get("eulerRevGrowth2y"))
     operating_margin = to_float(row.get("operatingMargins"))
     gross_margin = to_float(row.get("grossMargins"))
     # Revenue growth converted to its EPS-equivalent via the operating
@@ -968,6 +1094,7 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
     margin_distorted = _has_distorted_operating_margin(industry)
 
     ind_eps_trend, _, _ = _peer_median(ticker, industry, *peer_pools["epsTrend"])
+    ind_euler_rev_growth, _, _ = _peer_median(ticker, industry, *peer_pools["eulerRevGrowth1y"])
     ind_revenue_growth, _, _ = _peer_median(ticker, industry, *peer_pools["revenueGrowth"])
     ind_earnings_growth, _, _ = _peer_median(ticker, industry, *peer_pools["earningsGrowth"])
     ind_operating_margin, _, _ = _peer_median(ticker, industry, *peer_pools["operatingMargin"])
@@ -1027,7 +1154,7 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
     # computed below) that fades own -> industry, so a name whose growth
     # isn't reaching the bottom line gets a negative overlay instead of a
     # rate cap.
-    own_growth_rate = _combine_growth(eps_trend, margin_adjusted_revenue_growth)
+    own_growth_rate = _combine_growth(eps_trend, margin_adjusted_revenue_growth, euler_rev_growth)
 
     # Same exclusion as margin_adjusted_revenue_growth above --
     # ind_operating_margin is a peer MEDIAN of the same structurally
@@ -1047,7 +1174,7 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
         ind_margin_adjusted_revenue_growth = min(
             ind_margin_adjusted_revenue_growth, max(ind_earnings_growth, 0.0)
         )
-    industry_growth_rate = _combine_growth(ind_eps_trend, ind_margin_adjusted_revenue_growth)
+    industry_growth_rate = _combine_growth(ind_eps_trend, ind_margin_adjusted_revenue_growth, ind_euler_rev_growth)
 
     # Option C anchor: price / industryPE — the EPS that would justify today's
     # price at the peer median multiple. Ties anchorEps to currentPrice by
@@ -1150,6 +1277,33 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
                 g_fwd = (1.0 - target_weight) * g_fwd + target_weight * g_target
                 g_fwd = max(GROWTH_FLOOR, min(GROWTH_CAP, g_fwd))
             g_t = Y1_SCHEDULE_WEIGHT * g_t + (1.0 - Y1_SCHEDULE_WEIGHT) * g_fwd
+        elif t == 2:
+            # g_fwd2 -- the SAME "consensus drift nudge" role g_fwd plays
+            # for year 1, one year further out and Eulerpool-only (see
+            # Y2_SCHEDULE_WEIGHT's own comment on why it earns less
+            # influence than year 1's). Two independent readings, averaged
+            # rather than trusting either alone (same "don't trust one
+            # forecast in isolation" spirit as anchor_eps's own fallback
+            # chain and TARGET_BLEND_WEIGHT's analyst-target blend):
+            #   EPS-implied:     eulerFwdEps2y / fwd_eps - 1  (fwd_eps is
+            #                    the blended year-1 EPS, not anchor_eps --
+            #                    this is the implied growth from year 1 to
+            #                    year 2, not from today's price anchor)
+            #   revenue-implied: eulerRevGrowth2y, used AS-IS with no
+            #                    margin conversion, same precedent as
+            #                    eulerRevGrowth1y sitting directly in
+            #                    ownGrowthRate's own average alongside
+            #                    epsTrend.
+            # Whichever of the two is present when only one is; g_t stays
+            # on the plain schedule rate when neither is available.
+            g_fwd2_parts = []
+            if euler_fwd_eps2y is not None and abs(fwd_eps) > 1e-9:
+                g_fwd2_parts.append(max(GROWTH_FLOOR, min(GROWTH_CAP, euler_fwd_eps2y / fwd_eps - 1.0)))
+            if euler_rev_growth2y is not None:
+                g_fwd2_parts.append(max(GROWTH_FLOOR, min(GROWTH_CAP, euler_rev_growth2y)))
+            if g_fwd2_parts:
+                g_fwd2 = sum(g_fwd2_parts) / len(g_fwd2_parts)
+                g_t = Y2_SCHEDULE_WEIGHT * g_t + (1.0 - Y2_SCHEDULE_WEIGHT) * g_fwd2
         g_t = max(GROWTH_FLOOR, min(GROWTH_CAP, g_t))
         growth_path = growth_path * (1.0 + g_t)
         # Fading additive margin-trend overlay: NOT cumulative (a single
@@ -1240,6 +1394,12 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
     target_low_price = to_float(row.get("targetLowPrice"))
     target_mean_price = to_float(row.get("targetMeanPrice"))
     target_high_price = to_float(row.get("targetHighPrice"))
+    # Read once here too (needed by both the combined_vol override below
+    # and the per-path g_fwd draw's branch selection further down) -- see
+    # MIN_CREDIBLE_ANALYSTS's own comment on why a thin-coverage ticker's
+    # OWN range/dispersion isn't trusted at either use site.
+    n_analysts_for_dispersion = to_float(row.get("numberOfAnalystOpinions"))
+    thin_coverage = n_analysts_for_dispersion is None or n_analysts_for_dispersion < MIN_CREDIBLE_ANALYSTS
     # Industry/sector-median analyst_dispersion (see METRIC_KEYS/
     # _build_peer_pools's own comments) -- the fallback g_fwd_draws below
     # uses when THIS ticker has no analyst target range of its own, so
@@ -1290,6 +1450,15 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
         analyst_dispersion = max(0.0, analyst_dispersion)
     else:
         analyst_dispersion = None
+    # Thin coverage (< MIN_CREDIBLE_ANALYSTS) -- substitute the peer-
+    # typical dispersion for THIS ticker's own (own value is either
+    # missing, or too small a sample to trust as real measured
+    # disagreement) rather than letting a falsely-tight own value pull
+    # combined_vol down. Only overrides when a peer figure is actually
+    # available; a thin-AND-thinly-covered-sector ticker keeps whatever
+    # own value (or None) it already had.
+    if thin_coverage and industry_analyst_dispersion is not None:
+        analyst_dispersion = industry_analyst_dispersion
     combined_vol = (math.sqrt(eps_vol ** 2 + analyst_dispersion ** 2)
                     if analyst_dispersion is not None else eps_vol)
     sigma_eps = combined_vol * abs(mu_eps)
@@ -1352,15 +1521,21 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
         # z == +SHOCK_CLIP_SD exactly on g_fwd_high, continuous in
         # between.
         #
-        # When THIS ticker has no analyst target range of its own, falls
-        # back on the industry/sector-median analyst_dispersion (relative
-        # half-width of PEERS' own target ranges, see
-        # industry_analyst_dispersion above) as a symmetric spread around
-        # g_fwd -- still tied to the same shared shock z, not a single
-        # fixed value for every path -- and only drops to the single
-        # fixed g_fwd (no per-path spread at all) when even the broad
-        # sector has no analyst coverage to borrow a typical spread from.
-        if target_low_price is not None and target_high_price is not None and current_price > 0:
+        # When THIS ticker has no analyst target range of its own, OR too
+        # few analysts to trust the one it has as real disagreement (see
+        # MIN_CREDIBLE_ANALYSTS's own comment -- a 1-analyst "range" is
+        # degenerate, not tight), falls back on the industry/sector-median
+        # analyst_dispersion (relative half-width of PEERS' own target
+        # ranges, see industry_analyst_dispersion above) as a symmetric
+        # spread around g_fwd -- still tied to the same shared shock z,
+        # not a single fixed value for every path -- and only drops to the
+        # single fixed g_fwd (no per-path spread at all) when even the
+        # broad sector has no analyst coverage to borrow a typical spread
+        # from.
+        if (
+            target_low_price is not None and target_high_price is not None and current_price > 0
+            and not thin_coverage
+        ):
             g_fwd_low = max(GROWTH_FLOOR, min(GROWTH_CAP, target_low_price / current_price - 1.0))
             g_fwd_high = max(GROWTH_FLOOR, min(GROWTH_CAP, target_high_price / current_price - 1.0))
             # Clamped at 0 -- a data anomaly (e.g. low > mean) should mean
@@ -1423,6 +1598,8 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
         # Fixed multiple, same as industry_pe below -- see this block's
         # own opening comment on why the multiple itself isn't randomized.
         sim_prices = mu_eps_sim_floored * industry_pe
+        if book_value_floor is not None:
+            sim_prices = np.maximum(sim_prices, book_value_floor)
         # Winsorize at the 5th/95th percentiles before taking ANY moment of
         # the distribution. Multiplicative EPS compounding (eps_path =
         # anchor_eps * prod(1 + g_t)) makes sim_prices lognormal-ish with a
@@ -1574,6 +1751,8 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
     forecast_price_p80 = None
     if industry_pe is not None and industry_pe > 0:
         prices_industry = eps_draws_floored * industry_pe
+        if book_value_floor is not None:
+            prices_industry = np.maximum(prices_industry, book_value_floor)
         stats_industry = _price_stats(prices_industry, current_price)
         forecast_price = _forecast(stats_industry["median"])
         forecast_return = forecast_price / current_price - 1
@@ -1632,7 +1811,11 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
             "growthMargin": growth_margin,
             "marginAdjustedRevenueGrowth": margin_adjusted_revenue_growth,
             "ownGrowthRate": own_growth_rate,
+            "eulerRevGrowth1y": euler_rev_growth,
+            "eulerFwdEps2y": euler_fwd_eps2y,
+            "eulerRevGrowth2y": euler_rev_growth2y,
             "industryEpsTrend": ind_eps_trend,
+            "industryEulerRevGrowth": ind_euler_rev_growth,
             "industryRevenueGrowth": ind_revenue_growth,
             "industryEarningsGrowth": ind_earnings_growth,
             "industryOperatingMargin": ind_operating_margin,
@@ -1641,12 +1824,15 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
             "epsPath": eps_path,
             "discountedEpsPath": discounted_eps_path,
             "beta": beta,
+            "bookValue": book_value,
+            "bookValueFloor": book_value_floor,
             "effectiveDiscountRate": effective_discount_rate,
             "muEps": mu_eps,
             "sigmaEps": sigma_eps,
             "sigmaEpsLog": sigma_log,
             "epsVolatilitySource": eps_vol_source,
             "analystDispersion": analyst_dispersion,
+            "thinCoverage": thin_coverage,
             "combinedVol": combined_vol,
             "confidence": confidence,
             # Risk-premium multiple haircut actually applied to SimPrice /

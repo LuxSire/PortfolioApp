@@ -6,6 +6,19 @@
 // imports from here to render the exact same columns/formatting as the
 // screener without duplicating (and risking drifting from) this logic.
 
+// Minimum EPS, as a fraction of price, for an implied forward P/E
+// (price / eps) to be treated as meaningful -- shared by AssetView.tsx's
+// "Fwd PE (blend)" stat and RecommendationsView.tsx's "Fwd PE (exp)"
+// line, both of which divide by a BLENDED forward EPS that can land
+// arbitrarily close to (or past) zero when yfinance and Eulerpool
+// disagree on sign (confirmed live: CIFR blends +0.217/-0.270 into
+// -0.027, which without this guard divides out to an absurd -630x P/E).
+// 0.005 caps the displayed ratio at 200x before it flips to 'N/M' (the
+// standard convention for a P/E with no real earnings base) -- a hard
+// cutoff, not a gradient, since there's no meaningful lower bound to
+// shade toward once the denominator is this close to zero.
+export const IMPLIED_PE_MIN_EPS_FRACTION = 0.005
+
 export const COLUMNS = [
   { key: 't', label: 'Ticker', className: 'col-left col-ticker' },
   { key: 'n', label: 'Name', className: 'col-left col-name', sortable: false },
@@ -22,7 +35,7 @@ export const COLUMNS = [
   { key: 'tpe', label: 'Trail PE', fmt: 'num2' },
   { key: 'tps', label: 'Trail PS', fmt: 'num2' },
   { key: 'peg', label: 'PEG', fmt: 'num2' },
-  { key: 'revg', label: 'Rev Growth', fmt: 'pct' },
+  { key: 'revgRaw', label: 'Rev Growth', fmt: 'pct' },
   { key: 'earnG', label: 'Earn Growth', fmt: 'pct' },
   { key: 'pfcf', label: 'P/FCF', fmt: 'num2' },
   { key: 'evEbitda', label: 'EV/EBITDA', fmt: 'num2' },
@@ -232,4 +245,53 @@ export function avgInsiderScore(filings) {
   }
   const total = buys + sells
   return { avg: total ? (buys - sells) / total : null, buys, sells }
+}
+
+// Same 4-leg blended short-interest rank ScreenerView.tsx's own
+// shortIntRank/Subrank computes (pctOfFloat, daysToCover, changePercent,
+// shortVolumeRatio -- see that file's own comment on why these four, not
+// a single raw value: three FINRA biweekly-settlement fields plus
+// Eulerpool's daily short-volume-tape average, averaged as RANKS since
+// the raw values are on incompatible scales). Shared here (rather than
+// each consumer reimplementing it) so AssetView.tsx's "Short Interest
+// (blend)" stat and RecommendationsView.tsx's short-interest rationale
+// line show the IDENTICAL number the Screener tab does for the same
+// ticker, not a drifted approximation. ScreenerView.tsx itself keeps its
+// own already-working, memoized-per-leg implementation rather than being
+// refactored onto this shared version -- not worth the risk to a
+// shipped, tested computation for the sake of one shared helper.
+//
+// rows: array of raw CSV-string row objects (sorted_screen.csv), each
+// needing at least `ticker` plus whichever of shortPctOfFloatFinra/
+// shortPercentOfFloat/shortDaysToCover/shortRatio/shortChangePercent/
+// shortVolumeRatio it has. Returns {ticker: rank} for every ticker with
+// at least one of the four legs -- a 1-based ordinal rank (best = 1),
+// rounded from the average of whichever legs a ticker has (missing legs
+// don't count against it, same graceful-degrade convention as every
+// other blended factor in this project).
+export function computeShortInterestRanks(rows) {
+  function rankDescending(keyFn) {
+    const valid = rows
+      .map((r) => ({ t: r.ticker, v: keyFn(r) }))
+      .filter((x) => x.v !== null && Number.isFinite(x.v))
+    valid.sort((a, b) => b.v - a.v)
+    const map = new Map()
+    valid.forEach((x, i) => map.set(x.t, i + 1))
+    return map
+  }
+
+  const legRanks = [
+    (r) => toNum(r.shortPctOfFloatFinra) ?? toNum(r.shortPercentOfFloat),
+    (r) => toNum(r.shortDaysToCover) ?? toNum(r.shortRatio),
+    (r) => toNum(r.shortChangePercent),
+    (r) => toNum(r.shortVolumeRatio),
+  ].map(rankDescending)
+
+  const result = new Map()
+  for (const r of rows) {
+    const parts = legRanks.map((m) => m.get(r.ticker)).filter((v) => v !== undefined)
+    if (parts.length === 0) continue
+    result.set(r.ticker, Math.round(parts.reduce((s, v) => s + v, 0) / parts.length))
+  }
+  return result
 }

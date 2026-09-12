@@ -79,7 +79,11 @@ CONSTANTS
   SECTOR_CORR  = 0.65   same-sector correlation floor
   CANDIDATE_POOL = 160  pre-screen pool size per side
   POSITIONS    = 50     final positions selected per side
-  IDIO_VOL     = 0.25   idiosyncratic vol used in CAPM fallback (when no history)
+  IDIO_VOL     = 0.25   idiosyncratic-vol fallback ONLY for a candidate
+                        simulations.py has no simReturnVol for -- every
+                        other candidate uses its own Monte Carlo return-
+                        path dispersion instead (see _make_candidate /
+                        _build_cov's own docstrings)
   SHRINKAGE    = 0.10   toward-diagonal shrinkage applied to sample covariance
   MIN_HIST_BARS = 20    minimum daily bars required to use a ticker's history
   HIST_WINDOW  = 60     use last N daily bars per ticker
@@ -406,7 +410,14 @@ def _build_cov(pool, hist_returns=None):
     Tickers without history are handled by CAPM cross-covariance:
       cov_ij = beta_i × beta_j × MARKET_VOL²
     and CAPM + idiosyncratic variance on the diagonal:
-      cov_ii = (beta_i × MARKET_VOL)² + IDIO_VOL²
+      cov_ii = (beta_i × MARKET_VOL)² + idioVol_i²
+    where idioVol_i is THIS ticker's own modules.simulations Monte Carlo
+    return-path dispersion (simReturnVol, see _make_candidate's own
+    comment) when available, falling back to the flat IDIO_VOL constant
+    only for a candidate simulations.py couldn't compute one for -- a
+    name the simulation itself is uncertain about (wide EPS/PE spread,
+    thin analyst coverage) gets a wider diagonal here too, rather than
+    every name sharing one generic idiosyncratic-vol assumption.
 
     Same-sector correlation floor (SECTOR_CORR) is applied for all off-
     diagonal pairs when no history is used for that pair.
@@ -414,6 +425,7 @@ def _build_cov(pool, hist_returns=None):
     n = len(pool)
     tickers = [c["ticker"] for c in pool]
     betas = np.array([c["beta"] for c in pool])   # already clamped
+    idio_vols = np.array([c.get("idioVol") or IDIO_VOL for c in pool])
     sectors = [c.get("sector") or "" for c in pool]
 
     available = {t: hist_returns[t] for t in tickers
@@ -433,7 +445,7 @@ def _build_cov(pool, hist_returns=None):
         for i in range(n):
             if tickers[i] not in available:
                 vi = betas[i] * MARKET_VOL
-                cov[i, i] = vi ** 2 + IDIO_VOL ** 2
+                cov[i, i] = vi ** 2 + idio_vols[i] ** 2
                 for j in range(n):
                     if j != i:
                         c_ij = betas[i] * betas[j] * MARKET_VOL ** 2
@@ -459,7 +471,7 @@ def _build_cov(pool, hist_returns=None):
         vols = betas * MARKET_VOL
         sys_cov = np.outer(betas, betas) * MARKET_VOL ** 2
         cov = sys_cov.copy()
-        np.fill_diagonal(cov, vols ** 2 + IDIO_VOL ** 2)
+        np.fill_diagonal(cov, vols ** 2 + idio_vols ** 2)
 
         total_vols = np.sqrt(np.diag(cov))
         for i in range(n):
@@ -605,7 +617,26 @@ def build_target_portfolio(rec_file, sim_file, exclude_groups=None):
         beta_raw = sim.get("inputs", {}).get("beta")
         raw_beta = abs(beta_raw) if beta_raw is not None else 1.0
         beta = max(BETA_FLOOR, min(raw_beta, BETA_CAP))
-        vol = beta * MARKET_VOL
+        # simReturnVol -- modules.simulations' own Monte Carlo dispersion
+        # (std of the simulated return paths, driven by THIS ticker's
+        # epsVolatility + analyst-target/peer-P/E spread, confidence-
+        # weighted -- see that module's own docstring) used in place of
+        # the flat IDIO_VOL constant wherever available: a name the
+        # simulation itself is uncertain about (wide EPS/PE spread, thin
+        # analyst coverage) gets a wider vol here too, instead of every
+        # name being assigned the same generic 25% idiosyncratic vol
+        # regardless of how confident its own forecast actually is. See
+        # _build_cov's own docstring for where this flows into the
+        # covariance diagonal.
+        try:
+            sim_return_vol = float(sim.get("inputs", {}).get("simReturnVol"))
+        except (TypeError, ValueError):
+            sim_return_vol = None
+        if sim_return_vol is not None and sim_return_vol > 0:
+            idio_vol = sim_return_vol
+        else:
+            idio_vol = IDIO_VOL
+        vol = math.sqrt((beta * MARKET_VOL) ** 2 + idio_vol ** 2)
         position_return = fr if side == "Long" else -fr
         indiv_sharpe = (position_return - RF) / vol
         prob_above = (sim.get("priceAtIndustryMultiple") or {}).get("probAboveCurrentPrice")
@@ -628,6 +659,7 @@ def build_target_portfolio(rec_file, sim_file, exclude_groups=None):
             "simReturn": fr,
             "positionReturn": position_return,
             "vol": vol,
+            "idioVol": idio_vol,
             "beta": beta,
             "indivSharpe": indiv_sharpe,
             "analysts": rec.get("numberOfAnalystOpinions"),

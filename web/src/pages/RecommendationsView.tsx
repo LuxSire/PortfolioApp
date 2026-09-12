@@ -4,7 +4,13 @@ import { parseCSV } from '../csv'
 import { businessMillisBetween, fmtEarningsDate, useNowTick } from '../earnings'
 import { IB_STREAM_URL } from '../ibStream'
 import { useCashEquivalents } from '../nonEquityHoldings'
-import { fmtPct, fmtPrice, ratingClass } from '../screenerFactors'
+import {
+  computeShortInterestRanks,
+  fmtPct,
+  fmtPrice,
+  IMPLIED_PE_MIN_EPS_FRACTION,
+  ratingClass,
+} from '../screenerFactors'
 import { getSectorGroup, sectorGroupLabel } from '../sectorGroups'
 import RecommendationsChatbot from '../components/RecommendationsChatbot'
 import SectorFilter from '../components/SectorFilter'
@@ -209,7 +215,6 @@ type RationaleFactor =
   | 'shortInterest'
   | 'news'
   | 'insiders'
-  | 'insiderOwnership'
   | 'institutions'
   | 'targetUpside'
   | 'simulationForecast'
@@ -229,7 +234,6 @@ const THUMB_FACTORS: { key: RationaleFactor; label: string }[] = [
   { key: 'shortInterest', label: 'Short interest' },
   { key: 'news', label: 'News' },
   { key: 'insiders', label: 'Insiders' },
-  { key: 'insiderOwnership', label: 'Insider ownership' },
   { key: 'institutions', label: 'Institutions (13F)' },
   { key: 'targetUpside', label: 'Target upside' },
   { key: 'simulationForecast', label: 'Simulation forecast' },
@@ -256,6 +260,20 @@ function sidedSignal(value: number, side: 'Long' | 'Short'): Signal {
   return null
 }
 
+// Eulerpool's own analystConsensus (see the Candidate interface's own
+// comment) is a continuous [-1, 1] average across firms' most-recent
+// grades, not a discrete rating -- these breakpoints mirror this
+// project's own five-way Strong Buy/Buy/Hold/Sell/Strong Sell vocabulary
+// (same rating labels shown elsewhere on this card) so the consensus
+// reads as a familiar word, not a bare decimal.
+function consensusLabel(score: number): string {
+  if (score >= 0.5) return 'Strong Buy'
+  if (score > 0.15) return 'Buy'
+  if (score >= -0.15) return 'Hold'
+  if (score > -0.5) return 'Sell'
+  return 'Strong Sell'
+}
+
 // Informational rationale line only -- revenue growth no longer GATES the
 // idea lists (the sim-return gate, simReturnOkForLong/ForShort, replaced
 // it), but the reported figure is still shown as context on the card.
@@ -267,11 +285,42 @@ function sidedSignal(value: number, side: 'Long' | 'Short'): Signal {
 // Short, negative the mirror.
 function revenueGrowthLine(c: Candidate, side: 'Long' | 'Short'): RationaleLine | null {
   if (c.revenueGrowth === null || c.revenueGrowth === undefined) return null
+  // eulerRevGrowth1y -- Eulerpool's own forward consensus, shown in
+  // parens alongside the trailing figure, same "both numbers together"
+  // treatment as the Fwd PE line below (explicit instruction). Doesn't
+  // affect the signal -- that's still read off the trailing, reconciled
+  // revenueGrowth alone, same as before this was added.
+  const expSuffix =
+    c.eulerRevGrowth1y !== null && c.eulerRevGrowth1y !== undefined ? ` (exp ${fmtPct(c.eulerRevGrowth1y)})` : ''
   return {
-    text: `Revenue growth ${fmtPct(c.revenueGrowth)}`,
+    text: `Revenue growth ${fmtPct(c.revenueGrowth)}${expSuffix}`,
     signal: sidedSignal(c.revenueGrowth, side),
     factor: 'revenueGrowth',
   }
+}
+
+// Fwd PE alongside its blended-EPS implied counterpart, shown together in
+// one line -- explicit instruction. forwardPE is yfinance's own raw
+// ratio; impliedFwdPE reproduces AssetView's own "Fwd PE (blend)" stat
+// (price / blended forwardEps, see modules.derive.reconcile_forward_eps
+// and the Candidate interface's own comment on forwardEps) rather than
+// trusting forwardPE to already reflect the blend -- it isn't recomputed
+// at write time, so the two numbers usually differ slightly. Informational
+// only (no thumb icon, no `factor`, same as oppositeMatchLine's plain-text
+// case) -- there's no established absolute forward-PE threshold anywhere
+// else in this file the way there is for short interest or insider
+// ownership, so no signal is invented here.
+//
+// Negative/near-zero blended EPS -> 'N/M' (see
+// screenerFactors.IMPLIED_PE_MIN_EPS_FRACTION's own comment) -- confirmed
+// live, CIFR blends yfinance's +0.217 fwdEps1y with Eulerpool's -0.270
+// into -0.027, which without this guard divides out to an absurd -630x.
+function fwdPeExpLine(c: Candidate): RationaleLine | null {
+  if (c.forwardPE === null || c.forwardPE === undefined) return null
+  if (typeof c.price !== 'number' || typeof c.forwardEps !== 'number') return null
+  const impliedFwdPEText =
+    c.forwardEps > c.price * IMPLIED_PE_MIN_EPS_FRACTION ? (c.price / c.forwardEps).toFixed(1) : 'N/M'
+  return { text: `Fwd PE ${c.forwardPE.toFixed(1)} (exp ${impliedFwdPEText})`, signal: null }
 }
 
 // momentum is now IBApp's Money Flow Index (or plain RSI on the yfinance-
@@ -404,24 +453,13 @@ function shortInterestLine(c: Candidate, side: 'Long' | 'Short'): RationaleLine 
   const pct = effectiveShortPctOfFloat(c)
   if (pct === null || pct === undefined) return null
   const signal: Signal = pct > MAX_SHORT_INTEREST ? (side === 'Long' ? 'good' : 'bad') : null
-  return { text: `Short interest ${fmtPctAbs(pct)} of float`, signal, factor: 'shortInterest' }
-}
-
-// What fraction of shares insiders currently hold -- distinct from
-// insiders90d's recent TRANSACTION activity (see the rationaleLines call
-// site: this line is placed directly below that one, explicit
-// instruction). High insider ownership reads as skin-in-the-game
-// alignment, bullish for the company -- good for a Long, bad for a
-// Short, same as any other bullish-for-the-company reading on this card.
-// Gated on MIN_INSIDER_OWNERSHIP -- explicit follow-up instruction:
-// nearly every widely-held company shows SOME nonzero insider stake
-// (confirmed live: 0.2% was firing "good"), which isn't a real
-// skin-in-the-game signal, just noise -- same "only the tail counts"
-// treatment MAX_SHORT_INTEREST already gives the short-interest line.
-function insiderOwnershipLine(c: Candidate, side: 'Long' | 'Short'): RationaleLine | null {
-  if (c.heldPercentInsiders === null || c.heldPercentInsiders === undefined) return null
-  const signal: Signal = c.heldPercentInsiders > MIN_INSIDER_OWNERSHIP ? (side === 'Long' ? 'good' : 'bad') : null
-  return { text: `Insider ownership ${fmtPctAbs(c.heldPercentInsiders)}`, signal, factor: 'insiderOwnership' }
+  // shortIntRank -- the same 4-leg blended rank (pctOfFloat/daysToCover/
+  // changePercent/shortVolumeRatio) AssetView.tsx's "Short Interest
+  // (blend)" stat and ScreenerView.tsx's own Subrank show -- appended
+  // alongside the raw pct-of-float figure rather than replacing it, same
+  // "both numbers together" treatment as the Fwd PE line above.
+  const rankSuffix = c.shortIntRank !== null && c.shortIntRank !== undefined ? ` (rank #${c.shortIntRank})` : ''
+  return { text: `Short interest ${fmtPctAbs(pct)}${rankSuffix}`, signal, factor: 'shortInterest' }
 }
 
 // Builds a matcher for the industry/sector hedge preference: given the
@@ -540,6 +578,9 @@ function rationaleLines(
   const revenueGrowth = revenueGrowthLine(c, side)
   if (revenueGrowth) lines.push(revenueGrowth)
 
+  const fwdPeExp = fwdPeExpLine(c)
+  if (fwdPeExp) lines.push(fwdPeExp)
+
   const momentum = momentumLine(c, side)
   if (momentum) lines.push(momentum)
 
@@ -601,9 +642,6 @@ function rationaleLines(
     })
   }
 
-  const insiderOwnership = insiderOwnershipLine(c, side)
-  if (insiderOwnership) lines.push(insiderOwnership)
-
   if (c.instChangeQoQ !== null && c.instChangeQoQ !== undefined) {
     lines.push({
       text: `Institutions ${c.instChangeQoQ >= 0 ? 'added' : 'trimmed'} ${fmtPctAbs(c.instChangeQoQ)} (13F)`,
@@ -614,8 +652,19 @@ function rationaleLines(
 
   if (c.targetUpside !== null && c.targetUpside !== undefined) {
     const analysts = c.numberOfAnalystOpinions ? Math.round(c.numberOfAnalystOpinions) : null
+    // consensus -- Eulerpool's own analystConsensus (see consensusLabel's
+    // own comment), reported alongside target upside rather than as a
+    // separate line (explicit instruction): both are sell-side reads,
+    // just on different axes (price-target math vs. current rating
+    // stance), so one combined parenthetical is more useful than two
+    // bullets to scan separately.
+    const consensus =
+      c.analystConsensus !== null && c.analystConsensus !== undefined ? consensusLabel(c.analystConsensus) : null
+    const detail = [analysts ? `${analysts} analysts` : null, consensus ? `consensus: ${consensus}` : null]
+      .filter(Boolean)
+      .join(', ')
     lines.push({
-      text: `Target upside ${fmtPct(c.targetUpside)}${analysts ? ` (${analysts} analysts)` : ''}`,
+      text: `Target upside ${fmtPct(c.targetUpside)}${detail ? ` (${detail})` : ''}`,
       signal: sidedSignal(c.targetUpside, side),
       factor: 'targetUpside',
     })
@@ -687,6 +736,30 @@ function ThumbIcon({ signal }: { signal: Signal }) {
     return <ThumbsDown className="recommendation-thumb-icon recommendation-thumb-bad" size={13} aria-label="Unfavorable" />
   }
   return null
+}
+
+// Groups adjacent momentum + meanReversion lines into one combined visual
+// row -- explicit instruction: MSI and ST-MSI shown together rather than
+// as two separate bullets. momentumLine always immediately precedes
+// meanReversionLine in rationaleLines' own push order when both fire, so
+// a simple adjacent-pair check is enough; every other line renders as its
+// own singleton group, unchanged. Purely a RENDER-time grouping --
+// filterByThumbs/thumbFilterItems below still walk the flat `lines` array
+// they're handed, so per-factor thumb filtering/counting (MSI and ST-MSI
+// stay separately selectable chips) is unaffected.
+function groupRationaleLines(lines: RationaleLine[]): RationaleLine[][] {
+  const groups: RationaleLine[][] = []
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    const next = lines[i + 1]
+    if (line.factor === 'momentum' && next?.factor === 'meanReversion') {
+      groups.push([line, next])
+      i++
+    } else {
+      groups.push([line])
+    }
+  }
+  return groups
 }
 
 // Right-aligned tally sitting above the rationale bullets -- explicit
@@ -957,10 +1030,15 @@ function RecommendationCard({
 
       <ThumbCounts lines={lines} />
       <ul className="recommendation-rationale">
-        {lines.map((line, i) => (
+        {groupRationaleLines(lines).map((group, i) => (
           <li key={i}>
-            {line.text}
-            <ThumbIcon signal={line.signal} />
+            {group.map((line, j) => (
+              <span key={j}>
+                {j > 0 && ' · '}
+                {line.text}
+                <ThumbIcon signal={line.signal} />
+              </span>
+            ))}
           </li>
         ))}
       </ul>
@@ -1043,10 +1121,15 @@ function CloseCard({
 
       <ThumbCounts lines={lines} />
       <ul className="recommendation-rationale">
-        {lines.map((line, i) => (
+        {groupRationaleLines(lines).map((group, i) => (
           <li key={i}>
-            {line.text}
-            <ThumbIcon signal={line.signal} />
+            {group.map((line, j) => (
+              <span key={j}>
+                {j > 0 && ' · '}
+                {line.text}
+                <ThumbIcon signal={line.signal} />
+              </span>
+            ))}
           </li>
         ))}
       </ul>
@@ -1122,10 +1205,15 @@ function RejectedCard({
 
       <ThumbCounts lines={lines} />
       <ul className="recommendation-rationale">
-        {lines.map((line, i) => (
+        {groupRationaleLines(lines).map((group, i) => (
           <li key={i}>
-            {line.text}
-            <ThumbIcon signal={line.signal} />
+            {group.map((line, j) => (
+              <span key={j}>
+                {j > 0 && ' · '}
+                {line.text}
+                <ThumbIcon signal={line.signal} />
+              </span>
+            ))}
           </li>
         ))}
       </ul>
@@ -1303,12 +1391,6 @@ function effectiveShortPctOfFloat(c: Candidate): number | null | undefined {
 // short-interest rationale line (below) and buildCloseReasons' "short has
 // become crowded since entry" flag on an already-open position still use.
 const MAX_SHORT_INTEREST = 0.1
-
-// insiderOwnershipLine's own materiality bar -- explicit instruction: 5%.
-// Below this, ownership isn't treated as a real skin-in-the-game signal
-// either way (no icon), same "only the tail counts" idea MAX_SHORT_INTEREST
-// applies to the short-interest line above.
-const MIN_INSIDER_OWNERSHIP = 0.05
 
 // Sim-return gate on the idea lists themselves (separate from the To close
 // fundamentals check above, which flags a HELD position after the fact) --
@@ -2041,6 +2123,11 @@ export default function RecommendationsView() {
       .then((r) => (r.ok ? r.text() : ''))
       .then((text) => {
         const parsedRows = parseCSV(text)
+        // Same 4-leg blended short-interest rank ScreenerView.tsx's own
+        // Subrank / AssetView.tsx's "Short Interest (blend)" stat show --
+        // see screenerFactors.computeShortInterestRanks' own docstring.
+        // Computed once here over the full universe, not per-card.
+        const shortIntRanks = computeShortInterestRanks(parsedRows)
         // sorted_screen.csv's own `rating` column comes from a row's
         // INDEX in this file's order (main.py's write_sorted_screen_csv:
         // rating_for_percentile(i / n), scored rows first in ascending-
@@ -2083,7 +2170,12 @@ export default function RecommendationsView() {
             // (which reads 32.7% for a recent IPO like NAVN vs. the real ~6.8%).
             shortPctOfFloatFinra: row.shortPctOfFloatFinra ? Number(row.shortPctOfFloatFinra) : null,
             revenueGrowth: row.revenueGrowth ? Number(row.revenueGrowth) : null,
+            eulerRevGrowth1y: row.eulerRevGrowth1y ? Number(row.eulerRevGrowth1y) : null,
             heldPercentInsiders: row.heldPercentInsiders ? Number(row.heldPercentInsiders) : null,
+            forwardPE: row.forwardPE ? Number(row.forwardPE) : null,
+            forwardEps: row.forwardEps ? Number(row.forwardEps) : null,
+            shortIntRank: shortIntRanks.get(row.ticker) ?? null,
+            analystConsensus: row.analystConsensus ? Number(row.analystConsensus) : null,
             epsRevision0y: row.epsRevision0y ? Number(row.epsRevision0y) : null,
             epsRevision1y: row.epsRevision1y ? Number(row.epsRevision1y) : null,
             meanReversion: row.meanReversion ? Number(row.meanReversion) : null,
@@ -2234,7 +2326,12 @@ export default function RecommendationsView() {
           epsRevision0y: tickerScreener[c.ticker]?.epsRevision0y,
           epsRevision1y: tickerScreener[c.ticker]?.epsRevision1y,
           revenueGrowth: tickerScreener[c.ticker]?.revenueGrowth,
+          eulerRevGrowth1y: tickerScreener[c.ticker]?.eulerRevGrowth1y,
           heldPercentInsiders: tickerScreener[c.ticker]?.heldPercentInsiders,
+          forwardPE: tickerScreener[c.ticker]?.forwardPE,
+          forwardEps: tickerScreener[c.ticker]?.forwardEps,
+          shortIntRank: tickerScreener[c.ticker]?.shortIntRank,
+          analystConsensus: tickerScreener[c.ticker]?.analystConsensus,
           forecastReturn: tickerForecast[c.ticker] ?? null,
           simReturn: tickerSimPerf[c.ticker]?.simReturn ?? null,
           simSharpe: tickerSimPerf[c.ticker]?.simSharpe ?? null,
@@ -2278,7 +2375,12 @@ export default function RecommendationsView() {
           epsRevision0y: tickerScreener[c.ticker]?.epsRevision0y,
           epsRevision1y: tickerScreener[c.ticker]?.epsRevision1y,
           revenueGrowth: tickerScreener[c.ticker]?.revenueGrowth,
+          eulerRevGrowth1y: tickerScreener[c.ticker]?.eulerRevGrowth1y,
           heldPercentInsiders: tickerScreener[c.ticker]?.heldPercentInsiders,
+          forwardPE: tickerScreener[c.ticker]?.forwardPE,
+          forwardEps: tickerScreener[c.ticker]?.forwardEps,
+          shortIntRank: tickerScreener[c.ticker]?.shortIntRank,
+          analystConsensus: tickerScreener[c.ticker]?.analystConsensus,
           forecastReturn: tickerForecast[c.ticker] ?? null,
           simReturn: tickerSimPerf[c.ticker]?.simReturn ?? null,
           simSharpe: tickerSimPerf[c.ticker]?.simSharpe ?? null,

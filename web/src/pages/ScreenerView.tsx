@@ -610,19 +610,23 @@ export default function ScreenerView() {
             liq: toNum(r.LiqRatio),
             // shortInt is the sorted/displayed value (pct of float — the
             // standard, cross-company-comparable short-interest metric);
-            // shortRatio (days-to-cover) and shortChg (biweekly % change in
-            // short interest) aren't separately displayed, only used
+            // shortRatio (days-to-cover), shortChg (biweekly % change in
+            // short interest), and shortVol (Eulerpool's daily short-
+            // volume-tape average) aren't separately displayed, only used
             // alongside it for the blended subrank below, the same
             // "average of ranks on incompatible scales" pattern as main.py's
-            // own short_interest_rank. All three prefer FINRA's biweekly
-            // settlement figure (shortPctOfFloatFinra / shortDaysToCover /
-            // shortChangePercent — exactly what scoring used) and fall back
-            // to yfinance's staler shortPercentOfFloat / shortRatio when
-            // FINRA doesn't report the ticker (no yfinance changePercent
-            // equivalent, so shortChg is simply absent there).
+            // own short_interest_rank. The first three prefer FINRA's
+            // biweekly settlement figure (shortPctOfFloatFinra /
+            // shortDaysToCover / shortChangePercent — exactly what scoring
+            // used) and fall back to yfinance's staler shortPercentOfFloat /
+            // shortRatio when FINRA doesn't report the ticker (no yfinance
+            // changePercent equivalent, so shortChg is simply absent
+            // there). shortVol has no yfinance fallback at all -- it's a
+            // genuinely new, Eulerpool-only signal.
             shortInt: toNum(r.shortPctOfFloatFinra) ?? toNum(r.shortPercentOfFloat),
             shortRatio: toNum(r.shortDaysToCover) ?? toNum(r.shortRatio),
             shortChg: toNum(r.shortChangePercent),
+            shortVol: toNum(r.shortVolumeRatio),
             p: toNum(r.price),
             tgt: toNum(r.targetMeanPrice),
             tgtHigh: toNum(r.targetHighPrice),
@@ -738,12 +742,13 @@ export default function ScreenerView() {
   const instChangeRank = useMemo(() => (rawRows ? rankDescending(rawRows, 'instChange') : new Map<string, number>()), [rawRows])
   const insidersRank = useMemo(() => (rawRows ? rankDescending(rawRows, 'insiders') : new Map<string, number>()), [rawRows])
 
-  // Short Interest's subrank blends all three ranks the same way main.py's
+  // Short Interest's subrank blends all FOUR ranks the same way main.py's
   // short_interest_rank does — shortInt (pct of float), shortRatio
-  // (days-to-cover), and shortChg (biweekly % change in short interest)
-  // are on incompatible scales, so the ranks are averaged, not the raw
-  // values. A ticker missing some of the three still gets a subrank from
-  // whichever it has; only missing all three yields no subrank at all.
+  // (days-to-cover), shortChg (biweekly % change in short interest), and
+  // shortVol (Eulerpool's daily short-volume-tape average) are on
+  // incompatible scales, so the ranks are averaged, not the raw values. A
+  // ticker missing some of the four still gets a subrank from whichever
+  // it has; only missing all four yields no subrank at all.
   const shortPctRank = useMemo(() => (rawRows ? rankDescending(rawRows, 'shortInt') : new Map<string, number>()), [rawRows])
   const shortRatioRank = useMemo(
     () => (rawRows ? rankDescending(rawRows, 'shortRatio') : new Map<string, number>()),
@@ -753,19 +758,26 @@ export default function ScreenerView() {
     () => (rawRows ? rankDescending(rawRows, 'shortChg') : new Map<string, number>()),
     [rawRows]
   )
+  const shortVolRank = useMemo(
+    () => (rawRows ? rankDescending(rawRows, 'shortVol') : new Map<string, number>()),
+    [rawRows]
+  )
   const shortIntRank = useMemo(() => {
     const map = new Map<string, number>()
     for (const r of rawRows || []) {
-      const parts = [shortPctRank.get(r.t), shortRatioRank.get(r.t), shortChgRank.get(r.t)].filter(
-        (v): v is number => v !== undefined && v !== null
-      )
+      const parts = [
+        shortPctRank.get(r.t),
+        shortRatioRank.get(r.t),
+        shortChgRank.get(r.t),
+        shortVolRank.get(r.t),
+      ].filter((v): v is number => v !== undefined && v !== null)
       if (parts.length === 0) continue
-      // Rounded to an integer rank -- averaging up to three 1-based ranks
-      // otherwise leaves a .333/.667 fraction the Subrank cell would show raw.
+      // Rounded to an integer rank -- averaging up to four 1-based ranks
+      // otherwise leaves a fraction the Subrank cell would show raw.
       map.set(r.t, Math.round(parts.reduce((s, v) => s + v, 0) / parts.length))
     }
     return map
-  }, [rawRows, shortPctRank, shortRatioRank, shortChgRank])
+  }, [rawRows, shortPctRank, shortRatioRank, shortChgRank, shortVolRank])
 
   // Rank on forwardPE - trailingPE (more negative = better), same factor
   // main.py's score weights at 10%. Infinite or negative trailingPE (no real

@@ -909,6 +909,30 @@ def earnings_growth_rank(rows):
     return rank_ascending(rows, key, missing=0.5)
 
 
+def exp_revenue_growth_rank(rows):
+    """High eulerRevGrowth1y ranks better; missing ranked NEUTRAL (0.5),
+    same convention as earnings_growth_rank/fair_value_rank -- no
+    Eulerpool coverage isn't itself a bearish signal. eulerRevGrowth1y
+    (see modules.derive.reconcile_forward_eps) is Eulerpool's own forward
+    consensus revenue growth for the year ahead
+    (fwdRevenue1y/fwdRevenue0y - 1), a genuinely different signal from
+    growth_rank's own revenueGrowth: that one is TRAILING (yfinance,
+    reconciled against SEC filings) and earnings-corroborated; this one is
+    the Street's own forward-looking number, no earnings-quality cap
+    applied (a forward consensus is already the analysts' best guess at
+    what will show up in earnings, not a raw top-line figure that could
+    diverge from it the way a trailing actual can). Same GROWTH_CAP
+    ceiling as growth_rank, for the same reason -- keeps a tiny-revenue-
+    base artifact from claiming the single best rank ahead of a real,
+    still-exceptional growth number."""
+    def key(d):
+        value = to_float(d.get("eulerRevGrowth1y"))
+        if value is None:
+            return None
+        return -min(value, GROWTH_CAP)
+    return rank_ascending(rows, key, missing=0.5)
+
+
 # momentum_rank's "sweet spot" curve for the daily Money Flow Index/RSI
 # strength reading (see IBApp._money_flow_index/_relative_strength_index,
 # both bounded [0, 100]) -- (value, rank) breakpoints, 0=best/1=worst,
@@ -1130,10 +1154,10 @@ def analyst_conviction_rank(rows, consensus_scores=None):
 # ---------------------------------------------------------------------- #
 #  Short interest (contrarian)                                            #
 # ---------------------------------------------------------------------- #
-def load_short_interest_scores(short_interest_file, raw_data_file):
-    """{ticker: {pctOfFloat, daysToCover, changePercent}}, blending
-    FINRA's own biweekly settlement file (finra.fetch_short_interest --
-    currentShortPositionQuantity/daysToCoverQuantity/changePercent) with
+def load_short_interest_scores(short_interest_file, raw_data_file, short_volume_file=None):
+    """{ticker: {pctOfFloat, daysToCover, changePercent, shortVolumeRatio}},
+    blending FINRA's own biweekly settlement file (finra.fetch_short_interest
+    -- currentShortPositionQuantity/daysToCoverQuantity/changePercent) with
     raw_data.json's own floatShares (already on disk from the normal
     yfinance pass -- no separate fetch needed here) to turn FINRA's raw
     share count into the same percent-of-float scale short_interest_rank
@@ -1155,7 +1179,20 @@ def load_short_interest_scores(short_interest_file, raw_data_file):
     only pctOfFloat is filled. A ticker with neither a FINRA row nor
     usable sharesShort/floatShares is left out entirely --
     short_interest_rank ranks a missing score worst, same as every other
-    factor's missing data."""
+    factor's missing data.
+
+    shortVolumeRatio comes from a THIRD, independent source when
+    `short_volume_file` is given (modules.eulerpool.fetch_short_volume's
+    cached SHORT_VOLUME_FILE) -- a trailing 10-trading-day average of
+    FINRA's own DAILY short-sale volume ratio (what fraction of a day's
+    trading is short-sold), not a fresher copy of pctOfFloat/daysToCover/
+    changePercent (all three are point-in-time SNAPSHOTS of an
+    outstanding short POSITION, updated biweekly): this is a rolling read
+    on short-side trading ACTIVITY, updated daily. Merged in independently
+    of whether a ticker has a FINRA settlement row at all -- a ticker
+    missing from `finra` but present in short_volume gets an entry here
+    with only shortVolumeRatio set, same graceful-degrade spirit as the
+    yfinance-components fallback below."""
     try:
         with open(short_interest_file) as f:
             finra = json.load(f)
@@ -1166,6 +1203,11 @@ def load_short_interest_scores(short_interest_file, raw_data_file):
             raw = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         raw = {}
+    try:
+        with open(short_volume_file) as f:
+            short_volume = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError, TypeError):
+        short_volume = {}
 
     scores = {}
     for ticker, row in finra.items():
@@ -1197,39 +1239,58 @@ def load_short_interest_scores(short_interest_file, raw_data_file):
             "daysToCover": None,
             "changePercent": None,
         }
+
+    for ticker, entry in short_volume.items():
+        ratio = to_float((entry or {}).get("shortVolumeRatio"))
+        if ratio is None:
+            continue
+        scores.setdefault(ticker, {"pctOfFloat": None, "daysToCover": None, "changePercent": None})
+        scores[ticker]["shortVolumeRatio"] = round(ratio, 4)
+
     return scores
 
 
 def short_interest_rank(rows, short_interest_scores):
-    """Average of high pct-of-float, high days-to-cover, and high
-    change-percent ranks (see load_short_interest_scores for where all
-    three come from); missing ranked worst. Deliberately the opposite
-    direction of every other factor here -- this is a contrarian/squeeze-
-    potential bet (the more a stock is shorted, and the faster that
-    position is BUILDING, the better it scores), not a quality signal.
-    pctOfFloat (short interest normalized to tradable float) is the
-    standard, cross-company-comparable short-interest metric; daysToCover
-    captures how much actual squeeze pressure that short interest carries
-    -- a stock that's heavily shorted but easy to unwind in an afternoon
-    is a weaker setup than one that'd take many days of average volume to
-    cover; changePercent adds a momentum read neither of the other two
-    has on its own -- a short position still building (positive
-    changePercent) is a stronger contrarian setup than one already
-    unwinding (negative), even at the same current level. Averaging
-    ranks (not raw values, which are on incompatible scales) blends all
-    three dimensions."""
+    """Average of high pct-of-float, high days-to-cover, high
+    change-percent, and high short-volume-ratio ranks (see
+    load_short_interest_scores for where all four come from); missing
+    ranked worst. Deliberately the opposite direction of every other
+    factor here -- this is a contrarian/squeeze-potential bet (the more a
+    stock is shorted, and the faster that position is BUILDING, the
+    better it scores), not a quality signal. pctOfFloat (short interest
+    normalized to tradable float) is the standard, cross-company-
+    comparable short-interest metric; daysToCover captures how much
+    actual squeeze pressure that short interest carries -- a stock that's
+    heavily shorted but easy to unwind in an afternoon is a weaker setup
+    than one that'd take many days of average volume to cover;
+    changePercent adds a momentum read neither of the other two has on
+    its own -- a short position still building (positive changePercent)
+    is a stronger contrarian setup than one already unwinding (negative),
+    even at the same current level. shortVolumeRatio (Eulerpool's own
+    daily FINRA short-volume tape, 10-trading-day trailing average -- see
+    modules.eulerpool.fetch_short_volume) adds a fourth, independent
+    dimension: how much of a name's DAILY trading is short-side activity
+    right now, updated daily rather than biweekly like the other three --
+    a name where short-side trading is intensifying between settlement
+    dates shows up here before it would in the next changePercent
+    reading. Averaging ranks (not raw values, which are on incompatible
+    scales) blends all four dimensions equally."""
     augmented = [(symbol, {**d, **(short_interest_scores.get(symbol) or {})}) for symbol, d in rows]
     pct_float_ranks = rank_ascending(augmented, high_is_better_key("pctOfFloat"))
     days_cover_ranks = rank_ascending(augmented, high_is_better_key("daysToCover"))
     change_pct_ranks = rank_ascending(augmented, high_is_better_key("changePercent"))
+    short_vol_ranks = rank_ascending(augmented, high_is_better_key("shortVolumeRatio"))
     return {
-        symbol: (pct_float_ranks[symbol] + days_cover_ranks[symbol] + change_pct_ranks[symbol]) / 3
+        symbol: (
+            pct_float_ranks[symbol] + days_cover_ranks[symbol]
+            + change_pct_ranks[symbol] + short_vol_ranks[symbol]
+        ) / 4
         for symbol, _ in rows
     }
 
 
 # ---------------------------------------------------------------------- #
-#  Fair value (contrarian valuation) -- Eulerpool                         #
+#  Fair value (independent DCF-style valuation) -- Eulerpool              #
 # ---------------------------------------------------------------------- #
 def load_fair_value_scores(fair_value_file):
     """{ticker: upside} from modules.eulerpool.fetch_fair_values --
@@ -1267,9 +1328,14 @@ def load_fair_value_scores(fair_value_file):
 
 def fair_value_rank(rows, fair_value_scores):
     """High Eulerpool fair-value upside (see load_fair_value_scores) ranks
-    better; missing ranked NEUTRAL (0.5). A contrarian valuation signal,
-    same shape as targetUpside inside analyst_conviction_rank, but from an
-    independent DCF-style source rather than sell-side price targets."""
+    better; missing ranked NEUTRAL (0.5). NOT a contrarian signal --
+    unlike short_interest (which scores WELL against the prevailing
+    bearish crowd), high fair-value upside doesn't bet against anything;
+    it's a plain valuation read, same shape as targetUpside inside
+    analyst_conviction_rank, but from an independent DCF-style source
+    (confirmed near-zero correlation with targetUpside and with sell-side
+    consensus, see load_fair_value_scores' own docstring) rather than
+    sell-side price targets."""
     augmented = [(symbol, {**d, "_fairValueUpside": fair_value_scores.get(symbol)}) for symbol, d in rows]
     return rank_ascending(
         augmented,
@@ -1662,6 +1728,23 @@ def is_growth_cohort(d):
 # forward-return test exists yet, see load_fair_value_scores' own
 # docstring) -- which is exactly why funding it by trimming two
 # UNRELATED factors rather than a correlated one was the safer choice.
+#
+# exp_revenue_growth (Eulerpool's own forward revenue-growth consensus,
+# see exp_revenue_growth_rank) added as its own 4% factor in EVERY
+# column, explicit instruction, funded by trimming growth 1%, earnings_
+# growth 1%, and fair_value 2% everywhere (e.g. Standard: growth 4%->3%,
+# earnings_growth 3%->2%, fair_value 5%->3%). Growth column exception:
+# earnings_growth is already 0% there (pre-profitability cohort, see that
+# factor's own comment above) -- explicit instruction, the 1% that would
+# have come from earnings_growth is taken from fair_value instead (5%->2%
+# there, a 3% cut, vs. 2% everywhere else), so the column still nets to
+# zero without earnings_growth going negative. Distinct from growth_rank's
+# own revenueGrowth: that one is a TRAILING, earnings-corroborated figure
+# (yfinance, SEC-reconciled); this one is the Street's forward-looking
+# estimate for the year ahead, with no yfinance forward counterpart to
+# blend against at all (see modules.derive.reconcile_forward_eps and
+# modules.eulerpool.get_forward_estimates' own docstrings) -- a genuinely
+# new signal, not a second measurement of growth already scored here.
 FACTOR_WEIGHTS = {
     "pe": ("Forward P/E", 0.03, 0.03, 0.03, 0.03, 0.03),
     "sector_pe": ("Forward P/E vs. sector average", 0.05, 0.12, 0.08, 0.07, 0.06),
@@ -1676,8 +1759,9 @@ FACTOR_WEIGHTS = {
     "pe_vs_trailing": ("Forward P/E vs. Trailing P/E", 0.03, 0.03, 0.03, 0.03, 0.0),
     "peg": ("PEG ratio", 0.03, 0.08, 0.05, 0.05, 0.04),
     "trailing_ps": ("Trailing P/S", 0.02, 0.02, 0.02, 0.02, 0.02),
-    "growth": ("Revenue growth", 0.04, 0.06, 0.02, 0.06, 0.07),
-    "earnings_growth": ("Earnings growth", 0.03, 0.03, 0.03, 0.03, 0.0),
+    "growth": ("Revenue growth", 0.03, 0.05, 0.01, 0.05, 0.06),
+    "earnings_growth": ("Earnings growth", 0.02, 0.02, 0.02, 0.02, 0.0),
+    "exp_revenue_growth": ("Eulerpool expected revenue growth (forward consensus)", 0.04, 0.04, 0.04, 0.04, 0.04),
     "debt": ("Debt/equity vs. sector average", 0.05, 0.0, 0.05, 0.0, 0.05),
     "liquidity": ("Quick/current ratio", 0.02, 0.0, 0.0, 0.0, 0.02),
     "roe": ("Return on equity", 0.03, 0.03, 0.06, 0.03, 0.0),
@@ -1685,7 +1769,7 @@ FACTOR_WEIGHTS = {
     "sentiment": ("News/social/institutional sentiment", 0.05, 0.05, 0.05, 0.05, 0.09),
     "insiders": ("Insider open-market buy/sell activity", 0.04, 0.05, 0.05, 0.05, 0.04),
     "margin": ("Profit/operating margins", 0.05, 0.0, 0.05, 0.05, 0.05),
-    "fair_value": ("Eulerpool fair-value upside (contrarian)", 0.05, 0.05, 0.05, 0.05, 0.05),
+    "fair_value": ("Eulerpool fair-value upside (independent valuation)", 0.03, 0.03, 0.03, 0.03, 0.02),
 }
 STANDARD_WEIGHTS = {factor: v[1] for factor, v in FACTOR_WEIGHTS.items()}
 FINANCIALS_WEIGHTS = {factor: v[2] for factor, v in FACTOR_WEIGHTS.items()}
@@ -1767,6 +1851,7 @@ def score_rows(
         "trailing_ps": trailing_ps_rank(rows),
         "growth": growth_rank(rows),
         "earnings_growth": earnings_growth_rank(rows),
+        "exp_revenue_growth": exp_revenue_growth_rank(rows),
         "debt": debt_rank(rows),
         "liquidity": liquidity_rank(rows),
         "roe": roe_rank(rows),

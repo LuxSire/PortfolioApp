@@ -49,7 +49,32 @@ export interface Candidate {
   // and falls back to shortPercentOfFloat only when FINRA doesn't report
   // the ticker (thinly shorted, or delisted/renamed since).
   shortPctOfFloatFinra?: number | null
+  // Same 4-leg blended short-interest rank (pctOfFloat/daysToCover/
+  // changePercent/shortVolumeRatio) ScreenerView.tsx's own Subrank and
+  // AssetView.tsx's "Short Interest (blend)" stat show -- see
+  // screenerFactors.computeShortInterestRanks' own docstring. A 1-based
+  // ordinal rank (best = 1), computed once over the whole universe on
+  // tickerScreener, not a per-candidate recompute.
+  shortIntRank?: number | null
   revenueGrowth?: number | null
+  // Eulerpool's own forward revenue-growth consensus for the year ahead
+  // (fwdRevenue1y/fwdRevenue0y - 1, see modules.derive.
+  // reconcile_forward_eps) -- a genuinely new forward-looking signal, NOT
+  // a blend of two measurements of the same thing the way forwardEps is
+  // (revenueGrowth above is TRAILING, yfinance/SEC-reconciled). Lives on
+  // tickerScreener like revenueGrowth/forwardPE, same "own file, spread
+  // into each Candidate" pattern.
+  eulerRevGrowth1y?: number | null
+  // yfinance's own raw forward P/E ratio, and forwardEps -- the POST-
+  // BLEND figure (50/50 yfinance/Eulerpool, see modules.derive.
+  // reconcile_forward_eps), NOT yfinance's unblended forwardEps -- both
+  // live on tickerScreener (sorted_screen.csv), same as revenueGrowth.
+  // forwardPE isn't recomputed from the blend at write time, so the two
+  // can (and usually do) disagree slightly -- fwdPeExpLine below derives
+  // its own "Fwd PE (exp)" implied ratio from price/forwardEps rather
+  // than trusting forwardPE to already reflect the blend.
+  forwardPE?: number | null
+  forwardEps?: number | null
   epsRevision0y?: number | null
   epsRevision1y?: number | null
   meanReversion?: number | null
@@ -65,6 +90,14 @@ export interface Candidate {
   instChangeQoQ?: number | null
   targetUpside?: number | null
   numberOfAnalystOpinions?: number | null
+  // Eulerpool's own [-1, 1] aggregate sell-side stance, RIGHT NOW (see
+  // modules.scoring.analyst_consensus_score) -- most-recent grade per
+  // firm, averaged; 1 = Strong Buy consensus, -1 = Strong Sell. Distinct
+  // from targetUpside above (price-target math, not a rating stance) and
+  // from numberOfAnalystOpinions (yfinance's own count). Lives on
+  // tickerScreener like forwardPE/eulerRevGrowth1y, not on the
+  // recommendations.json candidate itself.
+  analystConsensus?: number | null
   // What fraction of shares insiders currently hold -- distinct from
   // insiders90d's recent TRANSACTION activity (buys/sells). Lives on
   // tickerScreener like revenueGrowth/meanReversion, not on the
