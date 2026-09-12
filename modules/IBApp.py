@@ -124,6 +124,34 @@ def _money_flow_index(bars, period=MFI_PERIOD):
     return 100 - (100 / (1 + money_flow_ratio))
 
 
+# Pre-earnings 3-day MSI: the same Money Flow Index, restricted to just the
+# last EARNINGS_MSI_DAYS distinct trading dates of the hourly series -- a
+# short, fixed-horizon read of where money flow sits heading into the print,
+# shown on the Recommendations card for a name whose earnings are imminent.
+EARNINGS_MSI_DAYS = 3
+MIN_EARNINGS_MSI_BARS = 12  # ~2 RTH days of hourly bars
+
+
+def _money_flow_index_last_days(bars, n_days=EARNINGS_MSI_DAYS, min_bars=MIN_EARNINGS_MSI_BARS):
+    """MFI over only the last `n_days` distinct trading dates of an hourly
+    OHLCV series (same bar shape / edge cases as _money_flow_index). None
+    when fewer than `min_bars` bars fall inside that window."""
+    if not bars:
+        return None
+    seen = []
+    for b in bars:
+        d = str(b.get("date", ""))[:10]
+        if d and (not seen or seen[-1] != d):
+            seen.append(d)
+    if not seen:
+        return None
+    cutoff = seen[-n_days] if len(seen) >= n_days else seen[0]
+    window = [b for b in bars if str(b.get("date", ""))[:10] >= cutoff]
+    if len(window) < min_bars:
+        return None
+    return _money_flow_index(window, period=len(window) - 1)
+
+
 def _relative_strength_index(closes, period=RSI_PERIOD):
     """Classic close-price-only RSI -- the fallback used when a ticker
     only has a close-only series (yfinance) to compute from, not IB
@@ -1433,6 +1461,7 @@ class IBApp:
             print(f"Fetching {symbol}...")
             ib_mom = ib_daily_momentum(symbol)
             reversion = hourly_mean_reversion(symbol)
+            earnings_msi = _money_flow_index_last_days(hourly_by_ticker.get(symbol) or [])
             for attempt in range(3):
                 try:
                     hist = yf.Ticker(symbol).history(period="1mo")
@@ -1443,12 +1472,13 @@ class IBApp:
                             for ts, c in closes.items()
                         ]
                     if ib_mom is not None:
-                        return symbol, {"momentum": ib_mom, "mean_reversion": reversion}
+                        return symbol, {"momentum": ib_mom, "mean_reversion": reversion, "earnings_msi": earnings_msi}
                     if len(closes) < RSI_PERIOD + 1:
-                        return symbol, {"momentum": None, "mean_reversion": reversion}
+                        return symbol, {"momentum": None, "mean_reversion": reversion, "earnings_msi": earnings_msi}
                     return symbol, {
                         "momentum": _relative_strength_index(closes.tolist()),
                         "mean_reversion": reversion,
+                        "earnings_msi": earnings_msi,
                     }
                 except Exception:
                     if attempt == 2:
@@ -1456,7 +1486,7 @@ class IBApp:
                         # reading doesn't need it -- only actually give
                         # up on momentum if we have neither; mean_reversion
                         # never depended on yfinance at all.
-                        return symbol, {"momentum": ib_mom, "mean_reversion": reversion}
+                        return symbol, {"momentum": ib_mom, "mean_reversion": reversion, "earnings_msi": earnings_msi}
                     time.sleep(1.5)
 
         momentum = {}
@@ -1520,12 +1550,13 @@ class IBApp:
         for symbol in tickers:
             ib_mom = ib_daily_momentum(symbol)
             reversion = hourly_mean_reversion(symbol)
+            earnings_msi = _money_flow_index_last_days(hourly_by_ticker.get(symbol) or [])
             if ib_mom is not None:
-                momentum[symbol] = {"momentum": ib_mom, "mean_reversion": reversion}
+                momentum[symbol] = {"momentum": ib_mom, "mean_reversion": reversion, "earnings_msi": earnings_msi}
                 continue
             cached = yfinance_history_by_ticker.get(symbol)
             closes = [b["close"] for b in cached] if cached else []
             mom = _relative_strength_index(closes) if len(closes) >= RSI_PERIOD + 1 else None
-            momentum[symbol] = {"momentum": mom, "mean_reversion": reversion}
+            momentum[symbol] = {"momentum": mom, "mean_reversion": reversion, "earnings_msi": earnings_msi}
 
         return momentum

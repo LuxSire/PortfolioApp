@@ -351,6 +351,261 @@ def insiders_rank(rows, insider_scores):
 
 
 # ---------------------------------------------------------------------- #
+#  Analyst rating changes -- Eulerpool upgrade/downgrade history          #
+# ---------------------------------------------------------------------- #
+# Explicit instruction: 3 months. Real upgrade/downgrade events are sparse
+# (confirmed live on AAPL: 21 across ~19 months on file, vs. "maintain"
+# reaffirmations dominating the raw feed 9-to-1), so a 90-day window will
+# leave plenty of tickers with zero events -- that's fine, missing is
+# ranked NEUTRAL (0.5) below, not worst, same as everywhere else a thin-
+# coverage gap shows up in this file.
+ANALYST_GRADE_LOOKBACK_DAYS = 90
+
+# Each grading firm uses its own house scale (confirmed live: 20 distinct
+# labels across a 10-ticker sample -- Buy/Outperform/Overweight/Strong
+# Buy/Positive/Sector Outperform/Market Outperform all mean roughly the
+# same "buy" thing from different firms, Neutral/Hold/Equal
+# Weight/Market Perform/Sector Perform/Perform/In Line/Sector Weight/Peer
+# Perform all mean "neutral", Underweight/Reduce/Sell/Underperform all
+# mean "sell"), so a raw label isn't comparable across firms without
+# normalizing to one shared tier scale first. 5 tiers, evenly spaced on
+# [-1, 1] the same way this file's other -1..1 factors (sentiment,
+# insiders) are scaled. An unrecognized label (Eulerpool adds a new one,
+# or a firm uses idiosyncratic wording this map hasn't seen) maps to None
+# rather than guessing -- both consumers below already treat a None grade
+# as "can't score this one," not as neutral 0.0 (a real Hold/Neutral
+# grade already covers that case; None should stay distinguishable).
+_GRADE_TIER_SCORE = {
+    "Strong Buy": 1.0,
+    "Buy": 0.5, "Outperform": 0.5, "Overweight": 0.5, "Market Outperform": 0.5,
+    "Sector Outperform": 0.5, "Positive": 0.5,
+    "Neutral": 0.0, "Hold": 0.0, "Equal Weight": 0.0, "Market Perform": 0.0,
+    "Sector Perform": 0.0, "Perform": 0.0, "In Line": 0.0, "Sector Weight": 0.0,
+    "Peer Perform": 0.0,
+    "Underweight": -0.5, "Reduce": -0.5,
+    "Sell": -1.0, "Underperform": -1.0,
+}
+
+
+def _grade_move_score(ev):
+    """(new_tier - previous_tier) / 2, clipped to [-1, 1] -- the MAGNITUDE
+    of one rating action, not just its direction. Dividing by 2 rather
+    than leaving the raw (-2..+2) tier difference is what keeps this on
+    the same -1..1 scale every other factor here uses: a Strong Buy (1.0)
+    -> Sell (-1.0) downgrade is the biggest possible move and lands
+    exactly on -1.0, while a Hold (0.0) -> Buy (0.5) upgrade is a much
+    milder +0.25, not the same +1 a flat upgrade/downgrade count would
+    have given it (see load_analyst_grade_scores' own docstring for why
+    that distinction is the point: "understand the percentage" led to
+    analyst_grade_mix, this is the matching fix for "understand the
+    percentage" 'strong buy vs. sell or anything else' -- i.e. how far
+    the move actually went, not just which direction). None when either
+    grade label isn't in _GRADE_TIER_SCORE (unrecognized wording) or the
+    row isn't an upgrade/downgrade at all (maintain/init -- previous_grade
+    and new_grade are either identical or there's nothing to diff)."""
+    if ev.get("action") not in ("upgrade", "downgrade"):
+        return None
+    new_tier = _GRADE_TIER_SCORE.get(ev.get("new_grade"))
+    prev_tier = _GRADE_TIER_SCORE.get(ev.get("previous_grade"))
+    if new_tier is None or prev_tier is None:
+        return None
+    return max(-1.0, min(1.0, (new_tier - prev_tier) / 2))
+
+
+def load_analyst_grade_scores(grades_file, today=None):
+    """{ticker: score in [-1, 1]} from Eulerpool's dated analyst rating
+    history (modules.eulerpool.fetch_analyst_grades -- the FULL history,
+    "maintain" included; see that module's own docstring for why it's
+    cached unfiltered) -- the MEAN _grade_move_score (magnitude of each
+    upgrade/downgrade, not just its direction -- see that function's own
+    docstring) across every upgrade/downgrade in the trailing
+    ANALYST_GRADE_LOOKBACK_DAYS. A Strong-Buy-to-Sell downgrade now pulls
+    this much harder toward -1 than a Hold-to-Buy upgrade pulls toward
+    +1, unlike the flat (upgrades - downgrades) / (upgrades + downgrades)
+    count this replaced. "maintain"/"init" rows, and any row whose grade
+    label _grade_move_score doesn't recognize, simply don't contribute
+    (same "excluded, not counted toward either side" treatment
+    load_insider_scores gives non-open-market Form 4 codes). A ticker
+    with zero SCORABLE events in the window (thin sell-side coverage, a
+    quiet stretch, or every recent move using an unrecognized grade
+    label) is left out of the returned map entirely -- analyst_grade_rank
+    ranks a missing score NEUTRAL (0.5), not worst, same reasoning as
+    sentiment_rank/eps_trend_rank: no rating activity isn't a bearish
+    signal, it usually just means a small-cap few firms actively cover.
+    See analyst_grade_mix for the raw counts/percentages (including
+    maintain's own share) this collapses into one number, and
+    analyst_consensus_score for a DIFFERENT question -- not "how has
+    sentiment been MOVING lately" (this function) but "where does
+    coverage stand RIGHT NOW, in aggregate."
+    `today` overrides "now" for testing; defaults to date.today()."""
+    try:
+        with open(grades_file) as f:
+            grades_by_ticker = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+    cutoff = ((today or date.today()) - timedelta(days=ANALYST_GRADE_LOOKBACK_DAYS)).isoformat()
+    scores = {}
+    for ticker, events in grades_by_ticker.items():
+        moves = []
+        for ev in events:
+            if (ev.get("date") or "")[:10] < cutoff:
+                continue
+            move = _grade_move_score(ev)
+            if move is not None:
+                moves.append(move)
+        if moves:
+            scores[ticker] = statistics.fmean(moves)
+    return scores
+
+
+def analyst_grade_mix(grades_file, today=None):
+    """{ticker: {upgrades, downgrades, maintains, total, pctUpgrade,
+    pctDowngrade, pctMaintain}} over the same trailing
+    ANALYST_GRADE_LOOKBACK_DAYS window load_analyst_grade_scores uses --
+    explicit instruction: "useful to understand the percentage of
+    upgrades and downgrades," which the net [-1, 1] score alone can't
+    show (a ticker with 1 upgrade/0 downgrades and one with 10
+    upgrades/0 downgrades both score +1.0). `total` and the pct* fields
+    all include maintain in the denominator -- "percentage of upgrades"
+    means "share of this ticker's recent sell-side attention," not
+    "share of the (rare) actual rating changes." A ticker with NO grade
+    actions of any kind in the window is left out of the returned map
+    (pct* would be 0/0); this is context/display data, not itself a rank
+    -- see load_analyst_grade_scores/analyst_grade_rank for the scored
+    factor."""
+    try:
+        with open(grades_file) as f:
+            grades_by_ticker = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+    cutoff = ((today or date.today()) - timedelta(days=ANALYST_GRADE_LOOKBACK_DAYS)).isoformat()
+    mix = {}
+    for ticker, events in grades_by_ticker.items():
+        upgrades = downgrades = maintains = 0
+        for ev in events:
+            if (ev.get("date") or "")[:10] < cutoff:
+                continue
+            action = ev.get("action")
+            if action == "upgrade":
+                upgrades += 1
+            elif action == "downgrade":
+                downgrades += 1
+            elif action == "maintain":
+                maintains += 1
+        total = upgrades + downgrades + maintains
+        if total:
+            mix[ticker] = {
+                "upgrades": upgrades,
+                "downgrades": downgrades,
+                "maintains": maintains,
+                "total": total,
+                "pctUpgrade": upgrades / total,
+                "pctDowngrade": downgrades / total,
+                "pctMaintain": maintains / total,
+            }
+    return mix
+
+
+def analyst_grade_rank(rows, grade_scores):
+    """High net upgrade activity (see load_analyst_grade_scores) ranks
+    better; missing ranked NEUTRAL (0.5), same convention sentiment_rank
+    uses. Explicit instruction: a STANDALONE factor, not blended into
+    sentiment_rank the way institutional QoQ share change is folded in
+    there -- sell-side rating-change conviction is a different question
+    from sentiment_rank's news/social/institutional-flow blend, and gets
+    its own weight rather than being averaged into that one. Not yet
+    wired into FACTOR_WEIGHTS/STANDARD_WEIGHTS -- see this function's own
+    call site (or lack of one) before assuming it affects live ratings."""
+    augmented = [(symbol, {**d, "_gradeScore": grade_scores.get(symbol)}) for symbol, d in rows]
+    return rank_ascending(
+        augmented,
+        lambda d: -d["_gradeScore"] if d.get("_gradeScore") is not None else None,
+        missing=0.5,
+    )
+
+
+# A firm's rating stays "current" until they change it again -- unlike
+# ANALYST_GRADE_LOOKBACK_DAYS (a MOVEMENT window: only recent up/downgrades
+# count), this is a coverage-staleness cutoff: a firm that hasn't touched
+# its rating in this long is assumed to have dropped/stopped covering the
+# name rather than still meaning it, so its last-known grade is excluded
+# from the current snapshot instead of counting forever. Generous on
+# purpose -- most firms revisit a rating at least once a year around
+# earnings, so 2 years is well past "just hasn't reiterated it yet."
+ANALYST_CONSENSUS_MAX_AGE_DAYS = 730
+
+
+def analyst_consensus_score(grades_file, today=None):
+    """{ticker: score in [-1, 1]} -- where sell-side coverage stands RIGHT
+    NOW, in aggregate, as opposed to load_analyst_grade_scores' "how has
+    it been MOVING lately." For each ticker, takes every grading firm's
+    MOST RECENT grade (new_grade off whichever of that firm's own rows is
+    newest -- covers maintain/init rows too, not just upgrade/downgrade,
+    since a firm's current stance is still current even if they haven't
+    changed it), maps each to _GRADE_TIER_SCORE, and averages across
+    firms. A firm whose last-seen row is older than
+    ANALYST_CONSENSUS_MAX_AGE_DAYS, or whose grade label isn't in
+    _GRADE_TIER_SCORE, doesn't contribute. A ticker where no firm's
+    current grade is scorable (no coverage on file, or all of it stale/
+    unrecognized) is left out of the returned map -- see
+    analyst_consensus_rank for the missing=neutral treatment.
+    `today` overrides "now" for testing; defaults to date.today()."""
+    try:
+        with open(grades_file) as f:
+            grades_by_ticker = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+    cutoff = ((today or date.today()) - timedelta(days=ANALYST_CONSENSUS_MAX_AGE_DAYS)).isoformat()
+    scores = {}
+    for ticker, events in grades_by_ticker.items():
+        latest_by_firm = {}  # grading_company -> (date, new_grade)
+        for ev in events:
+            ev_date = ev.get("date") or ""
+            firm = ev.get("grading_company")
+            if not firm or not ev_date:
+                continue
+            current = latest_by_firm.get(firm)
+            if current is None or ev_date > current[0]:
+                latest_by_firm[firm] = (ev_date, ev.get("new_grade"))
+        tiers = [
+            _GRADE_TIER_SCORE[grade]
+            for ev_date, grade in latest_by_firm.values()
+            if ev_date[:10] >= cutoff and grade in _GRADE_TIER_SCORE
+        ]
+        if tiers:
+            scores[ticker] = statistics.fmean(tiers)
+    return scores
+
+
+def analyst_consensus_rank(rows, consensus_scores):
+    """High current aggregate sell-side standing (see
+    analyst_consensus_score) ranks better; missing ranked NEUTRAL (0.5).
+    A STANDALONE factor from analyst_grade_rank -- one is a snapshot
+    (where coverage stands now), the other a momentum read (which way
+    it's been moving); a stock can score well on one and poorly on the
+    other (e.g. universally Buy-rated but just took its first downgrade
+    in years), and that divergence is itself informative, so they're
+    deliberately not merged into one number here. NOT wired into
+    FACTOR_WEIGHTS/STANDARD_WEIGHTS as its own factor, and not expected to
+    be -- analyst_conviction_rank now consumes analyst_consensus_score
+    (the raw {ticker: score} map, not this function) directly, blended
+    with targetUpside into that factor's own sentiment leg (see
+    analyst_conviction_rank's own docstring). This function remains for
+    anyone who wants Eulerpool's consensus read in isolation (a script,
+    a diagnostic), not as a second copy of the same information already
+    live in the composite score."""
+    augmented = [(symbol, {**d, "_consensusScore": consensus_scores.get(symbol)}) for symbol, d in rows]
+    return rank_ascending(
+        augmented,
+        lambda d: -d["_consensusScore"] if d.get("_consensusScore") is not None else None,
+        missing=0.5,
+    )
+
+
+# ---------------------------------------------------------------------- #
 #  Valuation                                                              #
 # ---------------------------------------------------------------------- #
 def pe_rank(rows):
@@ -632,16 +887,17 @@ def growth_rank(rows):
 
 
 def earnings_growth_rank(rows):
-    """Scores on earningsMarginDelta -- the year-over-year change in net
-    margin in per-share terms, (dilutedEPS_FYn - dilutedEPS_FYn-1) /
-    revenuePerShare (see modules.derive.earnings_margin_delta). Higher =
-    margin expanding = better. Chosen over a raw EPS growth RATE because a
-    rate blows up off a tiny/negative prior-year EPS (MU $0.70 -> $7.59 is
-    +984% but only +0.30 here; a loss -> profit swing is just a positive
-    difference, no artifact). Already clamped to +/-EARN_MARGIN_DELTA_CAP
-    at source. A MISSING value is ranked NEUTRAL (missing=0.5), not worst:
-    data absence isn't a bearish signal, same as peg_rank/
-    eps_volatility_rank.
+    """Scores on earningsMarginDelta -- the year-over-year change in
+    profit margin: the average of a net-margin delta (EPS / revenue-per-
+    share YoY) and an operating-margin delta (operating income / revenue
+    YoY) where both are available, else whichever one is (see
+    modules.derive.earnings_margin_delta). Higher = margin expanding =
+    better. Chosen over a raw EPS growth RATE because a rate blows up off a
+    tiny/negative prior-year EPS (MU $0.70 -> $7.59 is +984% but only +0.30
+    here; a loss -> profit swing is just a positive difference, no
+    artifact). Already clamped to +/-EARN_MARGIN_DELTA_CAP at source. A
+    MISSING value is ranked NEUTRAL (missing=0.5), not worst: data absence
+    isn't a bearish signal, same as peg_rank/eps_volatility_rank.
 
     Its own factor alongside growth_rank (revenue growth) -- top-line and
     bottom-line trend are distinct signals. growth_rank separately uses
@@ -780,18 +1036,57 @@ def forecast_return_rank(rows):
 # ---------------------------------------------------------------------- #
 #  Analyst conviction                                                     #
 # ---------------------------------------------------------------------- #
-def analyst_conviction_rank(rows):
-    """Average of high targetUpside, low recommendationMean, and low
-    target-price dispersion ranks. targetUpside alone says "analysts
-    expect it to rise"; recommendationMean asks whether they're also
-    confident enough to call it a buy, since a mean target can look high
-    just from a stale or thinly-covered outlier; dispersion --
-    (targetHighPrice - targetLowPrice) / targetMeanPrice -- penalizes real
-    disagreement about the outlook that the mean alone hides (e.g. a
-    $83-$225 target range around a $110 stock). Negative upside, a 0 or
-    missing recommendationMean, and a missing/inconsistent target triple
-    are all ranked worst."""
+def analyst_conviction_rank(rows, consensus_scores=None):
+    """Average of three legs -- sentiment (targetUpside blended with
+    Eulerpool's analyst_consensus_score, see below), recommendationMean,
+    and target-price dispersion -- each still a "low ranked worst" ranks
+    the way it always has, only the first leg changed.
+
+    sentiment leg: targetUpside alone says "yfinance's analysts expect it
+    to rise"; consensus_scores (modules.scoring.analyst_consensus_score,
+    Eulerpool's OWN per-firm rating history mapped to a -1..1 tier scale
+    and averaged) is an INDEPENDENTLY-SOURCED second read on the exact
+    same question. Explicit instruction after confirming the two agree
+    substantially in practice (r = +0.38 at n=1802, by far the strongest
+    relationship in a universe-wide correlation check against every other
+    factor here) -- Option 2 of three considered: blend them into one
+    leg (this), rather than adding consensus as an independent 4th vote
+    (Option 1, which would have silently let "is the Street bullish"
+    carry ~2/4 of the whole factor instead of 1/3, since upside and
+    consensus already measure closely related things) or a
+    disagreement-penalizing nonlinear blend (Option 3, not chosen --
+    more defensible in principle but a bigger behavioral change than
+    what two correlated vendors landing on similar numbers calls for).
+    Averaging the two ranks here is confirmatory noise-reduction, not
+    double-counting: two independent vendors agreeing is a MORE reliable
+    "Street is bullish" read than either alone, and the leg still counts
+    for exactly 1/3 of analyst_conviction_rank either way.
+
+    A ticker missing Eulerpool coverage (consensus_scores has no entry --
+    confirmed live, ~2.4% of the universe) falls back to targetUpside
+    ALONE for the sentiment leg rather than being penalized for a
+    third-party vendor's coverage gap -- same "missing isn't itself
+    bearish" principle this file applies everywhere else, deliberately
+    NOT the same treatment targetUpside itself gets when IT'S missing
+    (ranked worst, unchanged from before) since that's this ticker's OWN
+    analyst coverage being thin, a real signal, not a vendor gap.
+
+    recommendationMean asks whether analysts are also confident enough to
+    call it a buy, since a mean target can look high just from a stale or
+    thinly-covered outlier; dispersion -- (targetHighPrice -
+    targetLowPrice) / targetMeanPrice -- penalizes real disagreement
+    about the outlook that the mean alone hides (e.g. a $83-$225 target
+    range around a $110 stock). Negative upside, a 0 or missing
+    recommendationMean, and a missing/inconsistent target triple are all
+    ranked worst, same as before this change."""
+    consensus_scores = consensus_scores or {}
     upside_ranks = rank_ascending(rows, neg_if_positive("targetUpside"))
+    consensus_augmented = [(symbol, {**d, "_consensusScore": consensus_scores.get(symbol)}) for symbol, d in rows]
+    consensus_ranks = rank_ascending(
+        consensus_augmented,
+        lambda d: -d["_consensusScore"] if d.get("_consensusScore") is not None else None,
+        missing=0.5,
+    )
 
     def recommendation_score(d):
         value = to_float(d.get("recommendationMean"))
@@ -820,8 +1115,14 @@ def analyst_conviction_rank(rows):
         return (high - low) / mean
 
     dispersion_ranks = rank_ascending(rows, target_dispersion)
+
+    def sentiment_leg(symbol):
+        if symbol in consensus_scores:
+            return (upside_ranks[symbol] + consensus_ranks[symbol]) / 2
+        return upside_ranks[symbol]
+
     return {
-        symbol: (upside_ranks[symbol] + recommendation_ranks[symbol] + dispersion_ranks[symbol]) / 3
+        symbol: (sentiment_leg(symbol) + recommendation_ranks[symbol] + dispersion_ranks[symbol]) / 3
         for symbol, _ in rows
     }
 
@@ -925,6 +1226,56 @@ def short_interest_rank(rows, short_interest_scores):
         symbol: (pct_float_ranks[symbol] + days_cover_ranks[symbol] + change_pct_ranks[symbol]) / 3
         for symbol, _ in rows
     }
+
+
+# ---------------------------------------------------------------------- #
+#  Fair value (contrarian valuation) -- Eulerpool                         #
+# ---------------------------------------------------------------------- #
+def load_fair_value_scores(fair_value_file):
+    """{ticker: upside} from modules.eulerpool.fetch_fair_values --
+    upside already computed by Eulerpool as fairValue/lastPrice - 1 (see
+    modules.eulerpool.get_fair_value's own docstring), just rescaled from
+    their percentage-point convention (upside=3.79 meaning +3.79%) to a
+    plain fraction (0.0379), matching every other upside-shaped field
+    this file reads (targetUpside, earningsGrowth, etc.). A ticker with no
+    fair-value entry on file (fetch failed, or fetch_fair_values hasn't
+    been run yet) is simply absent from the returned map --
+    fair_value_rank ranks a missing score NEUTRAL (0.5), not worst, same
+    convention as sentiment_rank/analyst_grade_rank: no Eulerpool coverage
+    isn't itself a bearish signal. Confirmed empirically (see the
+    universe-wide correlation check that motivated adding this factor):
+    Eulerpool's `upside` shows essentially NO correlation (|r| < 0.05 at
+    n=1830) with trailing price action, momentum, this file's own
+    composite score, OR even targetUpside (yfinance's own analyst-target
+    upside) -- it is measuring something genuinely independent of every
+    other factor here, for better or worse; there's no forward-return
+    test yet confirming it's predictive (see fetch_fair_values' own
+    docstring on why Eulerpool provides no historical series to test
+    against retroactively)."""
+    try:
+        with open(fair_value_file) as f:
+            fair_value_by_ticker = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+    scores = {}
+    for ticker, entry in fair_value_by_ticker.items():
+        upside = to_float((entry or {}).get("upside"))
+        if upside is not None:
+            scores[ticker] = upside / 100
+    return scores
+
+
+def fair_value_rank(rows, fair_value_scores):
+    """High Eulerpool fair-value upside (see load_fair_value_scores) ranks
+    better; missing ranked NEUTRAL (0.5). A contrarian valuation signal,
+    same shape as targetUpside inside analyst_conviction_rank, but from an
+    independent DCF-style source rather than sell-side price targets."""
+    augmented = [(symbol, {**d, "_fairValueUpside": fair_value_scores.get(symbol)}) for symbol, d in rows]
+    return rank_ascending(
+        augmented,
+        lambda d: -d["_fairValueUpside"] if d.get("_fairValueUpside") is not None else None,
+        missing=0.5,
+    )
 
 
 # ---------------------------------------------------------------------- #
@@ -1297,6 +1648,20 @@ def is_growth_cohort(d):
 # pe_vs_trailing/eps_volatility. Distinct from growth_rank's revenue
 # growth: bottom-line growth is its own signal, and growth_rank only uses
 # earningsGrowth as a one-way cap.
+#
+# fair_value (Eulerpool's DCF-style upside, load_fair_value_scores) added
+# as its own 5% factor in EVERY column, explicit instruction, funded by
+# trimming short_interest 2% and sentiment 3% everywhere (e.g. Standard:
+# short_interest 7%->5%, sentiment 8%->5%; Growth: short_interest
+# 10%->8%, sentiment 12%->9% -- the same 2%/3% cut applied uniformly,
+# rather than each column's own pre-existing weight setting the cut
+# size). Universe-wide correlation check (n=1830, confirmed live) showed
+# Eulerpool's upside has essentially NO relationship with short interest,
+# sentiment, or anything else already scored here -- genuinely
+# orthogonal, for better or worse, not yet confirmed predictive (no
+# forward-return test exists yet, see load_fair_value_scores' own
+# docstring) -- which is exactly why funding it by trimming two
+# UNRELATED factors rather than a correlated one was the safer choice.
 FACTOR_WEIGHTS = {
     "pe": ("Forward P/E", 0.03, 0.03, 0.03, 0.03, 0.03),
     "sector_pe": ("Forward P/E vs. sector average", 0.05, 0.12, 0.08, 0.07, 0.06),
@@ -1316,10 +1681,11 @@ FACTOR_WEIGHTS = {
     "debt": ("Debt/equity vs. sector average", 0.05, 0.0, 0.05, 0.0, 0.05),
     "liquidity": ("Quick/current ratio", 0.02, 0.0, 0.0, 0.0, 0.02),
     "roe": ("Return on equity", 0.03, 0.03, 0.06, 0.03, 0.0),
-    "short_interest": ("Short interest (contrarian)", 0.07, 0.05, 0.06, 0.08, 0.10),
-    "sentiment": ("News/social/institutional sentiment", 0.08, 0.08, 0.08, 0.08, 0.12),
+    "short_interest": ("Short interest (contrarian)", 0.05, 0.03, 0.04, 0.06, 0.08),
+    "sentiment": ("News/social/institutional sentiment", 0.05, 0.05, 0.05, 0.05, 0.09),
     "insiders": ("Insider open-market buy/sell activity", 0.04, 0.05, 0.05, 0.05, 0.04),
     "margin": ("Profit/operating margins", 0.05, 0.0, 0.05, 0.05, 0.05),
+    "fair_value": ("Eulerpool fair-value upside (contrarian)", 0.05, 0.05, 0.05, 0.05, 0.05),
 }
 STANDARD_WEIGHTS = {factor: v[1] for factor, v in FACTOR_WEIGHTS.items()}
 FINANCIALS_WEIGHTS = {factor: v[2] for factor, v in FACTOR_WEIGHTS.items()}
@@ -1328,7 +1694,14 @@ REAL_ESTATE_WEIGHTS = {factor: v[4] for factor, v in FACTOR_WEIGHTS.items()}
 GROWTH_WEIGHTS = {factor: v[5] for factor, v in FACTOR_WEIGHTS.items()}
 
 
-def score_rows(rows, sentiment_scores=None, insider_scores=None, short_interest_scores=None):
+def score_rows(
+    rows,
+    sentiment_scores=None,
+    insider_scores=None,
+    short_interest_scores=None,
+    fair_value_scores=None,
+    consensus_scores=None,
+):
     """Composite score per (symbol, d) -- lower is better. Every ticker's
     rank on each factor is computed once, across the WHOLE universe in
     `rows` (see each factor function's own docstring for its ranking
@@ -1375,6 +1748,8 @@ def score_rows(rows, sentiment_scores=None, insider_scores=None, short_interest_
     sentiment_scores = sentiment_scores or {}
     insider_scores = insider_scores or {}
     short_interest_scores = short_interest_scores or {}
+    fair_value_scores = fair_value_scores or {}
+    consensus_scores = consensus_scores or {}
 
     ranks_by_factor = {
         "pe": pe_rank(rows),
@@ -1385,7 +1760,7 @@ def score_rows(rows, sentiment_scores=None, insider_scores=None, short_interest_
         "momentum": momentum_rank(rows),
         "mean_reversion": mean_reversion_rank(rows),
         "eps_trend": eps_trend_rank(rows),
-        "analyst": analyst_conviction_rank(rows),
+        "analyst": analyst_conviction_rank(rows, consensus_scores),
         "forecast_return": forecast_return_rank(rows),
         "pe_vs_trailing": pe_vs_trailing_rank(rows),
         "peg": peg_rank(rows),
@@ -1399,6 +1774,7 @@ def score_rows(rows, sentiment_scores=None, insider_scores=None, short_interest_
         "sentiment": sentiment_rank(rows, sentiment_scores),
         "insiders": insiders_rank(rows, insider_scores),
         "margin": margin_rank(rows),
+        "fair_value": fair_value_rank(rows, fair_value_scores),
     }
     scored = []
     for symbol, d in rows:

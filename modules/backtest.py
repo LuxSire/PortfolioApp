@@ -104,16 +104,19 @@ _SHORT_RATINGS = {"Strong Sell", "Sell"}
 # (sorted_screen <date>.csv has no such column), so it can't be
 # reconstructed retroactively; would need main.py to start writing it into
 # future snapshots.
-_MOMENTUM_OVERSOLD = 20
-# Short-side "already crashed, don't short into a bounce" floor. Lowered
-# below _MOMENTUM_OVERSOLD (asymmetric on purpose): 2-week zone analysis
-# showed names with MSI in 15-20 kept falling -- shorting them stayed
-# profitable -- so the no-short band only kicks in below 15. The long
-# side still treats <=20 as the buy-the-dip zone (_MOMENTUM_OVERSOLD).
-_MOMENTUM_SHORT_OVERSOLD = 15
+# MSI is now a pure two-threshold continuation gate: long blocked at/below
+# NO_BUY, short blocked at/above NO_SELL, nothing else. The old
+# mean-reversion carve-outs at the far extremes (buy-the-dip below
+# _MOMENTUM_OVERSOLD, short-the-top above _MOMENTUM_OVERBOUGHT, and the
+# asymmetric _MOMENTUM_SHORT_OVERSOLD=15 floor) were all dropped: hourly
+# entry-timing analysis showed every counter-trend entry (buy oversold /
+# falling knife, short overbought / strong uptrend) lost ~1.5-3.4% over
+# the next 3 days with 20-40% hit rates, while every continuation entry
+# (buy uptrend / overbought, short falling knife / oversold) made
+# ~1.4-3.4% at 60-78% hit. OVERSOLD/OVERBOUGHT survive only as zone-label
+# text in RecommendationsView.tsx, not as gate thresholds.
 _MOMENTUM_NO_BUY = 35
 _MOMENTUM_NO_SELL = 65
-_MOMENTUM_OVERBOUGHT = 80
 _MEAN_REVERSION_OVERBOUGHT = 80
 _MEAN_REVERSION_OVERSOLD = 20
 
@@ -128,7 +131,26 @@ def _f(x):
         return None
 
 
-def _long_gate_reasons(row):
+def _earnings_blocks(row, entry_cutoff, exit_cutoff):
+    """True when this row's earningsTimestampStart falls anywhere in the
+    SAME entry->exit week (entry_cutoff/exit_cutoff, both 'YYYY-MM-DD')
+    this week's own forward return is measured over -- explicit
+    instruction: exclude every stock reporting DURING the week in
+    question, not just within a fixed short window from the screen date.
+    Motivated by BBW (-23% Strong Buy) and CRWD (-13.8% Strong Sell), both
+    clean earnings-day gaps with no visible pre-earnings setup (BBW
+    reported 5 days after its screen date, CRWD 4 days -- a narrow 2-day
+    window would have missed both; this full-week window catches either).
+    Missing earningsTimestampStart does NOT block (fail-open, same
+    convention every other optional factor here uses)."""
+    ts = _f(row.get("earningsTimestampStart"))
+    if ts is None:
+        return False
+    earnings_date = datetime.fromtimestamp(ts, tz=timezone.utc).date().isoformat()
+    return entry_cutoff <= earnings_date <= exit_cutoff
+
+
+def _long_gate_reasons(row, entry_cutoff, exit_cutoff):
     """Every RecommendationsView.tsx long-gate check this row fails, by
     name -- empty list means it clears eligibleToBuy + meanReversionOkForLong.
     A row can fail more than one at once; each is recorded independently
@@ -136,12 +158,13 @@ def _long_gate_reasons(row):
     single rule is actually costing return, instead of only knowing the
     row was blocked for SOME reason.
 
-    Momentum blocks in the falling-knife band (OVERSOLD < mom <= NO_BUY)
-    or overbought (mom >= OVERBOUGHT) -- mirrors RecommendationsView.tsx's
-    momentumBlocks('Long'). A deep-oversold reading (mom <= OVERSOLD) is
-    the buy-the-dip case and is NOT blocked. No revenue-growth check --
-    the live gate was replaced by a sim-return gate a while ago (not
-    reconstructable here, see _MOMENTUM_OVERSOLD's own comment). No
+    Momentum (MSI) blocks a long at or below NO_BUY -- the whole
+    weak-momentum half, oversold and falling knife alike (continuation:
+    buying weakness kept losing over the next few days). Everything above
+    NO_BUY, overbought included, is fine. Mirrors
+    RecommendationsView.tsx's momentumBlocks('Long'). No revenue-growth
+    check -- the live gate was replaced by a sim-return gate a while ago
+    (not reconstructable here, see the _MOMENTUM_NO_BUY block comment). No
     EPS-trend check either -- also removed from the live gate:
     backtesting showed it was consistently counterproductive on the short
     side (the largest short_blocked population every week, and
@@ -149,51 +172,57 @@ def _long_gate_reasons(row):
     measured), the same shape of finding that got crowded_short removed."""
     reasons = []
     momentum = _f(row.get("momentum"))
-    if momentum is None or (_MOMENTUM_OVERSOLD < momentum <= _MOMENTUM_NO_BUY) or momentum >= _MOMENTUM_OVERBOUGHT:
+    if momentum is None or momentum <= _MOMENTUM_NO_BUY:
         reasons.append("momentum")
     mr = _f(row.get("meanReversion"))
     if mr is not None and mr >= _MEAN_REVERSION_OVERBOUGHT:
         reasons.append("mean_reversion")
+    if _earnings_blocks(row, entry_cutoff, exit_cutoff):
+        reasons.append("earnings")
     return reasons
 
 
-def _short_gate_reasons(row):
+def _short_gate_reasons(row, entry_cutoff, exit_cutoff):
     """Short-side twin of _long_gate_reasons -- RecommendationsView.tsx's
     eligibleToSell + meanReversionOkForShort, each named independently. No
     crowded-short or EPS-trend check (both removed from the live gate,
     see _long_gate_reasons' own comment) and no revenue-growth check
     (same reason as the long side).
 
-    Momentum blocks in the strong-uptrend band (NO_SELL <= mom <
-    OVERBOUGHT) or oversold (mom <= SHORT_OVERSOLD, a lower floor than the
-    long side's OVERSOLD) -- mirrors RecommendationsView.tsx's
-    momentumBlocks('Short'). A deep-overbought reading (mom >= OVERBOUGHT)
-    is the short-the-top case and is NOT blocked."""
+    Momentum (MSI) blocks a short at or above NO_SELL -- the whole
+    strong-momentum half, strong uptrend and overbought alike
+    (continuation: shorting strength kept losing). Everything below
+    NO_SELL, oversold included, is fine. Mirrors
+    RecommendationsView.tsx's momentumBlocks('Short')."""
     reasons = []
     momentum = _f(row.get("momentum"))
-    if momentum is None or (_MOMENTUM_NO_SELL <= momentum < _MOMENTUM_OVERBOUGHT) or momentum <= _MOMENTUM_SHORT_OVERSOLD:
+    if momentum is None or momentum >= _MOMENTUM_NO_SELL:
         reasons.append("momentum")
     mr = _f(row.get("meanReversion"))
     if mr is not None and mr <= _MEAN_REVERSION_OVERSOLD:
         reasons.append("mean_reversion")
+    if _earnings_blocks(row, entry_cutoff, exit_cutoff):
+        reasons.append("earnings")
     return reasons
 
 
-def _group_for(rating, row):
+def _group_for(rating, row, entry_cutoff, exit_cutoff):
     """(group, blockedBy) -- blockedBy is always [] for a non-blocked
     group (nothing to name), populated only for *_blocked. `rating` is
     passed in separately from `row` (rather than read off row['rating'])
     so the SAME row's factor columns (momentum/growth/etc, which the gate
     functions still read off `row`) can be classified under either the
     rating the snapshot actually shipped with or a re-scored counterfactual
-    one -- see _rescore_current_model."""
+    one -- see _rescore_current_model. entry_cutoff/exit_cutoff (this
+    week's own forward-return window) are passed straight through to the
+    earnings gate -- see _earnings_blocks."""
     if rating in _LONG_RATINGS:
-        reasons = _long_gate_reasons(row)
+        reasons = _long_gate_reasons(row, entry_cutoff, exit_cutoff)
         if reasons:
             return "long_blocked", reasons
         return ("long_strong_buy" if rating == "Strong Buy" else "long_buy"), []
     if rating in _SHORT_RATINGS:
-        reasons = _short_gate_reasons(row)
+        reasons = _short_gate_reasons(row, entry_cutoff, exit_cutoff)
         if reasons:
             return "short_blocked", reasons
         return ("short_strong_sell" if rating == "Strong Sell" else "short_sell"), []
@@ -264,7 +293,7 @@ def _group_stats(members):
     }
 
 
-_GATE_REASONS = ("momentum", "mean_reversion")
+_GATE_REASONS = ("momentum", "mean_reversion", "earnings")
 
 
 def _blocked_breakdown(long_blocked, short_blocked):
@@ -396,7 +425,7 @@ def _build_week(week_iso, csv_path, closes):
             path = paths.get(row.get("ticker"))
             if not path:
                 continue
-            group, reasons = _group_for(rating_of(row), row)
+            group, reasons = _group_for(rating_of(row), row, entry_cutoff, exit_cutoff)
             if group is None:
                 continue
             sign = 1.0 if group.startswith("long") else -1.0

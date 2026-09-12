@@ -53,6 +53,12 @@ export interface Candidate {
   epsRevision0y?: number | null
   epsRevision1y?: number | null
   meanReversion?: number | null
+  // MSI (Money Flow Index) computed on ONLY the last 3 distinct trading
+  // dates of the hourly series (modules/IBApp.py _money_flow_index_last_days)
+  // -- a short pre-earnings read of where money flow sits heading into the
+  // print. Lives on tickerScreener (sorted_screen.csv), same as
+  // meanReversion; shown on the card only near an earnings date.
+  earningsMsi?: number | null
   earningsTimestampStart?: number | null
   news7d?: NewsSummary | null
   insiders90d?: InsiderSummary | null
@@ -147,6 +153,14 @@ export interface CloseRow extends Candidate {
   reasons: Reason[]
   hasRatingReason: boolean
   _severity: number
+  // Set only by the "Reporting soon" section builder: true when the
+  // last-5-session price move already fights (adverse) or already favors
+  // (favorable) this position's thesis, heading into an imminent earnings
+  // print (the FEIM check -- see earningsMomentumLine in
+  // RecommendationsView.tsx). Drives that section's own CloseCard
+  // badSign/goodSign per row.
+  _earningsMoveAdverse?: boolean
+  _earningsMoveFavorable?: boolean
 }
 
 // A Strong Buy/Strong Sell candidate that failed an opening gate.

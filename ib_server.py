@@ -2757,30 +2757,46 @@ def _to_float(v):
 # shared" convention this project already uses for previousClose across
 # three frontend files -- see _passes_long_gates/_passes_short_gates below
 # for why this needed a Python copy at all). momentum is IBApp's Money
-# Flow Index/RSI, bounded [0, 100]. MSI blocks a side in TWO zones: a Long
-# when momentum <= NO_BUY (falling knife -- buying into a downtrend) or
-# >= OVERBOUGHT (blow-off), a Short when momentum >= NO_SELL (strong
-# uptrend -- shorting into strength) or <= OVERSOLD (already crashed).
-# This is the continuation read, deliberately different from scoring.py's
-# own momentum_rank sweet-spot curve for the composite score.
+# Flow Index/RSI, bounded [0, 100]. MSI is a pure two-threshold
+# continuation gate: a Long is blocked at/below NO_BUY (the whole
+# weak-momentum half -- oversold and falling knife alike), a Short at/above
+# NO_SELL (the whole strong half -- strong uptrend and overbought alike).
+# Nothing else: the old far-extreme mean-reversion carve-outs (buy-the-dip
+# below OVERSOLD, short-the-top above OVERBOUGHT) were dropped -- hourly
+# entry-timing analysis showed those counter-trend entries lost ~1.5-3.4%
+# over 3 days while every continuation entry made ~1.4-3.4%. This is the
+# continuation read, deliberately different from scoring.py's own
+# momentum_rank sweet-spot curve for the composite score.
 # (_REC_REVENUE_GROWTH_THRESHOLD is stale -- the frontend replaced the
 # revenue-growth gate with a sim-return gate; this Python mirror only
 # affects streaming-subscription priority, not the recommendations
 # themselves, so it hasn't been re-plumbed.) The crowded-short gate
 # (_REC_MAX_SHORT_INTEREST) was removed entirely -- backtesting showed it
 # was consistently counterproductive.
-_REC_MOMENTUM_OVERSOLD = 20
-# Short-side no-short floor, deliberately below _REC_MOMENTUM_OVERSOLD:
-# backtest zone analysis found MSI 15-20 names kept falling, so shorting
-# them stays allowed and only < 15 counts as bounce risk. The long side
-# still uses _REC_MOMENTUM_OVERSOLD for its buy-the-dip zone.
-_REC_MOMENTUM_SHORT_OVERSOLD = 15
 _REC_MOMENTUM_NO_BUY = 35
 _REC_MOMENTUM_NO_SELL = 65
-_REC_MOMENTUM_OVERBOUGHT = 80
 _REC_REVENUE_GROWTH_THRESHOLD = 0.1
 _REC_MEAN_REVERSION_OVERBOUGHT = 80
 _REC_MEAN_REVERSION_OVERSOLD = 20
+# Blocks a NEW entry (either side) with earnings due within this many
+# calendar days -- explicit instruction after BBW (-23% Strong Buy) and
+# CRWD (-13.8% Strong Sell) both turned out to be clean earnings-day gaps
+# with no visible pre-earnings setup: neither the momentum/mean-reversion
+# gates nor a price-run-up check could have caught either one, so the only
+# generalizable defense is not holding a binary event at all. 7 days --
+# explicit instruction, "exclude all the stocks reporting during the week
+# in object." Matches RecommendationsView.tsx's own EARNINGS_BLOCK_DAYS and
+# modules/backtest.py's own earnings-block window (that week's entry-to-
+# exit span, also 7 days).
+_REC_EARNINGS_BLOCK_DAYS = 7
+
+
+def _rec_earnings_blocks(row):
+    ts = _to_float(row.get("earningsTimestampStart"))
+    if ts is None:
+        return False
+    days_away = (ts - time.time()) / 86400.0
+    return 0 <= days_away <= _REC_EARNINGS_BLOCK_DAYS
 
 
 def _passes_long_gates(row):
@@ -2788,21 +2804,18 @@ def _passes_long_gates(row):
     sufficientGrowthForLong + meanReversionOkForLong -- the exact set of
     checks a Buy/Strong Buy candidate must clear to appear in the Long
     list (the entry-side EPS-trend gate was removed -- backtesting showed
-    it was consistently counterproductive on the short side, see
-    _REC_MOMENTUM_OVERSOLD's own comment on the crowded-short removal for
-    the same reasoning). See _priority_tickers' own docstring for why this
-    needed replicating in Python at all: without it, this file has no way
-    to tell "will actually show up on the Recommendations page" apart
-    from "is RATED_FOR_EXTRAS," and the Long/Short lists are a much
-    smaller, gated subset of that. Momentum gate BLOCKS overbought, it
-    doesn't REQUIRE oversold -- explicit instruction: neutral (and even
-    oversold) candidates stay eligible, only the chasing-risk extreme is
-    excluded."""
+    it was consistently counterproductive on the short side, see the
+    crowded-short removal note above for the same reasoning). See
+    _priority_tickers' own docstring for why this needed replicating in
+    Python at all: without it, this file has no way to tell "will actually
+    show up on the Recommendations page" apart from "is RATED_FOR_EXTRAS,"
+    and the Long/Short lists are a much smaller, gated subset of that. The
+    momentum gate BLOCKS the whole weak-momentum half (MSI <= NO_BUY);
+    neutral, strong-uptrend and overbought candidates all stay eligible."""
     momentum = _to_float(row.get("momentum"))
-    if momentum is None or (
-        _REC_MOMENTUM_OVERSOLD < momentum <= _REC_MOMENTUM_NO_BUY  # falling knife
-        or momentum >= _REC_MOMENTUM_OVERBOUGHT                    # blow-off
-    ):
+    if momentum is None or momentum <= _REC_MOMENTUM_NO_BUY:
+        return False
+    if _rec_earnings_blocks(row):
         return False
     growth = _to_float(row.get("revenueGrowth"))
     if growth is not None and growth < _REC_REVENUE_GROWTH_THRESHOLD:
@@ -2817,15 +2830,14 @@ def _passes_short_gates(row):
     """Mirrors RecommendationsView.tsx's eligibleToSell +
     notTooMuchGrowthForShort + meanReversionOkForShort -- the Short list's
     own gate set (crowded-short and EPS-trend both removed, see
-    _passes_long_gates' own comment). Momentum gate BLOCKS oversold, the
-    mirror of the long gate above -- it doesn't REQUIRE overbought; neutral
-    (and even overbought) candidates stay eligible, only the bounce-risk
-    extreme is excluded."""
+    _passes_long_gates' own comment). The momentum gate BLOCKS the whole
+    strong-momentum half (MSI >= NO_SELL), the mirror of the long gate
+    above; neutral, falling-knife and oversold candidates all stay
+    eligible."""
     momentum = _to_float(row.get("momentum"))
-    if momentum is None or (
-        _REC_MOMENTUM_NO_SELL <= momentum < _REC_MOMENTUM_OVERBOUGHT  # strong uptrend
-        or momentum <= _REC_MOMENTUM_SHORT_OVERSOLD                   # already crashed
-    ):
+    if momentum is None or momentum >= _REC_MOMENTUM_NO_SELL:
+        return False
+    if _rec_earnings_blocks(row):
         return False
     growth = _to_float(row.get("revenueGrowth"))
     if growth is not None and growth > _REC_REVENUE_GROWTH_THRESHOLD:

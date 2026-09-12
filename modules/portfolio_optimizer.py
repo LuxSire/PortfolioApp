@@ -115,31 +115,42 @@ _HIST_IB_FILE = os.path.join("data", "IB", "price_history_daily_3mo.json")
 _HIST_YF_FILE = os.path.join("data", "yfinance", "price_history.json")
 
 # Hard MSI/ST-MSI gate on the Long/Short pools, matching
-# RecommendationsView.tsx's own MOMENTUM_* / MEAN_REVERSION_* zone
-# thresholds exactly ("mom"/"mr" here, same raw [0, 100] values). MSI
-# blocks a side in one INNER band plus one far extreme:
-#   Long  blocked in the falling-knife band (OVERSOLD < mom <= NO_BUY,
-#         moderate downtrend) or overbought (mom >= OVERBOUGHT, blow-off).
-#         Deep-oversold (mom <= OVERSOLD) is the buy-the-dip case -- NOT
-#         blocked.
-#   Short blocked in the strong-uptrend band (NO_SELL <= mom < OVERBOUGHT,
-#         shorting into strength) or oversold (mom <= OVERSOLD, bounce
-#         risk). Deep-overbought (mom >= OVERBOUGHT) is short-the-top --
-#         NOT blocked.
-# ST-MSI keeps its simpler far-extreme-only block. Missing mom/mr does NOT
-# exclude a candidate. Keep in sync with RecommendationsView.tsx and
-# ib_server.py by hand.
-MOMENTUM_OVERSOLD = 20
-# Short-side no-short floor, lowered below MOMENTUM_OVERSOLD on purpose --
-# MSI 15-20 names kept falling in backtest zone analysis, so shorting
-# them stays allowed; only < 15 is treated as bounce risk. Long side
-# still uses MOMENTUM_OVERSOLD for its buy-the-dip zone.
-MOMENTUM_SHORT_OVERSOLD = 15
+# RecommendationsView.tsx's own MOMENTUM_* / MEAN_REVERSION_* thresholds
+# exactly ("mom"/"mr" here, same raw [0, 100] values). MSI is a pure
+# two-threshold continuation gate:
+#   Long  blocked for mom <= NO_BUY  -- the whole weak-momentum half
+#         (oversold + falling knife). mom > NO_BUY (neutral, strong
+#         uptrend, overbought) is fine.
+#   Short blocked for mom >= NO_SELL -- the whole strong-momentum half
+#         (strong uptrend + overbought). mom < NO_SELL (neutral, falling
+#         knife, oversold) is fine.
+# The old far-extreme mean-reversion carve-outs (buy-the-dip, short-the-
+# top) were dropped -- hourly entry-timing analysis showed counter-trend
+# entries lost while continuation entries won. ST-MSI keeps its simpler
+# far-extreme-only block. Missing mom/mr does NOT exclude a candidate.
+# Keep in sync with RecommendationsView.tsx and ib_server.py by hand.
 MOMENTUM_NO_BUY = 35
 MOMENTUM_NO_SELL = 65
-MOMENTUM_OVERBOUGHT = 80
 MEAN_REVERSION_OVERBOUGHT = 80
 MEAN_REVERSION_OVERSOLD = 20
+
+# Blocks a NEW entry (either side) with earnings due within this many
+# calendar days -- explicit instruction after BBW (-23% Strong Buy) and
+# CRWD (-13.8% Strong Sell) both turned out to be clean earnings-day gaps
+# with no visible pre-earnings setup: neither the momentum/mean-reversion
+# gates nor a price-run-up check could have caught either one, so the only
+# generalizable defense is not holding a binary event at all. 7 days --
+# explicit instruction, "exclude all the stocks reporting during the week
+# in object." Matches RecommendationsView.tsx's/ib_server.py's own
+# EARNINGS_BLOCK_DAYS.
+EARNINGS_BLOCK_DAYS = 7
+
+
+def _earnings_blocks_entry(earnings_ts):
+    if earnings_ts is None:
+        return False
+    days_away = (earnings_ts - datetime.datetime.now(datetime.timezone.utc).timestamp()) / 86400.0
+    return 0 <= days_away <= EARNINGS_BLOCK_DAYS
 
 # The crowded-short hard gate (a name already shorted by more than 10% of
 # float excluded from the Short pool) was removed -- backtesting showed it
@@ -236,6 +247,7 @@ def _load_screener_signals():
     # ── 1. Load raw values from each source ──────────────────────────────────
     screen_mom: dict[str, float | None] = {}
     screen_mr:  dict[str, float | None] = {}
+    screen_earn: dict[str, float | None] = {}
     if os.path.exists(_SCREENER_CSV):
         with open(_SCREENER_CSV, newline="") as f:
             reader = csv.DictReader(f)
@@ -248,6 +260,7 @@ def _load_screener_signals():
                     except (ValueError, KeyError): return None
                 screen_mom[t] = _fn("momentum")
                 screen_mr[t]  = _fn("meanReversion")
+                screen_earn[t] = _fn("earningsTimestampStart")
     tickers = list(screen_mom.keys())
 
     social: dict[str, float | None] = {}
@@ -293,6 +306,7 @@ def _load_screener_signals():
         signals[t] = {
             "mom":        screen_mom.get(t),
             "mr":         screen_mr.get(t),
+            "earningsTs": screen_earn.get(t),
             "sent":       sent_scaled[i],
             "newsSent":   news_scaled[i],
             "instChange": inst_scaled[i],
@@ -641,19 +655,15 @@ def build_target_portfolio(rec_file, sim_file, exclude_groups=None):
                 continue
             if exclude_groups and get_sector_group(c.get("sector")) in exclude_groups:
                 continue
+            if _earnings_blocks_entry(c.get("earningsTs")):
+                continue
             mom, mr = c.get("mom"), c.get("mr")
             if side == "Long":
-                mom_blocks = mom is not None and (
-                    (MOMENTUM_OVERSOLD < mom <= MOMENTUM_NO_BUY)  # falling knife
-                    or mom >= MOMENTUM_OVERBOUGHT                  # blow-off
-                )
+                mom_blocks = mom is not None and mom <= MOMENTUM_NO_BUY  # weak-momentum half
                 if mom_blocks or (mr is not None and mr >= MEAN_REVERSION_OVERBOUGHT):
                     continue
             else:
-                mom_blocks = mom is not None and (
-                    (MOMENTUM_NO_SELL <= mom < MOMENTUM_OVERBOUGHT)  # strong uptrend
-                    or mom <= MOMENTUM_SHORT_OVERSOLD                 # already crashed
-                )
+                mom_blocks = mom is not None and mom >= MOMENTUM_NO_SELL  # strong-momentum half
                 if mom_blocks or (mr is not None and mr <= MEAN_REVERSION_OVERSOLD):
                     continue
             raw.append(c)

@@ -1,0 +1,504 @@
+"""eulerpool.py -- thin wrapper around Eulerpool's fundamentals/forecasts/
+transcripts REST API (https://eulerpool.com/financial-data-api).
+
+There is NO published `eulerpool` package on PyPI (confirmed against PyPI's
+own JSON API, not just pip's index cache -- pypi.org/pypi/eulerpool/json
+returns a plain 404, same for eulerpool-api/-sdk/pyeulerpool/euler-pool/
+eulerpool-client). This module talks to the documented REST API directly
+with `httpx` (the one dependency Eulerpool's own docs say their SDK needs
+anyway) rather than wrapping a library that doesn't exist. The full route
+list -- everything below is taken from there, not guessed -- lives at
+https://eulerpool.com/llms-full.txt (their own machine-readable API
+reference; a 404 from any real endpoint on this API points you back at
+that URL as a "browse all 400+ endpoints" hint).
+
+AUTH: a single API key as a query string param, `?token=...` (no OAuth, no
+headers). Read from the EULERKEY env var (see .env / load_dotenv, same
+convention modules.IBApp already uses for its own env vars).
+
+TWO THINGS THAT WILL BITE YOU IF YOU CALL THE API DIRECTLY instead of
+through this module:
+
+1. Cloudflare sits in front of api.eulerpool.com and blocks the default
+   User-Agent httpx/requests/urllib send -- every request 403s with
+   {"error code": 1010} (Cloudflare's own "browser signature banned" code,
+   not an Eulerpool auth error). A plain browser-like User-Agent string
+   (see _HEADERS) is enough to get through; this module always sends one.
+
+2. Every endpoint's `identifier` path param officially accepts ISIN,
+   ticker, CUSIP, SEDOL, or WKN -- but confirmed live, passing an ISIN to
+   at least /equity/estimates/{isin} returns HTTP 200 with an ENCRYPTED
+   payload ({"iv":..., "salt":..., "ciphertext":...}) instead of the
+   documented JSON, while the exact same call with the ticker (AAPL vs
+   US0378331005) returns clean data. Cause unknown (a cache/CDN edge keyed
+   differently per identifier type, most likely) -- the workaround is
+   simple: this module's public functions all take a TICKER, never an
+   ISIN, and _get raises a clear EulerpoolEncryptedResponseError instead of
+   silently handing back ciphertext if this ever recurs on another route.
+
+Coverage varies by security and by your plan -- call get_coverage(ticker)
+first if you're about to hit a less-common endpoint (balance sheet, ESG,
+supply chain, ownership) on an unfamiliar name; it returns which data
+types are actually available rather than making you discover a 404 (or
+worse, a silent empty list) after the fact. Confirmed live: AAPL is fully
+covered on this key (hasBalanceSheet/hasEstimates/hasESG/hasSupplyChain/
+hasOwnership all true).
+"""
+
+import json
+import os
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import date
+
+import httpx
+from dotenv import load_dotenv
+
+load_dotenv()
+
+BASE_URL = "https://api.eulerpool.com/api/1"
+
+# Cloudflare blocks httpx's default User-Agent outright (see module
+# docstring) -- this is the one header that matters. Accept is just
+# good manners; the API returns JSON regardless.
+_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/124.0 Safari/537.36"
+    ),
+    "Accept": "application/json",
+}
+
+# Eulerpool doesn't publish a rate limit anywhere in their docs (checked
+# the full llms-full.txt reference, no mention). This is a conservative,
+# untested guess -- same spirit as sec_edgar.py's own _rate_limit for a
+# provider with no documented number -- loosen it if it turns out overly
+# cautious, tighten it if a 429 ever shows up (not handled specially below
+# yet; add backoff here if that happens in practice).
+_MIN_REQUEST_INTERVAL = 0.2  # 5 req/sec
+_last_request_at = 0.0
+_rate_lock = threading.Lock()  # fetch_rating_changes below calls _get from a thread pool
+
+
+class EulerpoolError(Exception):
+    """Base class for anything this module raises on its own (as opposed
+    to httpx's own connection/timeout errors, left to propagate)."""
+
+
+class EulerpoolEncryptedResponseError(EulerpoolError):
+    """Raised when the API returns the {iv, salt, ciphertext} shape
+    instead of real JSON -- see module docstring point 2. Always try the
+    ticker instead of an ISIN/CUSIP/SEDOL/WKN first; this module's public
+    functions already do that, so seeing this means either a NEW endpoint
+    got the same treatment, or you called _get directly with something
+    other than a ticker."""
+
+
+def _rate_limit():
+    global _last_request_at
+    with _rate_lock:
+        wait = _MIN_REQUEST_INTERVAL - (time.time() - _last_request_at)
+        if wait > 0:
+            time.sleep(wait)
+        _last_request_at = time.time()
+
+
+def _get(path, **params):
+    """GET {BASE_URL}{path} with the API token + browser UA, ->
+    parsed JSON (list or dict, whatever the endpoint returns). Raises
+    EulerpoolError if EULERKEY isn't set, httpx.HTTPStatusError on a
+    non-2xx response (via raise_for_status -- callers see the real status
+    code/body rather than a generic failure), and
+    EulerpoolEncryptedResponseError if the response is the undocumented
+    encrypted shape (see module docstring)."""
+    key = os.getenv("EULERKEY")
+    if not key:
+        raise EulerpoolError("EULERKEY not set in .env")
+    _rate_limit()
+    query = {**params, "token": key}
+    resp = httpx.get(f"{BASE_URL}{path}", params=query, headers=_HEADERS, timeout=30)
+    resp.raise_for_status()
+    data = resp.json()
+    if isinstance(data, dict) and {"iv", "salt", "ciphertext"} <= data.keys():
+        raise EulerpoolEncryptedResponseError(
+            f"{path} returned an encrypted payload instead of JSON -- "
+            "pass a ticker, not an ISIN/CUSIP/SEDOL/WKN (see module docstring)"
+        )
+    return data
+
+
+# --------------------------------------------------------------------------- #
+#  Equity profile / coverage
+# --------------------------------------------------------------------------- #
+
+def get_profile(ticker):
+    """Company profile: name, sector, industry, description, employees,
+    market cap, shares out, IPO date, website, logo path. Same shape
+    yfinance's .info gives you, narrower."""
+    return _get(f"/equity/profile/{ticker}")
+
+
+def get_coverage(ticker):
+    """{ticker, hasBalanceSheet, hasEstimates, hasESG, hasSupplyChain,
+    hasOwnership, raw: {...}} -- call before a less-common endpoint on an
+    unfamiliar name to avoid a 404 (or the encrypted-response gotcha)."""
+    return _get(f"/equity/coverage/{ticker}")
+
+
+def get_fair_value(ticker):
+    """{isin, fairValue, fairValueIncome, fairValueRevenue,
+    fairValueDividend, lastPrice, upside} -- Eulerpool's own composite DCF-
+    style fair value estimate plus its three sub-components (income-,
+    revenue-, and dividend-based), `upside` already computed as
+    (fairValue/lastPrice - 1) * 100. IMPORTANT: this is a CURRENT SNAPSHOT
+    only, not a time series -- confirmed live, calling this twice in a
+    row returns two different fairValue/lastPrice pairs (re-computed
+    against whatever price is current each call), and there is no
+    documented or working date/period/history parameter (tried
+    /fair-value/by-isin/{t}/history, /fair-value/history/{t}, and
+    period=/history= query params -- all either 404 or silently ignored).
+    /fmp/dcf/{ticker} has the same "single current point" limitation.
+    There is no way to pull Eulerpool's own past fair-value readings
+    retroactively -- the only way to build a history is to start
+    snapshotting this yourself going forward (see fetch_fair_values)."""
+    return _get(f"/fair-value/by-isin/{ticker}")
+
+
+# --------------------------------------------------------------------------- #
+#  Forecasts / estimates
+# --------------------------------------------------------------------------- #
+
+def get_forecast(ticker):
+    """Analyst forecast TRAJECTORY: {ticker, as_of, updated_at, data:
+    {ISIN, Name, CurrencyCode, yearly: {ebit, ebitda, revenue, netIncome,
+    totalAssets, freeCashFlow, totalStockholderEquity,
+    totalCashFromOperatingActivities, ratios}, quarterly: {...same
+    shape}}} -- each series is a list of {date, value} points running
+    several years forward. This is the multi-year projected PATH; for a
+    single consensus number per metric (with high/low/analyst-count) see
+    get_estimates instead."""
+    return _get(f"/equity/forecast/{ticker}")
+
+
+def get_estimates(ticker):
+    """Consensus analyst estimates, one entry per FISCAL YEAR --
+    [{period, year, revenueEstimate, revenueHigh, revenueLow,
+    revenueAnalysts, epsEstimate, epsHigh, epsLow, epsAnalysts,
+    ebitEstimate, ebitHigh, ebitLow, ebitAnalysts, quarterly: [...]}, ...].
+    NOT future-only -- confirmed live, AAPL's own array runs 1996 through
+    2030 in one block, past actuals and forward consensus mixed together
+    with no is-this-an-estimate flag to tell them apart; the only
+    reliable way to find "the forward EPS" is to compare each row's
+    `period` (a fiscal YEAR END date, e.g. '2026-09-30') against today and
+    take the nearest one still in the future -- see get_forward_eps,
+    which does exactly that. The high/low/analyst-count triple on each
+    metric is the same shape this project's own
+    targetLowPrice/targetHighPrice/numberOfAnalystOpinions pattern
+    already uses for price targets -- same "how much do analysts agree"
+    read, just per-metric instead of just price."""
+    return _get(f"/equity/estimates/{ticker}")
+
+
+def get_forward_eps(ticker, today=None):
+    """(fwd_eps0y, fwd_eps1y) -- Eulerpool's own two NEAREST-FUTURE fiscal
+    years' consensus EPS estimates from get_estimates, i.e. the same pair
+    of numbers this project's own fwdEps0y (current, not-yet-completed
+    fiscal year) / fwdEps1y (the one after) already carries from
+    yfinance -- see modules.derive's own fy_diluted_eps_growth for where
+    that pair is used. Picked by comparing each row's `period` (fiscal
+    year end, 'YYYY-MM-DD') against `today` (defaults to date.today()),
+    NOT by trusting array order or the presence of a `year` field alone
+    (get_estimates mixes past actuals into the same array -- see that
+    function's own docstring). None for either slot a ticker doesn't have
+    at least that many future fiscal years of coverage for."""
+    today = (today or date.today()).isoformat()
+    rows = get_estimates(ticker)
+    future = sorted(
+        (r for r in rows if r.get("period") and r["period"] > today and r.get("epsEstimate") is not None),
+        key=lambda r: r["period"],
+    )
+    fwd_eps0y = future[0]["epsEstimate"] if len(future) >= 1 else None
+    fwd_eps1y = future[1]["epsEstimate"] if len(future) >= 2 else None
+    return fwd_eps0y, fwd_eps1y
+
+
+def get_price_target_news(ticker):
+    """Named-analyst price-target calls: {ticker, as_of, updated_at, data:
+    [{analystName, analystCompany, priceTarget, adjPriceTarget,
+    priceWhenPosted, newsTitle, newsPublisher, newsBaseURL, newsURL,
+    publishedDate}, ...]}, newest first. This is the ONE endpoint that
+    names an actual person (get_estimates/get_forecast are consensus-only,
+    no names) -- confirmed live, only ~40% of entries have analystName
+    populated (the rest come from wire coverage that didn't attribute a
+    specific person), so treat it as optional per-row, not guaranteed."""
+    return _get(f"/equity/price-target-news/{ticker}")
+
+
+def get_analyst_grades(ticker, limit=None):
+    """Dated rating-action history, one row per action: {date,
+    grading_company, previous_grade, new_grade, action
+    (upgrade/downgrade/init/maintain)}, newest first. FIRM-level
+    (grading_company, e.g. "Jefferies"), not an individual analyst's name
+    -- see get_price_target_news for named-person data. `limit` is
+    documented but NOT actually honored server-side, confirmed live
+    (AAPL with limit=10 still returned all ~200 rows) -- passed through
+    anyway in case that gets fixed upstream; slice the result yourself if
+    you need fewer rows."""
+    return _get(f"/equity/analyst-grades/{ticker}", **({"limit": limit} if limit else {}))
+
+
+def get_rating_changes(ticker):
+    """get_analyst_grades(ticker) filtered down to real events --
+    action in {upgrade, downgrade} only, "maintain" dropped. On AAPL this
+    cuts 200 rows to ~21: maintain is a firm just re-affirming its
+    existing rating (typically logged around every earnings print) and
+    dominates the raw feed by volume without being a change at all.
+    `init` (an initiation, no prior grade to compare) is ALSO dropped
+    here -- deliberately, not an oversight: it has no previous_grade to
+    diff against, so it can't be classified up/down without a firm-
+    agnostic grade taxonomy this endpoint doesn't provide (a "Hold"
+    initiation from one firm and a "Buy" initiation from another aren't
+    directly comparable without normalizing each firm's own scale first).
+    Still newest-first, same row shape as get_analyst_grades. A one-off
+    live-call convenience only -- fetch_analyst_grades (the batch/cache
+    path feeding modules.scoring) deliberately caches the UNFILTERED
+    history instead, maintain included, so percentage-of-each-action-type
+    context (see modules.scoring.analyst_grade_mix) isn't thrown away."""
+    return [g for g in get_analyst_grades(ticker) if g.get("action") in ("upgrade", "downgrade")]
+
+
+# --------------------------------------------------------------------------- #
+#  Fundamentals (annual + quarterly)
+# --------------------------------------------------------------------------- #
+
+def get_income_statement(ticker):
+    """Annual income statement, oldest first: revenue, costOfGoodsSold,
+    grossIncome, researchDevelopment, sgaExpense, ebit, netIncome, and
+    more, one entry per fiscal year end."""
+    return _get(f"/equity/incomestatement/{ticker}")
+
+
+def get_income_statement_quarterly(ticker):
+    """Quarterly income statement -- same fields as get_income_statement
+    plus diluted_eps and quarter_period (e.g. '1985 Q3'), one entry per
+    fiscal quarter end."""
+    return _get(f"/equity/income-statement-quarterly/{ticker}")
+
+
+def get_balance_sheet(ticker):
+    """Annual balance sheet: assets, liabilities, equity, goodwill,
+    inventory, receivables, debt (short/long term), and more."""
+    return _get(f"/equity/balancesheet/{ticker}")
+
+
+def get_cashflow_statement(ticker):
+    """Annual cash flow statement: fcf, capex, operating/investing/
+    financing cash flow, dividends paid, and more."""
+    return _get(f"/equity/cashflowstatement/{ticker}")
+
+
+def get_dividends(ticker):
+    """[{payDate, period, dividend}, ...], full history oldest first."""
+    return _get(f"/equity/dividends/{ticker}")
+
+
+# --------------------------------------------------------------------------- #
+#  Earnings call transcripts
+# --------------------------------------------------------------------------- #
+
+def list_earning_calls(ticker):
+    """[{id, ticker, datePublished (epoch ms), title, type,
+    presentationUrl, transcriptAudioUrl, presentationAvailable,
+    transcriptAudioAvailable}, ...], newest first. `id` is what
+    get_earning_call_transcript needs -- this list doesn't carry the
+    transcript text itself, just enough to find the call you want."""
+    return _get(f"/earning-calls/list/{ticker}")
+
+
+def get_earning_call_transcript(call_id):
+    """Full content of one earnings call by its numeric id (from
+    list_earning_calls): everything list_earning_calls returns, plus
+    parsedContent: {companyParticipants: [...], otherParticipants: [...],
+    entries: [{seq, speaker, content}, ...]} -- entries is the actual
+    transcript body, in order, one entry per speaker turn (confirmed live
+    -- companyParticipants/otherParticipants can come back empty even when
+    entries is fully populated, so read the transcript text from entries,
+    not from the participants lists). Plus a presentationUrl (PDF) and
+    transcriptAudioUrl (mp3) when available for that call."""
+    return _get(f"/earning-calls/transcript/{call_id}")
+
+
+def get_latest_transcript(ticker):
+    """Convenience: list_earning_calls(ticker), then fetch the full
+    content of the most recent one -- None if there are no calls on file
+    for this ticker. For anything more specific (a particular quarter,
+    older history), use list_earning_calls yourself and pick the id."""
+    calls = list_earning_calls(ticker)
+    if not calls:
+        return None
+    latest = max(calls, key=lambda c: c.get("datePublished") or 0)
+    return get_earning_call_transcript(latest["id"])
+
+
+# --------------------------------------------------------------------------- #
+#  Batch fetch + cache -- feeds modules.scoring's own analyst-grade factor
+# --------------------------------------------------------------------------- #
+
+GRADES_FILE = os.path.join("data", "eulerpool", "analyst_grades.json")
+# Analyst rating actions are sparse (see ANALYST_GRADE_LOOKBACK_DAYS's own
+# comment in modules.scoring -- most names go months between events), so
+# there's no value re-fetching daily. Same staleness-cooldown pattern
+# sec_edgar.py's own CIK_MAP_MAX_AGE_DAYS uses for its (also slow-moving)
+# CIK map.
+GRADES_MAX_AGE_DAYS = 3
+
+
+def fetch_analyst_grades(tickers, out_file=GRADES_FILE, max_workers=4, force=False):
+    """Fetch get_analyst_grades -- the FULL history, "maintain" included
+    -- for every ticker in `tickers`, merge into whatever's already on
+    disk at out_file, and write back -- {ticker: [...]}, same "archive,
+    don't replace" convention sec_edgar.fetch_form4 uses, so a partial run
+    (interrupted, or a subset of tickers re-fetched) doesn't lose earlier
+    coverage. A ticker that errors (rate limit, delisted/OTC name
+    Eulerpool doesn't cover, timeout) is logged and skipped rather than
+    aborting the whole batch -- its LAST cached value (if any) is left
+    untouched on disk.
+
+    Deliberately caches the UNFILTERED history rather than
+    get_rating_changes' upgrade/downgrade-only subset -- explicit
+    instruction: don't discard maintain at fetch time, it's what lets
+    modules.scoring.analyst_grade_mix report what fraction of a ticker's
+    recent coverage is upgrades/downgrades/maintains, not just a net
+    score. Filtering maintain out here would throw that away
+    permanently (the next fetch is GRADES_MAX_AGE_DAYS away); filtering
+    happens downstream instead, in modules.scoring, cheaply, from data
+    already on disk.
+
+    Skipped entirely (returns whatever's on disk, unchanged) if out_file
+    already exists and is younger than GRADES_MAX_AGE_DAYS -- pass
+    force=True to refetch anyway (e.g. after adding new tickers to the
+    universe that the cached file has never covered).
+
+    max_workers overlaps network latency across tickers; it does NOT
+    defeat _MIN_REQUEST_INTERVAL's own pacing -- _rate_limit is a single
+    lock shared by every thread, so this is still one request every
+    _MIN_REQUEST_INTERVAL seconds account-wide, just without a thread
+    sitting idle waiting on the network between calls. For the WHOLE
+    active universe (~2000 tickers) at 5 req/sec that's still ~7 minutes
+    minimum -- a real pull, not instant; call with a short ticker list
+    first (or an explicit go-ahead) rather than the full universe by
+    default."""
+    os.makedirs(os.path.dirname(out_file), exist_ok=True)
+    try:
+        with open(out_file) as f:
+            merged = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        merged = {}
+
+    if not force and merged and os.path.exists(out_file):
+        age_days = (time.time() - os.path.getmtime(out_file)) / 86400
+        if age_days < GRADES_MAX_AGE_DAYS:
+            print(f"fetch_analyst_grades: {out_file} is {age_days:.1f}d old "
+                  f"(< {GRADES_MAX_AGE_DAYS}d) -- skipping, pass force=True to refetch")
+            return merged
+
+    errors = []
+    with ThreadPoolExecutor(max_workers=max_workers) as ex:
+        futures = {ex.submit(get_analyst_grades, t): t for t in tickers}
+        for fut in as_completed(futures):
+            ticker = futures[fut]
+            try:
+                merged[ticker] = fut.result()
+            except Exception as e:
+                errors.append((ticker, str(e)))
+
+    with open(out_file, "w") as f:
+        json.dump(merged, f)
+
+    print(f"fetch_analyst_grades: wrote {out_file} ({len(tickers)} requested, "
+          f"{len(tickers) - len(errors)} succeeded, {len(errors)} failed)")
+    if errors:
+        print("  failed:", ", ".join(t for t, _ in errors[:20]), "..." if len(errors) > 20 else "")
+    return merged
+
+
+FAIR_VALUE_FILE = os.path.join("data", "eulerpool", "fair_value.json")
+
+
+def fetch_fair_values(tickers, out_file=FAIR_VALUE_FILE, max_workers=4):
+    """Fetch get_fair_value for every ticker in `tickers`, OVERWRITE
+    out_file with {ticker: {isin, fairValue, fairValueIncome,
+    fairValueRevenue, fairValueDividend, lastPrice, upside}} -- no
+    staleness cooldown and no merge-with-existing here, unlike
+    fetch_analyst_grades: get_fair_value is a same-day snapshot (see its
+    own docstring -- there's no history to preserve across calls, and an
+    old snapshot is just wrong the moment prices move), so every call is
+    meant to fully replace whatever was cached. If you want a USABLE
+    history for a forward-return check (Eulerpool doesn't provide one --
+    see get_fair_value), call this on a schedule yourself and archive
+    each day's out_file under its own dated path rather than relying on
+    this function to do it for you.
+
+    Same thread-pool-over-a-shared-rate-limit shape as
+    fetch_analyst_grades (see that function's own docstring) -- errors
+    are logged and skipped per-ticker rather than aborting the batch."""
+    results = {}
+    errors = []
+    with ThreadPoolExecutor(max_workers=max_workers) as ex:
+        futures = {ex.submit(get_fair_value, t): t for t in tickers}
+        for fut in as_completed(futures):
+            ticker = futures[fut]
+            try:
+                results[ticker] = fut.result()
+            except Exception as e:
+                errors.append((ticker, str(e)))
+
+    os.makedirs(os.path.dirname(out_file), exist_ok=True)
+    with open(out_file, "w") as f:
+        json.dump(results, f)
+
+    print(f"fetch_fair_values: wrote {out_file} ({len(tickers)} requested, "
+          f"{len(tickers) - len(errors)} succeeded, {len(errors)} failed)")
+    if errors:
+        print("  failed:", ", ".join(t for t, _ in errors[:20]), "..." if len(errors) > 20 else "")
+    return results
+
+
+FORWARD_EPS_FILE = os.path.join("data", "eulerpool", "forward_eps.json")
+
+
+def fetch_forward_eps(tickers, out_file=FORWARD_EPS_FILE, max_workers=4):
+    """Fetch get_forward_eps for every ticker in `tickers`, OVERWRITE
+    out_file with {ticker: {"fwdEps0y": ..., "fwdEps1y": ...}} -- same
+    same-day-snapshot, full-overwrite (no merge, no staleness cooldown)
+    shape as fetch_fair_values, for the same reason: get_forward_eps
+    reads get_estimates fresh each call, so there's no history here to
+    preserve across runs. Feeds modules.derive.reconcile_forward_eps,
+    which blends this 50/50 with this project's own yfinance-sourced
+    fwdEps0y/fwdEps1y into "our own" forward EPS (see that function's own
+    docstring). Same thread-pool-over-a-shared-rate-limit shape as
+    fetch_analyst_grades/fetch_fair_values -- errors logged and skipped
+    per-ticker rather than aborting the batch."""
+    results = {}
+    errors = []
+    with ThreadPoolExecutor(max_workers=max_workers) as ex:
+        futures = {ex.submit(get_forward_eps, t): t for t in tickers}
+        for fut in as_completed(futures):
+            ticker = futures[fut]
+            try:
+                fwd_eps0y, fwd_eps1y = fut.result()
+                if fwd_eps0y is not None or fwd_eps1y is not None:
+                    results[ticker] = {"fwdEps0y": fwd_eps0y, "fwdEps1y": fwd_eps1y}
+            except Exception as e:
+                errors.append((ticker, str(e)))
+
+    os.makedirs(os.path.dirname(out_file), exist_ok=True)
+    with open(out_file, "w") as f:
+        json.dump(results, f)
+
+    print(f"fetch_forward_eps: wrote {out_file} ({len(tickers)} requested, "
+          f"{len(results)} with at least one value, {len(errors)} failed)")
+    if errors:
+        print("  failed:", ", ".join(t for t, _ in errors[:20]), "..." if len(errors) > 20 else "")
+    return results

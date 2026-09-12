@@ -539,6 +539,10 @@ MIN_PEERS = 5
 # instead (explicit instruction) -- see _peer_median. Lowered from 20 to
 # 10, per explicit instruction.
 MIN_INDUSTRY_PEERS = 10
+# Floor only -- the matching ceiling (modules.derive.EPS_VOLATILITY_CAP)
+# is applied at the source, in derive.eps_volatility itself, so every
+# consumer here already sees a bounded [FALLBACK_EPS_REL_STDEV,
+# EPS_VOLATILITY_CAP] value and doesn't need its own top clamp.
 FALLBACK_EPS_REL_STDEV = 0.20
 N_SIMULATIONS = 20000
 PERCENTILES = (20, 50, 80)
@@ -580,6 +584,38 @@ FWD_TRAILING_PE_RATIO_MAX = 3.0
 # lets own_growth_rate carry a bit more of year 1 without abandoning the
 # price-anchored design.
 Y1_SCHEDULE_WEIGHT = 0.6
+# g_fwd itself (forwardEps/anchorEps - 1) is blended toward the analyst
+# price target's own implied 1-year return, targetMeanPrice/currentPrice -
+# 1 -- explicit instruction, confirmed live on FEIM: anchorEps falls back
+# to currentPrice/industryPe when a ticker's own multiple is unusable (see
+# anchor_eps below), and for a name trading well above its peer multiple
+# that makes g_fwd strongly negative on its OWN terms (FEIM: -76%, forward
+# EPS 0.93 vs. an industry-multiple anchor of 3.89) regardless of what
+# analysts actually expect the stock to do -- the analyst target range
+# already fed the per-path SPREAD (g_fwd_low/g_fwd_high below) but never
+# the deterministic CENTER, so a strongly bullish target next to a
+# richly-priced anchor could widen the simulated distribution's tail
+# without ever moving its middle (FEIM: 0 of 20,000 simulated paths ended
+# above the current price, despite a $77-85 analyst range sitting above
+# it). Weight scales with analyst coverage -- 5 percentage points per
+# analyst, capped -- rather than a flat blend, so a single stale estimate
+# can't dominate the center the way it already can't dominate the spread
+# (see g_fwd_i's own per-path fallback cascade for missing/thin coverage).
+TARGET_BLEND_WEIGHT_PER_ANALYST = 0.05
+TARGET_BLEND_WEIGHT_MAX = 0.40
+# A second, additive contribution to target_weight from Eulerpool's own
+# analyst_consensus_score (modules.scoring -- that ticker's covering
+# firms' MOST RECENT grades, each mapped to a -1..1 tier scale and
+# averaged; see that function's own docstring) -- explicit instruction,
+# "Proposal B": how STRONG the consensus is (its magnitude, not whether
+# it agrees with g_target's own direction -- Proposal A, not chosen)
+# adds up to this much MORE weight on the target-price blend, same
+# additive-and-capped shape as the per-analyst term above rather than a
+# multiplier on it. A fully bullish or bearish consensus (|score| = 1.0)
+# contributes the full amount; a neutral or missing consensus (no
+# Eulerpool coverage) contributes 0, same graceful-fallback convention
+# the per-analyst term already uses for missing target-price data.
+TARGET_BLEND_WEIGHT_PER_CONSENSUS = 0.10
 # Base annual discount rate (explicit instruction), scaled per ticker by
 # its own beta (also explicit instruction) -- see simulate_ticker's own
 # comment for the effective_discount_rate formula.
@@ -1097,6 +1133,22 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
         if t == 1:
             g_fwd = (fwd_eps / anchor_eps - 1.0) if abs(anchor_eps) > 1e-9 else 0.0
             g_fwd = max(GROWTH_FLOOR, min(GROWTH_CAP, g_fwd))
+            # Blend toward the analyst target's own implied 1-year return --
+            # see TARGET_BLEND_WEIGHT_PER_ANALYST's own comment. No target
+            # price or no analyst count -> g_fwd unchanged (same graceful
+            # missing-data fallback the rest of this function uses).
+            target_mean_price = to_float(row.get("targetMeanPrice"))
+            n_analysts = to_float(row.get("numberOfAnalystOpinions"))
+            if target_mean_price and current_price and n_analysts:
+                g_target = target_mean_price / current_price - 1.0
+                g_target = max(GROWTH_FLOOR, min(GROWTH_CAP, g_target))
+                consensus_score = to_float(row.get("analystConsensus"))
+                consensus_weight = TARGET_BLEND_WEIGHT_PER_CONSENSUS * abs(consensus_score) if consensus_score is not None else 0.0
+                target_weight = min(
+                    TARGET_BLEND_WEIGHT_PER_ANALYST * n_analysts + consensus_weight, TARGET_BLEND_WEIGHT_MAX
+                )
+                g_fwd = (1.0 - target_weight) * g_fwd + target_weight * g_target
+                g_fwd = max(GROWTH_FLOOR, min(GROWTH_CAP, g_fwd))
             g_t = Y1_SCHEDULE_WEIGHT * g_t + (1.0 - Y1_SCHEDULE_WEIGHT) * g_fwd
         g_t = max(GROWTH_FLOOR, min(GROWTH_CAP, g_t))
         growth_path = growth_path * (1.0 + g_t)

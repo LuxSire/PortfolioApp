@@ -358,7 +358,9 @@ from modules.scoring import (
     RATING_NA,
     add_avg_liquidity_ratio,
     add_target_upside,
+    analyst_consensus_score,
     clamp_eps_revision,
+    load_fair_value_scores,
     load_insider_scores,
     load_sentiment_scores,
     load_short_interest_scores,
@@ -376,6 +378,14 @@ from modules import derive
 from modules.backtest import build_backtest
 from modules.recommendations import write_recommendations
 from modules.sec_edgar import FORM4_FILE, THIRTEENF_FILE, XBRL_FACTS_FILE, fetch_13f_holdings, fetch_form4, fetch_xbrl_facts
+from modules.eulerpool import (
+    FAIR_VALUE_FILE,
+    FORWARD_EPS_FILE,
+    GRADES_FILE,
+    fetch_analyst_grades,
+    fetch_fair_values,
+    fetch_forward_eps,
+)
 from modules.social_sentiment import SENTIMENT_FILE, fetch_social_sentiment
 from modules.theme_classifier import classify_themes
 
@@ -522,7 +532,7 @@ FIELDNAMES = [
     "dilutedEpsAnnual", "dilutedEpsGrowth",
     "fwdEps0y", "fwdEps1y", "estimateGrowth1y", "estimateAnalysts",
     "targetMeanPrice", "targetHighPrice", "targetLowPrice", "targetUpside", "recommendationKey",
-    "recommendationMean", "numberOfAnalystOpinions", "momentum", "meanReversion", "epsRevision0y",
+    "recommendationMean", "numberOfAnalystOpinions", "momentum", "meanReversion", "earningsMsi", "epsRevision0y",
     "epsRevision1y", "epsVolatility", "heldPercentInsiders", "earningsTimestampStart", "yearReturn", "lastDownload",
 ]
 # FINRA biweekly short-interest figures (finra.SHORT_INTEREST_FILE +
@@ -643,6 +653,21 @@ def load_rated_tickers(path, ratings):
         return []
 
 
+def load_all_tickers(path):
+    """Every ticker in an existing sorted_screen.csv, regardless of
+    rating -- explicit instruction: form4/xbrl/eulerpool all download for
+    the ENTIRE scored universe now, not just load_rated_tickers'
+    RATED_FOR_EXTRAS subset (a Hold-rated name today can become a Buy/Sell
+    next week as fundamentals shift, and this factor data is worth having
+    on file before that happens rather than fetched reactively). Returns
+    [] if the file doesn't exist yet (e.g. first-ever run)."""
+    try:
+        with open(path, newline="") as f:
+            return [row["ticker"] for row in csv.DictReader(f) if row.get("ticker")]
+    except FileNotFoundError:
+        return []
+
+
 def _load_json_or_empty(path):
     try:
         with open(path) as f:
@@ -672,6 +697,7 @@ def add_momentum(app, data, history_out=None, checkpoint=None):
         result = momentum.get(symbol) or {}
         d["momentum"] = result.get("momentum")
         d["meanReversion"] = result.get("mean_reversion")
+        d["earningsMsi"] = result.get("earnings_msi")
 
 
 def add_momentum_from_cache(app, data):
@@ -693,6 +719,7 @@ def add_momentum_from_cache(app, data):
         result = momentum.get(symbol) or {}
         d["momentum"] = result.get("momentum")
         d["meanReversion"] = result.get("mean_reversion")
+        d["earningsMsi"] = result.get("earnings_msi")
 
 
 def _latest_expected_close_date(now=None):
@@ -761,6 +788,7 @@ def add_momentum_and_persist_history(app, data, force=False):
         for t, m in disk_mom.items():
             data[t]["momentum"] = m.get("momentum")
             data[t]["meanReversion"] = m.get("mean_reversion")
+            data[t]["earningsMsi"] = m.get("earnings_msi")
 
     all_history = {**_load_json_or_empty(PRICE_HISTORY_FILE), **history}
     write_price_history(all_history)
@@ -1491,6 +1519,8 @@ def recalc(fresh_momentum=False, force_prices=False):
     _xbrl = _load_json_or_empty(XBRL_FACTS_FILE)
     derive.reconcile_revenue_growth(data, _xbrl)
     derive.reconcile_earnings_growth(data, _xbrl)
+    derive.reconcile_eps_volatility(data, _xbrl, _load_json_or_empty(RAW_STATEMENTS_FILE))
+    derive.reconcile_forward_eps(data, _load_json_or_empty(FORWARD_EPS_FILE))
     add_target_upside(data)
     add_avg_liquidity_ratio(data)
     write_full_csv(data)
@@ -1567,6 +1597,8 @@ def write_sorted_screen_csv(data):
     sentiment_scores = load_sentiment_scores(SENTIMENT_FILE, NEWS_SENTIMENT_FILE, THIRTEENF_FILE)
     insider_scores = load_insider_scores(FORM4_FILE)
     short_interest_scores = load_short_interest_scores(SHORT_INTEREST_FILE, RAW_DATA_FILE)
+    fair_value_scores = load_fair_value_scores(FAIR_VALUE_FILE)
+    consensus_scores = analyst_consensus_score(GRADES_FILE)
 
     # Inject the two simulations.json return estimates into each row dict so
     # forecast_return_rank can read them directly -- that factor is an
@@ -1599,7 +1631,8 @@ def write_sorted_screen_csv(data):
     rows = [(s, {**d, **_mc_data[s]} if s in _mc_data else d) for s, d in rows]
 
     scored = sorted(
-        score_rows(rows, sentiment_scores, insider_scores, short_interest_scores), key=lambda item: item[2]
+        score_rows(rows, sentiment_scores, insider_scores, short_interest_scores, fair_value_scores, consensus_scores),
+        key=lambda item: item[2],
     )
     n = len(scored)
 
@@ -1803,18 +1836,18 @@ def download_prices(force=False):
 
 def download_short_interest():
     """Fetches FINRA's latest biweekly equity short interest settlement
-    file (see finra.fetch_short_interest) for every RATED_FOR_EXTRAS
-    ticker in the ranking as it currently stands on disk -- same scoping
-    as download_form4 below, even though FINRA's own file is a single
-    bulk download covering the whole market regardless of how many
-    tickers get filtered out of it, for consistency with every other
-    RATED_FOR_EXTRAS-scoped source (Form 4, 13F, sentiment) and to keep
-    SHORT_INTEREST_FILE's own size predictable. A separate download, run
-    on its own via `python main.py shortinterest` rather than folded into
-    download_all -- it hits a different, independently-rate-limited host
-    (FINRA's CDN, not Yahoo Finance), same reasoning as every other
+    file (see finra.fetch_short_interest) for the ENTIRE scored universe
+    (explicit instruction, same widened scope as download_form4/
+    download_xbrl/download_13f/download_eulerpool), even though FINRA's
+    own file is a single bulk download covering the whole market
+    regardless of how many tickers get filtered out of it -- widening
+    this just keeps more of SHORT_INTEREST_FILE's local copy populated,
+    not a change in what gets fetched over the wire. A separate download,
+    run on its own via `python main.py shortinterest` rather than folded
+    into download_all -- it hits a different, independently-rate-limited
+    host (FINRA's CDN, not Yahoo Finance), same reasoning as every other
     standalone fetch in this file."""
-    tickers = load_rated_tickers(SORTED_SCREEN_CSV, RATED_FOR_EXTRAS)
+    tickers = load_all_tickers(SORTED_SCREEN_CSV)
     if not tickers:
         print(f"No existing {SORTED_SCREEN_CSV} yet; run `python main.py all` first")
         return
@@ -1823,13 +1856,13 @@ def download_short_interest():
 
 def download_form4():
     """Fetches SEC EDGAR Form 4 insider-transaction filings (see
-    sec_edgar.fetch_form4) for every RATED_FOR_EXTRAS ticker in the
-    ranking as it currently stands on disk. A separate download, run on
-    its own via `python main.py form4` rather than folded into
-    download_all -- it hits a different rate-limited external service
-    (SEC EDGAR, not Yahoo Finance) on its own schedule, same reasoning as
-    social_sentiment.py being a standalone fetch."""
-    tickers = load_rated_tickers(SORTED_SCREEN_CSV, RATED_FOR_EXTRAS)
+    sec_edgar.fetch_form4) for the ENTIRE scored universe (every ticker in
+    sorted_screen.csv, not just RATED_FOR_EXTRAS -- explicit instruction).
+    A separate download, run on its own via `python main.py form4` rather
+    than folded into download_all -- it hits a different rate-limited
+    external service (SEC EDGAR, not Yahoo Finance) on its own schedule,
+    same reasoning as social_sentiment.py being a standalone fetch."""
+    tickers = load_all_tickers(SORTED_SCREEN_CSV)
     if not tickers:
         print(f"No existing {SORTED_SCREEN_CSV} yet; run `python main.py all` first")
         return
@@ -1838,10 +1871,10 @@ def download_form4():
 
 def download_xbrl():
     """Fetches SEC EDGAR XBRL company facts (see sec_edgar.fetch_xbrl_facts)
-    -- multi-year revenue/income/assets/equity/EPS history -- for every
-    RATED_FOR_EXTRAS ticker, same scoping and same standalone-download
+    -- multi-year revenue/income/assets/equity/EPS history -- for the
+    ENTIRE scored universe, same scoping and same standalone-download
     reasoning as download_form4 above. Run via `python main.py xbrl`."""
-    tickers = load_rated_tickers(SORTED_SCREEN_CSV, RATED_FOR_EXTRAS)
+    tickers = load_all_tickers(SORTED_SCREEN_CSV)
     if not tickers:
         print(f"No existing {SORTED_SCREEN_CSV} yet; run `python main.py all` first")
         return
@@ -1850,26 +1883,62 @@ def download_xbrl():
 
 def download_13f():
     """Fetches SEC's latest quarterly bulk 13F institutional-holdings
-    dataset (see sec_edgar.fetch_13f_holdings) for every RATED_FOR_EXTRAS
-    ticker, matched by company name rather than CIK -- 13F is filed BY
+    dataset (see sec_edgar.fetch_13f_holdings) for the ENTIRE scored
+    universe, matched by company name rather than CIK -- 13F is filed BY
     institutional managers ABOUT what they hold, not by the issuer, so
     there's no per-ticker CIK to query the way Form 4/XBRL have; see that
     function's own docstring. A single ~90MB bulk download covering every
-    filer at once, not one request per ticker. Run via `python main.py
-    13f`."""
+    filer at once, not one request per ticker, so widening this from
+    RATED_FOR_EXTRAS to the full universe costs nothing extra in fetch
+    time -- it's just matching more names client-side against data
+    already downloaded. Run via `python main.py 13f`."""
     try:
         with open(SORTED_SCREEN_CSV, newline="") as f:
-            ticker_names = {
-                row["ticker"]: row["name"]
-                for row in csv.DictReader(f)
-                if row.get("rating") in RATED_FOR_EXTRAS and row.get("name")
-            }
+            ticker_names = {row["ticker"]: row["name"] for row in csv.DictReader(f) if row.get("name")}
     except FileNotFoundError:
         ticker_names = {}
     if not ticker_names:
         print(f"No existing {SORTED_SCREEN_CSV} yet; run `python main.py all` first")
         return
     fetch_13f_holdings(ticker_names)
+
+
+def download_eulerpool():
+    """Fetches all three of Eulerpool's own per-ticker datasets for the
+    ENTIRE scored universe (explicit instruction: same widened scope as
+    download_form4/download_xbrl/download_13f, not just RATED_FOR_EXTRAS),
+    same standalone-download reasoning as those (a different rate-limited
+    external service, own schedule):
+
+      1. Analyst upgrade/downgrade history (modules.eulerpool.
+         fetch_analyst_grades) -- the FULL grade history, "maintain"
+         included, feeding modules.scoring's load_analyst_grade_scores/
+         analyst_consensus_score. Self-throttling: no-ops if GRADES_FILE
+         is already younger than GRADES_MAX_AGE_DAYS (3 days).
+      2. Fair-value snapshot (modules.eulerpool.fetch_fair_values) --
+         feeding modules.scoring.load_fair_value_scores (fair_value_rank,
+         5% of the composite score in every column). No staleness
+         cooldown of its own (see that function's own docstring -- it's a
+         same-day snapshot, always refetched), so this step alone still
+         costs real time/API calls even when step 1 is skipped as fresh.
+      3. Forward-EPS consensus (modules.eulerpool.fetch_forward_eps) --
+         feeding modules.derive.reconcile_forward_eps, which blends this
+         50/50 with yfinance's own fwdEps0y/fwdEps1y into "our own"
+         forward EPS used everywhere (including forwardEps, the figure
+         modules.simulations actually anchors its EPS path on). Same
+         same-day-snapshot, always-refetched shape as step 2.
+
+    Pass `overwrite` as the first CLI arg to force step 1's refetch
+    regardless of age (steps 2 and 3 always refetch). Run via `python
+    main.py eulerpool` (`eulerpool overwrite` to force)."""
+    tickers = load_all_tickers(SORTED_SCREEN_CSV)
+    if not tickers:
+        print(f"No existing {SORTED_SCREEN_CSV} yet; run `python main.py all` first")
+        return
+    force = len(sys.argv) > 2 and sys.argv[2] == "overwrite"
+    fetch_analyst_grades(tickers, out_file=GRADES_FILE, force=force)
+    fetch_fair_values(tickers, out_file=FAIR_VALUE_FILE)
+    fetch_forward_eps(tickers, out_file=FORWARD_EPS_FILE)
 
 
 def download_recommendations():
@@ -1985,6 +2054,19 @@ def download_simulations(tickers=None):
     full-universe run's progress is visible the entire time rather than
     going silent until everything finishes."""
     data = load_pe_data(OUTPUT_CSV)
+    # Eulerpool's per-firm rating consensus (see modules.scoring.
+    # analyst_consensus_score), merged in here rather than read from
+    # OUTPUT_CSV directly -- it isn't a screen_data.csv column, it's
+    # computed on demand from GRADES_FILE the same way score_rows'
+    # own consensus_scores is. Feeds simulate_ticker's
+    # TARGET_BLEND_WEIGHT_PER_CONSENSUS (see that constant's own
+    # docstring) as "analystConsensus" on each row; a ticker Eulerpool
+    # has no coverage for just doesn't get the key, same missing-data
+    # fallback simulate_ticker already uses for targetMeanPrice/
+    # numberOfAnalystOpinions.
+    for t, consensus in analyst_consensus_score(GRADES_FILE).items():
+        if t in data:
+            data[t]["analystConsensus"] = consensus
     if not tickers or tickers == ["--all"]:
         tickers = sorted(data.keys())
     else:
@@ -2082,6 +2164,8 @@ if __name__ == "__main__":
         download_xbrl()
     elif mode == "13f":
         download_13f()
+    elif mode == "eulerpool":
+        download_eulerpool()
     elif mode == "shortinterest":
         download_short_interest()
     elif mode == "ibprices":
@@ -2111,6 +2195,6 @@ if __name__ == "__main__":
     else:
         sys.exit(
             f"Unknown mode {mode!r}, expected 'all', 'download', 'recalc' ('rescore'), 'prices', 'form4', "
-            "'xbrl', '13f', 'shortinterest', 'ibprices', 'ibhprices', 'yfprices', 'themes', "
+            "'xbrl', '13f', 'eulerpool', 'shortinterest', 'ibprices', 'ibhprices', 'yfprices', 'themes', "
             "'recommendations', 'chat', 'symbol', 'simulations', 'target', or 'backtest'"
         )

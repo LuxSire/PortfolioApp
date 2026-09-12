@@ -59,19 +59,39 @@ def eps_revision(current, baseline):
     return clamp_eps_revision((current - baseline) / abs(baseline))
 
 
+# Ceiling on eps_volatility's own ratio -- explicit instruction ("the
+# penalty looks too harsh... a way to soften the impact of epsVolatility").
+# Every comparable ratio in this file caps the top as well as the bottom
+# (GROWTH_CAP=1.0, EARN_MARGIN_DELTA_CAP=0.9); epsVolatility had a FLOOR
+# (FALLBACK_EPS_REL_STDEV, simulations.py -- protects the too-LOW side)
+# but no matching ceiling, so a name with a genuinely lumpy history (or a
+# small mean(|EPS|) denominator) could push the ratio arbitrarily high --
+# confirmed live on FEIM: even merged onto its full SEC history (11 years,
+# not just yfinance's 4), epsVolatility still read 1.26 (126% relative
+# swing), which alone was enough to pin simulations.py's risk-premium
+# haircut (RISK_PREMIUM_K) at its own floor -- the maximum discount the
+# model can apply to any stock, floor-bound for anything >= ~1.15. Capped
+# here at the source, same place MARGIN_FLOOR/MARGIN_CAP and
+# EARN_MARGIN_DELTA_CAP already clamp their own ratios, so every consumer
+# (eps_volatility_rank, simulations.py's combinedVol/risk-premium haircut)
+# sees the same bounded number without each having to re-clamp it.
+EPS_VOLATILITY_CAP = 1.0
+
+
 def eps_volatility(values):
-    """stdev(values) / mean(|values|) over an annual Diluted EPS series
-    (scoring.eps_volatility_rank: low is better). Divides by the mean of
-    the ABSOLUTE values, not the signed mean -- a plain CV breaks the
-    moment annual EPS crosses zero, which happens within 4-5 years even
-    for large names. None if < 3 values or the mean absolute value is 0."""
+    """stdev(values) / mean(|values|) over an annual Diluted EPS series,
+    capped at EPS_VOLATILITY_CAP (scoring.eps_volatility_rank: low is
+    better). Divides by the mean of the ABSOLUTE values, not the signed
+    mean -- a plain CV breaks the moment annual EPS crosses zero, which
+    happens within 4-5 years even for large names. None if < 3 values or
+    the mean absolute value is 0."""
     values = [v for v in (to_float(x) for x in values) if v is not None]
     if len(values) < 3:
         return None
     mean_abs = sum(abs(v) for v in values) / len(values)
     if mean_abs == 0:
         return None
-    return statistics.stdev(values) / mean_abs
+    return min(statistics.stdev(values) / mean_abs, EPS_VOLATILITY_CAP)
 
 
 # --------------------------------------------------------------------------- #
@@ -465,11 +485,17 @@ _EARNGROWTH_RATE_FLOOR = -1.0
 # -- this just stops the nonsense magnitude polluting the peer median / UI.
 _EARNGROWTH_PRIOR_FLOOR_FRAC = 0.25
 
-# earningsMarginDelta = clip(margin_new, +/-SANITY) - clip(margin_old, +/-SANITY)
-# where margin_new = dilutedEPS_FYn   / revenuePerShare_FYn
-#       margin_old = dilutedEPS_FYn-1 / revenuePerShare_FYn-1
-# -- the year-over-year change in net margin. It's what earnings_growth_rank
-# scores on, and the per-year overlay simulations.py adds to its EPS path.
+# earningsMarginDelta = avg(net_margin_delta, operating_margin_delta) when
+# both are available, else whichever one is (see earnings_margin_delta --
+# Option-B blend). Each leg is:
+#   net_margin_delta       = clip(EPS_FYn/revps_FYn) - clip(EPS_FYn-1/revps_FYn-1)
+#   operating_margin_delta = clip(opInc_FYn/rev_FYn) - clip(opInc_FYn-1/rev_FYn-1)
+# both clipped per-year to +/-SANITY and clamped to +/-DELTA_CAP, so they
+# average cleanly. The operating leg strips one-time items / tax / non-
+# operating marks; the net leg covers the ~20% of names with no clean
+# OperatingIncomeLoss tag and ties back to the EPS-based factors. It's what
+# earnings_growth_rank scores on, and the per-year overlay simulations.py
+# adds to its EPS path.
 # Differencing TWO net margins (each with its OWN year's revenue-per-share
 # denominator) rather than dividing the EPS change by a single denominator
 # means: (a) a loss -> profit turnaround is just (positive) - (negative),
@@ -519,7 +545,148 @@ def _sec_facts_by_end(entry, key):
     return out
 
 
+def eps_volatility_merged(entry, stmts):
+    """eps_volatility (see that function) computed on the UNION of SEC
+    company_facts' dilutedEPS (usually a much longer back history, but
+    sometimes has a multi-year filing gap) and yfinance's own income_stmt
+    row (usually only ~4-5 trailing annual columns, but reliably
+    contiguous), keyed by fiscal-period end date so the two line up
+    naturally -- both use ISO 'YYYY-MM-DD' end dates (see
+    _sec_facts_by_end / df_to_dict's own col_key). SEC's own filed figure
+    wins whenever both cover the same date (it's the authoritative one,
+    the same preference earnings_margin_delta/fy_diluted_eps_growth
+    already give it); yfinance fills in any date SEC doesn't have, and is
+    the ONLY source at all for a ticker SEC has no dilutedEPS facts for.
+
+    Why this matters: yfinance's income_stmt caps out around 4-5 annual
+    columns, so a single unusual year (a one-time gain/charge) can
+    dominate a stdev/mean ratio computed on that alone -- confirmed live
+    on FEIM, whose yfinance Diluted EPS series is just
+    [-0.59, 0.59, 2.48, -0.09]: that lone +2.48 (likely a one-time item,
+    not repeatable earnings power) alone pushed epsVolatility to 1.44, the
+    most extreme tier in the universe, which in turn pinned
+    simulations.py's risk-premium haircut at its own floor -- the largest
+    discount the model can apply to any stock (see RISK_PREMIUM_K there).
+    FEIM's SEC record goes back to 2011; merged, that's 10 fiscal years
+    instead of 4, sharply diluting that one year's leverage over the
+    ratio. None when the merged series still has fewer than 3 points
+    (same floor eps_volatility itself enforces)."""
+    sec_eps = _sec_facts_by_end(entry, "dilutedEPS")
+    yf_eps = _row(stmts, "incomeStmt", "Diluted EPS")
+    merged = {**yf_eps, **sec_eps}  # SEC wins whenever both cover the same date
+    return eps_volatility(list(merged.values()))
+
+
+def reconcile_forward_eps(data, eulerpool_forward_eps):
+    """Mutates `data` in place: blends this project's yfinance-sourced
+    fwdEps0y/fwdEps1y (set earlier at statement_metrics time, from
+    yfinance's own earningsEstimate statement) 50/50 with Eulerpool's own
+    consensus estimates for the same two fiscal-year slots (modules.
+    eulerpool.get_forward_eps, cached to FORWARD_EPS_FILE by
+    fetch_forward_eps) into "our own" forward EPS -- one number per slot,
+    used everywhere from here on, not two competing ones.
+
+    `eulerpool_forward_eps` = loaded FORWARD_EPS_FILE, i.e.
+    {ticker: {"fwdEps0y": ..., "fwdEps1y": ...}}.
+
+    Per slot: average of the two sources when both are present; whichever
+    one is present when only one is (graceful degrade, same as every other
+    reconcile_* in this file) rather than leaving the field untouched --
+    a ticker Eulerpool doesn't cover keeps its yfinance-only number, a
+    ticker with only an Eulerpool figure (e.g. yfinance's estimate
+    statement was empty) still gets one. Nothing changes for a ticker with
+    neither.
+
+    Also overwrites forwardEps with the blended fwdEps1y: forwardEps is
+    the field modules.simulations actually reads (as fwd_eps, the anchor
+    for its EPS-path g_fwd), and it was confirmed empirically
+    (AAPL/TSLA/MSFT) to already equal fwdEps1y from yfinance alone -- so
+    this is the one line that makes simulations.py inherit the blend
+    without any changes of its own."""
+    for ticker, row in data.items():
+        eu = eulerpool_forward_eps.get(ticker) or {}
+        for slot in ("fwdEps0y", "fwdEps1y"):
+            yf_val = to_float(row.get(slot))
+            eu_val = to_float(eu.get(slot))
+            if yf_val is not None and eu_val is not None:
+                row[slot] = round((yf_val + eu_val) / 2, 6)
+            elif eu_val is not None:
+                row[slot] = eu_val
+            # else: yf_val only, or neither -- leave row[slot] as is
+
+        if row.get("fwdEps1y") is not None:
+            row["forwardEps"] = row["fwdEps1y"]
+
+
+def reconcile_eps_volatility(data, xbrl, raw_stmts):
+    """Mutates `data` in place: recomputes each row's epsVolatility (set
+    at build_screen_row time from yfinance's own income_stmt alone, before
+    xbrl is even loaded -- see build_screen_row) using
+    eps_volatility_merged's longer SEC-plus-yfinance series, for any
+    ticker SEC has at least one dilutedEPS fact on file for. Left
+    untouched (whatever build_screen_row already computed from yfinance
+    alone) for a ticker SEC has no dilutedEPS coverage for at all, or
+    where the merge still doesn't reach eps_volatility's own 3-point
+    floor."""
+    for ticker, row in data.items():
+        entry = xbrl.get(ticker)
+        if not entry or not entry.get("dilutedEPS"):
+            continue
+        merged = eps_volatility_merged(entry, raw_stmts.get(ticker))
+        if merged is not None:
+            row["epsVolatility"] = round(merged, 6)
+
+
+def _clamp_margin_delta(md):
+    return max(-EARN_MARGIN_DELTA_CAP, min(EARN_MARGIN_DELTA_CAP, md))
+
+
+def _operating_margin_delta(entry):
+    """YoY change in OPERATING margin (SEC OperatingIncomeLoss / revenue,
+    date-matched) or None. Same SANITY per-year clip / DELTA_CAP clamp /
+    DISCONTINUITY continuity guard as _net_margin_delta, so the two figures
+    are on one scale and can be averaged. Operating income is a total-
+    company dollar figure, so this is a plain ratio -- no per-share step,
+    no share-count continuity check (the revenue move covers it)."""
+    oi = _sec_facts_by_end(entry, "operatingIncome")
+    rev = _sec_facts_by_end(entry, "revenue")
+    common = sorted(set(oi) & set(rev))
+    if len(common) < 2:
+        return None
+    d_new, d_old = common[-1], common[-2]
+    rev_new, rev_old = rev[d_new], rev[d_old]
+    if rev_new <= 0 or rev_old <= 0:
+        return None
+    if max(rev_new, rev_old) / min(rev_new, rev_old) > EARN_MARGIN_DISCONTINUITY:
+        return None
+    clip = lambda m: max(-EARN_MARGIN_SANITY, min(EARN_MARGIN_SANITY, m))
+    return _clamp_margin_delta(clip(oi[d_new] / rev_new) - clip(oi[d_old] / rev_old))
+
+
 def earnings_margin_delta(entry, row):
+    """(value, source). Option-B blend: the average of the net-margin delta
+    (_net_margin_delta -- dilutedEPS / revenue-per-share YoY) and the
+    operating-margin delta (_operating_margin_delta -- OperatingIncomeLoss
+    / revenue YoY) when BOTH are available, else whichever one is. Operating
+    margin strips one-time items / tax / non-operating marks -- a cleaner
+    read on core-business profitability trend -- but ~20% of names have no
+    clean OperatingIncomeLoss tag (and banks/insurers/REITs structurally
+    don't), so net margin carries those and keeps consistency with the
+    EPS-based factors. Source: "<net_src>+op" when blended, else the net
+    source ("sec"/"yf") alone, or "op" when only operating is available.
+    (None, None) when neither is."""
+    net_md, net_src = _net_margin_delta(entry, row)
+    op_md = _operating_margin_delta(entry)
+    if net_md is not None and op_md is not None:
+        return _clamp_margin_delta((net_md + op_md) / 2), f"{net_src}+op"
+    if net_md is not None:
+        return net_md, net_src
+    if op_md is not None:
+        return op_md, "op"
+    return None, None
+
+
+def _net_margin_delta(entry, row):
     """(value, source) -- see EARN_MARGIN_DELTA_CAP / EARN_MARGIN_SANITY /
     EARN_MARGIN_DISCONTINUITY above. `entry` = one company_facts.json ticker
     entry, `row` = the screen row. Returns (None, None) when a clean
@@ -636,6 +803,7 @@ def reconcile_earnings_growth(data, xbrl):
     earningsGrowthSource. `xbrl` = loaded company_facts.json."""
     counts = {"eg-turnaround": 0, "eg-tier-a": 0, "eg-blend": 0, "eg-q": 0, "eg-fy": 0, "eg-est": 0}
     md_n = 0
+    md_op_n = 0  # earningsMarginDelta rows where the operating leg contributed
     for ticker, row in data.items():
         # earningsMarginDelta -- the value earnings_growth_rank scores on.
         md, md_src = earnings_margin_delta(xbrl.get(ticker), row)
@@ -643,6 +811,8 @@ def reconcile_earnings_growth(data, xbrl):
             row["earningsMarginDelta"] = round(md, 6)
             row["earningsMarginDeltaSource"] = md_src
             md_n += 1
+            if md_src and md_src.endswith("op"):
+                md_op_n += 1
         else:
             # Abstain -- clear any stale value so a discontinuity (spinoff /
             # unit error) reads as neutral, not as the previous run's number.
@@ -698,4 +868,4 @@ def reconcile_earnings_growth(data, xbrl):
     if any(counts.values()):
         print("Reconciled earningsGrowth: "
               + ", ".join(f"{v} {k}" for k, v in counts.items() if v)
-              + f"  |  earningsMarginDelta on {md_n}")
+              + f"  |  earningsMarginDelta on {md_n} ({md_op_n} incl. operating leg)")

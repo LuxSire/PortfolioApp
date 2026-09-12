@@ -3,3 +3,4 @@ urllib3
 yfinance
 transformers
 torch
+httpx

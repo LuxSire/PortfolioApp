@@ -35,11 +35,12 @@ export interface GroupStats {
 // consistently counterproductive on the short side; revenue_growth:
 // replaced by a sim-return gate) -- none of these three is one of these
 // anymore, kept out rather than left as a reason that can never fire.
-export type GateReason = 'momentum' | 'mean_reversion'
+export type GateReason = 'momentum' | 'mean_reversion' | 'earnings'
 
 export const GATE_REASON_LABEL: Record<GateReason, string> = {
   momentum: 'Momentum (MSI)',
   mean_reversion: 'Mean reversion (ST-MSI)',
+  earnings: 'Earnings within the week',
 }
 
 export interface BacktestTicker {
