@@ -79,19 +79,38 @@ EPS_VOLATILITY_CAP = 1.0
 
 
 def eps_volatility(values):
-    """stdev(values) / mean(|values|) over an annual Diluted EPS series,
-    capped at EPS_VOLATILITY_CAP (scoring.eps_volatility_rank: low is
-    better). Divides by the mean of the ABSOLUTE values, not the signed
-    mean -- a plain CV breaks the moment annual EPS crosses zero, which
-    happens within 4-5 years even for large names. None if < 3 values or
-    the mean absolute value is 0."""
+    """stdev of YEAR-OVER-YEAR EPS growth rates (values must already be in
+    CHRONOLOGICAL, oldest-first order), capped at EPS_VOLATILITY_CAP (low
+    is better -- scoring.eps_volatility_rank). Detrended -- NOT
+    stdev(levels)/mean(|levels|), the old formula, which conflated a
+    steady long-term growth TREND with genuine volatility: confirmed live,
+    MSFT's own 19-year merged SEC history (a smooth ~10x compounding
+    trend, $1.87 -> $17.95, with only two well-known one-time dips -- the
+    FY2015 Nokia writedown, the FY2018 TCJA one-time tax charge) read 86%
+    "volatility" under the old formula purely from the LEVEL span, not
+    from any real year-to-year unpredictability -- it couldn't tell "grew
+    smoothly and enormously" apart from "swings unpredictably." stdev of
+    YoY growth RATES instead measures dispersion around whatever the
+    average growth rate actually is, so a smooth compounder reads as
+    low-risk regardless of how much it grew in total; only genuine
+    non-monotonic swings inflate it. Each YoY rate is clamped via
+    clamp_eps_revision (the same [-1, +1] cap eps_revision itself uses)
+    before the stdev, guarding a near-zero-or-negative prior EPS from
+    producing one extreme growth-rate outlier that would dominate the
+    whole series -- the same near-zero-denominator risk this project has
+    repeatedly had to guard elsewhere. None if fewer than 3 usable YoY
+    growth rates (4 EPS points) can be formed."""
     values = [v for v in (to_float(x) for x in values) if v is not None]
-    if len(values) < 3:
+    if len(values) < 4:
         return None
-    mean_abs = sum(abs(v) for v in values) / len(values)
-    if mean_abs == 0:
+    growths = [
+        clamp_eps_revision((cur - prev) / abs(prev))
+        for prev, cur in zip(values, values[1:])
+        if prev != 0
+    ]
+    if len(growths) < 3:
         return None
-    return min(statistics.stdev(values) / mean_abs, EPS_VOLATILITY_CAP)
+    return min(statistics.stdev(growths), EPS_VOLATILITY_CAP)
 
 
 # --------------------------------------------------------------------------- #
@@ -144,7 +163,11 @@ def _yoy(new, old):
 
 
 def eps_volatility_from_statements(stmts):
-    return eps_volatility(list(_row(stmts, "incomeStmt", "Diluted EPS").values()))
+    # sorted(...) on ISO 'YYYY-MM-DD' keys is chronological, oldest-first --
+    # eps_volatility's YoY-growth computation needs that order (see its own
+    # docstring); dict.values() alone doesn't guarantee it.
+    row = _row(stmts, "incomeStmt", "Diluted EPS")
+    return eps_volatility([v for _, v in sorted(row.items())])
 
 
 def eps_revisions_from_statements(stmts):
@@ -152,6 +175,51 @@ def eps_revisions_from_statements(stmts):
     r0 = eps_revision((et.get("0y") or {}).get("current"), (et.get("0y") or {}).get("30daysAgo"))
     r1 = eps_revision((et.get("+1y") or {}).get("current"), (et.get("+1y") or {}).get("30daysAgo"))
     return r0, r1
+
+
+# Actually-reported quarters averaged into earningsSurpriseAvg -- enough
+# to smooth a single freak quarter without reaching back so far the
+# result reflects who the company used to be, same reasoning
+# SEC_OUTLIER_REFERENCE_YEARS/ANALYST_GRADE_LOOKBACK_DAYS elsewhere in
+# this file trade off recency vs. noise.
+EARNINGS_SURPRISE_LOOKBACK_QUARTERS = 8
+# Confirmed live (AAPL 2021 Q2: +42.16%, Q3: +28.18%) that a single
+# blowout quarter -- often a one-off (post-COVID reopening demand, a
+# product supercycle) -- can dominate a plain average; capped the same
+# way GROWTH_CAP/MARGIN_CAP bound other percentage-shaped factors here.
+EARNINGS_SURPRISE_CAP = 0.20
+
+
+def earnings_surprise_from_statements(stmts):
+    """Average reported-vs-estimate EPS surprise % over the trailing
+    EARNINGS_SURPRISE_LOOKBACK_QUARTERS actually-reported quarters (see
+    IBApp.get_yf_statements' own earningsDates fetch), each clamped to
+    +/-EARNINGS_SURPRISE_CAP before averaging. A DIFFERENT signal from
+    epsRevision0y/1y (analyst ESTIMATES moving before the print, not
+    company behavior) and from epsVolatility (dispersion of REPORTED EPS
+    itself, not how it compares to what was expected each quarter) --
+    this is the historical beat/miss TRACK RECORD, the input behind two
+    well-documented anomalies (surprise persistence, post-earnings-
+    announcement drift) neither of those two already captures.
+
+    get_earnings_dates rows are newest-first and include the next
+    (unreported) print with a None/NaN Surprise(%) -- skipped here, same
+    as any other quarter missing a value, not specially cased: this
+    function only ever sees actually-reported quarters either way. None
+    when there are no reported quarters with a surprise value at all
+    (thin/no earnings-date coverage) -- earnings_surprise_rank ranks a
+    missing value worst, same treatment as every other factor's missing
+    data (a track record needs history to exist)."""
+    dates = (stmts or {}).get("earningsDates") or {}
+    surprises = []
+    for row in dates.values():
+        pct = row.get("Surprise(%)")
+        if pct is None:
+            continue
+        surprises.append(max(-EARNINGS_SURPRISE_CAP, min(EARNINGS_SURPRISE_CAP, pct / 100.0)))
+        if len(surprises) >= EARNINGS_SURPRISE_LOOKBACK_QUARTERS:
+            break
+    return statistics.fmean(surprises) if surprises else None
 
 
 def statement_metrics(stmts):
@@ -275,6 +343,7 @@ def build_screen_row(info, stmts):
     r0, r1 = eps_revisions_from_statements(stmts)
     row["epsRevision0y"], row["epsRevision1y"] = r0, r1
     row["epsVolatility"] = eps_volatility_from_statements(stmts)
+    row["earningsSurpriseAvg"] = earnings_surprise_from_statements(stmts)
 
     row.update(statement_metrics(stmts))
 
@@ -552,36 +621,85 @@ def _sec_facts_by_end(entry, key):
     return out
 
 
-def eps_volatility_merged(entry, stmts):
+def _quarter_key(date_str):
+    """ISO 'YYYY-MM-DD' -> (year, quarter) for grouping fiscal-period-end
+    dates that land within a few days of each other (different sources'
+    own idea of the exact end date for the SAME fiscal period) into one
+    bucket. None for an unparseable string."""
+    try:
+        d = date.fromisoformat(date_str)
+    except (TypeError, ValueError):
+        return None
+    return (d.year, (d.month - 1) // 3)
+
+
+def eps_volatility_merged(entry, stmts, euler_eps=None):
     """eps_volatility (see that function) computed on the UNION of SEC
     company_facts' dilutedEPS (usually a much longer back history, but
-    sometimes has a multi-year filing gap) and yfinance's own income_stmt
-    row (usually only ~4-5 trailing annual columns, but reliably
-    contiguous), keyed by fiscal-period end date so the two line up
-    naturally -- both use ISO 'YYYY-MM-DD' end dates (see
-    _sec_facts_by_end / df_to_dict's own col_key). SEC's own filed figure
-    wins whenever both cover the same date (it's the authoritative one,
-    the same preference earnings_margin_delta/fy_diluted_eps_growth
-    already give it); yfinance fills in any date SEC doesn't have, and is
-    the ONLY source at all for a ticker SEC has no dilutedEPS facts for.
+    sometimes has a multi-year filing gap), yfinance's own income_stmt row
+    (usually only ~4-5 trailing annual columns, but reliably contiguous),
+    and Eulerpool's own historical epsEstimate series (modules.eulerpool.
+    fetch_eps_estimates, cached to EPS_ESTIMATES_FILE) -- all three keyed
+    by fiscal-period end date so they line up naturally (ISO 'YYYY-MM-DD',
+    see _sec_facts_by_end / df_to_dict's own col_key / fetch_eps_
+    estimates' own docstring).
 
-    Why this matters: yfinance's income_stmt caps out around 4-5 annual
-    columns, so a single unusual year (a one-time gain/charge) can
-    dominate a stdev/mean ratio computed on that alone -- confirmed live
-    on FEIM, whose yfinance Diluted EPS series is just
-    [-0.59, 0.59, 2.48, -0.09]: that lone +2.48 (likely a one-time item,
-    not repeatable earnings power) alone pushed epsVolatility to 1.44, the
-    most extreme tier in the universe, which in turn pinned
-    simulations.py's risk-premium haircut at its own floor -- the largest
-    discount the model can apply to any stock (see RISK_PREMIUM_K there).
-    FEIM's SEC record goes back to 2011; merged, that's 10 fiscal years
-    instead of 4, sharply diluting that one year's leverage over the
-    ratio. None when the merged series still has fewer than 3 points
-    (same floor eps_volatility itself enforces)."""
+    Precedence: Eulerpool wins whenever it covers a date (see below for
+    why), else SEC's own filed figure (the same preference earnings_
+    margin_delta/fy_diluted_eps_growth already give it over yfinance),
+    else yfinance fills in anything neither of the other two has. euler_eps
+    defaults to {} (a ticker with no Eulerpool coverage falls back to the
+    old SEC/yfinance-only merge exactly as before).
+
+    Why Eulerpool wins: it reads closer to a "Street"/adjusted EPS than
+    raw GAAP -- confirmed live, spot-checked against SEC's own dilutedEPS
+    for MSFT (FY2023: $8.70 Eulerpool vs. $9.68 GAAP) and AMZN (FY2022:
+    -$0.12 Eulerpool vs. -$0.27 GAAP, the year of AMZN's huge Rivian
+    stock mark-to-market loss) -- i.e. it excludes at least some one-off
+    items GAAP includes, which is exactly what a genuine-volatility
+    measure wants to exclude. This is ADDITIONAL to (not a replacement
+    for) the eps_volatility fix below that computes YoY growth-rate
+    dispersion instead of stdev(levels)/mean(|levels|) -- that fix
+    detrends a smooth compounding trend, this one removes one-off noise
+    at the source; MSFT's own case benefits from both (see eps_volatility's
+    own docstring for the trend-conflation half of that story).
+
+    Why the SEC/yfinance merge still matters underneath: yfinance's
+    income_stmt caps out around 4-5 annual columns, so a single unusual
+    year (a one-time gain/charge) can dominate a stdev computed on that
+    alone -- confirmed live on FEIM, whose yfinance Diluted EPS series is
+    just [-0.59, 0.59, 2.48, -0.09]: that lone +2.48 (likely a one-time
+    item, not repeatable earnings power) alone pushed epsVolatility to
+    1.44 (under the OLD levels-based formula), the most extreme tier in
+    the universe, which in turn pinned simulations.py's risk-premium
+    haircut at its own floor -- the largest discount the model can apply
+    to any stock (see RISK_PREMIUM_K there). FEIM's SEC record goes back
+    to 2011; merged, that's 10 fiscal years instead of 4, sharply diluting
+    that one year's leverage over the ratio. None when the merged series
+    still has fewer than 4 points (same floor eps_volatility itself
+    enforces)."""
     sec_eps = _sec_facts_by_end(entry, "dilutedEPS")
     yf_eps = _row(stmts, "incomeStmt", "Diluted EPS")
-    merged = {**yf_eps, **sec_eps}  # SEC wins whenever both cover the same date
-    return eps_volatility(list(merged.values()))
+    euler_eps = euler_eps or {}
+    # Grouped by (year, quarter) rather than exact date -- explicit
+    # instruction: the same fiscal year end gets reported a day or two
+    # apart by different sources (confirmed live, MU: SEC's 2018-08-30 vs.
+    # Eulerpool's 2018-08-31, both the SAME FY2018), so merging by exact
+    # date string treated them as two separate observations instead of one
+    # -- diluting genuine volatility with near-zero "phantom" YoY
+    # transitions between two readings of the same year. One observation
+    # per quarter, same source precedence as before (Eulerpool wins, then
+    # SEC, then yfinance) via dict overwrite order.
+    merged_by_quarter = {}
+    for source in (yf_eps, sec_eps, euler_eps):
+        for date_str, v in source.items():
+            key = _quarter_key(date_str)
+            if key is not None and v is not None:
+                merged_by_quarter[key] = v
+    # sorted(...) on (year, quarter) tuples is chronological, oldest-first
+    # -- required by eps_volatility's YoY-growth computation (see that
+    # function's own docstring).
+    return eps_volatility([v for _, v in sorted(merged_by_quarter.items())])
 
 
 def reconcile_forward_eps(data, eulerpool_forward_eps):
@@ -648,6 +766,20 @@ def reconcile_forward_eps(data, eulerpool_forward_eps):
 
         if row.get("fwdEps1y") is not None:
             row["forwardEps"] = row["fwdEps1y"]
+        # epsCurrentYear gets the SAME treatment as forwardEps above, via
+        # the blended fwdEps0y instead of fwdEps1y -- explicit bug fix:
+        # epsCurrentYear used to stay on yfinance's raw, unreconciled value
+        # forever (fwdEps0y was computed and stored but never copied back
+        # to it), so a ticker whose raw yfinance epsCurrentYear happened to
+        # be corrupted (same class of data-basis issue as the ADR
+        # forwardEps mismatches -- confirmed live, JD: raw epsCurrentYear
+        # =$22.76 vs. a properly-blended fwdEps0y of $3.31, a 6.9x gap for
+        # the SAME company's current fiscal year) fed that bad number
+        # straight into modules.simulations' real_base (the years-1-2
+        # level-blend's own EPS anchor), inflating eps_1/eps_2 the same way
+        # a bad forwardEps used to before THAT field got this exact fix.
+        if row.get("fwdEps0y") is not None:
+            row["epsCurrentYear"] = row["fwdEps0y"]
 
         eps2y = to_float(eu.get("fwdEps2y"))
         row["eulerFwdEps2y"] = round(eps2y, 6) if eps2y is not None else None
@@ -665,21 +797,234 @@ def reconcile_forward_eps(data, eulerpool_forward_eps):
             row["eulerRevGrowth2y"] = None
 
 
-def reconcile_eps_volatility(data, xbrl, raw_stmts):
+def reconcile_peg_ratio(data):
+    """Mutates `data` in place: overwrites pegRatio with a self-computed
+    (price/forwardEps) / (earningsGrowth*100), using this project's OWN
+    reconciled forwardEps (reconcile_forward_eps' Eulerpool/yfinance
+    blend, already overwriting epsCurrentYear/forwardEps by the time this
+    runs) and earningsGrowth (reconcile_earnings_growth's SEC-XBRL-aware
+    figure) -- rather than trusting yfinance's raw, un-reconciled pegRatio
+    field outright.
+
+    Why: every other growth/EPS input this project scores on has been
+    hardened with some kind of cross-check or reconciliation this session
+    (forwardEps/trailingEps outlier guards and consistency gates,
+    earningsGrowth's SEC blend, revenueGrowth's own reconciliation) --
+    pegRatio was the one major valuation-growth factor still a straight,
+    unvalidated pass-through of Yahoo's own (not always transparent --
+    sometimes trailing PE, sometimes forward, various growth-estimate
+    vintages depending on the ticker) methodology. Recomputing it from
+    inputs this project has already vetted keeps it internally consistent
+    with what scoring.peg_rank/simulations.py trust elsewhere, instead of
+    silently mixing a third, independently-sourced growth/multiple basis
+    into the composite score.
+
+    Also uses price/forwardEps rather than the raw forwardPE field for
+    the multiple half -- forwardPE is ITSELF a yfinance pass-through (see
+    the field-mapping table above) that was never guaranteed to reflect
+    the post-reconciliation forwardEps value, the same "two raw fields
+    that can drift apart" issue modules.simulations' own forwardPE/
+    trailingPE consistency swap exists to catch.
+
+    Non-positive earningsGrowth produces a negative pegRatio (division by
+    a negative number) rather than a null one -- explicit continuity with
+    scoring.peg_rank's own PEG_NONPOSITIVE_SENTINEL handling, which
+    already treats a non-positive PEG as a real "not actually cheap"
+    signal ranked worst, not missing data. Only the earningsGrowth==0
+    edge case (genuine division-by-zero, rather than a real negative
+    figure) is special-cased to an arbitrary but reliably-negative -1.0.
+
+    Graceful degrade, same as every other reconcile_* here: a ticker
+    missing price, forwardEps (non-positive included), or earningsGrowth
+    keeps whatever pegRatio build_screen_row already set from yfinance's
+    raw field, unchanged -- this only overrides pegRatio when this
+    project's own inputs are actually available to compute a better one.
+
+    Final pass clamps EVERY negative pegRatio (self-computed above, or
+    yfinance's raw fallback for a ticker this function couldn't
+    reconcile) to -0.0001 -- explicit instruction. peg_rank's own ranking
+    already treats any peg<=0 identically regardless of magnitude (see
+    PEG_NONPOSITIVE_SENTINEL), so this changes nothing there -- it's for
+    every OTHER place pegRatio gets summed/averaged directly across many
+    positions (Positions' value-weighted Portfolio Factors table,
+    Sectors' factor tree): a single large-magnitude outlier like ST's
+    -4.64 (confirmed live) would otherwise drag a mostly-positive-PEG
+    average down far more than one "not attractive" data point should.
+    -0.0001 keeps the sign (still recognizably non-positive) while being
+    negligible in any sum/average it's folded into."""
+    for row in data.values():
+        price = to_float(row.get("price"))
+        forward_eps = to_float(row.get("forwardEps"))
+        earnings_growth = to_float(row.get("earningsGrowth"))
+        if (
+            price is None or forward_eps is None or forward_eps <= 0
+            or earnings_growth is None
+        ):
+            continue
+        own_forward_pe = price / forward_eps
+        if earnings_growth == 0:
+            row["pegRatio"] = -1.0
+        else:
+            row["pegRatio"] = round(own_forward_pe / (earnings_growth * 100.0), 6)
+
+    for row in data.values():
+        peg = to_float(row.get("pegRatio"))
+        if peg is not None and peg < 0:
+            row["pegRatio"] = -0.0001
+
+
+EPS_OUTLIER_SIGMA = 6.0
+EPS_OUTLIER_MAX_PASSES = 3
+SEC_OUTLIER_REFERENCE_YEARS = 5
+
+
+def reconcile_trailing_eps(data, raw_stmts, xbrl=None):
+    """Mutates `data` in place: recomputes trailingEps (and trailingPE,
+    price/trailingEps) as the sum of the 4 MOST RECENT quarterly Diluted
+    EPS values from yfinance's own quarterlyIncomeStmt, when at least 4
+    quarters are available -- explicit instruction.
+
+    Why: yfinance's own `.info` trailingEps/trailingPE fields can lag
+    their OWN quarterlyIncomeStmt endpoint by a full quarter -- confirmed
+    live, FEIM's trailingEps stayed at exactly $0.25 (byte-for-byte
+    identical) even immediately after a fresh download picked up its new
+    2026-07-31 quarter in quarterlyIncomeStmt, because `.info` is a
+    separate, independently-cached summary payload that doesn't always
+    recompute the instant new quarterly data lands. Recomputing directly
+    from the raw quarters here means REPORTED (already-happened) earnings
+    are reflected as soon as the underlying quarterly statement data is
+    refreshed (a `download()` call) and this function next runs (zero
+    network cost, so every `recalc()` -- not just an explicit refetch --
+    picks up whatever's freshest), rather than waiting on yfinance's own
+    summary cache to catch up on its own schedule.
+
+    This is about REPORTED earnings specifically, not forward estimates --
+    forwardEps/eulerFwdEps2y etc. are untouched; this only overrides
+    trailingEps/trailingPE, and only when 4 real quarters are present (a
+    ticker with sparser quarterly coverage keeps whatever build_screen_row
+    already set from yfinance's own trailingEps field, unchanged).
+
+    `xbrl` (SEC XBRL_FACTS_FILE, optional) extends the outlier guard's own
+    reference pool below with up to SEC_OUTLIER_REFERENCE_YEARS of SEC's
+    ANNUAL dilutedEPS history (/4, to approximate a quarterly-equivalent
+    scale) -- explicit instruction, "use at least 5 years to calculate
+    the volatility of earnings". yfinance's own quarterlyIncomeStmt caps
+    out at 5 quarters for ~99% of the universe (confirmed live), leaving
+    only ~1 extra reference point beyond the 4-quarter TTM window itself
+    -- nowhere near enough to reliably catch a second, smaller outlier
+    once a first, larger one has already been found (see the outlier
+    guard's own comment on VISN's masking failure mode). SEC's
+    company_facts.json, already ingested for eps_volatility_merged/
+    reconcile_revenue_growth, routinely goes back a decade or more
+    (confirmed live, AAPL: FY2007 onward) -- annual, not quarterly, hence
+    the /4 approximation, imprecise but adequate for a coarse sigma test,
+    not a replacement for eps_volatility's own more careful per-fact
+    handling."""
+    xbrl = xbrl or {}
+    for ticker, row in data.items():
+        stmts = raw_stmts.get(ticker) or {}
+        q_eps = (stmts.get("quarterlyIncomeStmt") or {}).get("Diluted EPS") or {}
+        all_quarters = sorted(
+            ((d, v) for d, v in q_eps.items() if to_float(v) is not None),
+            key=lambda dv: dv[0], reverse=True,
+        )
+        if len(all_quarters) < 4:
+            continue
+        # TTM is still, and only ever, the 4 MOST RECENT quarters -- older
+        # history (yfinance's own leftover quarters, plus SEC's annual
+        # history below) is pulled in ONLY as extra reference data for the
+        # outlier guard, never summed into trailingEps itself.
+        recent_values = [to_float(v) for _, v in all_quarters[:4]]
+        older_values = [to_float(v) for _, v in all_quarters[4:]]
+        sec_annual = sorted(
+            _sec_facts_by_end(xbrl.get(ticker), "dilutedEPS").items(),
+            key=lambda dv: dv[0], reverse=True,
+        )[:SEC_OUTLIER_REFERENCE_YEARS]
+        older_values.extend(v / 4.0 for _, v in sec_annual)
+
+        # 6-sigma outlier guard: a single freak quarter (a one-off
+        # gain/impairment) can dominate the TTM sum even though it's
+        # genuinely reported -- confirmed live, TRS's 2026-03-31 quarter
+        # (+$21.40) vs. its other three quarters (+0.41/+0.23/+0.37,
+        # mean~$0.34, stdev~$0.08) inflated trailingEps to $24.03 (implied
+        # P/E 1.6x) against a forwardEps/epsCurrentYear/revenueBasedEps
+        # all clustered around $1.3-2.1 -- clearly not the ongoing
+        # earnings level. EPS_OUTLIER_SIGMA=6.0 is a strict enough bar
+        # that ordinary earnings volatility (even a volatile name) won't
+        # trip it -- only a genuine order-of-magnitude freak value will.
+        #
+        # Tested against ALL available quarters (the other 3 in the
+        # summed window PLUS any older history beyond it), not just
+        # leave-one-out within the 4-quarter window alone, and iterated
+        # up to EPS_OUTLIER_MAX_PASSES times -- explicit fix for a
+        # MASKING failure mode confirmed live on VISN: quarters were
+        # $1.21/$23.15/$6.05/$0.39, and a single leave-one-out pass over
+        # just those 4 correctly replaced the freak $23.15 quarter but
+        # left $6.05 untouched, because $6.05's own reference set
+        # (`{1.21, 23.15, 0.39}`) still contained the unreplaced $23.15,
+        # inflating that reference's stdev enough to hide $6.05 behind
+        # it -- one extreme outlier masking a second, smaller one. Most
+        # tickers only have ~5-8 quarters of yfinance history total, so
+        # `older_values` is often thin (sometimes just 1-2 points) rather
+        # than a large independent sample; re-testing against the
+        # PARTIALLY CLEANED set on each pass (not a fixed original
+        # snapshot) is what actually resolves the masking, not the extra
+        # history alone -- confirmed by hand for VISN: pass 1 replaces
+        # $23.15 with $1.93 (mean of {1.21, 6.05, 0.39, 0.06}), and pass 2
+        # then correctly catches $6.05 against the now-cleaned
+        # {1.21, 1.93, 0.39, 0.06}.
+        cleaned = list(recent_values)
+        for _ in range(EPS_OUTLIER_MAX_PASSES):
+            changed = False
+            for i, v in enumerate(cleaned):
+                others = cleaned[:i] + cleaned[i + 1:] + older_values
+                if len(others) < 3:
+                    continue
+                mean_others = statistics.mean(others)
+                stdev_others = statistics.pstdev(others)
+                if stdev_others > 0 and abs(v - mean_others) > EPS_OUTLIER_SIGMA * stdev_others:
+                    cleaned[i] = mean_others
+                    changed = True
+            if not changed:
+                break
+        ttm_eps = sum(cleaned)
+        row["trailingEps"] = round(ttm_eps, 6)
+        price = to_float(row.get("price"))
+        if price is not None and ttm_eps > 0:
+            row["trailingPE"] = round(price / ttm_eps, 6)
+        elif ttm_eps <= 0:
+            # A <= 0 TTM EPS makes trailingPE meaningless (same convention
+            # as every other "prev <= 0" guard in this file) -- leave
+            # whatever trailingPE was already set to rather than compute a
+            # nonsensical negative or infinite multiple.
+            pass
+
+
+def reconcile_eps_volatility(data, xbrl, raw_stmts, euler_eps_estimates=None):
     """Mutates `data` in place: recomputes each row's epsVolatility (set
     at build_screen_row time from yfinance's own income_stmt alone, before
-    xbrl is even loaded -- see build_screen_row) using
-    eps_volatility_merged's longer SEC-plus-yfinance series, for any
-    ticker SEC has at least one dilutedEPS fact on file for. Left
+    xbrl is even loaded -- see build_screen_row) using eps_volatility_
+    merged's longer, three-source (Eulerpool + SEC + yfinance) series, for
+    any ticker at least ONE of SEC or Eulerpool has data for. Left
     untouched (whatever build_screen_row already computed from yfinance
-    alone) for a ticker SEC has no dilutedEPS coverage for at all, or
-    where the merge still doesn't reach eps_volatility's own 3-point
-    floor."""
+    alone) for a ticker neither SEC nor Eulerpool covers at all, or where
+    the merge still doesn't reach eps_volatility's own 4-point floor.
+
+    `euler_eps_estimates` = loaded EPS_ESTIMATES_FILE (modules.eulerpool.
+    fetch_eps_estimates), i.e. {ticker: {period: epsEstimate, ...}};
+    defaults to {} (an ticker Eulerpool doesn't cover, or when the file
+    hasn't been fetched at all yet, falls back to the old SEC/yfinance-only
+    merge exactly as before -- Eulerpool coverage widens which tickers get
+    the merge treatment at all, e.g. a Form 20-F foreign issuer like TSM
+    with no SEC XBRL dilutedEPS facts can still benefit if Eulerpool
+    covers it, which SEC-only gating never allowed)."""
+    euler_eps_estimates = euler_eps_estimates or {}
     for ticker, row in data.items():
         entry = xbrl.get(ticker)
-        if not entry or not entry.get("dilutedEPS"):
+        euler_eps = euler_eps_estimates.get(ticker)
+        if (not entry or not entry.get("dilutedEPS")) and not euler_eps:
             continue
-        merged = eps_volatility_merged(entry, raw_stmts.get(ticker))
+        merged = eps_volatility_merged(entry, raw_stmts.get(ticker), euler_eps)
         if merged is not None:
             row["epsVolatility"] = round(merged, 6)
 
@@ -811,17 +1156,39 @@ def fy_diluted_eps_growth(entry, row):
     rate, "est" when the forward estimate stood in, None when nothing was
     available. is_turnaround is True when the prior FY was a loss (<= 0)
     and the latest FY a profit (> 0) -- no meaningful %, but a real
-    signal."""
+    signal.
+
+    estimateGrowth1y itself is a THIRD-PARTY ratio (Yahoo's own +1y
+    consensus EPS / current-year consensus EPS - 1) with no cross-zero
+    protection of its own -- confirmed live, WYFI: epsCurrentYear=-$0.80
+    (a loss), forwardEps=+$0.23 (expected profit), the exact same
+    loss-to-profit pathology eg-turnaround exists to catch, just shifted
+    one year forward. estimateGrowth1y=1.2391 (clamped to the +1.0
+    ceiling) fed straight through as "eg-est", then simulations.py's
+    convergenceGrowthRate (0.9*industryGrowthRate + 0.1*earningsGrowth)
+    treated that meaningless clamped ratio as a real long-run growth
+    signal. Guarded the same way as the trailing case: when
+    epsCurrentYear and forwardEps sit on OPPOSITE sides of zero, treat
+    ANY est_clamped use below as a turnaround (blank rate, real signal
+    left to earningsMarginDelta) instead of trusting the ratio."""
     est_g = to_float(row.get("estimateGrowth1y"))
     est_clamped = max(-1.0, min(1.0, est_g)) if est_g is not None else None
+    cur_year_eps = to_float(row.get("epsCurrentYear"))
+    fwd_eps = to_float(row.get("forwardEps"))
+    est_crosses_zero = (
+        cur_year_eps is not None and fwd_eps is not None
+        and (cur_year_eps <= 0) != (fwd_eps <= 0)
+    )
 
     def _floor(raw):
         # raw > -1.0: a real decline, keep it. raw <= -1.0 (profit -> loss):
         # prefer the clamped forward estimate, else the -1.0 floor.
         if raw > _EARNGROWTH_RATE_FLOOR:
             return raw, False, "fy"
-        if est_clamped is not None:
+        if est_clamped is not None and not est_crosses_zero:
             return est_clamped, False, "est"
+        if est_crosses_zero:
+            return None, True, None
         return _EARNGROWTH_RATE_FLOOR, False, "fy"
 
     e = (entry or {}).get("dilutedEPS") or []
@@ -839,6 +1206,8 @@ def fy_diluted_eps_growth(entry, row):
     if prior is not None and latest is not None:
         return None, prior <= 0 < latest, None
     if est_clamped is not None:
+        if est_crosses_zero:
+            return None, True, None
         return est_clamped, False, "est"
     return None, False, None
 
@@ -916,3 +1285,242 @@ def reconcile_earnings_growth(data, xbrl):
         print("Reconciled earningsGrowth: "
               + ", ".join(f"{v} {k}" for k, v in counts.items() if v)
               + f"  |  earningsMarginDelta on {md_n} ({md_op_n} incl. operating leg)")
+
+
+# --------------------------------------------------------------------------- #
+#  Momentum -- Trend Score, replacing the old Money Flow Index               #
+# --------------------------------------------------------------------------- #
+# Explicit instruction, after a formation/holding-period cross-section on
+# 3 months of daily IB Gateway bars (1,997 tickers) showed:
+#   - 5-15 trading-day lookbacks predict NEGATIVE forward returns (short-
+#     term reversal -- a stock up sharply over 1-3 weeks tends to give
+#     some back, not keep running).
+#   - ~20-30 trading-day lookbacks predict POSITIVE forward returns
+#     (genuine continuation) -- best-supported pair: 20-day formation,
+#     20-day holding (top-decile-minus-bottom-decile spread +4.58%,
+#     Spearman +0.089, n=3,994 non-overlapping windows).
+#   - Volume acceleration during the formation window (second half vs
+#     first half) predicts WORSE forward returns in BOTH directions --
+#     top price-momentum decile: falling volume +3.69% next 20d vs.
+#     rising volume -0.34%; bottom decile: falling volume -1.76% vs.
+#     rising volume -4.07%. Not a direction-dependent "exhaustion for
+#     rallies only" effect -- rising volume during formation is a
+#     general bearish tilt on top of price momentum either way, so it
+#     enters the formula with one sign, not a conditional one.
+# MSI (Money Flow Index/RSI, see IBApp.get_momentum) answers a
+# DIFFERENT, shorter-horizon question and was never wrong on its own
+# terms -- it's built around exactly the 1-3 week window this
+# cross-section shows is reversal-prone, which is why a genuine
+# multi-week trend (confirmed live: DINO, Hold-rated, +76% over 3
+# months) reads as "overbought" under MSI instead of "trending."
+MOMENTUM_FORMATION_DAYS = 20
+MOMENTUM_REVERSAL_DAYS = 5
+# Weights on the three z-scored legs before percentile-ranking to 0-100 --
+# r20 at full weight (the primary, best-validated signal), vol_accel and
+# r5 at partial weight (real but secondary effects, and r5 is already
+# correlated with r20 by construction so shouldn't cancel it outright).
+MOMENTUM_VOL_WEIGHT = 0.5
+MOMENTUM_REVERSAL_WEIGHT = 0.3
+# Bars needed: MOMENTUM_FORMATION_DAYS (r20) + 1 (the day before it, as
+# the r20 base) + a little slack -- 25 is comfortably enough for both
+# r20 and r5/vol_accel, which live entirely inside the r20 window.
+MOMENTUM_MIN_BARS = 25
+
+
+def reconcile_momentum(data, daily_history):
+    """Mutates `data` in place: overwrites each row's momentum with the
+    new Trend Score (see this section's own comment for what it replaces
+    and why), a cross-sectional percentile rank 0-100 (0=most bearish,
+    100=most bullish) -- SAME scale and SAME semantics the old MSI-based
+    momentum already used, so RecommendationsView.tsx's existing gate
+    thresholds (MOMENTUM_NO_BUY=35, NO_SELL=65, OVERSOLD=20,
+    OVERBOUGHT=80) still mean exactly what they always meant ("bottom
+    35th percentile," etc.) without needing to be recalibrated -- a
+    percentile rank carries that meaning regardless of the underlying
+    score's own distribution shape, unlike a raw z-score or return
+    figure would.
+
+    `daily_history` = loaded DAILY_3MO_HISTORY_FILE. A ticker with fewer
+    than MOMENTUM_MIN_BARS daily bars keeps whatever momentum
+    build_screen_row/add_momentum already set (graceful degrade, same
+    convention every other reconcile_* here uses) -- this only replaces
+    momentum where the new computation actually has enough data to
+    trust."""
+    raw = {}
+    for ticker, row in data.items():
+        series = daily_history.get(ticker)
+        if not series or len(series) < MOMENTUM_MIN_BARS:
+            continue
+        closes = [to_float(b.get("close")) for b in series[-MOMENTUM_MIN_BARS:]]
+        vols = [to_float(b.get("volume")) or 0.0 for b in series[-MOMENTUM_MIN_BARS:]]
+        if any(c is None for c in closes):
+            continue
+        base20 = closes[-1 - MOMENTUM_FORMATION_DAYS]
+        base5 = closes[-1 - MOMENTUM_REVERSAL_DAYS]
+        if base20 is None or base20 <= 0 or base5 is None or base5 <= 0 or closes[-1] <= 0:
+            continue
+        r20 = closes[-1] / base20 - 1.0
+        r5 = closes[-1] / base5 - 1.0
+        formation_vols = vols[-MOMENTUM_FORMATION_DAYS:]
+        half = MOMENTUM_FORMATION_DAYS // 2
+        v_first = statistics.mean(formation_vols[:half])
+        v_second = statistics.mean(formation_vols[half:])
+        if v_first <= 0:
+            continue
+        vol_accel = v_second / v_first - 1.0
+        raw[ticker] = {"r20": r20, "r5": r5, "vol_accel": vol_accel}
+
+    if len(raw) < 10:
+        return
+
+    def zscores(key):
+        vals = [v[key] for v in raw.values()]
+        mean = statistics.mean(vals)
+        stdev = statistics.pstdev(vals)
+        return {t: ((v[key] - mean) / stdev if stdev > 0 else 0.0) for t, v in raw.items()}
+
+    z_r20 = zscores("r20")
+    z_r5 = zscores("r5")
+    z_vol = zscores("vol_accel")
+
+    scores = {
+        t: z_r20[t] - MOMENTUM_VOL_WEIGHT * z_vol[t] - MOMENTUM_REVERSAL_WEIGHT * z_r5[t]
+        for t in raw
+    }
+    ordered = sorted(scores, key=lambda t: scores[t])
+    n = len(ordered)
+    for i, ticker in enumerate(ordered):
+        pct = (i / (n - 1) * 100.0) if n > 1 else 50.0
+        data[ticker]["momentum"] = round(pct, 2)
+
+
+# --------------------------------------------------------------------------- #
+#  Mean reversion -- hourly Reversal Score, replacing the hourly MFI          #
+# --------------------------------------------------------------------------- #
+# Explicit instruction, same formation/holding cross-section methodology
+# as reconcile_momentum above, run on HOURLY IB Gateway bars instead of
+# daily (11,988-290,000 observations per cell across a 1-21 hour x 1-21
+# hour grid). Unlike the daily result, the hourly timeframe is
+# mean-reverting EVERYWHERE tested -- the spread is negative or flat
+# across all 64 (formation, holding) combinations, never flipping
+# positive the way daily did past 20 trading days. So this is a
+# RECALIBRATION of mean_reversion's existing "low=oversold=good entry,
+# high=overbought=bad" convention, not a sign flip the way momentum
+# needed -- the old hourly MFI had the right instinct, just not
+# necessarily tuned to the horizon that best expresses it.
+# Best-supported cell in the grid: a 14-HOUR (~2 trading days) formation
+# window predicts the NEXT 21 HOURS (~3 trading days) best of everything
+# tested -- top-decile-minus-bottom-decile spread -2.16%, Spearman
+# -0.168, n=11,988. Confirmed live that volume does NOT meaningfully
+# improve this the way it improved the daily momentum signal -- Spearman
+# of volume-acceleration-during-formation against the 21h outcome was
+# +0.015 (top decile), -0.035 (bottom decile), an order of magnitude
+# weaker than the daily case's -0.174 -- so, deliberately, no volume
+# term here, price-only.
+MEAN_REVERSION_FORMATION_HOURS = 14
+MEAN_REVERSION_MIN_BARS = 20  # formation window + a little slack
+
+
+def reconcile_mean_reversion(data, hourly_history):
+    """Mutates `data` in place: overwrites each row's meanReversion with
+    the new hourly Reversal Score -- a cross-sectional percentile rank
+    0-100, SAME scale and SAME "low=oversold=good entry, high=overbought
+    =bad" convention the old hourly-MFI-based meanReversion already
+    used, so mean_reversion_rank's own value/100 direct read, and
+    RecommendationsView.tsx's meanReversionOkForLong/OkForShort/
+    buildCloseReasons thresholds, all keep meaning exactly what they
+    always meant without needing to be recalibrated -- only what feeds
+    `meanReversion` upstream changes.
+
+    `hourly_history` = loaded HOURLY_HISTORY_FILE. Same coverage scope
+    the old hourly MFI already had -- IB Gateway only fetches hourly
+    candlesticks for CANDLESTICK_TOP_N ranked/held tickers (~40% of the
+    universe), not the whole screen; a ticker outside that scope, or
+    with fewer than MEAN_REVERSION_MIN_BARS hourly bars, keeps whatever
+    meanReversion build_screen_row/add_momentum already set (graceful
+    degrade, same convention reconcile_momentum uses for `momentum`)."""
+    raw = {}
+    for ticker, row in data.items():
+        series = hourly_history.get(ticker)
+        if not series or len(series) < MEAN_REVERSION_MIN_BARS:
+            continue
+        closes = [to_float(b.get("close")) for b in series[-MEAN_REVERSION_MIN_BARS:]]
+        if any(c is None for c in closes):
+            continue
+        base = closes[-1 - MEAN_REVERSION_FORMATION_HOURS]
+        if base is None or base <= 0 or closes[-1] <= 0:
+            continue
+        raw[ticker] = closes[-1] / base - 1.0
+
+    if len(raw) < 10:
+        return
+
+    mean = statistics.mean(raw.values())
+    stdev = statistics.pstdev(raw.values())
+    scores = {t: ((v - mean) / stdev if stdev > 0 else 0.0) for t, v in raw.items()}
+
+    ordered = sorted(scores, key=lambda t: scores[t])
+    n = len(ordered)
+    for i, ticker in enumerate(ordered):
+        pct = (i / (n - 1) * 100.0) if n > 1 else 50.0
+        data[ticker]["meanReversion"] = round(pct, 2)
+
+
+# 35 hours (~5 trading days at 7 bars/day) -- NOT the same window as
+# meanReversion's 14h. Found via a dedicated formation/holding scan fixed
+# at a 1-TRADING-DAY holding period (7 hourly bars): rho against next-day
+# return is negative (mean-reverting) at every formation length tested,
+# but forms a clean, isolated peak at 35h (rho=-0.104, n~29,976) --
+# 14h sits near the WEAKEST point of that curve (rho=-0.025), which is
+# why the old meanReversion-as-a-scored-factor came out backwards. This
+# is a deliberately different, narrower thing: a 1-day-ahead timing read,
+# not a replacement for meanReversion and not fed into FACTOR_WEIGHTS at
+# all -- explicit instruction, after confirming this signal's own edge
+# decays past a ~1-2 day horizon (rho fades to -0.04 by 49h/7 days), so
+# it has no business influencing which stocks get picked for a 5-trading-
+# day hold. It answers a narrower question instead: for a candidate
+# ALREADY selected, is TODAY specifically a good day to place that entry.
+ENTRY_TIMING_FORMATION_HOURS = 35
+ENTRY_TIMING_MIN_BARS = 40  # formation window + a little slack
+
+
+def reconcile_entry_timing(data, hourly_history):
+    """Mutates `data` in place: writes each row's entryTiming, a
+    cross-sectional percentile rank 0-100 on the trailing
+    ENTRY_TIMING_FORMATION_HOURS-hour return -- same "low=recently
+    fallen=a good day to buy, high=recently run up=a good day to short"
+    convention meanReversion uses, same graceful-degrade (a ticker
+    outside CANDLESTICK_TOP_N hourly coverage, or with fewer than
+    ENTRY_TIMING_MIN_BARS hourly bars, is simply left without a value --
+    there's no stale prior value to fall back to since this is a new
+    field, unlike meanReversion/momentum's reconcile_* functions).
+
+    Deliberately NOT scored (no FACTOR_WEIGHTS entry) and NOT a gate --
+    see this section's own comment above for why. RecommendationsView.tsx
+    surfaces it as a plain informational "good day to act" line on cards
+    for candidates already selected, nothing else reads it."""
+    raw = {}
+    for ticker, row in data.items():
+        series = hourly_history.get(ticker)
+        if not series or len(series) < ENTRY_TIMING_MIN_BARS:
+            continue
+        closes = [to_float(b.get("close")) for b in series[-ENTRY_TIMING_MIN_BARS:]]
+        if any(c is None for c in closes):
+            continue
+        base = closes[-1 - ENTRY_TIMING_FORMATION_HOURS]
+        if base is None or base <= 0 or closes[-1] <= 0:
+            continue
+        raw[ticker] = closes[-1] / base - 1.0
+
+    if len(raw) < 10:
+        return
+
+    mean = statistics.mean(raw.values())
+    stdev = statistics.pstdev(raw.values())
+    scores = {t: ((v - mean) / stdev if stdev > 0 else 0.0) for t, v in raw.items()}
+
+    ordered = sorted(scores, key=lambda t: scores[t])
+    n = len(ordered)
+    for i, ticker in enumerate(ordered):
+        pct = (i / (n - 1) * 100.0) if n > 1 else 50.0
+        data[ticker]["entryTiming"] = round(pct, 2)

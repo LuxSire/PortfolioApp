@@ -77,6 +77,12 @@ RSI_PERIOD = 14
 HISTORICAL_PACING_MAX_REQUESTS = 200
 HISTORICAL_PACING_WINDOW_SECONDS = 360
 
+# get_earnings_dates(limit=...) rows, newest first -- includes the next
+# (unreported, NaN actual/surprise) print alongside past ones, so 9 here
+# covers derive.EARNINGS_SURPRISE_LOOKBACK_QUARTERS (8) reported quarters
+# plus that one upcoming row.
+EARNINGS_DATES_LOOKBACK = 9
+
 
 def _money_flow_index(bars, period=MFI_PERIOD):
     """Money Flow Index -- the volume-weighted analog of RSI, computed
@@ -1071,6 +1077,13 @@ class IBApp:
                 ("quarterlyIncomeStmt", lambda: yt.quarterly_income_stmt),
                 ("epsTrend", lambda: yt.get_eps_trend()),
                 ("earningsEstimate", lambda: yt.get_earnings_estimate()),
+                # Reported-vs-estimate EPS + surprise% per quarter, most
+                # recent EARNINGS_DATES_LOOKBACK first -- at no extra API
+                # cost, same yf.Ticker object as the three calls above.
+                # Feeds derive.earnings_surprise_from_statements (a
+                # DIFFERENT signal from epsTrend's estimate-revision read:
+                # this is the actual historical beat/miss track record).
+                ("earningsDates", lambda: yt.get_earnings_dates(limit=EARNINGS_DATES_LOOKBACK)),
             ):
                 try:
                     d = derive.df_to_dict(getter())

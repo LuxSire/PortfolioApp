@@ -180,37 +180,37 @@ def add_avg_liquidity_ratio(data):
 INST_CHANGE_CLIP = 0.5
 
 
-def load_sentiment_scores(social_sentiment_file, news_sentiment_file, institutional_holdings_file=None):
+def load_sentiment_scores(social_sentiment_file, news_sentiment_file):
     """{ticker: score in [-1, 1]}, blending StockTwits social sentiment
-    (social_sentiment_file, already -1..1 -- see social_sentiment.py),
+    (social_sentiment_file, already -1..1 -- see social_sentiment.py) and
     FinBERT news sentiment (news_sentiment_file, {ticker: {articleId:
     score}} with each score 1 (very bearish) - 5 (very bullish) --
-    written by ib_server.py's news_loop), and institutional
-    quarter-over-quarter share-count change (institutional_holdings_file,
-    {ticker: {pctShareChangeQoQ, ...}} -- see
-    sec_edgar.fetch_13f_holdings; institutions net-buying vs. net-selling)
-    into the single sentiment factor sentiment_rank uses. Neutral (score
-    3) articles are dropped before averaging -- a ticker whose headlines
-    are all routine filings/dividend notices shouldn't average out to
-    "neutral" in a way that's indistinguishable from "no signal", it
-    should just contribute no news opinion at all (same as having no
-    news). Remaining news scores are averaged per ticker then
-    recentered/rescaled to -1..1 as (avg - 3) / 2, so all three sources
-    share the same scale before blending -- pctShareChangeQoQ is clipped
-    to +/-INST_CHANGE_CLIP then divided by it. A ticker with only some of
-    the three sources uses whichever it has; simple average of whatever's
-    present. A missing file (e.g. that background process/script has
-    never run), a ticker whose news was entirely neutral, or a ticker
-    with no institutional-holdings match, just means that ticker falls
-    back to whatever subset of sources it has, or (if none apply) an
+    written by ib_server.py's news_loop) into the news/social sentiment
+    factor sentiment_rank uses. Neutral (score 3) articles are dropped
+    before averaging -- a ticker whose headlines are all routine filings/
+    dividend notices shouldn't average out to "neutral" in a way that's
+    indistinguishable from "no signal", it should just contribute no news
+    opinion at all (same as having no news). Remaining news scores are
+    averaged per ticker then recentered/rescaled to -1..1 as
+    (avg - 3) / 2, so both sources share the same scale before blending.
+    A ticker with only one of the two sources uses whichever it has. A
+    missing file (e.g. that background process/script has never run), or
+    a ticker whose news was entirely neutral, just means that ticker
+    falls back to whatever subset it has, or (if neither applies) an
     empty map -- sentiment_rank ranks a missing score NEUTRAL (0.5), so
     this never blocks scoring and a thinly-covered name isn't buried for
-    the coverage gap. Takes all file paths as arguments (rather than importing
-    them from main.py) so main.py can import from this module without a
-    circular import back the other way. institutional_holdings_file
-    defaults to None (skipped entirely, same as if it were missing) so
-    existing callers that only pass the first two files keep working
-    unchanged."""
+    the coverage gap. Takes both file paths as arguments (rather than
+    importing them from main.py) so main.py can import from this module
+    without a circular import back the other way.
+
+    UPDATE: institutional 13F quarter-over-quarter change USED to be
+    blended in here too, as a third leg -- split out into its own
+    load_institutional_scores/institutional_rank/"institutional" factor
+    instead, explicit instruction after the factor-performance check
+    found the two behave differently (institutional mildly WORKING for
+    longs, rho=+0.056; news backwards on both books, rho=-0.07 to -0.09)
+    -- one blended weight was hiding that a real signal and a broken one
+    were sharing it."""
     try:
         with open(social_sentiment_file) as f:
             social = json.load(f)
@@ -221,16 +221,9 @@ def load_sentiment_scores(social_sentiment_file, news_sentiment_file, institutio
             news = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         news = {}
-    institutional = {}
-    if institutional_holdings_file:
-        try:
-            with open(institutional_holdings_file) as f:
-                institutional = json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
-            institutional = {}
 
     scores = {}
-    for ticker in set(social) | set(news) | set(institutional):
+    for ticker in set(social) | set(news):
         parts = []
         social_score = social.get(ticker, {}).get("score")
         if social_score is not None:
@@ -238,10 +231,6 @@ def load_sentiment_scores(social_sentiment_file, news_sentiment_file, institutio
         non_neutral = [s for s in news.get(ticker, {}).values() if s != 3]
         if non_neutral:
             parts.append((sum(non_neutral) / len(non_neutral) - 3) / 2)
-        inst_change = institutional.get(ticker, {}).get("pctShareChangeQoQ")
-        if inst_change is not None:
-            clipped = max(-INST_CHANGE_CLIP, min(INST_CHANGE_CLIP, inst_change))
-            parts.append(clipped / INST_CHANGE_CLIP)
         if parts:
             scores[ticker] = sum(parts) / len(parts)
     return scores
@@ -266,20 +255,70 @@ def sentiment_rank(rows, sentiment_scores):
     )
 
 
+def load_institutional_scores(institutional_holdings_file):
+    """{ticker: score in [-1, 1]} from institutional quarter-over-quarter
+    share-count change (institutional_holdings_file, {ticker:
+    {pctShareChangeQoQ, ...}} -- see sec_edgar.fetch_13f_holdings;
+    institutions net-buying vs. net-selling). pctShareChangeQoQ is
+    clipped to +/-INST_CHANGE_CLIP then divided by it, same rescale
+    load_sentiment_scores' news leg used to share this factor with before
+    the split (see that function's own UPDATE paragraph). A missing file
+    or a ticker with no institutional-holdings match returns an empty/
+    partial map -- institutional_rank ranks a missing score NEUTRAL
+    (0.5), same convention as everywhere else a coverage gap shows up in
+    this file."""
+    try:
+        with open(institutional_holdings_file) as f:
+            institutional = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+    scores = {}
+    for ticker, entry in institutional.items():
+        inst_change = entry.get("pctShareChangeQoQ")
+        if inst_change is not None:
+            clipped = max(-INST_CHANGE_CLIP, min(INST_CHANGE_CLIP, inst_change))
+            scores[ticker] = clipped / INST_CHANGE_CLIP
+    return scores
+
+
+def institutional_rank(rows, institutional_scores):
+    """High institutional QoQ share-count change (institutions net-
+    buying) ranks better; missing ranked NEUTRAL (0.5) -- same structure
+    as sentiment_rank, split into its own factor (see
+    load_institutional_scores' own docstring for why)."""
+    augmented = [(symbol, {**d, "_institutionalScore": institutional_scores.get(symbol)}) for symbol, d in rows]
+    return rank_ascending(
+        augmented,
+        lambda d: -d["_institutionalScore"] if d.get("_institutionalScore") is not None else None,
+        missing=0.5,
+    )
+
+
 # ---------------------------------------------------------------------- #
 #  Insiders -- SEC Form 4 open-market buy/sell activity                   #
 # ---------------------------------------------------------------------- #
 def load_insider_scores(form4_file):
     """{ticker: score in [-1, 1]} from SEC EDGAR Form 4 filings (see
-    sec_edgar.py's fetch_form4) -- (buys - sells) / (buys + sells), counting
-    only open-market transactions (transactionCode 'P' = purchase, 'S' =
-    sale). Every other code (M = option exercise, F = tax withholding, A =
-    grant/award, G = gift, ...) is routine compensation mechanics, not a
-    discretionary bet, and is excluded the same way load_sentiment_scores
-    drops neutral news headlines above -- it shouldn't pull the score
-    toward anything, it just shouldn't count. A ticker with no P/S
-    transactions in the file (no Form 4 coverage at all, or only
-    non-open-market activity) is left out of the returned map entirely;
+    sec_edgar.py's fetch_form4) -- (buyValue - sellValue) / (buyValue +
+    sellValue), counting only open-market transactions (transactionCode
+    'P' = purchase, 'S' = sale). Every other code (M = option exercise,
+    F = tax withholding, A = grant/award, G = gift, ...) is routine
+    compensation mechanics, not a discretionary bet, and is excluded the
+    same way load_sentiment_scores drops neutral news headlines above --
+    it shouldn't pull the score toward anything, it just shouldn't count.
+
+    DOLLAR-WEIGHTED (shares * pricePerShare), not a plain buy/sell COUNT
+    -- explicit instruction, after the factor-performance check found the
+    count-based version backwards on both books (rho=-0.134 long,
+    n=472). A single-transaction count treats a $50k token purchase and a
+    $5M cluster buy identically; weighting by value lets a large,
+    genuinely discretionary bet actually outweigh a routine small one,
+    which the count-only version couldn't distinguish at all.
+
+    A ticker with no P/S transactions in the file (no Form 4 coverage at
+    all, or only non-open-market activity, or a transaction missing
+    shares/pricePerShare) is left out of the returned map entirely;
     insiders_rank already ranks a missing score worst, same treatment as
     every other factor's missing data. Takes the file path as an argument
     rather than importing it from main.py, same reasoning as
@@ -292,17 +331,24 @@ def load_insider_scores(form4_file):
 
     scores = {}
     for ticker, filings in filings_by_ticker.items():
-        buys = sells = 0
+        buy_value = sell_value = 0.0
         for filing in filings:
             for tx in filing.get("transactions", []):
                 code = tx.get("code")
+                if code not in ("P", "S"):
+                    continue
+                shares = to_float(tx.get("shares"))
+                price = to_float(tx.get("pricePerShare"))
+                if shares is None or price is None or shares <= 0 or price <= 0:
+                    continue
+                value = shares * price
                 if code == "P":
-                    buys += 1
-                elif code == "S":
-                    sells += 1
-        total = buys + sells
+                    buy_value += value
+                else:
+                    sell_value += value
+        total = buy_value + sell_value
         if total:
-            scores[ticker] = (buys - sells) / total
+            scores[ticker] = (buy_value - sell_value) / total
     return scores
 
 
@@ -784,20 +830,58 @@ def debt_rank(rows):
     return rank_ascending(rows, key)
 
 
+# A genuine 5x quick/current ratio is already exceptional liquidity --
+# comfortably above the universe's own p95 (~10-11, confirmed live) sits
+# too high to matter for a real reading, this is meant to catch the
+# near-zero-current-liabilities artifact tier above that (NG 112.6x, BXMT
+# 98.6x, CSWC 73.2x, all confirmed live -- though CSWC/BXMT are Financials/
+# Real-Estate-classified and already carry 0 weight on this factor
+# regardless; NG and similar ordinary operating companies under
+# STANDARD_WEIGHTS/GROWTH_WEIGHTS are the names this cap actually
+# protects). Same "an outlier can't claim the best rank ahead of a
+# genuinely exceptional real number" discipline as ROE_CAP/GROWTH_CAP.
+LIQUIDITY_RATIO_CAP = 5.0
+
+
 def liquidity_rank(rows):
-    """Average of high quickRatio and high currentRatio ranks; missing
-    ranked worst."""
-    quick_ranks = rank_ascending(rows, high_is_better_key("quickRatio"))
-    current_ranks = rank_ascending(rows, high_is_better_key("currentRatio"))
+    """Average of high quickRatio and high currentRatio ranks, each capped
+    at LIQUIDITY_RATIO_CAP first (see that constant's own comment) so a
+    near-zero-current-liabilities artifact can't claim the best rank;
+    missing ranked worst."""
+    def capped(field):
+        def key(d):
+            value = to_float(d.get(field))
+            return -min(value, LIQUIDITY_RATIO_CAP) if value is not None else None
+        return key
+
+    quick_ranks = rank_ascending(rows, capped("quickRatio"))
+    current_ranks = rank_ascending(rows, capped("currentRatio"))
     return {symbol: (quick_ranks[symbol] + current_ranks[symbol]) / 2 for symbol, _ in rows}
 
 
+# Larger than all but the most extreme ~1% of positive returnOnEquity in
+# the universe (p99 ~2.0, confirmed live) -- a genuine, exceptional ROE
+# lives well under this. Above it is almost always a near-zero (or
+# recently-negative) equity-base artifact, not real per-dollar-of-equity
+# performance -- confirmed live, NTNX read 374.6 (37,460%!) from years of
+# negative shareholder equity turning barely positive, which would
+# otherwise claim the single best ROE in the entire universe under a
+# plain ascending sort. Same "an outlier can't claim the best rank ahead
+# of a genuinely exceptional real number" discipline GROWTH_CAP already
+# gives revenueGrowth.
+ROE_CAP = 2.0
+
+
 def roe_rank(rows):
-    """High returnOnEquity ranks better. Negative ROE means negative net
-    income relative to equity — a qualitatively worse signal than "low
-    positive" ROE, same treatment growth_rank gives negative
-    revenueGrowth."""
-    return rank_ascending(rows, neg_if_positive("returnOnEquity"))
+    """High returnOnEquity ranks better, capped at ROE_CAP first (see that
+    constant's own comment) so a near-zero-equity artifact can't claim the
+    best rank. Negative ROE means negative net income relative to equity —
+    a qualitatively worse signal than "low positive" ROE, same treatment
+    growth_rank gives negative revenueGrowth."""
+    def key(d):
+        value = to_float(d.get("returnOnEquity"))
+        return -min(value, ROE_CAP) if value is not None and value > 0 else None
+    return rank_ascending(rows, key)
 
 
 def margin_rank(rows):
@@ -880,8 +964,18 @@ def growth_rank(rows):
             return None
         value = min(value, GROWTH_CAP)
         earnings = to_float(d.get("earningsGrowth"))
-        if earnings is not None and earnings < value:
-            value = min(value, max(earnings, 0.0))
+        # Capped at GROWTH_CAP too, for symmetry with revenueGrowth's own
+        # cap above -- defense-in-depth, not a live fix: the cap below
+        # only ever activates when earnings < value (an extreme large
+        # positive earnings never triggers it) and max(earnings, 0.0)
+        # already floors the DOWN side at zero regardless of magnitude,
+        # so an artifact-driven -5000% already has the identical effect
+        # as a genuine -20%. Capping here just keeps both legs of this
+        # comparison on the same bounded scale.
+        if earnings is not None:
+            earnings = min(earnings, GROWTH_CAP)
+            if earnings < value:
+                value = min(value, max(earnings, 0.0))
         return -value
     return rank_ascending(rows, key)
 
@@ -905,6 +999,28 @@ def earnings_growth_rank(rows):
     (a different question -- did earnings keep pace), never as a reward."""
     def key(d):
         value = to_float(d.get("earningsMarginDelta"))
+        return -value if value is not None else None
+    return rank_ascending(rows, key, missing=0.5)
+
+
+def earnings_surprise_rank(rows):
+    """High earningsSurpriseAvg (see derive.earnings_surprise_from_statements
+    -- trailing average reported-vs-estimate EPS surprise %, capped and
+    averaged over the last several actually-reported quarters) ranks
+    better; missing ranked NEUTRAL (0.5), same convention as
+    earnings_growth_rank/eps_volatility_rank -- no track record on file
+    (thin coverage, recent IPO) isn't itself a bearish signal. A
+    DIFFERENT signal from eps_trend_rank (analyst ESTIMATES moving before
+    the print) and epsVolatility (dispersion of reported EPS itself) --
+    this is the historical beat/miss track record, the input behind
+    earnings-surprise persistence and post-earnings-announcement drift,
+    neither of which either of those two already captures. 0% everywhere
+    for now -- explicit instruction, brand new factor, left unweighted
+    until it can be correlation-checked the same way every other factor
+    here has been this session (see e.g. guidance_rank's own comment for
+    the same "measure before you weight it" reasoning)."""
+    def key(d):
+        value = to_float(d.get("earningsSurpriseAvg"))
         return -value if value is not None else None
     return rank_ascending(rows, key, missing=0.5)
 
@@ -933,79 +1049,72 @@ def exp_revenue_growth_rank(rows):
     return rank_ascending(rows, key, missing=0.5)
 
 
-# momentum_rank's "sweet spot" curve for the daily Money Flow Index/RSI
-# strength reading (see IBApp._money_flow_index/_relative_strength_index,
-# both bounded [0, 100]) -- (value, rank) breakpoints, 0=best/1=worst,
-# linearly interpolated between. Deliberately NOT a population-relative
-# percentile the way every other *_rank function here uses
-# rank_ascending: MFI/RSI is already a fixed, standardized 0-100 scale
-# with universally-understood reference points (25 = oversold, 75 =
-# overbought -- explicit instruction, tightened from the initial 30/80),
-# so re-deriving "good" from THIS universe's current distribution would
-# throw that fixed meaning away for no benefit.
-# Peaks at 60, not 50 -- gives more room on the strong side before the
-# overbought penalty kicks in, deliberately asymmetric, consistent with
-# the live backtest earlier confirming momentum is a CONTINUATION signal
-# (strong stays strong more often than it reverses) -- while still
-# docking real credit for a blow-off-top-style extreme past 75, which is
-# the actual behavior change from the old plain "high is better" regression-
-# momentum factor this replaces.
-_MOMENTUM_SWEET_SPOT = [(0, 0.8), (25, 0.5), (60, 0.0), (75, 0.5), (100, 0.9)]
-
-
-def _sweet_spot_rank(value, breakpoints):
-    """Piecewise-linear interpolation of `value` against a sorted list of
-    (x, rank) breakpoints -- clamped to the first/last breakpoint's own
-    rank outside that range (only matters for a value sitting exactly at
-    the scale's own bounds, since MFI/RSI can't go outside [0, 100])."""
-    if value <= breakpoints[0][0]:
-        return breakpoints[0][1]
-    if value >= breakpoints[-1][0]:
-        return breakpoints[-1][1]
-    for (x0, r0), (x1, r1) in zip(breakpoints, breakpoints[1:]):
-        if x0 <= value <= x1:
-            fraction = (value - x0) / (x1 - x0)
-            return r0 + fraction * (r1 - r0)
-    return breakpoints[-1][1]  # unreachable given the bounds checks above
-
-
+# momentum_rank used to run the daily Money Flow Index/RSI (see
+# IBApp._money_flow_index/_relative_strength_index) through a fixed
+# "sweet spot" curve that penalized extreme-HIGH readings (near 100)
+# almost as hard as extreme-low ones -- because a raw MSI near 100 meant
+# "chasing an already-overbought, reversal-prone stock," a real risk on
+# THAT indicator's own ~1-3 week timeframe.
+#
+# REPLACED (explicit instruction) along with `momentum` itself (see
+# modules.derive.reconcile_momentum) -- a formation/holding-period
+# cross-section on 3 months of daily bars showed the 1-3 week horizon
+# MSI operates on is actually reversal-PRONE (negative forward-return
+# correlation), while a ~20-trading-day horizon shows genuine
+# continuation. The new Trend Score already prices the "don't reward a
+# blow-off-top" concern directly into its own raw value BEFORE
+# percentile-ranking (a volume-acceleration penalty and a 5-day-reversal
+# penalty are subtracted from the 20-day-return leg) -- confirmed live,
+# DINO (a genuine +76% / 3-month trend, Hold-rated under the old MSI-tied
+# scoring since MSI read it as overbought) is exactly the kind of name
+# this was built to stop penalizing. Re-applying a "penalize the top"
+# curve on top of a score that's already been penalized for exhaustion
+# upstream would double-count that concern, so this is now a plain
+# linear "high percentile = better" read instead -- same shape
+# mean_reversion_rank already uses for its own 0-100 field, just
+# high-is-better instead of low-is-better.
 def momentum_rank(rows):
-    """Daily-timeframe Money Flow Index (or RSI on the yfinance-fallback
-    tier -- see IBApp.get_momentum) scored via the fixed sweet-spot curve
-    above, not a population-relative percentile -- see
-    _MOMENTUM_SWEET_SPOT's own comment for why. Missing ranked worst,
-    same convention as most other factors here. A pure daily-timeframe
-    strength read, independent of mean_reversion_rank's hourly one below
-    -- see that function's docstring for why they're two separate
-    factors, not one blended number. Ranks the already-computed
-    `momentum` field -- computing it in the first place (main.py's
-    add_momentum) needs a live IBApp connection and writes
-    price_history.json, so that stays in main.py rather than here."""
+    """Trend Score (see modules.derive.reconcile_momentum) -- a
+    cross-sectional percentile 0-100, 100=strongest supported uptrend --
+    scored as a direct linear read (rank = 1 - value/100), NOT a
+    population-relative rank_ascending call: the field is ALREADY a
+    percentile by construction (reconcile_momentum ranks it against the
+    universe itself), so re-deriving "good" from this file's own ranking
+    machinery would just repeat the same step twice. Missing ranked
+    worst, same convention as most other factors here. A pure
+    medium-term trend read, independent of mean_reversion_rank's
+    hourly one below -- see that function's docstring for why they're
+    two separate factors, not one blended number."""
     result = {}
     for symbol, d in rows:
         value = to_float(d.get("momentum"))
-        result[symbol] = 1.0 if value is None else _sweet_spot_rank(value, _MOMENTUM_SWEET_SPOT)
+        result[symbol] = 1.0 if value is None else 1.0 - value / 100.0
     return result
 
 
 def mean_reversion_rank(rows):
-    """Hourly-timeframe Money Flow Index (see IBApp._money_flow_index),
-    bounded [0, 100] -- a direct linear read (rank = value / 100), NOT
-    momentum_rank's sweet-spot curve: this factor's job is entry timing,
-    not strength, so low (oversold) should always rank best and high
-    (overbought) always worst, with no "moderate is best" hump the way
-    daily strength has one. A stock already overbought on the hour is one
-    you'd be chasing (bad timing for a new long), read against a long
-    that's already held, one that may be due for a pullback (worth a
-    look) -- see RecommendationsView.tsx's meanReversionOkForLong/
-    meanReversionOkForShort and buildCloseReasons for exactly how each
-    side reads this. Missing ranked NEUTRAL (0.5), not worst: unlike this
-    file's other factors, "missing" here overwhelmingly means "outside IB
-    Gateway's ~40%-of-universe hourly-bar coverage scope" (CANDLESTICK_TOP_N
-    ranked/held tickers only, no fallback data source the way
-    momentum_rank falls back to yfinance daily), not a real signal about
-    the ticker -- scoring it as if it were the worst possible reading was
-    wrong for roughly 60% of the universe."""
+    """Hourly-timeframe Reversal Score (see modules.derive.
+    reconcile_mean_reversion -- a 14-hour-return cross-sectional
+    percentile, replacing the old hourly Money Flow Index; validated by
+    a formation/holding cross-section showing the hourly timeframe is
+    mean-reverting across every horizon tested, unlike momentum_rank's
+    daily one), bounded [0, 100] -- a direct linear read (rank =
+    value / 100), NOT momentum_rank's sweet-spot curve: this factor's
+    job is entry timing, not strength, so low (oversold) should always
+    rank best and high (overbought) always worst, with no "moderate is
+    best" hump the way daily strength has one. A stock already
+    overbought on the hour is one you'd be chasing (bad timing for a new
+    long), read against a long that's already held, one that may be due
+    for a pullback (worth a look) -- see RecommendationsView.tsx's
+    meanReversionOkForLong/meanReversionOkForShort and buildCloseReasons
+    for exactly how each side reads this. Missing ranked NEUTRAL (0.5),
+    not worst: unlike this file's other factors, "missing" here
+    overwhelmingly means "outside IB Gateway's ~40%-of-universe
+    hourly-bar coverage scope" (CANDLESTICK_TOP_N ranked/held tickers
+    only, no fallback data source the way momentum_rank falls back to
+    yfinance daily), not a real signal about the ticker -- scoring it as
+    if it were the worst possible reading was wrong for roughly 60% of
+    the universe."""
     result = {}
     for symbol, d in rows:
         value = to_float(d.get("meanReversion"))
@@ -1057,11 +1166,29 @@ def forecast_return_rank(rows):
     return rank_ascending(rows, neg_perf("simReturn"))
 
 
+def sim_prob_above_rank(rows):
+    """Ranks on probAboveCurrentPrice, the share of Monte Carlo paths in
+    simPriceDistribution that end above today's price. A separate
+    dimension from simReturn (the winsorized mean/quantile of that same
+    distribution): two tickers can share a similar simReturn while one
+    has a much fatter share of paths clearing today's price -- a
+    downside-skewed distribution with a long left tail can still show a
+    middling simReturn even though most individual paths are up. Higher
+    probAboveCurrentPrice ranks better.
+
+    Injected into each row dict by write_sorted_screen_csv (main.py) from
+    simulations.json's simPriceDistribution.probAboveCurrentPrice. A
+    ticker with no simulations entry is ranked worst, same treatment as
+    every other factor's missing data."""
+    return rank_ascending(rows, neg_perf("probAboveCurrentPrice"))
+
+
 # ---------------------------------------------------------------------- #
 #  Analyst conviction                                                     #
 # ---------------------------------------------------------------------- #
 def analyst_conviction_rank(rows, consensus_scores=None):
-    """Average of three legs -- sentiment (targetUpside blended with
+    """Now consensus_scores alone (see UPDATE 2 below) -- originally an
+    average of three legs -- sentiment (targetUpside blended with
     Eulerpool's analyst_consensus_score, see below), recommendationMean,
     and target-price dispersion -- each still a "low ranked worst" ranks
     the way it always has, only the first leg changed.
@@ -1102,9 +1229,40 @@ def analyst_conviction_rank(rows, consensus_scores=None):
     about the outlook that the mean alone hides (e.g. a $83-$225 target
     range around a $110 stock). Negative upside, a 0 or missing
     recommendationMean, and a missing/inconsistent target triple are all
-    ranked worst, same as before this change."""
+    ranked worst, same as before this change.
+
+    UPDATE: targetUpside dropped from the sentiment leg entirely --
+    explicit instruction, after a 4-week backtest cross-section showed it
+    correlated NEGATIVELY with next-week Long return (rho=-0.091 overall,
+    negative in 3 of 4 weeks) -- backwards from what the factor is meant
+    to predict. Read as stale-target lag: a sell-side target gets revised
+    UP after a stock has already rallied and DOWN after it's already
+    fallen, so a big targetUpside gap often just flags recent weakness
+    the Street hasn't caught up to yet, not genuine unpriced upside --
+    over a one-week horizon that continues (momentum), it doesn't close.
+    consensus_scores (Eulerpool's independently-sourced per-firm rating
+    history, r=+0.38 with targetUpside per this function's own docstring
+    above) was already confirmed to measure closely the same "is the
+    Street bullish" question without that reactive-lag issue, so the
+    sentiment leg is now consensus_scores alone (missing=0.5, same
+    fallback this leg already used). ~1/6 of analyst_conviction_rank's
+    overall weight (roughly half of one of its three legs) moved to
+    forecast_return instead -- see FACTOR_WEIGHTS' own "analyst"/
+    "forecast_return" rows.
+
+    UPDATE 2: the other two legs dropped too, explicit instruction, after
+    the factor-ranking table this session showed both backwards on the
+    same 4-week cross-section: recommendationMean rho=+0.060 (wrong sign
+    -- low mean/strong-buy should predict higher return, not lower) and
+    targetDispersion rho=-0.012 (indistinguishable from no signal).
+    analyst_conviction_rank is now consensus_ranks alone. Their share of
+    the "analyst" weight (1/3 each, 0.01 out of 0.03, uniform across all
+    five sector profiles) moved out of this factor entirely --
+    recommendationMean's 0.01 to "mean_reversion" (Reversal Score, the
+    single strongest validated predictor this session), targetDispersion's
+    0.01 to "momentum" (Trend Score, also strongly validated once tuned to
+    the right horizon) -- see FACTOR_WEIGHTS' own rows."""
     consensus_scores = consensus_scores or {}
-    upside_ranks = rank_ascending(rows, neg_if_positive("targetUpside"))
     consensus_augmented = [(symbol, {**d, "_consensusScore": consensus_scores.get(symbol)}) for symbol, d in rows]
     consensus_ranks = rank_ascending(
         consensus_augmented,
@@ -1112,43 +1270,7 @@ def analyst_conviction_rank(rows, consensus_scores=None):
         missing=0.5,
     )
 
-    def recommendation_score(d):
-        value = to_float(d.get("recommendationMean"))
-        # 1 = strong buy, 5 = strong sell; 0 shows up for a couple of
-        # thinly-covered tickers (1 analyst) and isn't a real position on
-        # that scale, so it's treated as missing rather than "better than
-        # strong buy". A continuous mean (e.g. 1.8 vs. 2.4, both "buy")
-        # discriminates within a recommendationKey bucket that a mapped
-        # categorical score can't.
-        return value if value is not None and value > 0 else None
-
-    recommendation_ranks = rank_ascending(rows, recommendation_score)
-
-    def target_dispersion(d):
-        # (high - low) / mean -- how much analysts disagree about where
-        # this is going, relative to its own price level (so a $500 stock
-        # with a $100 high-low spread isn't penalized the same as a $20
-        # stock with the same dollar spread). high < low shouldn't
-        # happen, but ranked worst rather than trusted if the data is
-        # that inconsistent.
-        high = to_float(d.get("targetHighPrice"))
-        low = to_float(d.get("targetLowPrice"))
-        mean = to_float(d.get("targetMeanPrice"))
-        if high is None or low is None or mean is None or mean <= 0 or high < low:
-            return None
-        return (high - low) / mean
-
-    dispersion_ranks = rank_ascending(rows, target_dispersion)
-
-    def sentiment_leg(symbol):
-        if symbol in consensus_scores:
-            return (upside_ranks[symbol] + consensus_ranks[symbol]) / 2
-        return upside_ranks[symbol]
-
-    return {
-        symbol: (sentiment_leg(symbol) + recommendation_ranks[symbol] + dispersion_ranks[symbol]) / 3
-        for symbol, _ in rows
-    }
+    return {symbol: consensus_ranks[symbol] for symbol, _ in rows}
 
 
 # ---------------------------------------------------------------------- #
@@ -1342,6 +1464,57 @@ def fair_value_rank(rows, fair_value_scores):
         lambda d: -d["_fairValueUpside"] if d.get("_fairValueUpside") is not None else None,
         missing=0.5,
     )
+
+
+# ---------------------------------------------------------------------- #
+#  Management guidance (SEC 8-K, raise/lower/affirm)                      #
+# ---------------------------------------------------------------------- #
+def load_guidance_scores(guidance_signal_file):
+    """{ticker: direction} from modules.sec_edgar.summarize_guidance's own
+    GUIDANCE_SIGNAL_FILE -- direction is one of "raised"/"lowered"/
+    "affirmed"/"mixed", or missing/None when the ticker has no 8-K/2.02
+    filing on file, or filings but no guidance language detected in them
+    (see that function's own docstring for the classifier). A ticker
+    absent from the file entirely, or present with a None direction, is
+    handled identically by guidance_rank below -- both mean "nothing
+    usable to read," not "bearish."""
+    try:
+        with open(guidance_signal_file) as f:
+            data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+    return {ticker: entry.get("direction") for ticker, entry in data.items() if entry.get("direction")}
+
+
+# 0% everywhere -- explicit instruction: wire this up as a genuinely new,
+# independently-sourced factor (built earlier from SEC 8-K press-release
+# guidance language, see modules.sec_edgar's own GUIDANCE_* section) but
+# leave it unweighted for now so it shows up on the Scoring tab/backtest
+# and can be correlation-checked like every other factor here before it's
+# trusted with any real weight -- the same "measure before you weight it"
+# approach this file's whole FACTOR_WEIGHTS table has been rebuilt around
+# this session (see e.g. earnings_growth_rank's own recent reweight).
+GUIDANCE_RANK_BY_DIRECTION = {
+    "raised": 0.0,
+    "affirmed": 0.5,
+    "mixed": 0.5,
+    "lowered": 1.0,
+}
+
+
+def guidance_rank(rows, guidance_scores):
+    """Direction of the most recent 8-K earnings-release guidance
+    language (see load_guidance_scores) mapped straight to a rank --
+    "raised" best, "lowered" worst, "affirmed"/"mixed"/no-filing/no-
+    guidance-language all NEUTRAL (0.5, same missing-isn't-bearish
+    convention fair_value_rank/sentiment_rank use). Small, sparse-event
+    input (see summarize_guidance's own tally -- raised/lowered/affirmed/
+    mixed together cover under half the universe), so a plain direct
+    mapping rather than a population-relative percentile rank, same
+    reasoning insiders_rank's own transaction-ratio leg gives for
+    skipping rank_ascending: there's no smooth distribution here to rank
+    against, just a handful of discrete outcomes."""
+    return {symbol: GUIDANCE_RANK_BY_DIRECTION.get(guidance_scores.get(symbol), 0.5) for symbol, _ in rows}
 
 
 # ---------------------------------------------------------------------- #
@@ -1746,30 +1919,34 @@ def is_growth_cohort(d):
 # modules.eulerpool.get_forward_estimates' own docstrings) -- a genuinely
 # new signal, not a second measurement of growth already scored here.
 FACTOR_WEIGHTS = {
-    "pe": ("Forward P/E", 0.03, 0.03, 0.03, 0.03, 0.03),
+    "pe": ("Forward P/E", 0.02, 0.02, 0.02, 0.02, 0.02),
     "sector_pe": ("Forward P/E vs. sector average", 0.05, 0.12, 0.08, 0.07, 0.06),
     "eps_volatility": ("Yearly EPS volatility", 0.05, 0.05, 0.05, 0.05, 0.0),
     "fcf": ("Price/FCF", 0.05, 0.0, 0.0, 0.05, 0.05),
     "ev_ebitda": ("EV/EBITDA", 0.04, 0.0, 0.05, 0.0, 0.0),
-    "momentum": ("Daily-timeframe strength (MFI/RSI)", 0.05, 0.05, 0.05, 0.05, 0.05),
-    "mean_reversion": ("Hourly-timeframe overbought/oversold (MFI)", 0.05, 0.05, 0.05, 0.05, 0.05),
-    "eps_trend": ("EPS-estimate revision trend", 0.04, 0.12, 0.04, 0.07, 0.07),
-    "analyst": ("Analyst conviction", 0.05, 0.05, 0.05, 0.05, 0.05),
+    "momentum": ("Trend Score (20d momentum, volume & reversal adjusted)", 0.11, 0.11, 0.11, 0.11, 0.11),
+    "mean_reversion": ("Reversal Score (14h overbought/oversold)", 0.0, 0.0, 0.0, 0.0, 0.0),
+    "eps_trend": ("EPS-estimate revision trend", 0.07, 0.15, 0.07, 0.10, 0.10),
+    "analyst": ("Analyst conviction", 0.01, 0.01, 0.01, 0.01, 0.01),
     "forecast_return": ("Simulations (sim return)", 0.10, 0.10, 0.10, 0.10, 0.13),
+    "sim_prob_above": ("Simulations (% paths above price)", 0.03, 0.03, 0.03, 0.03, 0.03),
     "pe_vs_trailing": ("Forward P/E vs. Trailing P/E", 0.03, 0.03, 0.03, 0.03, 0.0),
-    "peg": ("PEG ratio", 0.03, 0.08, 0.05, 0.05, 0.04),
-    "trailing_ps": ("Trailing P/S", 0.02, 0.02, 0.02, 0.02, 0.02),
+    "peg": ("PEG ratio", 0.0, 0.05, 0.02, 0.02, 0.01),
+    "trailing_ps": ("Trailing P/S", 0.01, 0.01, 0.01, 0.01, 0.01),
     "growth": ("Revenue growth", 0.03, 0.05, 0.01, 0.05, 0.06),
-    "earnings_growth": ("Earnings growth", 0.02, 0.02, 0.02, 0.02, 0.0),
+    "earnings_growth": ("Earnings growth", 0.06, 0.06, 0.06, 0.06, 0.06),
+    "earnings_surprise": ("Earnings surprise track record (beat/miss history)", 0.0, 0.0, 0.0, 0.0, 0.0),
     "exp_revenue_growth": ("Eulerpool expected revenue growth (forward consensus)", 0.04, 0.04, 0.04, 0.04, 0.04),
-    "debt": ("Debt/equity vs. sector average", 0.05, 0.0, 0.05, 0.0, 0.05),
+    "debt": ("Debt/equity vs. sector average", 0.07, 0.02, 0.07, 0.02, 0.07),
     "liquidity": ("Quick/current ratio", 0.02, 0.0, 0.0, 0.0, 0.02),
     "roe": ("Return on equity", 0.03, 0.03, 0.06, 0.03, 0.0),
     "short_interest": ("Short interest (contrarian)", 0.05, 0.03, 0.04, 0.06, 0.08),
-    "sentiment": ("News/social/institutional sentiment", 0.05, 0.05, 0.05, 0.05, 0.09),
-    "insiders": ("Insider open-market buy/sell activity", 0.04, 0.05, 0.05, 0.05, 0.04),
+    "sentiment": ("News/social sentiment", 0.01, 0.01, 0.01, 0.01, 0.01),
+    "institutional": ("Institutional 13F ownership change (QoQ)", 0.02, 0.02, 0.02, 0.02, 0.05),
+    "insiders": ("Insider open-market buy/sell activity", 0.02, 0.03, 0.03, 0.03, 0.01),
     "margin": ("Profit/operating margins", 0.05, 0.0, 0.05, 0.05, 0.05),
     "fair_value": ("Eulerpool fair-value upside (independent valuation)", 0.03, 0.03, 0.03, 0.03, 0.02),
+    "guidance": ("SEC 8-K management guidance (raise/lower/affirm)", 0.0, 0.0, 0.0, 0.0, 0.0),
 }
 STANDARD_WEIGHTS = {factor: v[1] for factor, v in FACTOR_WEIGHTS.items()}
 FINANCIALS_WEIGHTS = {factor: v[2] for factor, v in FACTOR_WEIGHTS.items()}
@@ -1785,6 +1962,8 @@ def score_rows(
     short_interest_scores=None,
     fair_value_scores=None,
     consensus_scores=None,
+    guidance_scores=None,
+    institutional_scores=None,
 ):
     """Composite score per (symbol, d) -- lower is better. Every ticker's
     rank on each factor is computed once, across the WHOLE universe in
@@ -1834,6 +2013,8 @@ def score_rows(
     short_interest_scores = short_interest_scores or {}
     fair_value_scores = fair_value_scores or {}
     consensus_scores = consensus_scores or {}
+    guidance_scores = guidance_scores or {}
+    institutional_scores = institutional_scores or {}
 
     ranks_by_factor = {
         "pe": pe_rank(rows),
@@ -1846,20 +2027,24 @@ def score_rows(
         "eps_trend": eps_trend_rank(rows),
         "analyst": analyst_conviction_rank(rows, consensus_scores),
         "forecast_return": forecast_return_rank(rows),
+        "sim_prob_above": sim_prob_above_rank(rows),
         "pe_vs_trailing": pe_vs_trailing_rank(rows),
         "peg": peg_rank(rows),
         "trailing_ps": trailing_ps_rank(rows),
         "growth": growth_rank(rows),
         "earnings_growth": earnings_growth_rank(rows),
+        "earnings_surprise": earnings_surprise_rank(rows),
         "exp_revenue_growth": exp_revenue_growth_rank(rows),
         "debt": debt_rank(rows),
         "liquidity": liquidity_rank(rows),
         "roe": roe_rank(rows),
         "short_interest": short_interest_rank(rows, short_interest_scores),
         "sentiment": sentiment_rank(rows, sentiment_scores),
+        "institutional": institutional_rank(rows, institutional_scores),
         "insiders": insiders_rank(rows, insider_scores),
         "margin": margin_rank(rows),
         "fair_value": fair_value_rank(rows, fair_value_scores),
+        "guidance": guidance_rank(rows, guidance_scores),
     }
     scored = []
     for symbol, d in rows:

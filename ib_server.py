@@ -262,6 +262,7 @@ from modules.news_sentiment import (
     score_headlines,
     strip_boilerplate,
 )
+from modules.eulerpool import FAIR_VALUE_FILE, FORWARD_EPS_FILE, GRADES_FILE, SHORT_VOLUME_FILE
 from modules.scoring import FACTOR_WEIGHTS, most_recent_completed_trading_day
 from modules.sec_edgar import FORM4_FILE, THIRTEENF_FILE, THIRTEENF_HOLDERS_FILE, XBRL_FACTS_FILE
 from modules.social_sentiment import SENTIMENT_FILE
@@ -534,6 +535,42 @@ DATASETS = [
         "notes": None,
         "network": "FINRA",
         "run": {"kind": "subprocess", "argv": ["main.py", "shortinterest"]},
+    },
+    {
+        "id": "eulerpool_grades",
+        "path": GRADES_FILE,
+        "label": "Analyst grades (Eulerpool)",
+        "command": "python main.py eulerpool",
+        "notes": "full upgrade/downgrade/init/maintain history, maintain included -- self-throttling, no-ops if already younger than GRADES_MAX_AGE_DAYS (3d) unless run with `overwrite`; feeds scoring.analyst_grade_mix / analyst_consensus_score",
+        "network": "Eulerpool",
+        "run": {"kind": "subprocess", "argv": ["main.py", "eulerpool"]},
+    },
+    {
+        "id": "eulerpool_fair_value",
+        "path": FAIR_VALUE_FILE,
+        "label": "Fair-value upside (Eulerpool)",
+        "command": "python main.py eulerpool",
+        "notes": "same-day snapshot, always refetched (no history to preserve) -- feeds scoring.fair_value_rank, its own factor in every scoring column",
+        "network": "Eulerpool",
+        "run": {"kind": "subprocess", "argv": ["main.py", "eulerpool"]},
+    },
+    {
+        "id": "eulerpool_forward_estimates",
+        "path": FORWARD_EPS_FILE,
+        "label": "Forward EPS/revenue estimates (Eulerpool)",
+        "command": "python main.py eulerpool",
+        "notes": "same-day snapshot, always refetched -- EPS pair blends 50/50 with yfinance into forwardEps/fwdEps0y/1y (derive.reconcile_forward_eps); revenue pair derives eulerRevGrowth1y, feeding scoring.exp_revenue_growth_rank and simulations.py's own ownGrowthRate",
+        "network": "Eulerpool",
+        "run": {"kind": "subprocess", "argv": ["main.py", "eulerpool"]},
+    },
+    {
+        "id": "eulerpool_short_volume",
+        "path": SHORT_VOLUME_FILE,
+        "label": "Daily short-volume ratio (Eulerpool)",
+        "command": "python main.py eulerpool",
+        "notes": "10-trading-day trailing average of FINRA's own daily short-sale volume tape, same-day snapshot, always refetched -- feeds scoring.short_interest_rank as a fourth leg alongside the FINRA biweekly settlement fields above",
+        "network": "Eulerpool",
+        "run": {"kind": "subprocess", "argv": ["main.py", "eulerpool"]},
     },
     {
         "id": "theme_taxonomy",
@@ -999,8 +1036,8 @@ async def fetch_candlestick_history(streamed_tickers):
         f"(e.g. positions outside both of those)"
     )
 
-    print(f"Fetching 1mo hourly bars for {len(tickers)} ticker(s) (this can take a while, paced by IB's rate limit)...")
-    hourly = await app.get_ib_historical_bars_async(tickers, "1 M", "1 hour")
+    print(f"Fetching 3mo hourly bars for {len(tickers)} ticker(s) (this can take a while, paced by IB's rate limit)...")
+    hourly = await app.get_ib_historical_bars_async(tickers, "3 M", "1 hour")
     with open(HOURLY_HISTORY_FILE, "w") as f:
         json.dump(hourly, f)
     print(f"Wrote {HOURLY_HISTORY_FILE} ({sum(1 for v in hourly.values() if v)}/{len(tickers)} tickers with bars)")
@@ -1106,7 +1143,7 @@ async def refresh_hourly_history_on_demand(log_fn=None, tickers=None, overwrite=
     -- the hourly twin of refresh_daily_history_on_demand: same reason
     for existing, same scope/tickers-param/overwrite-param/cooldown/
     log_fn behavior (see that function's docstring), just against
-    HOURLY_HISTORY_FILE via "1 M"/"1 hour" bars instead of the daily
+    HOURLY_HISTORY_FILE via "3 M"/"1 hour" bars instead of the daily
     file/duration."""
     explicit_scope = tickers is not None
     if explicit_scope and not overwrite and _ib_refresh_recently_completed("hourly"):
@@ -1137,8 +1174,8 @@ async def refresh_hourly_history_on_demand(log_fn=None, tickers=None, overwrite=
         return {"skipped": True, "tickersTotal": len(tickers)}
 
     if log_fn:
-        log_fn(f"Fetching IB 1mo hourly bars for {len(stale)}/{len(tickers)} stale/missing ticker(s) (paced, can take a while)...")
-    fresh = await app.get_ib_historical_bars_async(stale, "1 M", "1 hour", on_ticker=(lambda s: log_fn(f"Fetching {s}...")) if log_fn else None)
+        log_fn(f"Fetching IB 3mo hourly bars for {len(stale)}/{len(tickers)} stale/missing ticker(s) (paced, can take a while)...")
+    fresh = await app.get_ib_historical_bars_async(stale, "3 M", "1 hour", on_ticker=(lambda s: log_fn(f"Fetching {s}...")) if log_fn else None)
     existing.update(fresh)
     with open(HOURLY_HISTORY_FILE, "w") as f:
         json.dump(existing, f)
@@ -2767,17 +2804,31 @@ def _to_float(v):
 # over 3 days while every continuation entry made ~1.4-3.4%. This is the
 # continuation read, deliberately different from scoring.py's own
 # momentum_rank sweet-spot curve for the composite score.
-# (_REC_REVENUE_GROWTH_THRESHOLD is stale -- the frontend replaced the
-# revenue-growth gate with a sim-return gate; this Python mirror only
-# affects streaming-subscription priority, not the recommendations
-# themselves, so it hasn't been re-plumbed.) The crowded-short gate
-# (_REC_MAX_SHORT_INTEREST) was removed entirely -- backtesting showed it
-# was consistently counterproductive.
+# _REC_REVENUE_GROWTH_THRESHOLD's LONG-side use (_passes_long_gates'
+# "sufficientGrowthForLong") is still stale -- the frontend replaced that
+# specific gate with a sim-return gate; this Python mirror only affects
+# streaming-subscription priority, not the recommendations themselves, so
+# it hasn't been re-plumbed. Its SHORT-side use below is NOT stale,
+# though -- explicit instruction, reinstated as a real gate on both sides
+# (frontend AND this mirror) after a biggest-losers analysis of the
+# backtest showed several of the worst short losses (AVAV +140% revenue
+# growth, PANW +24.8%, DOCN +24.5%, S +20.6%) were genuine growth stories
+# a valuation-based short thesis got run over by, not crowding or
+# earnings surprises. Must match RecommendationsView.tsx's own
+# SHORT_GROWTH_CEILING/growthBlocksShortEntry -- same 10% threshold,
+# same OR-across-trailing-and-forward-growth shape. The old crowded-short
+# INFORMATIONAL threshold (MAX_SHORT_INTEREST, 10%) was removed entirely
+# as an entry gate -- backtesting showed it was consistently
+# counterproductive. _REC_SHORT_INTEREST_ENTRY_CAP below is a SEPARATE,
+# much looser hard cap reinstated after a real case slipped through (a
+# Strong Sell recommended with 69% of float already short) -- must match
+# RecommendationsView.tsx's own SHORT_INTEREST_ENTRY_CAP.
 _REC_MOMENTUM_NO_BUY = 35
 _REC_MOMENTUM_NO_SELL = 65
 _REC_REVENUE_GROWTH_THRESHOLD = 0.1
 _REC_MEAN_REVERSION_OVERBOUGHT = 80
 _REC_MEAN_REVERSION_OVERSOLD = 20
+_REC_SHORT_INTEREST_ENTRY_CAP = 0.3
 # Blocks a NEW entry (either side) with earnings due within this many
 # calendar days -- explicit instruction after BBW (-23% Strong Buy) and
 # CRWD (-13.8% Strong Sell) both turned out to be clean earnings-day gaps
@@ -2827,13 +2878,17 @@ def _passes_long_gates(row):
 
 
 def _passes_short_gates(row):
-    """Mirrors RecommendationsView.tsx's eligibleToSell +
-    notTooMuchGrowthForShort + meanReversionOkForShort -- the Short list's
-    own gate set (crowded-short and EPS-trend both removed, see
-    _passes_long_gates' own comment). The momentum gate BLOCKS the whole
-    strong-momentum half (MSI >= NO_SELL), the mirror of the long gate
-    above; neutral, falling-knife and oversold candidates all stay
-    eligible."""
+    """Mirrors RecommendationsView.tsx's eligibleToSell -- momentum +
+    growthBlocksShortEntry (trailing OR forward revenue growth above
+    _REC_REVENUE_GROWTH_THRESHOLD, reinstated -- see that constant's own
+    comment) + meanReversionOkForShort + shortInterestBlocksEntry. The
+    old crowded-short INFORMATIONAL threshold and EPS-trend gate are both
+    still removed (see _passes_long_gates' own comment); the much looser
+    _REC_SHORT_INTEREST_ENTRY_CAP hard block below is a separate, later
+    reinstatement, not a revival of that removed one. The momentum gate
+    BLOCKS the whole strong-momentum half (MSI >= NO_SELL), the mirror of
+    the long gate above; neutral, falling-knife and oversold candidates
+    all stay eligible."""
     momentum = _to_float(row.get("momentum"))
     if momentum is None or momentum >= _REC_MOMENTUM_NO_SELL:
         return False
@@ -2842,8 +2897,14 @@ def _passes_short_gates(row):
     growth = _to_float(row.get("revenueGrowth"))
     if growth is not None and growth > _REC_REVENUE_GROWTH_THRESHOLD:
         return False
+    expected_growth = _to_float(row.get("eulerRevGrowth1y"))
+    if expected_growth is not None and expected_growth > _REC_REVENUE_GROWTH_THRESHOLD:
+        return False
     mr = _to_float(row.get("meanReversion"))
     if mr is not None and mr <= _REC_MEAN_REVERSION_OVERSOLD:
+        return False
+    short_pct = _to_float(row.get("shortPercentOfFloat"))
+    if short_pct is not None and short_pct > _REC_SHORT_INTEREST_ENTRY_CAP:
         return False
     return True
 

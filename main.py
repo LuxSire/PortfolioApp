@@ -27,8 +27,12 @@ download_all():    download() then, concurrently, an IB Gateway daily+hourly
                     skipped if IB Gateway isn't reachable) and a StockTwits
                     social-sentiment fetch for the RATED_FOR_EXTRAS tickers,
                     then recalc(fresh_momentum=True) and a history snapshot.
-                    `python main.py all` (`all overwrite` bypasses the IB
-                    bar-refresh 3h cooldown).
+                    `python main.py all` also calls download_eulerpool()
+                    right after (see that function's own docstring) --
+                    its own blanket 3-day cooldown makes that a no-op on
+                    most runs. `python main.py all` (`all overwrite`
+                    bypasses the IB bar-refresh 3h cooldown AND
+                    download_eulerpool's own cooldown).
 download_prices():  recalc(fresh_momentum=True) -- rebuild from the raw dumps
                     with a fresh momentum-history pull, no `.info`/statement
                     refetch. `python main.py prices`.
@@ -58,6 +62,18 @@ download_short_interest(): fetch FINRA's latest biweekly equity short
                     symbol directly (FINRA's own file has one, no name-
                     fuzzing needed). Run via `python main.py
                     shortinterest`.
+download_eulerpool(): fetch all five of Eulerpool's own per-ticker datasets
+                    (analyst grades, fair value, forward EPS/revenue,
+                    short-volume, historical EPS estimates -- see that
+                    function's own docstring) for the ENTIRE scored
+                    universe. Gated by ONE blanket 3-day cooldown
+                    (EULERPOOL_ALL_MAX_AGE_DAYS) across all five -- no-ops
+                    entirely if Eulerpool data of any kind was refreshed
+                    within the last 3 days, `overwrite` bypasses it. Run
+                    via `python main.py eulerpool`, or automatically as
+                    part of `python main.py all` (explicit instruction --
+                    the cooldown is what makes that safe to do on every
+                    `all` run).
 download_ib_prices(): refresh IB Gateway's own 3-month daily bars (see
                     refresh_ib_daily_history/download_ib_daily_history) for
                     the WHOLE active universe (same as `all`'s own scope,
@@ -349,6 +365,7 @@ import shutil
 import socket
 import sys
 import threading
+import time
 import urllib.error
 import urllib.request
 from datetime import date, datetime, timedelta, timezone
@@ -361,7 +378,9 @@ from modules.scoring import (
     analyst_consensus_score,
     clamp_eps_revision,
     load_fair_value_scores,
+    load_guidance_scores,
     load_insider_scores,
+    load_institutional_scores,
     load_sentiment_scores,
     load_short_interest_scores,
     most_recent_completed_trading_day,
@@ -377,14 +396,31 @@ from modules.sector_groups import get_sector_group
 from modules import derive
 from modules.backtest import build_backtest
 from modules.recommendations import write_recommendations
-from modules.sec_edgar import FORM4_FILE, THIRTEENF_FILE, XBRL_FACTS_FILE, fetch_13f_holdings, fetch_form4, fetch_xbrl_facts
+from modules.sec_edgar import (
+    FORM4_FILE,
+    GUIDANCE_FILE,
+    GUIDANCE_SIGNAL_FILE,
+    THIRTEENF_FILE,
+    XBRL_FACTS_FILE,
+    fetch_13f_holdings,
+    fetch_earnings_guidance,
+    fetch_form4,
+    fetch_xbrl_facts,
+    summarize_guidance,
+)
 from modules.eulerpool import (
+    EPS_ESTIMATES_FILE,
     FAIR_VALUE_FILE,
     FORWARD_EPS_FILE,
     GRADES_FILE,
+    SHORT_VOLUME_FILE,
+    TRANSCRIPTS_FILE,
     fetch_analyst_grades,
+    fetch_eps_estimates,
     fetch_fair_values,
     fetch_forward_eps,
+    fetch_short_volume,
+    fetch_transcripts,
 )
 from modules.social_sentiment import SENTIMENT_FILE, fetch_social_sentiment
 from modules.theme_classifier import classify_themes
@@ -516,6 +552,9 @@ COUNTRY_OVERRIDE_TICKERS = {"ARM", "ASML", "BIRK", "CRSP", "NBIS", "ONON"}
 
 FIELDNAMES = [
     "ticker", "name", "sector", "forwardPE", "forwardEps", "epsCurrentYear", "trailingPE", "trailingPS", "pegRatio", "priceToFCF",
+    # Per-share book value -- feeds modules.simulations' own fundamental
+    # price floor (BOOK_VALUE_FLOOR_MULTIPLE).
+    "bookValue",
     "enterpriseValue", "sharesOutstanding", "impliedSharesOutstanding", "enterpriseToEbitda", "beta", "debtToEquity", "LiqRatio", "quickRatio", "currentRatio", "shortRatio", "shortPercentOfFloat",
     "revenueGrowth", "revenueGrowthSource",
     # earningsGrowth is the SCORED blend (see derive.reconcile_earnings_growth);
@@ -530,10 +569,16 @@ FIELDNAMES = [
     # reconciles and available to the Simulations forward-EPS anchor.
     "annualRevenueGrowth", "ttmRevenueGrowth", "latestQuarterEnd",
     "dilutedEpsAnnual", "dilutedEpsGrowth",
-    "fwdEps0y", "fwdEps1y", "estimateGrowth1y", "estimateAnalysts",
+    "fwdEps0y", "fwdEps1y", "estimateGrowth1y", "estimateAnalysts", "eulerRevGrowth1y", "eulerFwdEps2y", "eulerRevGrowth2y",
     "targetMeanPrice", "targetHighPrice", "targetLowPrice", "targetUpside", "recommendationKey",
-    "recommendationMean", "numberOfAnalystOpinions", "momentum", "meanReversion", "earningsMsi", "epsRevision0y",
+    "recommendationMean", "numberOfAnalystOpinions", "momentum", "meanReversion", "entryTiming", "earningsMsi", "epsRevision0y",
     "epsRevision1y", "epsVolatility", "heldPercentInsiders", "earningsTimestampStart", "yearReturn", "lastDownload",
+    # Trailing average reported-vs-estimate EPS surprise % over the last
+    # EARNINGS_SURPRISE_LOOKBACK_QUARTERS actually-reported quarters (see
+    # derive.earnings_surprise_from_statements) -- a DIFFERENT signal from
+    # epsRevision0y/1y above (analyst ESTIMATES moving before the print);
+    # this is the actual beat/miss TRACK RECORD after the fact.
+    "earningsSurpriseAvg",
 ]
 # FINRA biweekly short-interest figures (finra.SHORT_INTEREST_FILE +
 # raw_data.json floatShares, via scoring.load_short_interest_scores) -- the
@@ -544,7 +589,30 @@ FIELDNAMES = [
 # real 6.3%). sorted_screen.csv only, not screen_data.csv (which predates
 # the FINRA fetch and has no equivalent column). Blank for a ticker FINRA
 # doesn't report -- the frontend falls back to shortPercentOfFloat there.
-SCREEN_ONLY_FIELDNAMES = ["shortPctOfFloatFinra", "shortDaysToCover", "shortChangePercent"]
+SCREEN_ONLY_FIELDNAMES = [
+    "shortPctOfFloatFinra", "shortDaysToCover", "shortChangePercent",
+    # Eulerpool's own 10-trading-day trailing average of FINRA's DAILY
+    # short-sale volume tape (modules.eulerpool.fetch_short_volume) -- a
+    # fourth, independent short-interest leg alongside the three FINRA
+    # biweekly-settlement fields above (see scoring.short_interest_rank).
+    "shortVolumeRatio",
+    # Eulerpool's own [-1, 1] aggregate sell-side stance, RIGHT NOW (see
+    # scoring.analyst_consensus_score) -- most-recent grade per firm,
+    # averaged. Distinct from targetUpside (price-target math) and from
+    # numberOfAnalystOpinions -- this is what coverage currently THINKS,
+    # not what price they think it's worth.
+    "analystConsensus",
+    # simulations.json's own simReturn (see write_sorted_screen_csv's own
+    # comment on the _mc_data merge above) -- was already merged into each
+    # row dict at write time but never actually persisted to the CSV
+    # since it wasn't in this list. Added so modules/backtest.py can start
+    # reconstructing the sim-return gate (simReturnOkForLong/ForShort in
+    # RecommendationsView.tsx) for future dated snapshots -- it couldn't
+    # before, since simReturn was never archived. Only helps GOING
+    # FORWARD; every already-archived sorted_screen <date>.csv predates
+    # this column and stays without it.
+    "simReturn",
+]
 # sorted_screen.csv shows sector last instead of right after name.
 SCREEN_FIELDNAMES = [f for f in FIELDNAMES if f != "sector"] + SCREEN_ONLY_FIELDNAMES + ["sector"]
 
@@ -1225,7 +1293,7 @@ def download_ib_prices():
 
 
 async def download_ib_hourly_history(app, tickers):
-    """Refreshes HOURLY_HISTORY_FILE (IB Gateway's own 1-month hourly
+    """Refreshes HOURLY_HISTORY_FILE (IB Gateway's own 3-month hourly
     bars) for `tickers`, via an already-connected `app` -- the hourly
     twin of download_ib_daily_history, same staleness gate (only a
     ticker whose existing entry is missing or older than
@@ -1246,8 +1314,8 @@ async def download_ib_hourly_history(app, tickers):
         print(f"IB hourly history already current for all {len(tickers)} candidate ticker(s); skipping IB Gateway fetch")
         _update_missings("ib_hourly", [t for t in tickers if not existing.get(t)])
         return
-    print(f"Fetching IB 1mo hourly bars for {len(stale)}/{len(tickers)} stale/missing ticker(s) (paced, can take a while)...")
-    fresh = await app.get_ib_historical_bars_async(stale, "1 M", "1 hour", on_ticker=_progress_printer("Hourly", len(stale)))
+    print(f"Fetching IB 3mo hourly bars for {len(stale)}/{len(tickers)} stale/missing ticker(s) (paced, can take a while)...")
+    fresh = await app.get_ib_historical_bars_async(stale, "3 M", "1 hour", on_ticker=_progress_printer("Hourly", len(stale)))
     existing.update(fresh)
     with open(HOURLY_HISTORY_FILE, "w") as f:
         json.dump(existing, f)
@@ -1516,11 +1584,43 @@ def recalc(fresh_momentum=False, force_prices=False):
         add_momentum_and_persist_history(app, data, force=force_prices)
     else:
         add_momentum_from_cache(app, data)
+    # Overwrites the MSI-based momentum add_momentum_from_cache/
+    # add_momentum_and_persist_history just set with the new Trend Score
+    # (see derive.reconcile_momentum's own comment) -- zero network calls,
+    # reads DAILY_3MO_HISTORY_FILE straight off disk, same as every other
+    # reconcile_* below.
+    derive.reconcile_momentum(data, _load_json_or_empty(DAILY_3MO_HISTORY_FILE))
+    # Same replacement, hourly timeframe -- see derive.reconcile_mean_reversion's
+    # own comment for why this recalibrates rather than sign-flips the old
+    # hourly-MFI-based meanReversion.
+    derive.reconcile_mean_reversion(data, _load_json_or_empty(HOURLY_HISTORY_FILE))
+    # New, deliberately unscored field -- a 1-trading-day-ahead entry-
+    # timing read (35h hourly formation, see derive.reconcile_entry_timing's
+    # own comment for why this is a different window/horizon from
+    # meanReversion above, not a duplicate of it). No FACTOR_WEIGHTS entry.
+    derive.reconcile_entry_timing(data, _load_json_or_empty(HOURLY_HISTORY_FILE))
     _xbrl = _load_json_or_empty(XBRL_FACTS_FILE)
+    _raw_stmts = _load_json_or_empty(RAW_STATEMENTS_FILE)
+    # Recomputes trailingEps/trailingPE from the 4 most recent quarters in
+    # quarterlyIncomeStmt directly, rather than trusting yfinance's own
+    # `.info` summary fields -- explicit instruction: those can lag their
+    # OWN quarterlyIncomeStmt endpoint by a full quarter (confirmed live
+    # on FEIM), so REPORTED earnings should be reflected as soon as this
+    # (zero-network) reconciliation next runs after a fresh download,
+    # not whenever yfinance's own summary cache happens to catch up. Runs
+    # BEFORE reconcile_eps_volatility/reconcile_forward_eps below since
+    # both are independent of it, but keeping the "most foundational
+    # figure first" ordering this function already uses elsewhere.
+    derive.reconcile_trailing_eps(data, _raw_stmts, _xbrl)
     derive.reconcile_revenue_growth(data, _xbrl)
     derive.reconcile_earnings_growth(data, _xbrl)
-    derive.reconcile_eps_volatility(data, _xbrl, _load_json_or_empty(RAW_STATEMENTS_FILE))
+    derive.reconcile_eps_volatility(
+        data, _xbrl, _raw_stmts, _load_json_or_empty(EPS_ESTIMATES_FILE)
+    )
     derive.reconcile_forward_eps(data, _load_json_or_empty(FORWARD_EPS_FILE))
+    # Needs forwardEps (just reconciled above) and earningsGrowth (reconciled
+    # earlier by reconcile_earnings_growth) -- must run after both.
+    derive.reconcile_peg_ratio(data)
     add_target_upside(data)
     add_avg_liquidity_ratio(data)
     write_full_csv(data)
@@ -1594,11 +1694,13 @@ def write_sorted_screen_csv(data):
     snapshot IB price universe ib_server.py builds from this file."""
     normalize_eps_revisions(data)
     rows = [(s, d) for s, d in screen_rows(data) if (to_float(d.get("price")) or 0) >= MIN_PRICE]
-    sentiment_scores = load_sentiment_scores(SENTIMENT_FILE, NEWS_SENTIMENT_FILE, THIRTEENF_FILE)
+    sentiment_scores = load_sentiment_scores(SENTIMENT_FILE, NEWS_SENTIMENT_FILE)
+    institutional_scores = load_institutional_scores(THIRTEENF_FILE)
     insider_scores = load_insider_scores(FORM4_FILE)
-    short_interest_scores = load_short_interest_scores(SHORT_INTEREST_FILE, RAW_DATA_FILE)
+    short_interest_scores = load_short_interest_scores(SHORT_INTEREST_FILE, RAW_DATA_FILE, SHORT_VOLUME_FILE)
     fair_value_scores = load_fair_value_scores(FAIR_VALUE_FILE)
     consensus_scores = analyst_consensus_score(GRADES_FILE)
+    guidance_scores = load_guidance_scores(GUIDANCE_SIGNAL_FILE)
 
     # Inject the two simulations.json return estimates into each row dict so
     # forecast_return_rank can read them directly -- that factor is an
@@ -1609,6 +1711,9 @@ def write_sorted_screen_csv(data):
     #   simReturn -- the Monte Carlo simulated-path price distribution's
     #     MEAN vs. currentPrice (raw, not confidence-shrunk).
     # simSharpe rides along for reference but is no longer scored here.
+    #   probAboveCurrentPrice -- share of Monte Carlo paths ending above
+    #     today's price, from simPriceDistribution; scored separately by
+    #     sim_prob_above_rank alongside forecast_return_rank.
     # Tickers not present in the file (not yet simulated, simulated with an
     # error, or with no industry-multiple scenario to derive a forecast
     # from) are simply left without the fields -- forecast_return_rank
@@ -1620,18 +1725,20 @@ def write_sorted_screen_csv(data):
                 if "ticker" not in entry or entry.get("error"):
                     continue
                 _fret, _sret = entry.get("forecastReturn"), entry.get("simReturn")
+                _dist = entry.get("simPriceDistribution") or {}
                 if _fret is not None or _sret is not None:
                     _mc_data[entry["ticker"]] = {
                         "forecastReturn": _fret,
                         "simReturn": _sret,
                         "simSharpe": entry.get("simSharpe"),
+                        "probAboveCurrentPrice": _dist.get("probAboveCurrentPrice"),
                     }
     except (FileNotFoundError, json.JSONDecodeError):
         _mc_data = {}
     rows = [(s, {**d, **_mc_data[s]} if s in _mc_data else d) for s, d in rows]
 
     scored = sorted(
-        score_rows(rows, sentiment_scores, insider_scores, short_interest_scores, fair_value_scores, consensus_scores),
+        score_rows(rows, sentiment_scores, insider_scores, short_interest_scores, fair_value_scores, consensus_scores, guidance_scores, institutional_scores),
         key=lambda item: item[2],
     )
     n = len(scored)
@@ -1648,16 +1755,25 @@ def write_sorted_screen_csv(data):
     unranked.sort(key=lambda item: item[0])  # alphabetical -- nothing else to rank them by
 
     def _with_short_interest(symbol, d):
-        """d plus the three FINRA short-interest fields (see
-        SCREEN_ONLY_FIELDNAMES) pulled from the same short_interest_scores
-        map score_rows was just handed -- so the CSV column and the
-        composite score can never disagree about a ticker's short interest."""
+        """d plus the four short-interest fields and analystConsensus (see
+        SCREEN_ONLY_FIELDNAMES) pulled from the same short_interest_scores/
+        consensus_scores maps score_rows was just handed -- so the CSV
+        column and the composite score can never disagree. Three of the
+        short-interest fields are FINRA's own biweekly settlement figures;
+        shortVolumeRatio is Eulerpool's daily short-volume-tape average, a
+        fourth and independent leg (see scoring.load_short_interest_scores/
+        short_interest_rank). analystConsensus is Eulerpool's own
+        [-1, 1] aggregate sell-side stance (see
+        scoring.analyst_consensus_score) -- where coverage stands RIGHT
+        NOW, not the same thing as targetUpside's price-target math."""
         si = short_interest_scores.get(symbol) or {}
         return {
             **d,
             "shortPctOfFloatFinra": si.get("pctOfFloat"),
             "shortDaysToCover": si.get("daysToCover"),
             "shortChangePercent": si.get("changePercent"),
+            "shortVolumeRatio": si.get("shortVolumeRatio"),
+            "analystConsensus": consensus_scores.get(symbol),
         }
 
     fieldnames = SCREEN_FIELDNAMES + ["score", "rating"]
@@ -1689,7 +1805,10 @@ def write_sorted_screen_csv(data):
     # files already on disk" operation download_recommendations() wraps for
     # the CLI (`python main.py recommendations`) -- safe to always chain
     # here, not just run on request.
-    write_recommendations(SORTED_SCREEN_CSV, NEWS_FILE, FORM4_FILE, THIRTEENF_FILE, SHORT_INTEREST_FILE, RAW_DATA_FILE, RATED_FOR_EXTRAS)
+    write_recommendations(
+        SORTED_SCREEN_CSV, NEWS_FILE, FORM4_FILE, THIRTEENF_FILE, SHORT_INTEREST_FILE, RAW_DATA_FILE, RATED_FOR_EXTRAS,
+        simulations_file=SIMULATIONS_FILE,
+    )
 
 
 async def _refresh_ib_daily_and_hourly(tickers, overwrite):
@@ -1903,42 +2022,122 @@ def download_13f():
     fetch_13f_holdings(ticker_names)
 
 
+EULERPOOL_ALL_MAX_AGE_DAYS = 3
+
+
 def download_eulerpool():
-    """Fetches all three of Eulerpool's own per-ticker datasets for the
+    """Fetches all five of Eulerpool's own per-ticker datasets for the
     ENTIRE scored universe (explicit instruction: same widened scope as
-    download_form4/download_xbrl/download_13f, not just RATED_FOR_EXTRAS),
-    same standalone-download reasoning as those (a different rate-limited
-    external service, own schedule):
+    download_form4/download_xbrl/download_13f, not just RATED_FOR_EXTRAS):
 
       1. Analyst upgrade/downgrade history (modules.eulerpool.
          fetch_analyst_grades) -- the FULL grade history, "maintain"
          included, feeding modules.scoring's load_analyst_grade_scores/
-         analyst_consensus_score. Self-throttling: no-ops if GRADES_FILE
-         is already younger than GRADES_MAX_AGE_DAYS (3 days).
+         analyst_consensus_score.
       2. Fair-value snapshot (modules.eulerpool.fetch_fair_values) --
          feeding modules.scoring.load_fair_value_scores (fair_value_rank,
-         5% of the composite score in every column). No staleness
-         cooldown of its own (see that function's own docstring -- it's a
-         same-day snapshot, always refetched), so this step alone still
-         costs real time/API calls even when step 1 is skipped as fresh.
-      3. Forward-EPS consensus (modules.eulerpool.fetch_forward_eps) --
-         feeding modules.derive.reconcile_forward_eps, which blends this
-         50/50 with yfinance's own fwdEps0y/fwdEps1y into "our own"
-         forward EPS used everywhere (including forwardEps, the figure
-         modules.simulations actually anchors its EPS path on). Same
-         same-day-snapshot, always-refetched shape as step 2.
+         part of the composite score in every column).
+      3. Forward-EPS/revenue consensus (modules.eulerpool.fetch_forward_eps)
+         -- feeding modules.derive.reconcile_forward_eps, which blends the
+         EPS pair 50/50 with yfinance's own fwdEps0y/fwdEps1y into "our
+         own" forward EPS used everywhere (including forwardEps, the
+         figure modules.simulations actually anchors its EPS path on),
+         and derives eulerRevGrowth1y (a new forward revenue-growth signal
+         with no yfinance equivalent) feeding both exp_revenue_growth_rank
+         and modules.simulations' own ownGrowthRate.
+      4. Daily short-volume ratio (modules.eulerpool.fetch_short_volume)
+         -- a trailing 10-trading-day average of FINRA's own daily short-
+         sale volume tape, feeding modules.scoring.load_short_interest_
+         scores as a fourth leg of short_interest_rank (see that
+         function's own docstring) -- genuinely new, higher-frequency data
+         this project never ingested before (distinct from FINRA's
+         biweekly short-INTEREST settlement file modules.finra already
+         pulls directly).
+      5. Historical EPS-estimate series (modules.eulerpool.
+         fetch_eps_estimates) -- feeding modules.derive.eps_volatility as
+         a third historical-EPS source alongside SEC company_facts and
+         yfinance's own income_stmt (see reconcile_eps_volatility and
+         fetch_eps_estimates' own docstring for why: spot-checked against
+         SEC GAAP diluted EPS for MSFT/AMZN, it reads closer to a "Street"/
+         adjusted EPS, excluding at least some one-off items that inflate
+         GAAP-based volatility without reflecting genuine earnings
+         unpredictability).
 
-    Pass `overwrite` as the first CLI arg to force step 1's refetch
-    regardless of age (steps 2 and 3 always refetch). Run via `python
-    main.py eulerpool` (`eulerpool overwrite` to force)."""
+    Explicit instruction: ALL FIVE now share ONE blanket 3-day cooldown
+    (EULERPOOL_ALL_MAX_AGE_DAYS) at this function's own entry point,
+    keyed off GRADES_FILE's mtime (the one file every prior run always
+    touches) -- if Eulerpool data of ANY kind was downloaded within the
+    last 3 days, the ENTIRE step is skipped, not just re-checked
+    per-dataset the way step 1 alone used to self-throttle (steps 2-4 used
+    to always refetch regardless of age; that's gone now). This is what
+    lets `python main.py all` include this step on every run (a new
+    behavior -- previously eulerpool downloads were `python main.py
+    eulerpool`-only, standalone, own schedule) without hitting Eulerpool's
+    API on every single `all` run.
+
+    Pass `overwrite` as the first CLI arg (or `all overwrite`) to bypass
+    the cooldown and force every step's refetch regardless of age. Run
+    via `python main.py eulerpool` (`eulerpool overwrite` to force), or
+    automatically as part of `python main.py all`."""
     tickers = load_all_tickers(SORTED_SCREEN_CSV)
     if not tickers:
         print(f"No existing {SORTED_SCREEN_CSV} yet; run `python main.py all` first")
         return
     force = len(sys.argv) > 2 and sys.argv[2] == "overwrite"
+    if not force and os.path.exists(GRADES_FILE):
+        age_days = (time.time() - os.path.getmtime(GRADES_FILE)) / 86400
+        if age_days < EULERPOOL_ALL_MAX_AGE_DAYS:
+            print(f"Eulerpool data already refreshed {age_days:.1f}d ago "
+                  f"(< {EULERPOOL_ALL_MAX_AGE_DAYS}d) -- skipping all Eulerpool "
+                  f"downloads. Pass 'overwrite' to force.")
+            return
     fetch_analyst_grades(tickers, out_file=GRADES_FILE, force=force)
     fetch_fair_values(tickers, out_file=FAIR_VALUE_FILE)
     fetch_forward_eps(tickers, out_file=FORWARD_EPS_FILE)
+    fetch_short_volume(tickers, out_file=SHORT_VOLUME_FILE)
+    fetch_eps_estimates(tickers, out_file=EPS_ESTIMATES_FILE)
+
+
+# Deliberately its OWN standalone step, NOT folded into download_eulerpool's
+# blanket 5-dataset fetch above -- explicit prior lesson (see
+# feedback_no_unprompted_long_running_fetches.md's "Repeat violation #2"):
+# a narrowly-scoped fetch should be its own call, not reached via a
+# blanket step that would also re-touch the other four already-fresh
+# Eulerpool datasets. Scoped to Strong Buy/Strong Sell only -- explicit
+# instruction, not RATED_FOR_EXTRAS' wider Buy/Sell-included set -- since
+# this is meant to feed a from-scratch look at whether transcripts are
+# even worth building a signal from, not a full-universe ingestion yet.
+def download_transcripts():
+    """Fetches the latest earnings-call transcript (modules.eulerpool.
+    fetch_transcripts) for every currently Strong Buy/Strong Sell ticker
+    in sorted_screen.csv. Run via `python main.py transcripts` any time
+    after the ranking has been refreshed (`all`/`recalc`)."""
+    tickers = load_rated_tickers(SORTED_SCREEN_CSV, {"Strong Buy", "Strong Sell"})
+    if not tickers:
+        print(f"No existing {SORTED_SCREEN_CSV} yet, or no Strong Buy/Strong Sell tickers currently -- run `python main.py all` first")
+        return
+    fetch_transcripts(tickers, out_file=TRANSCRIPTS_FILE)
+
+
+def download_guidance():
+    """Fetches 8-K earnings-release guidance snippets (modules.sec_edgar.
+    fetch_earnings_guidance) for every currently Strong Buy/Strong Sell
+    ticker in sorted_screen.csv -- same scope as download_transcripts,
+    same "its own narrow step, not folded into a blanket one" reasoning.
+    Run via `python main.py guidance` any time after the ranking has been
+    refreshed (`all`/`recalc`).
+
+    Also re-runs summarize_guidance() to refresh GUIDANCE_SIGNAL_FILE from
+    whatever snippets are now on file -- this used to be a one-off manual
+    step when the guidance factor was first built, which would have left
+    GUIDANCE_SIGNAL_FILE silently stale on the next real fetch (the same
+    shape of staleness bug found and fixed elsewhere this session)."""
+    tickers = load_rated_tickers(SORTED_SCREEN_CSV, {"Strong Buy", "Strong Sell"})
+    if not tickers:
+        print(f"No existing {SORTED_SCREEN_CSV} yet, or no Strong Buy/Strong Sell tickers currently -- run `python main.py all` first")
+        return
+    fetch_earnings_guidance(tickers, out_file=GUIDANCE_FILE)
+    summarize_guidance()
 
 
 def download_recommendations():
@@ -1952,7 +2151,10 @@ def download_recommendations():
     `python main.py recommendations` any time after the pieces it reads
     from have been refreshed (`all`/`prices`, `form4`, `13f`,
     `shortinterest`)."""
-    write_recommendations(SORTED_SCREEN_CSV, NEWS_FILE, FORM4_FILE, THIRTEENF_FILE, SHORT_INTEREST_FILE, RAW_DATA_FILE, RATED_FOR_EXTRAS)
+    write_recommendations(
+        SORTED_SCREEN_CSV, NEWS_FILE, FORM4_FILE, THIRTEENF_FILE, SHORT_INTEREST_FILE, RAW_DATA_FILE, RATED_FOR_EXTRAS,
+        simulations_file=SIMULATIONS_FILE,
+    )
 
 
 def _get_held_tickers():
@@ -2127,7 +2329,8 @@ def download_target_portfolio():
 
 def download_backtest():
     """Scores every dated screen snapshot in HISTORY_DIR (sorted_screen
-    <YYYYMMDD>.csv) forward one week against IB's daily bars and writes
+    <YYYYMMDD>.csv) forward 5 trading days (modules.backtest.
+    HOLDING_TRADING_DAYS) against IB's daily bars and writes
     BACKTEST_FILE -- per rating bucket, equal-weight: weekly return,
     weekly volatility, Sharpe (see modules/backtest.py). Zero network
     calls; purely computes from files already on disk. Run via `python
@@ -2135,7 +2338,7 @@ def download_backtest():
     bar pull is reflected. New weeks appear by dropping another
     sorted_screen <date>.csv into HISTORY_DIR -- nothing here to change."""
     try:
-        result = build_backtest(HISTORY_DIR, DAILY_3MO_HISTORY_FILE)
+        result = build_backtest(HISTORY_DIR, DAILY_3MO_HISTORY_FILE, HOURLY_HISTORY_FILE)
     except Exception as exc:
         print(f"backtest failed: {exc}")
         return
@@ -2152,6 +2355,13 @@ if __name__ == "__main__":
         # `all overwrite` bypasses IB_REFRESH_STATE_FILE's 3h cooldown --
         # see download_all's own overwrite param. The only command that can.
         download_all(overwrite=(len(sys.argv) > 2 and sys.argv[2] == "overwrite"))
+        # Eulerpool downloads (explicit instruction) -- own blanket 3-day
+        # cooldown inside download_eulerpool itself (EULERPOOL_ALL_MAX_AGE_
+        # DAYS), so this is safe to call on every `all` run: it no-ops
+        # immediately unless Eulerpool data is actually stale. `all
+        # overwrite` forces it through the same way it forces the IB
+        # refresh through, above.
+        download_eulerpool()
     elif mode == "download":
         download(sys.argv[2:] if len(sys.argv) > 2 else None)
     elif mode in ("recalc", "rescore"):
@@ -2166,6 +2376,10 @@ if __name__ == "__main__":
         download_13f()
     elif mode == "eulerpool":
         download_eulerpool()
+    elif mode == "transcripts":
+        download_transcripts()
+    elif mode == "guidance":
+        download_guidance()
     elif mode == "shortinterest":
         download_short_interest()
     elif mode == "ibprices":

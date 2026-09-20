@@ -75,6 +75,15 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* A backtest week a candidate was *_blocked in -- BacktestingView.tsx's
+   Candidates table shows the hypothetical return in parens (informative,
+   e.g. a FEIM-shaped blocked week) but deliberately neither good/bad
+   colored nor counted in Compounded, since no real position was taken. */
+.cell-blocked {
+  color: var(--muted, #888);
+  font-style: italic;
+}
+
 .tooltip-cell[data-tip] {
   cursor: help;
   position: relative;
@@ -2266,6 +2275,15 @@ tr.row-held {
   margin-bottom: 2px;
 }
 
+/* How much this rationale line's factor actually counts toward the
+   composite score right now (see FactorWeightTag/factorWeightPct in
+   RecommendationsView.tsx) -- deliberately small/faded so it reads as a
+   footnote, not a competing number next to the line's own value. */
+.rationale-factor-weight {
+  font-size: 10.5px;
+  color: var(--muted, #888);
+}
+
 /* Per-factor good/bad glyph -- see ThumbIcon in RecommendationsView.tsx.
    Inline with the line's own text (vertical-align keeps a 13px icon
    sitting on the same baseline as 12.5px text) rather than floated to
@@ -2934,6 +2952,65 @@ tfoot td.col-left {
   flex: 0 0 auto;
   border-top: 1px solid var(--line);
   margin: 0;
+}
+
+// SimulationsView.tsx: the whole row opens NoteModal when a note exists
+// (not just the Notes column's icon button, easy to miss off the right
+// edge of a 17-column table) -- cursor so it reads as clickable; hover
+// feedback already comes from the existing tbody tr:hover td rule above.
+tr.has-notes {
+  cursor: pointer;
+}
+
+// SimulationsView.tsx's Notes column -- a small icon button (only rendered
+// when generate_note found something to say) that opens NoteModal.
+.col-notes {
+  text-align: center;
+}
+
+.notes-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.notes-btn:hover {
+  color: var(--ink);
+  border-color: var(--muted);
+}
+
+.modal-subtitle {
+  font-weight: 400;
+  color: var(--muted);
+  margin-left: 6px;
+}
+
+.sim-note-text {
+  margin: 12px 0 16px;
+  line-height: 1.5;
+  font-size: 13px;
+}
+
+.sim-note-list {
+  margin: 12px 0 16px;
+  padding-left: 20px;
+  line-height: 1.6;
+  font-size: 13px;
+}
+
+.sim-note-list li {
+  margin-bottom: 8px;
+}
+
+.sim-note-list li:last-child {
+  margin-bottom: 0;
 }
 
 // Printed output for FactsheetView.tsx (and anything else opting into

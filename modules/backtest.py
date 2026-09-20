@@ -8,18 +8,24 @@ by the same entry gates RecommendationsView.tsx applies:
 
   long_strong_buy   Strong Buy that clears the long gates
   long_buy          Buy that clears the long gates
-  long_blocked      Buy/Strong Buy that fails one (falling-knife/overbought
-                    momentum, mean-reversion overbought)
+  long_blocked      Buy/Strong Buy that fails one (weak momentum, bad
+                    entry-timing day, a simulation saying it should fall,
+                    earnings within the week)
   short_strong_sell Strong Sell that clears the short gates
   short_sell        Sell that clears the short gates
-  short_blocked     Sell/Strong Sell that fails one (strong-uptrend/oversold
-                    momentum, mean-reversion oversold)
+  short_blocked     Sell/Strong Sell that fails one (strong momentum, bad
+                    entry-timing day, a simulation saying it should rise,
+                    crowded short interest, strong revenue growth,
+                    earnings within the week)
 
-Each candidate's forward one-week return is taken from IB's daily bars
-(``data/IB/price_history_daily_3mo.json``):
+Each candidate's forward return is taken from IB's daily bars
+(``data/IB/price_history_daily_3mo.json``), held exactly HOLDING_TRADING_DAYS
+(5) TRADING days -- not a flat 7 CALENDAR days, which used to drift between
+3 and 5 actual trading days depending on where a weekend or holiday fell:
 
   entry = last close on/before the screen date   (Fri for a Sat date)
-  exit  = last close on/before the screen date + 7 days
+  exit  = the 5th trading-day close after entry (fewer only if the price
+          cache runs out first)
 
 then per group, equal-weight:
 
@@ -73,6 +79,7 @@ import re
 import statistics
 from datetime import date, datetime, timedelta, timezone
 
+from modules import derive
 from modules.scoring import rating_for_percentile, score_rows
 
 GROUPS = [
@@ -87,11 +94,17 @@ GROUPS = [
 _LONG_RATINGS = {"Strong Buy", "Buy"}
 _SHORT_RATINGS = {"Strong Sell", "Sell"}
 
-# Kept in lockstep with ib_server._REC_* / RecommendationsView.tsx. The
-# crowded-short gate (_MAX_SHORT_INTEREST) was removed entirely, from all
-# three -- this backtest's own blockedBreakdown showed it was consistently
-# counterproductive: every short blocked for crowding would have made a
-# good short in both measured weeks.
+# Kept in lockstep with ib_server._REC_* / RecommendationsView.tsx. An
+# OLDER crowded-short gate (_MAX_SHORT_INTEREST, a lower/broader
+# threshold) was removed entirely, from all three -- this backtest's own
+# blockedBreakdown showed it was consistently counterproductive: every
+# short blocked for crowding would have made a good short in both
+# measured weeks. A DIFFERENT, narrower short-interest gate (30% of
+# float, exact mirror of RecommendationsView.tsx's own
+# SHORT_INTEREST_ENTRY_CAP) was added back later -- see
+# _short_interest_blocks below -- after VITL's 32%-of-float short lost
+# 23.1% in one week; not a revival of the gate removed here, a
+# differently-thresholded one added independently.
 # Two stale rules just caught by inspection (both applied to the Actual
 # AND Current columns alike, since _long/_short_gate_reasons classify
 # both -- see _build_week): momentum was still the old one-sided 30/70
@@ -99,11 +112,12 @@ _SHORT_RATINGS = {"Strong Sell", "Sell"}
 # (replaced by the sim-return gate) but this module never stopped
 # checking. Momentum synced to the current no-buy/no-sell zones;
 # revenue_growth removed outright rather than re-thresholded, since it no
-# longer exists as a gate to sync TO. Not (yet) replaced with a sim-return
-# check here -- simReturn/forecastReturn aren't archived per-week
-# (sorted_screen <date>.csv has no such column), so it can't be
-# reconstructed retroactively; would need main.py to start writing it into
-# future snapshots.
+# longer exists as a gate to sync TO. UPDATE: sim_return now checked (see
+# _long_gate_reasons/_short_gate_reasons' own paragraphs) -- main.py
+# started writing simReturn into sorted_screen <date>.csv, so this is
+# reconstructable GOING FORWARD; every week archived before that column
+# existed still has nothing to check (fails open, same as any other
+# missing-data case).
 # MSI is now a pure two-threshold continuation gate: long blocked at/below
 # NO_BUY, short blocked at/above NO_SELL, nothing else. The old
 # mean-reversion carve-outs at the far extremes (buy-the-dip below
@@ -117,8 +131,60 @@ _SHORT_RATINGS = {"Strong Sell", "Sell"}
 # text in RecommendationsView.tsx, not as gate thresholds.
 _MOMENTUM_NO_BUY = 35
 _MOMENTUM_NO_SELL = 65
-_MEAN_REVERSION_OVERBOUGHT = 80
-_MEAN_REVERSION_OVERSOLD = 20
+# meanReversion gate REMOVED (was _MEAN_REVERSION_OVERBOUGHT=80/OVERSOLD=20)
+# -- kept in sync with RecommendationsView.tsx's own removal of
+# meanReversionOkForLong/meanReversionOkForShort: the factor-performance
+# check found meanReversion backwards on both books (long rho=+0.071 when
+# this gate's "overbought predicts a pullback" premise needs it negative;
+# short rho=-0.106, same problem mirrored), so blocking an entry on it had
+# no empirical support. Replaced below by an entry_timing gate instead --
+# a DIFFERENT signal (35h hourly formation, validated against a 1-day-
+# ahead outcome specifically -- see derive.reconcile_entry_timing's own
+# comment), not a re-add of the same thing under a new name.
+# 90/10, not the mean_reversion gate's old 80/20 -- explicit instruction,
+# after a decile check on the same 35h/1-day-ahead study: next-day return
+# is flat across 30-70% (-0.28% to -0.36%) and still only -0.48% at
+# 80-90%, not meaningfully worse than the flat middle -- the real cliff is
+# 90-100% (-0.91%, nearly double the next decile down). Bottom end mirrors
+# it: 10-20% (-0.11%) is close to the flat middle, only 0-10% (+0.20%) is
+# actually different. 80/20 would have gated on deciles that aren't
+# distinguishable from noise.
+_ENTRY_TIMING_OVERBOUGHT = 90
+_ENTRY_TIMING_OVERSOLD = 10
+
+# Two more short-only gates, added here to catch up with
+# RecommendationsView.tsx's own shortInterestBlocksEntry/
+# growthBlocksShortEntry -- this module had drifted out of sync with both
+# (confirmed live: VITL at 32.1% short-of-float, and S/PANW at 20.6%/24.8%
+# trailing revenue growth, all showed up as clean short_strong_sell weeks
+# with an ugly loss -- VITL -23.1% in one week alone -- when the live app
+# would already refuse to short any of the three today). Exact same
+# thresholds/fields as the live gates, so this module's blocked/unblocked
+# split actually matches what the live app would do, not just what it
+# used to do.
+_SHORT_INTEREST_ENTRY_CAP = 0.3  # RecommendationsView.tsx SHORT_INTEREST_ENTRY_CAP
+_SHORT_GROWTH_CEILING = 0.10  # RecommendationsView.tsx SHORT_GROWTH_CEILING
+
+
+def _effective_short_pct(row):
+    """FINRA's biweekly-settlement pct-of-float, falling back to
+    yfinance's own shortPercentOfFloat -- exact mirror of
+    RecommendationsView.tsx's effectiveShortPctOfFloat."""
+    finra = _f(row.get("shortPctOfFloatFinra"))
+    return finra if finra is not None else _f(row.get("shortPercentOfFloat"))
+
+
+def _short_interest_blocks(row):
+    pct = _effective_short_pct(row)
+    return pct is not None and pct > _SHORT_INTEREST_ENTRY_CAP
+
+
+def _growth_blocks_short(row):
+    trailing = _f(row.get("revenueGrowth"))
+    expected = _f(row.get("eulerRevGrowth1y"))
+    return (trailing is not None and trailing > _SHORT_GROWTH_CEILING) or (
+        expected is not None and expected > _SHORT_GROWTH_CEILING
+    )
 
 _HISTORY_RE = re.compile(r"sorted_screen[ _](\d{4})(\d{2})(\d{2})\.csv$")
 
@@ -152,7 +218,9 @@ def _earnings_blocks(row, entry_cutoff, exit_cutoff):
 
 def _long_gate_reasons(row, entry_cutoff, exit_cutoff):
     """Every RecommendationsView.tsx long-gate check this row fails, by
-    name -- empty list means it clears eligibleToBuy + meanReversionOkForLong.
+    name -- empty list means it clears eligibleToBuy (entry_timing is this
+    module's own addition, not one RecommendationsView.tsx gates on live --
+    see this function's own entry_timing paragraph below).
     A row can fail more than one at once; each is recorded independently
     (not mutually exclusive) so blockedBreakdown below can isolate which
     single rule is actually costing return, instead of only knowing the
@@ -162,21 +230,39 @@ def _long_gate_reasons(row, entry_cutoff, exit_cutoff):
     weak-momentum half, oversold and falling knife alike (continuation:
     buying weakness kept losing over the next few days). Everything above
     NO_BUY, overbought included, is fine. Mirrors
-    RecommendationsView.tsx's momentumBlocks('Long'). No revenue-growth
-    check -- the live gate was replaced by a sim-return gate a while ago
-    (not reconstructable here, see the _MOMENTUM_NO_BUY block comment). No
-    EPS-trend check either -- also removed from the live gate:
-    backtesting showed it was consistently counterproductive on the short
-    side (the largest short_blocked population every week, and
-    consistently positive -- i.e. a bad short -- in every week/model
-    measured), the same shape of finding that got crowded_short removed."""
+    RecommendationsView.tsx's momentumBlocks('Long'). No EPS-trend check
+    -- removed from the live gate: backtesting showed it was consistently
+    counterproductive on the short side (the largest short_blocked
+    population every week, and consistently positive -- i.e. a bad short
+    -- in every week/model measured), the same shape of finding that got
+    crowded_short removed.
+
+    entry_timing: explicit instruction -- if entryTiming (the new 1-day-
+    ahead timing read, see derive.reconcile_entry_timing) says today is a
+    bad day to open THIS SPECIFIC entry, drop the position from that
+    week's backtest entirely rather than holding it anyway. Long is
+    blocked at/above OVERBOUGHT (stock already ran up hard over the
+    trailing ~5 trading days -- next-day pullback risk); nothing else
+    about entryTiming gates a long (the oversold end is a GOOD day to
+    buy, not blocked).
+
+    sim_return: mirrors RecommendationsView.tsx's simReturnOkForLong --
+    blocked when the Monte Carlo simulation says the price should FALL
+    (simReturn < 0). Only checkable going forward: simReturn was never
+    archived into sorted_screen <date>.csv until main.py started writing
+    it (see SCREEN_ONLY_FIELDNAMES's own comment), so this fails open
+    (not blocked) for every already-archived week that predates that
+    column, same as every other missing-data case here."""
     reasons = []
     momentum = _f(row.get("momentum"))
     if momentum is None or momentum <= _MOMENTUM_NO_BUY:
         reasons.append("momentum")
-    mr = _f(row.get("meanReversion"))
-    if mr is not None and mr >= _MEAN_REVERSION_OVERBOUGHT:
-        reasons.append("mean_reversion")
+    et = _f(row.get("entryTiming"))
+    if et is not None and et >= _ENTRY_TIMING_OVERBOUGHT:
+        reasons.append("entry_timing")
+    sim_return = _f(row.get("simReturn"))
+    if sim_return is not None and sim_return < 0:
+        reasons.append("sim_return")
     if _earnings_blocks(row, entry_cutoff, exit_cutoff):
         reasons.append("earnings")
     return reasons
@@ -184,23 +270,45 @@ def _long_gate_reasons(row, entry_cutoff, exit_cutoff):
 
 def _short_gate_reasons(row, entry_cutoff, exit_cutoff):
     """Short-side twin of _long_gate_reasons -- RecommendationsView.tsx's
-    eligibleToSell + meanReversionOkForShort, each named independently. No
-    crowded-short or EPS-trend check (both removed from the live gate,
-    see _long_gate_reasons' own comment) and no revenue-growth check
-    (same reason as the long side).
+    eligibleToSell, each named independently. No EPS-trend check (removed
+    from the live gate, see _long_gate_reasons' own comment).
 
     Momentum (MSI) blocks a short at or above NO_SELL -- the whole
     strong-momentum half, strong uptrend and overbought alike
     (continuation: shorting strength kept losing). Everything below
     NO_SELL, oversold included, is fine. Mirrors
-    RecommendationsView.tsx's momentumBlocks('Short')."""
+    RecommendationsView.tsx's momentumBlocks('Short').
+
+    entry_timing: mirror of _long_gate_reasons' own check -- short is
+    blocked at/below OVERSOLD (stock already dropped hard over the
+    trailing ~5 trading days -- next-day bounce risk).
+
+    short_interest/growth: added after confirming live that this module
+    had drifted out of sync with shortInterestBlocksEntry/
+    growthBlocksShortEntry (VITL, S, PANW all showed up as clean
+    short_strong_sell weeks with an ugly loss when the live app would
+    already refuse to short any of them today) -- see
+    _short_interest_blocks/_growth_blocks_short's own comment.
+
+    sim_return: mirrors RecommendationsView.tsx's simReturnOkForShort --
+    blocked when the Monte Carlo simulation says the price should RISE
+    (simReturn > 0). Same forward-only caveat as _long_gate_reasons' own
+    sim_return paragraph -- fails open for any week archived before
+    simReturn started being written to sorted_screen <date>.csv."""
     reasons = []
     momentum = _f(row.get("momentum"))
     if momentum is None or momentum >= _MOMENTUM_NO_SELL:
         reasons.append("momentum")
-    mr = _f(row.get("meanReversion"))
-    if mr is not None and mr <= _MEAN_REVERSION_OVERSOLD:
-        reasons.append("mean_reversion")
+    et = _f(row.get("entryTiming"))
+    if et is not None and et <= _ENTRY_TIMING_OVERSOLD:
+        reasons.append("entry_timing")
+    sim_return = _f(row.get("simReturn"))
+    if sim_return is not None and sim_return > 0:
+        reasons.append("sim_return")
+    if _short_interest_blocks(row):
+        reasons.append("short_interest")
+    if _growth_blocks_short(row):
+        reasons.append("growth")
     if _earnings_blocks(row, entry_cutoff, exit_cutoff):
         reasons.append("earnings")
     return reasons
@@ -293,7 +401,7 @@ def _group_stats(members):
     }
 
 
-_GATE_REASONS = ("momentum", "mean_reversion", "earnings")
+_GATE_REASONS = ("momentum", "entry_timing", "sim_return", "short_interest", "growth", "earnings")
 
 
 def _blocked_breakdown(long_blocked, short_blocked):
@@ -383,6 +491,7 @@ def _summarize(records):
                 "rating": r["rating"],
                 "group": r["group"],
                 "blockedBy": r["blockedBy"],
+                "sector": r.get("sector"),
                 "return": round(r["pnl"], 6),
             }
             for r in records
@@ -398,13 +507,73 @@ def _summarize(records):
     }
 
 
-def _build_week(week_iso, csv_path, closes):
+def _recompute_momentum_asof(rows, week_iso, daily_history, hourly_history):
+    """Mutates `rows` (this week's already-loaded CSV rows) in place:
+    overwrites momentum/meanReversion/entryTiming with what modules.derive.
+    reconcile_momentum/reconcile_mean_reversion/reconcile_entry_timing
+    would ACTUALLY have computed as of week_iso, using only price/volume
+    bars dated on or before that day -- no lookahead. Explicit instruction, after
+    confirming live that _rescore_current_model's own documented
+    limitation (re-running today's ranking LOGIC over that week's
+    already-archived, still-old-MSI-based factor VALUES) was hiding the
+    new Trend/Reversal Score's real effect entirely for the 4 already-
+    backtested weeks: applying the new logic to old numbers left 3 of 4
+    weeks' Strong Buy/Strong Sell group membership byte-for-byte
+    unchanged. This closes that specific gap for momentum/meanReversion
+    (still not for any OTHER factor's own computation change -- see
+    _rescore_current_model's own docstring, point 1 -- those still need
+    that week's raw provider dumps, which aren't archived).
+
+    daily_history/hourly_history are the FULL (untruncated, current-day)
+    loaded DAILY_3MO_HISTORY_FILE/HOURLY_HISTORY_FILE dicts -- truncated
+    to <= week_iso HERE, per call, rather than the caller doing it once,
+    so build_backtest can load each raw file exactly once and share it
+    across every week's own cutoff.
+
+    Coverage caveat, confirmed live: HOURLY_HISTORY_FILE only carries
+    ~3-4 weeks of history at any given time, so a week_iso older than
+    that has almost no hourly bars to truncate down to (confirmed live:
+    2026-08-22 had usable hourly data for only 8 of 1,770 tickers) --
+    reconcile_mean_reversion's/reconcile_entry_timing's own graceful-
+    degrade (keep whatever was already on the row -- entryTiming simply
+    stays unset if there's nothing to fall back to, since it's a new
+    field, not a stale-value carryover) means meanReversion/entryTiming
+    silently miss out for a week that old, while momentum (backed by the
+    3-month-deep daily file) is reliably recomputed much further back.
+
+    Also recomputes entryTiming here (same truncated hourly_trunc,
+    35h formation -- see derive.reconcile_entry_timing) so
+    _long_gate_reasons/_short_gate_reasons' entry_timing check reflects
+    what that signal would ACTUALLY have read at week_iso, not today's
+    live value -- same no-lookahead reasoning as momentum/meanReversion
+    above."""
+    data = {r["ticker"]: r for r in rows if r.get("ticker")}
+    daily_trunc = {t: [b for b in bars if (b.get("date") or "")[:10] <= week_iso] for t, bars in daily_history.items()}
+    hourly_trunc = {t: [b for b in bars if (b.get("date") or "")[:10] <= week_iso] for t, bars in hourly_history.items()}
+    derive.reconcile_momentum(data, daily_trunc)
+    derive.reconcile_mean_reversion(data, hourly_trunc)
+    derive.reconcile_entry_timing(data, hourly_trunc)
+
+
+HOLDING_TRADING_DAYS = 5
+
+def _build_week(week_iso, csv_path, closes, daily_history=None, hourly_history=None):
     screen_date = date.fromisoformat(week_iso)
     entry_cutoff = week_iso
-    exit_cutoff = (screen_date + timedelta(days=7)).isoformat()
+    # Generous calendar buffer (holidays + weekends can eat up to ~4 extra
+    # calendar days out of 5 trading days) -- _window_series just needs an
+    # outer bound to stop scanning at; the actual holding length is
+    # enforced exactly below by trimming to HOLDING_TRADING_DAYS bars,
+    # not by this cutoff. Explicit instruction: hold exactly 5 TRADING
+    # days (not the old "7 calendar days," which drifted between 3 and 5
+    # trading days depending on where the weekend/a holiday fell).
+    exit_cutoff = (screen_date + timedelta(days=12)).isoformat()
 
     with open(csv_path, newline="") as f:
         rows = list(csv.DictReader(f))
+
+    if daily_history is not None and hourly_history is not None:
+        _recompute_momentum_asof(rows, week_iso, daily_history, hourly_history)
 
     # Each ticker's price path is computed ONCE and shared by both models
     # below -- it depends only on the ticker/dates, not on which rating
@@ -417,7 +586,10 @@ def _build_week(week_iso, csv_path, closes):
             continue
         path = _window_series(closes.get(ticker), entry_cutoff, exit_cutoff)
         if path:
-            paths[ticker] = path
+            # Entry bar + up to HOLDING_TRADING_DAYS bars after it -- if
+            # fewer are actually available (short data at the edge of the
+            # cache), use what's there rather than dropping the ticker.
+            paths[ticker] = path[: HOLDING_TRADING_DAYS + 1]
 
     def _records_for(rating_of):
         records = []
@@ -434,6 +606,7 @@ def _build_week(week_iso, csv_path, closes):
                 "rating": rating_of(row),
                 "group": group,
                 "blockedBy": reasons,
+                "sector": row.get("sector") or None,
                 "pnl": sign * (path[-1][1] / path[0][1] - 1),
             })
         return records
@@ -452,16 +625,35 @@ def _build_week(week_iso, csv_path, closes):
     return result
 
 
-def build_backtest(history_dir, daily_file):
+def _load_json_or_empty(path):
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+
+def build_backtest(history_dir, daily_file, hourly_file=None):
     """See module docstring. Returns the JSON-ready result dict. Weeks with
     no price coverage yet -- the newest snapshot whose forward week hasn't
     finished, or any week older than IB's ~3-month daily history -- are
-    dropped rather than rendered as an all-blank column."""
+    dropped rather than rendered as an all-blank column.
+
+    `hourly_file` (HOURLY_HISTORY_FILE), when given, additionally
+    recomputes momentum/meanReversion for EVERY week as of that week's
+    own date (see _recompute_momentum_asof) instead of trusting whatever
+    was archived in that week's own CSV snapshot -- the raw daily/hourly
+    dumps are each loaded ONCE here and truncated per-week inside
+    _build_week, not reloaded per week. Omit (None, the default) to fall
+    back to the old archived-value behavior for callers that don't have
+    these files handy."""
     closes = _load_daily_closes(daily_file)
+    daily_history = _load_json_or_empty(daily_file) if hourly_file is not None else None
+    hourly_history = _load_json_or_empty(hourly_file) if hourly_file is not None else None
     weeks = [
         w
         for week_iso, path in _history_files(history_dir)
-        if (w := _build_week(week_iso, path, closes))["tickers"]
+        if (w := _build_week(week_iso, path, closes, daily_history, hourly_history))["tickers"]
     ]
     return {
         "generatedAt": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z"),

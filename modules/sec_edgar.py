@@ -832,3 +832,364 @@ def fetch_13f_holdings(ticker_names):
     print(f"Wrote {THIRTEENF_HOLDERS_FILE} ({len(holders)} ticker(s), up to {MAX_HOLDERS_PER_TICKER} named holders each)")
 
     return current
+
+
+# --------------------------------------------------------------------------- #
+#  Management guidance -- extracted from 8-K earnings-release exhibits        #
+# --------------------------------------------------------------------------- #
+# Eulerpool has no dedicated guidance endpoint at all (confirmed against
+# their own full API reference -- analyst estimates/price-targets only),
+# and its earnings-call transcripts are truncated to just the operator's
+# opening remarks for most small/mid-cap names (confirmed live: 72% of a
+# 188-ticker Strong Buy/Strong Sell sample). SEC 8-Ks are the alternative:
+# free, complete (no tier/coverage gap -- every US-listed company files
+# them), and a quarterly earnings 8-K's press-release exhibit routinely
+# states guidance explicitly and numerically -- confirmed live, CPAY's
+# Q2 2026 exhibit: "We are raising our full-year outlook... Total
+# revenues between $5.290 billion and $5.330 billion... Net income per
+# diluted share between $19.50 and $19.90" -- much more structured than
+# a transcript's conversational Q&A. Not universal, though: some issuers
+# (AAPL confirmed live) give no formal numeric guidance in the release at
+# all, so a ticker with no guidance keyword hit is a real "doesn't guide"
+# signal, not a fetch failure.
+GUIDANCE_DIR = os.path.join(SEC_DIR, "guidance")
+os.makedirs(GUIDANCE_DIR, exist_ok=True)
+GUIDANCE_FILE = os.path.join(GUIDANCE_DIR, "earnings_releases.json")
+GUIDANCE_LOOKBACK_DAYS = 400  # a bit over a year -- last 4 quarterly releases
+# Cheap keyword-window extract, not real NLP -- a snippet around each hit
+# is kept for a human (or a later, smarter pass) to read, not a
+# structured number pulled out here. "outlook" alone would also catch a
+# filing's generic "forward-looking statements" boilerplate paragraph
+# (every release has one) -- confirmed live, that boilerplate doesn't
+# also contain "guidance", so requiring both is deliberately NOT what's
+# done below (they're scored/kept as separate hits): the boilerplate
+# noise is filtered downstream by whatever consumes these snippets, not
+# here, so a name that DOES formally guide isn't accidentally suppressed
+# by a stricter combined filter.
+GUIDANCE_KEYWORDS = ("guidance", "outlook")
+GUIDANCE_SNIPPET_CONTEXT_CHARS = 400
+
+
+def _list_8k_earnings_filings(cik, since_date):
+    """[{accessionNumber, filingDate}, ...] for 8-K filings carrying a
+    2.02 item ("Results of Operations and Financial Condition" -- the
+    quarterly-earnings-release 8-K specifically) on or after since_date.
+    Every OTHER 8-K reason (board changes, M&A, restatements, etc. --
+    dozens of possible item numbers) is deliberately excluded; only 2.02
+    filings reliably carry an earnings press release exhibit at all."""
+    resp = _sec_get(SUBMISSIONS_URL.format(cik=cik))
+    if resp is None:
+        return []
+    recent = resp.json().get("filings", {}).get("recent", {})
+    forms = recent.get("form", [])
+    items = recent.get("items", [])
+    return [
+        {"accessionNumber": recent["accessionNumber"][i], "filingDate": recent["filingDate"][i]}
+        for i, form in enumerate(forms)
+        if form == "8-K" and "2.02" in (items[i] or "") and recent["filingDate"][i] >= since_date
+    ]
+
+
+def _find_earnings_exhibits(cik_no_padding, accession_number):
+    """Every EX-99.x document's filename within one 8-K filing (usually
+    just Exhibit 99.1, the press release -- but some issuers file a
+    SEPARATE EX-99.2, e.g. NVDA's own "CFO commentary" doc, which also
+    routinely carries guidance and is worth reading too). [] if the
+    filing has no EX-99 exhibit at all.
+
+    Reads the accession's own human -index.html and pulls the filename
+    out of any table row SEC itself labeled "EX-99*" -- NOT a filename
+    pattern guess. A filename-based heuristic (checking for "ex99"/
+    "exhibit99" in the name) was tried first and is NOT reliable enough:
+    confirmed live, NVDA's own two exhibits are named q2fy27pr.htm and
+    q2fy27cfocommentary.htm -- no "99" anywhere in either name, since
+    NVDA (and evidently others) name files descriptively rather than by
+    exhibit number. Reading SEC's own assigned EX-99.x label instead of
+    guessing from the filename is universal by construction: it's what
+    the filer itself declared the document as, not a naming convention
+    that happens to hold most of the time. The submissions feed's own
+    primaryDocument points at the 8-K BODY itself, not its exhibits, so
+    finding these still needs this one extra request per filing."""
+    accession_no_dashes = accession_number.replace("-", "")
+    url = f"https://www.sec.gov/Archives/edgar/data/{cik_no_padding}/{accession_no_dashes}/{accession_number}-index.html"
+    resp = _sec_get(url)
+    if resp is None:
+        return []
+    exhibits = []
+    for row in re.findall(r"<tr.*?</tr>", resp.text, re.S):
+        if not re.search(r"EX-99", row):
+            continue
+        href = re.search(r'href="([^"]+)"', row)
+        if href:
+            exhibits.append(href.group(1).rsplit("/", 1)[-1])
+    return exhibits
+
+
+def _extract_guidance_snippets(html, context_chars=GUIDANCE_SNIPPET_CONTEXT_CHARS):
+    """A text window around every GUIDANCE_KEYWORDS hit in one earnings
+    release, HTML stripped -- a cheap keyword extract for a human (or a
+    later pass) to read, not a structured number parse. Returns [] when
+    neither keyword appears anywhere -- itself a real signal (this
+    issuer didn't formally guide in this release), not a failure."""
+    text = re.sub(r"<[^>]+>", " ", html)
+    text = text.replace("&ldquo;", '"').replace("&rdquo;", '"')
+    text = text.replace("&lsquo;", "'").replace("&rsquo;", "'")
+    text = text.replace("&mdash;", "--").replace("&ndash;", "-")
+    text = re.sub(r"&(nbsp|amp|#\d+);", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    lower = text.lower()
+    snippets = []
+    for kw in GUIDANCE_KEYWORDS:
+        start = 0
+        while True:
+            idx = lower.find(kw, start)
+            if idx == -1:
+                break
+            half = context_chars // 2
+            snippets.append(text[max(0, idx - half): idx + half].strip())
+            start = idx + len(kw)
+    return snippets
+
+
+def fetch_guidance_for_ticker(cik, since_date):
+    """Every 8-K earnings-release filing (see _list_8k_earnings_filings)
+    for one issuer CIK, each turned into {accessionNumber, filingDate,
+    snippets} -- snippets pooled across EVERY EX-99.x exhibit the filing
+    has (see _find_earnings_exhibits), not just the first. A filing with
+    no EX-99 exhibit at all, or whose exhibit(s) all fail to fetch, is
+    skipped rather than failing the batch."""
+    cik_no_padding = str(int(cik))
+    filings_out = []
+    for filing in _list_8k_earnings_filings(cik, since_date):
+        exhibit_names = _find_earnings_exhibits(cik_no_padding, filing["accessionNumber"])
+        if not exhibit_names:
+            continue
+        snippets = []
+        for exhibit_name in exhibit_names:
+            url = _raw_document_url(cik_no_padding, filing["accessionNumber"], exhibit_name)
+            resp = _sec_get(url)
+            if resp is None:
+                continue
+            snippets.extend(_extract_guidance_snippets(resp.text))
+        filings_out.append({
+            "accessionNumber": filing["accessionNumber"],
+            "filingDate": filing["filingDate"],
+            "snippets": snippets,
+        })
+    return filings_out
+
+
+def fetch_earnings_guidance(tickers, max_workers=MAX_WORKERS, lookback_days=GUIDANCE_LOOKBACK_DAYS, out_file=GUIDANCE_FILE):
+    """Fetches 8-K earnings-release guidance snippets for tickers and
+    MERGES the result into out_file (same merge-not-overwrite convention
+    fetch_form4 uses -- a ticker not in this run keeps whatever's already
+    cached). Tickers with no CIK match are silently skipped. Returns the
+    {ticker: [...]} dict fetched THIS call, not the full merged file."""
+    cik_map = _load_cik_map()
+    since_date = (datetime.now() - timedelta(days=lookback_days)).strftime("%Y-%m-%d")
+
+    def fetch_one(ticker):
+        cik = cik_map.get(ticker.upper())
+        if cik is None:
+            return ticker, None
+        return ticker, fetch_guidance_for_ticker(cik, since_date)
+
+    total = len(tickers)
+    print(
+        f"Fetching 8-K earnings-release guidance for {total} tickers from SEC EDGAR "
+        f"(~9 req/sec rate limit, {lookback_days}-day lookback -- 2 requests per filing found, "
+        f"this can take a while)...",
+        flush=True,
+    )
+
+    results = {}
+    no_cik = 0
+    done = 0
+    with ThreadPoolExecutor(max_workers=max_workers) as ex:
+        futures = {ex.submit(fetch_one, t): t for t in tickers}
+        for fut in as_completed(futures):
+            ticker, filings = fut.result()
+            done += 1
+            if filings is None:
+                no_cik += 1
+                print(f"[{done}/{total}] {ticker}: no CIK match, skipped", flush=True)
+                continue
+            results[ticker] = filings
+            snippet_count = sum(len(f["snippets"]) for f in filings)
+            print(
+                f"[{done}/{total}] {ticker}: {len(filings)} filing(s), {snippet_count} guidance snippet(s)",
+                flush=True,
+            )
+
+    try:
+        with open(GUIDANCE_FILE) as f:
+            existing = json.load(f)
+    except FileNotFoundError:
+        existing = {}
+    existing.update(results)
+
+    with open(GUIDANCE_FILE, "w") as f:
+        json.dump(existing, f, indent=2)
+    print(f"Wrote {GUIDANCE_FILE} ({len(results)}/{len(tickers)} tickers fetched, {no_cik} had no CIK match)")
+
+    return results
+
+
+# --------------------------------------------------------------------------- #
+#  Guidance direction -- cheap keyword classifier over the cached snippets    #
+# --------------------------------------------------------------------------- #
+# Confirmed live against the full Strong Buy/Strong Sell corpus (5,038
+# snippets across 164 tickers with real content): every earnings release's
+# own "forward-looking statements" legal disclaimer paragraph contains
+# "outlook" (one of GUIDANCE_KEYWORDS) and gets pulled in as a snippet
+# even though it says nothing about THIS release's actual guidance --
+# 13.1% of all snippets are this boilerplate. Filtered out by these
+# markers before any directional classification -- confirmed live, the
+# boilerplate paragraph reliably contains at least one of these, and a
+# real guidance statement essentially never does.
+GUIDANCE_BOILERPLATE_MARKERS = (
+    "forward-looking statement", "safe harbor", "words of similar meaning",
+    "words such as", "within the meaning of",
+)
+# Deliberately NOT stemmed/lemmatized -- explicit surface forms only, kept
+# short and high-precision over exhaustive, since a false directional
+# read is worse than a missed one (this feeds a "none" bucket that's
+# already a legitimate, common outcome, not an error state).
+GUIDANCE_RAISE_KEYWORDS = ("raise", "raising", "raised", "increase", "increasing", "increased")
+GUIDANCE_LOWER_KEYWORDS = (
+    "lower", "lowering", "lowered", "decrease", "decreasing", "decreased",
+    "cut", "reduce", "reducing", "reduced", "withdrew", "withdrawing",
+)
+# "above"/"below" were tried and DROPPED -- confirmed live, IRT's own
+# filing (a name that literally affirmed guidance unchanged) misfired as
+# 'lowered' purely from "...per share is included below" -- a table
+# cross-reference, not a guidance cut. Both words are too generic/common
+# as plain document-navigation language ("the table above," "as shown
+# below," near-universal in a financial release with exhibits/tables) to
+# reliably signal guidance direction the way "raise"/"cut"/"reduce" do.
+GUIDANCE_AFFIRM_KEYWORDS = ("affirm", "reiterate", "maintain", "unchanged", "consistent with")
+
+
+def _is_boilerplate_snippet(snippet):
+    lower = snippet.lower()
+    return any(marker in lower for marker in GUIDANCE_BOILERPLATE_MARKERS)
+
+
+def _keyword_hit(text, keywords):
+    """Whole-word match only -- plain substring checks are NOT safe for
+    short keywords: confirmed live, "cut" as a bare substring matched
+    inside "exeCUTion" (TTWO: "...disciplined execution across all of
+    our labels... we are reiterating..." -- a REITERATION, misread as a
+    guidance cut purely from "execution" containing "cut"). \\b word
+    boundaries avoid this whole class of false positive."""
+    return any(re.search(rf"\b{re.escape(k)}\b", text) for k in keywords)
+
+
+def _classify_snippet(snippet):
+    """'raise'/'lower'/'affirm'/'mixed'/'none' for ONE snippet -- 'mixed'
+    when a raise keyword and a lower keyword both appear in the same
+    (already guidance/outlook-centered) text window, e.g. "raising
+    revenue guidance while lowering margin guidance" -- a real, not
+    contradictory, dual signal, not something to force a pick on."""
+    lower_text = snippet.lower()
+    has_raise = _keyword_hit(lower_text, GUIDANCE_RAISE_KEYWORDS)
+    has_lower = _keyword_hit(lower_text, GUIDANCE_LOWER_KEYWORDS)
+    has_affirm = _keyword_hit(lower_text, GUIDANCE_AFFIRM_KEYWORDS)
+    if has_raise and has_lower:
+        return "mixed"
+    if has_raise:
+        return "raise"
+    if has_lower:
+        return "lower"
+    if has_affirm:
+        return "affirm"
+    return "none"
+
+
+def classify_filing_guidance(snippets):
+    """Overall direction for ONE filing's pooled snippets (see
+    fetch_guidance_for_ticker) -- 'raised'/'lowered'/'mixed'/'affirmed'/
+    'none'. Boilerplate snippets are dropped first (see
+    GUIDANCE_BOILERPLATE_MARKERS), then every remaining snippet is
+    classified independently (see _classify_snippet) and the filing's
+    verdict is whichever of raise/lower has the most snippet-level hits:
+    more raise hits -> 'raised', more lower hits -> 'lowered', a tie
+    (including a genuine 0-0 tie alongside real 'mixed'/'affirm' hits)
+    -> 'mixed' if either side ever appeared at all, else 'affirmed' if
+    only affirm-language showed up, else 'none' (no directional
+    language survived filtering at all -- a real, common outcome, not a
+    failure: either this release didn't state a direction in words this
+    classifier recognizes, or genuinely didn't move guidance)."""
+    real_snippets = [s for s in snippets if not _is_boilerplate_snippet(s)]
+    if not real_snippets:
+        return "none"
+    votes = [_classify_snippet(s) for s in real_snippets]
+    raise_n = votes.count("raise") + votes.count("mixed")
+    lower_n = votes.count("lower") + votes.count("mixed")
+    if raise_n > lower_n:
+        return "raised"
+    if lower_n > raise_n:
+        return "lowered"
+    if raise_n > 0:  # equal and nonzero -- both directions genuinely present
+        return "mixed"
+    if votes.count("affirm") > 0:
+        return "affirmed"
+    return "none"
+
+
+GUIDANCE_SIGNAL_FILE = os.path.join(GUIDANCE_DIR, "guidance_signal.json")
+
+
+def summarize_guidance(in_file=GUIDANCE_FILE, out_file=GUIDANCE_SIGNAL_FILE):
+    """Reads GUIDANCE_FILE (the raw per-filing snippet cache) and writes
+    ONE rolled-up direction per ticker -- {ticker: {direction,
+    filingDate, evidenceSnippet}} -- using only that ticker's MOST
+    RECENT filing (see classify_filing_guidance for the per-filing
+    verdict), not a history across quarters; evidenceSnippet is the
+    first non-boilerplate snippet driving the verdict (raise/lower/
+    affirm-matching, whichever direction won), for a human to
+    spot-check the call without re-reading the whole filing. A ticker
+    with no filings on file at all, or whose only filing has no
+    snippets, gets direction=None rather than being omitted -- "we have
+    no read on this" is itself worth keeping visible, same as every
+    other missing-data convention in this project. Zero network calls --
+    pure re-derivation from what's already cached, safe to re-run after
+    any fetch_earnings_guidance call."""
+    try:
+        with open(in_file) as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        data = {}
+
+    def _evidence(snippets, direction):
+        real_snippets = [s for s in snippets if not _is_boilerplate_snippet(s)]
+        target = {"raised": "raise", "lowered": "lower", "mixed": "raise", "affirmed": "affirm"}.get(direction)
+        if target is None:
+            return None
+        for s in real_snippets:
+            if _classify_snippet(s) in (target, "mixed"):
+                return s
+        return real_snippets[0] if real_snippets else None
+
+    summary = {}
+    for ticker, filings in data.items():
+        if not filings:
+            summary[ticker] = {"direction": None, "filingDate": None, "evidenceSnippet": None}
+            continue
+        latest = max(filings, key=lambda f: f["filingDate"])
+        direction = classify_filing_guidance(latest["snippets"])
+        summary[ticker] = {
+            "direction": direction if direction != "none" else None,
+            "filingDate": latest["filingDate"],
+            "evidenceSnippet": _evidence(latest["snippets"], direction),
+        }
+
+    os.makedirs(os.path.dirname(out_file), exist_ok=True)
+    with open(out_file, "w") as f:
+        json.dump(summary, f, indent=2)
+
+    counts = {}
+    for v in summary.values():
+        counts[v["direction"]] = counts.get(v["direction"], 0) + 1
+    print(f"Wrote {out_file} ({len(summary)} tickers) -- " + ", ".join(f"{k}: {v}" for k, v in sorted(counts.items(), key=lambda kv: str(kv[0]))))
+    return summary

@@ -78,6 +78,17 @@ export interface Candidate {
   epsRevision0y?: number | null
   epsRevision1y?: number | null
   meanReversion?: number | null
+  // A DIFFERENT hourly read from meanReversion above -- 35h formation
+  // (~5 trading days), validated specifically against a 1-day-ahead
+  // outcome (see modules/derive.py's reconcile_entry_timing), not folded
+  // into the composite score (no FACTOR_WEIGHTS entry -- its own edge
+  // decays past ~1-2 days, so it has no business influencing which
+  // stocks get picked for this app's multi-day hold). Same 0-100,
+  // low=recently-fallen/oversold, high=recently-run-up/overbought scale
+  // as meanReversion, purely informational here: "is today specifically
+  // a good day to place this entry," not "is this a good stock." Lives
+  // on tickerScreener like meanReversion, not on the candidate itself.
+  entryTiming?: number | null
   // MSI (Money Flow Index) computed on ONLY the last 3 distinct trading
   // dates of the hourly series (modules/IBApp.py _money_flow_index_last_days)
   // -- a short pre-earnings read of where money flow sits heading into the

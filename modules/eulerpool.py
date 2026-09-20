@@ -650,3 +650,155 @@ def fetch_forward_eps(tickers, out_file=FORWARD_EPS_FILE, max_workers=4):
     if errors:
         print("  failed:", ", ".join(t for t, _ in errors[:20]), "..." if len(errors) > 20 else "")
     return results
+
+
+EPS_ESTIMATES_FILE = os.path.join("data", "eulerpool", "eps_estimates.json")
+
+
+def fetch_eps_estimates(tickers, out_file=EPS_ESTIMATES_FILE, max_workers=4):
+    """Fetch get_estimates for every ticker in `tickers`, OVERWRITE out_file
+    with {ticker: {period: epsEstimate, ...}} -- ONLY the already-completed
+    fiscal years (period <= today), keyed by ISO 'YYYY-MM-DD' fiscal-year-
+    end date, the SAME shape modules.derive's own SEC/yfinance-sourced
+    Diluted EPS series already uses (see eps_volatility_merged) so the two
+    can be merged/compared the same way. get_estimates mixes past actuals
+    and forward consensus in one array with no is-this-an-estimate flag
+    (see that function's own docstring) -- the future rows are dropped
+    here since this project already gets forward EPS from
+    fetch_forward_eps; this file exists purely to give
+    modules.derive.eps_volatility a THIRD historical-EPS source alongside
+    SEC company_facts and yfinance's own income_stmt, one that (confirmed
+    live, spot-checked against SEC GAAP diluted EPS for MSFT/AMZN) reads
+    closer to a "Street"/adjusted EPS -- excluding at least some one-off
+    items (AMZN's FY2022 Rivian mark-to-market loss: -$0.27 GAAP vs. -$0.12
+    here) that inflate GAAP-based volatility without reflecting genuine
+    earnings unpredictability. Coverage depth varies by ticker (spot-check:
+    MSFT/AAPL/AMZN ~30+ periods, META/NVDA as few as 14-19) -- shorter than
+    SEC's own history for some names, but likely still enough years for a
+    meaningful volatility read, and cleaner of one-off noise. Same
+    same-day-snapshot, full-overwrite (no merge, no staleness cooldown of
+    its own) shape as fetch_forward_eps/fetch_fair_values -- get_estimates
+    reads fresh each call, so there's no history here to preserve across
+    runs on this end; the OUTPUT file itself IS the history. Same
+    thread-pool-over-a-shared-rate-limit shape as the other fetch_*
+    functions -- errors logged and skipped per-ticker rather than aborting
+    the batch.
+
+    Exact-zero epsEstimate values are dropped as missing-data placeholders,
+    not genuine readings -- confirmed live, TPL (Texas Pacific Land, a
+    hugely profitable royalty trust with no realistic path to a real
+    $0.00 EPS year) has a 2024-12-31 epsEstimate of exactly 0 sandwiched
+    between $50.69 (2023) and $6.98 (2025); scanning the full universe,
+    316 (ticker, period) pairs across 216 tickers (12% of coverage) land
+    on exactly 0, far too common to be genuine breakeven years and
+    consistent with Eulerpool using 0 as a null placeholder for some
+    periods. Left in, a zero corrupts eps_volatility twice over: it turns
+    the transition INTO it into a false -100% YoY move, and the
+    transition OUT of it gets silently dropped entirely (dividing by a
+    zero prior is undefined -- see eps_volatility's own guard), losing a
+    real data point on top of gaining a fake one."""
+    today = date.today().isoformat()
+    results = {}
+    errors = []
+    with ThreadPoolExecutor(max_workers=max_workers) as ex:
+        futures = {ex.submit(get_estimates, t): t for t in tickers}
+        for fut in as_completed(futures):
+            ticker = futures[fut]
+            try:
+                rows = fut.result() or []
+                past = {
+                    r["period"]: r["epsEstimate"]
+                    for r in rows
+                    if r.get("period") and r["period"] <= today and r.get("epsEstimate")
+                }
+                if past:
+                    results[ticker] = past
+            except Exception as e:
+                errors.append((ticker, str(e)))
+
+    os.makedirs(os.path.dirname(out_file), exist_ok=True)
+    with open(out_file, "w") as f:
+        json.dump(results, f)
+
+    print(f"fetch_eps_estimates: wrote {out_file} ({len(tickers)} requested, "
+          f"{len(results)} with at least one historical value, {len(errors)} failed)")
+    if errors:
+        print("  failed:", ", ".join(t for t, _ in errors[:20]), "..." if len(errors) > 20 else "")
+    return results
+
+
+TRANSCRIPTS_FILE = os.path.join("data", "eulerpool", "transcripts.json")
+
+
+def fetch_transcripts(tickers, out_file=TRANSCRIPTS_FILE, max_workers=4):
+    """Fetches the LATEST earnings-call transcript for every ticker in
+    `tickers`, MERGING into whatever's already on `out_file` -- unlike
+    fetch_forward_eps/fetch_fair_values' full-overwrite (a same-day
+    snapshot with nothing to preserve), a transcript is a genuine
+    point-in-time historical record, so a ticker not in this run's
+    `tickers` (or one Eulerpool has nothing new for) keeps whatever
+    transcript is already cached rather than being dropped.
+
+    {ticker: {id, datePublished, title, entries: [{speaker, content},
+    ...]}} -- entries only (parsedContent's actual transcript body, see
+    get_earning_call_transcript), not presentationUrl/transcriptAudioUrl,
+    to keep this file's size sane; both are re-derivable via
+    list_earning_calls/get_earning_call_transcript directly if ever
+    needed.
+
+    Two-step per ticker to avoid re-downloading a transcript that hasn't
+    changed: list_earning_calls(ticker) first (cheap, no transcript body)
+    to find the latest call's id, and only calls the heavier
+    get_earning_call_transcript(id) when that id differs from what's
+    already cached for this ticker -- earnings calls are quarterly, so
+    most runs do nothing for most tickers. A ticker with no calls on
+    file at all, or whose cached id is already current, contributes
+    nothing this run (not an error) and its existing cache entry (if
+    any) is left untouched."""
+    existing = {}
+    try:
+        with open(out_file) as f:
+            existing = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        pass
+
+    def _fetch_one(ticker):
+        calls = list_earning_calls(ticker)
+        if not calls:
+            return None
+        latest = max(calls, key=lambda c: c.get("datePublished") or 0)
+        cached = existing.get(ticker)
+        if cached and cached.get("id") == latest.get("id"):
+            return None  # already up to date
+        full = get_earning_call_transcript(latest["id"])
+        parsed = full.get("parsedContent") or {}
+        return {
+            "id": full.get("id"),
+            "datePublished": full.get("datePublished"),
+            "title": full.get("title"),
+            "entries": parsed.get("entries") or [],
+        }
+
+    updated = 0
+    errors = []
+    with ThreadPoolExecutor(max_workers=max_workers) as ex:
+        futures = {ex.submit(_fetch_one, t): t for t in tickers}
+        for fut in as_completed(futures):
+            ticker = futures[fut]
+            try:
+                result = fut.result()
+                if result is not None:
+                    existing[ticker] = result
+                    updated += 1
+            except Exception as e:
+                errors.append((ticker, str(e)))
+
+    os.makedirs(os.path.dirname(out_file), exist_ok=True)
+    with open(out_file, "w") as f:
+        json.dump(existing, f)
+
+    print(f"fetch_transcripts: wrote {out_file} ({len(tickers)} requested, "
+          f"{updated} new/updated transcript(s), {len(existing)} ticker(s) on file total, {len(errors)} failed)")
+    if errors:
+        print("  failed:", ", ".join(t for t, _ in errors[:20]), "..." if len(errors) > 20 else "")
+    return existing

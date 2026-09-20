@@ -35,11 +35,33 @@ export interface GroupStats {
 // consistently counterproductive on the short side; revenue_growth:
 // replaced by a sim-return gate) -- none of these three is one of these
 // anymore, kept out rather than left as a reason that can never fire.
-export type GateReason = 'momentum' | 'mean_reversion' | 'earnings'
+// mean_reversion (the old Reversal Score gate) was removed too --
+// backwards on both books (see modules/backtest.py's own removal
+// comment) -- replaced by entry_timing, a DIFFERENT signal (35h hourly
+// formation, validated against a 1-day-ahead outcome specifically, not
+// fed into the composite score at all -- see modules/derive.py's
+// reconcile_entry_timing): if entryTiming says today is a bad day to
+// open THIS entry, the position is dropped from that week's backtest
+// entirely rather than held anyway.
+// short_interest/growth are SHORT-ONLY (mirroring
+// RecommendationsView.tsx's shortInterestBlocksEntry/
+// growthBlocksShortEntry exactly -- 30% of float, 10% revenue-growth
+// ceiling) -- added after backtest.py was found out of sync with both
+// live gates (VITL/S/PANW all showed up as clean short_strong_sell weeks
+// with an ugly loss when the live app would already refuse to short any
+// of them today).
+// sim_return mirrors simReturnOkForLong/simReturnOkForShort -- only
+// checkable GOING FORWARD, since simReturn was never archived into
+// sorted_screen <date>.csv until main.py started writing it; any week
+// from before that column existed just won't show this reason firing.
+export type GateReason = 'momentum' | 'entry_timing' | 'sim_return' | 'short_interest' | 'growth' | 'earnings'
 
 export const GATE_REASON_LABEL: Record<GateReason, string> = {
-  momentum: 'Momentum (MSI)',
-  mean_reversion: 'Mean reversion (ST-MSI)',
+  momentum: 'Trend Score',
+  entry_timing: 'Entry timing (bad day to act)',
+  sim_return: 'Simulation return (wrong direction)',
+  short_interest: 'Crowded short interest (>30% of float)',
+  growth: 'Revenue growth too strong to short (>10%)',
   earnings: 'Earnings within the week',
 }
 
@@ -48,6 +70,7 @@ export interface BacktestTicker {
   rating: string
   group: GroupKey
   blockedBy: GateReason[]
+  sector: string | null // granular industry, straight from that week's sorted_screen.csv row
   return: number // position P&L, same sign convention as GroupStats.return
 }
 

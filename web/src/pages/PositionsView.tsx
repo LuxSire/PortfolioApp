@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
+import { ChevronDown, ChevronRight } from 'lucide-react'
 import { parseCSV } from '../csv'
 import { earningsUrgencyClass } from '../earnings'
 import { getSectorGroup, sectorGroupLabel } from '../sectorGroups'
@@ -378,11 +379,25 @@ function portfolioBetaExposure(rows: PositionRow[]): PortfolioBetaResult {
 // value-weighted average (numeric factors), a sum (Pos Value = the side's
 // net dollar exposure; Sum of % of NAV = the sum of each position's own %
 // of NAV on this side), or descriptive text (Ticker/Name).
-function WeightedFactorRow({ side, count, netValue, sumWeightPct, dayPnl, factors, beta, dollarPer1PctMove }: WeightedSideFactor) {
+function WeightedFactorRow({
+  side,
+  count,
+  netValue,
+  sumWeightPct,
+  dayPnl,
+  factors,
+  beta,
+  dollarPer1PctMove,
+  expanded,
+  onToggle,
+}: WeightedSideFactor & { expanded: boolean; onToggle: () => void }) {
   return (
-    <tr>
+    <tr className="factor-tree-row" onClick={onToggle}>
       <td className={`col-left col-ticker side-group-cell${side === 'Short' ? ' side-group-cell-short' : ''}`}>
-        <span className="side-group-label">{side}</span>
+        <span className="side-group-label factor-tree-toggle">
+          {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          {side}
+        </span>
       </td>
       <td className="col-left col-name">
         {count} position{count === 1 ? '' : 's'}
@@ -398,6 +413,40 @@ function WeightedFactorRow({ side, count, netValue, sumWeightPct, dayPnl, factor
       >
         {fmtMoney(dollarPer1PctMove)}
       </td>
+    </tr>
+  )
+}
+
+// One constituent stock's own row inside an expanded WeightedFactorRow --
+// same columns as the aggregate row, but every value is that single
+// position's own (FactorCells already supports a single row's raw
+// factors, same key names as the averaged case -- see that component's
+// own comment), not a weighted average across the side.
+function WeightedFactorLeafRow({ r, netLiq }: { r: PositionRow; netLiq: number | undefined }) {
+  const value = r.value ?? null
+  const pct1PctMove = value !== null && r.beta !== null && r.beta !== undefined ? value * r.beta * 0.01 : null
+  return (
+    <tr className="factor-tree-row factor-tree-level-1">
+      <td className="col-left col-name">
+        <span className="factor-tree-leaf">
+          <a
+            href={`#/asset/${encodeURIComponent(r.ticker)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="ticker-link"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {r.ticker}
+          </a>
+        </span>
+      </td>
+      <td className="col-left col-name">{r.name}</td>
+      <td className="num">{fmtMoney(value)}</td>
+      <td className="num">{fmtPct(netLiq ? value !== null ? value / netLiq : null : null)}</td>
+      <td className={`num ${(r.dayPnl ?? 0) === 0 ? '' : (r.dayPnl ?? 0) >= 0 ? 'good' : 'bad'}`}>{fmtMoney(r.dayPnl ?? null)}</td>
+      <FactorCells factors={r} />
+      <td className="num">{fmtRatio(r.beta ?? null)}</td>
+      <td className={`num ${pct1PctMove === null ? '' : pct1PctMove >= 0 ? 'good' : 'bad'}`}>{fmtMoney(pct1PctMove)}</td>
     </tr>
   )
 }
@@ -995,6 +1044,20 @@ export default function PositionsView() {
   // Opened activity (previously both always shown stacked above the
   // positions table; explicit instruction to split them out).
   const [tab, setTab] = useState<'positions' | 'trades'>('positions')
+  // Portfolio Factors (Value-Weighted) table -- explicit instruction to
+  // let a Long/Short aggregate row expand into its own constituent
+  // stocks, same expand/collapse convention SectorsView.tsx's own
+  // sector/industry tree already uses (ChevronRight/Down, one Set of
+  // open keys).
+  const [expandedWeightedSides, setExpandedWeightedSides] = useState<Set<string>>(new Set())
+  function toggleWeightedSide(side: string) {
+    setExpandedWeightedSides((prev) => {
+      const next = new Set(prev)
+      if (next.has(side)) next.delete(side)
+      else next.add(side)
+      return next
+    })
+  }
 
   return (
     <div className="positions-page positions-view">
@@ -1246,19 +1309,37 @@ export default function PositionsView() {
                 </tr>
               </thead>
               <tbody>
-                {weightedSideFactors.map((w) => (
-                  <WeightedFactorRow
-                    key={w.side}
-                    side={w.side}
-                    count={w.count}
-                    netValue={w.netValue}
-                    sumWeightPct={w.sumWeightPct}
-                    dayPnl={w.dayPnl}
-                    factors={w.factors}
-                    beta={w.beta}
-                    dollarPer1PctMove={w.dollarPer1PctMove}
-                  />
-                ))}
+                {weightedSideFactors.map((w) => {
+                  const expanded = expandedWeightedSides.has(w.side)
+                  // sideGroups' own sectorGroups already carry every
+                  // constituent PositionRow, pre-sorted biggest-exposure-
+                  // first within each sector (see sideGroups' own comment)
+                  // -- flattened here rather than recomputed, so the leaf
+                  // list matches the same order the sector-grouped
+                  // positions table below uses.
+                  const sideGroup = sideGroups.find((g) => g.side === w.side)
+                  const leafRows = sideGroup ? sideGroup.sectorGroups.flatMap((sg) => sg.rows) : []
+                  return (
+                    <Fragment key={w.side}>
+                      <WeightedFactorRow
+                        side={w.side}
+                        count={w.count}
+                        netValue={w.netValue}
+                        sumWeightPct={w.sumWeightPct}
+                        dayPnl={w.dayPnl}
+                        factors={w.factors}
+                        beta={w.beta}
+                        dollarPer1PctMove={w.dollarPer1PctMove}
+                        expanded={expanded}
+                        onToggle={() => toggleWeightedSide(w.side)}
+                      />
+                      {expanded &&
+                        leafRows.map((r) => (
+                          <WeightedFactorLeafRow key={r.ticker} r={r} netLiq={account.NetLiquidation} />
+                        ))}
+                    </Fragment>
+                  )
+                })}
                 {nonEquityRows.length > 0 && (
                   <tr>
                     <td className="col-left col-ticker side-group-cell">

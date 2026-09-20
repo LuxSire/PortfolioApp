@@ -2756,7 +2756,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Internet Retail"
   },
   {
@@ -3329,7 +3329,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Internet Content & Information"
   },
   {
@@ -11108,7 +11108,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Banks - Regional"
   },
   {
@@ -11342,7 +11342,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Auto Manufacturers"
   },
   {
@@ -12893,7 +12893,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Internet Retail"
   },
   {
@@ -18048,7 +18048,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Software - Infrastructure"
   },
   {
@@ -18344,7 +18344,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Internet Retail"
   },
   {
@@ -22142,7 +22142,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Consumer Electronics"
   },
   {
@@ -22551,7 +22551,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Software - Infrastructure"
   },
   {
@@ -22893,7 +22893,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Drug Manufacturers - General"
   },
   {
@@ -26376,7 +26376,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Capital Markets"
   },
   {

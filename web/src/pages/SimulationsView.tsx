@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Search, X } from 'lucide-react'
+import { Search, X, FileText } from 'lucide-react'
 import { getSectorIcon } from '../sectorIcons'
 import { getSectorGroup } from '../sectorGroups'
 import FilterDropdown from '../components/FilterDropdown'
@@ -7,7 +7,7 @@ import SectorFilter from '../components/SectorFilter'
 import { fmtNum, fmtPrice } from '../screenerFactors'
 import { IB_STREAM_URL } from '../ibStream'
 import type { PositionsByTicker } from '../interfaces/IPositionsView'
-import type { RawSimResult, SimRow } from '../interfaces/ISimulationsView'
+import type { LivePricesByTicker, RawSimResult, SimRow } from '../interfaces/ISimulationsView'
 
 const PAGE_SIZE = 100
 
@@ -42,6 +42,7 @@ const COLUMNS: { key: keyof SimRow | 'position'; label: string; className?: stri
   { key: 'industryReturn', label: 'Return @ Industry PE' },
   { key: 'industryP20', label: 'P20 @ Industry PE' },
   { key: 'industryP80', label: 'P80 @ Industry PE' },
+  { key: 'notes', label: 'Notes', sortable: false },
 ]
 
 function fmtShares(v: number | null): string {
@@ -92,6 +93,46 @@ function Subrank({ rank }: { rank: number | null | undefined }) {
   return <span className="subrank">{rank}</span>
 }
 
+// Rule-based explanation of one ticker's simulation (see modules/
+// simulations.py's generate_note) -- click the Notes cell's icon to open.
+// Same modal-backdrop/modal-panel convention HoldersView.tsx's
+// HolderModal already uses.
+function NoteModal({ row, onClose }: { row: SimRow; onClose: () => void }) {
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [onClose])
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-panel" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h2>
+            {row.t} <span className="modal-subtitle">{row.n}</span>
+          </h2>
+          <button type="button" className="modal-close" onClick={onClose} aria-label="Close">
+            <X size={18} />
+          </button>
+        </div>
+        <div className="modal-body">
+          {row.notes && row.notes.length ? (
+            <ul className="sim-note-list">
+              {row.notes.map((line, i) => (
+                <li key={i}>{line}</li>
+              ))}
+            </ul>
+          ) : (
+            <p className="sim-note-text">No notes for this ticker.</p>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function SimulationsView() {
   const [raw, setRaw] = useState<RawSimResult[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -103,12 +144,22 @@ export default function SimulationsView() {
   const [page, setPage] = useState(0)
   const [positions, setPositions] = useState<PositionsByTicker>({})
   const [nonZeroOnly, setNonZeroOnly] = useState(false)
+  const [openNoteRow, setOpenNoteRow] = useState<SimRow | null>(null)
+  // ib_server.py's live/snapshot IB Gateway feed -- see LiveTick's own
+  // comment. simulations.json's own `price`/simPrice/simReturn are only
+  // as fresh as the last recalc; this overlays a live IB quote on top of
+  // the Price column and recomputes Sim Return against it (simPrice
+  // itself is a longer-horizon target level, not re-simulated live, so
+  // only the ratio to current price needs to move) wherever IB has a
+  // fresher one -- same pattern ScreenerView.tsx's own Price column uses.
+  const [livePrices, setLivePrices] = useState<LivePricesByTicker>({})
 
   useEffect(() => {
     const source = new EventSource(IB_STREAM_URL)
     source.onmessage = (e) => {
-      const { positions: pos } = JSON.parse(e.data)
+      const { positions: pos, prices } = JSON.parse(e.data)
       setPositions(pos)
+      setLivePrices(prices || {})
     }
     source.onerror = () => {}
     return () => source.close()
@@ -161,6 +212,7 @@ export default function SimulationsView() {
         industryP20: ind.p20,
         industryP80: ind.p80,
         industryProbAbove: ind.probAboveCurrentPrice,
+        notes: r.notes ?? null,
       })
     }
     return out
@@ -369,14 +421,33 @@ export default function SimulationsView() {
               rows &&
               paged.map((r) => {
                 const Icon = getSectorIcon(r.s)
+                // IB Gateway's live/snapshot quote, when this ticker has
+                // one (ib_server.py's _priority_tickers puts every Strong
+                // Buy/Strong Sell ticker at the front of both the live
+                // stream and the periodic snapshot sweep, so those rows
+                // get one soonest) -- falls back to simulations.json's
+                // own (recalc-time) price otherwise. simPrice itself is
+                // an EPS-path target level, not re-simulated against a
+                // live quote, so only the ratio to current price needs
+                // recomputing -- the target doesn't move intraday, the
+                // stock's distance from it does.
+                const live = livePrices[r.t]
+                const livePrice = live?.last ?? r.price
+                const liveSimReturn = r.simPrice !== null && livePrice ? r.simPrice / livePrice - 1 : r.simReturn
                 return (
-                  <tr key={r.t}>
+                  <tr
+                    key={r.t}
+                    className={r.notes ? 'has-notes' : ''}
+                    onClick={r.notes ? () => setOpenNoteRow(r) : undefined}
+                    title={r.notes ? 'Click for simulation notes' : undefined}
+                  >
                     <td className="col-left col-ticker num">
                       <a
                         href={`#/asset/${encodeURIComponent(r.t)}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="ticker-link"
+                        onClick={(e) => e.stopPropagation()}
                       >
                         {r.t}
                       </a>
@@ -391,17 +462,22 @@ export default function SimulationsView() {
                       </span>
                     </td>
                     <td className="num">{fmtShares(positions[r.t]?.shares ?? null)}</td>
-                    <td className="num">{fmtPrice(r.price)}</td>
-                    <td className={`num ${signClass(r.forecastPrice !== null ? r.forecastPrice - r.price : null)}`}>
+                    <td
+                      className="num"
+                      title={live?.last != null ? `IB Gateway ${fmtPrice(live.last)} at ${live.timestamp}` : undefined}
+                    >
+                      {fmtPrice(livePrice)}
+                    </td>
+                    <td className={`num ${signClass(r.forecastPrice !== null ? r.forecastPrice - livePrice : null)}`}>
                       {fmtPrice(r.forecastPrice)}
                     </td>
-                    <td className={`num ${signClass(r.simPrice !== null ? r.simPrice - r.price : null)}`}>
+                    <td className={`num ${signClass(r.simPrice !== null ? r.simPrice - livePrice : null)}`}>
                       {fmtPrice(r.simPrice)}
                     </td>
                     <td className="num">{fmtPrice(r.simVol)}</td>
                     <td className={`num ${signClass(r.simSharpe)}`}>{fmtNum(r.simSharpe)}</td>
-                    <td className={`num ${signClass(r.simReturn)}`}>
-                      {fmtPct(r.simReturn)} <Subrank rank={diffPctRank.get(r.t)} />
+                    <td className={`num ${signClass(liveSimReturn)}`}>
+                      {fmtPct(liveSimReturn)} <Subrank rank={diffPctRank.get(r.t)} />
                     </td>
                     <td className={`num ${probClass(r.industryProbAbove)}`}>{fmtProb(r.industryProbAbove)}</td>
                     <td className="num">{fmtNum(r.ownPe)}</td>
@@ -419,12 +495,30 @@ export default function SimulationsView() {
                     <td className={`num ${signClass(r.industryReturn)}`}>{fmtPct(r.industryReturn)}</td>
                     <td className="num">{fmtPrice(r.industryP20)}</td>
                     <td className="num">{fmtPrice(r.industryP80)}</td>
+                    <td className="col-notes">
+                      {r.notes && (
+                        <button
+                          type="button"
+                          className="notes-btn"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setOpenNoteRow(r)
+                          }}
+                          aria-label={`Show simulation notes for ${r.t}`}
+                          title="Show simulation notes"
+                        >
+                          <FileText size={16} />
+                        </button>
+                      )}
+                    </td>
                   </tr>
                 )
               })}
           </tbody>
         </table>
       </div>
+
+      {openNoteRow && <NoteModal row={openNoteRow} onClose={() => setOpenNoteRow(null)} />}
 
       {rows && sorted.length > PAGE_SIZE && (
         <div className="pagination">

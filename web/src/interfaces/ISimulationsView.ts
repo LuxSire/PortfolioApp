@@ -47,7 +47,27 @@ export interface RawSimResult {
   // even the broad sector didn't clear MIN_PEERS (no peer multiple to
   // price against at all; see modules/simulations.py's own docstring).
   priceAtIndustryMultiple?: SimPriceStats | null
+  // Rule-based, deterministic explanation of this result (see
+  // modules/simulations.py's generate_note) -- a short list of the most
+  // significant inputs behind simReturn (real-base EPS source, growth
+  // rate, own-vs-peer multiple, data-quality flags, analyst-target
+  // context), NOT a restatement of simPrice/simReturn themselves -- those
+  // are already this page's own columns. null/absent when there was
+  // nothing notable to say. Computed for every ticker, not just Strong
+  // Buy/Strong Sell -- shown in a click-to-open popup here.
+  notes?: string[] | null
 }
+
+// The live EventSource prices payload (ib_server.py's SSE stream --
+// see that module's own docstring). ib_server.py's own _priority_tickers
+// already puts every Strong Buy/Strong Sell ticker at the front of both
+// the persistent live-stream budget and the periodic snapshot sweep, so
+// this is populated for those rows well before the rest of the universe.
+export interface LiveTick {
+  last?: number
+  timestamp?: string
+}
+export type LivePricesByTicker = Record<string, LiveTick>
 
 export interface SimPriceStats {
   mean: number
@@ -90,4 +110,5 @@ export interface SimRow {
   industryP20: number
   industryP80: number
   industryProbAbove: number
+  notes: string[] | null
 }

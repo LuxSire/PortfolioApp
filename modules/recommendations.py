@@ -40,6 +40,15 @@ from modules.scoring import load_short_interest_scores
 RECENT_NEWS_DAYS = 7
 RECENT_INSIDER_DAYS = 90
 
+# Only these two ratings surface a `notes` field here -- simulate_ticker
+# itself (modules/simulations.py) already computes generate_note's
+# mechanical explanation for EVERY simulated ticker (the Simulations page
+# needs it for whichever row a user clicks), but that check matters most
+# for the conviction extremes, and this table stays scoped to
+# RATED_FOR_EXTRAS's Strong Buy/Strong Sell rows rather than also
+# surfacing it for plain Buy/Sell/Hold.
+NOTES_RATINGS = {"Strong Buy", "Strong Sell"}
+
 OUT_FILE = os.path.join("data", "output", "recommendations.json")
 
 
@@ -49,6 +58,22 @@ def _load_json_or_empty(path):
             return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         return {}
+
+
+def _load_simulations_by_ticker(simulations_file):
+    """{ticker: simulate_ticker result} from SIMULATIONS_FILE's flat list
+    -- same shape main.py's own _mc_data injection reads, error entries
+    excluded (nothing to build a note from)."""
+    try:
+        with open(simulations_file) as f:
+            entries = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+    return {
+        entry["ticker"]: entry
+        for entry in entries
+        if "ticker" in entry and not entry.get("error")
+    }
 
 
 def _recent_news_counts(news_file, tickers, now, days):
@@ -108,13 +133,19 @@ def _recent_insider_counts(form4_file, tickers, now, days):
 
 
 def build_recommendations(
-    sorted_screen_csv, news_file, form4_file, institutional_holdings_file, short_interest_file, raw_data_file, ratings, now=None
+    sorted_screen_csv, news_file, form4_file, institutional_holdings_file, short_interest_file, raw_data_file, ratings,
+    simulations_file=None, now=None
 ):
     """Returns the dict written to recommendations.json (see module
     docstring). `ratings` is the set of `rating` column values to include --
-    pass main.RATED_FOR_EXTRAS. `now` is injectable for tests; defaults to
-    the current time."""
+    pass main.RATED_FOR_EXTRAS. `simulations_file` (SIMULATIONS_FILE), when
+    given, attaches a `notes` field -- generate_note's rule-based reading
+    of that ticker's simulate_ticker output -- to Strong Buy/Strong Sell
+    rows only (see NOTES_RATINGS); omitted for every other row and left
+    None when no simulations entry exists for the ticker. `now` is
+    injectable for tests; defaults to the current time."""
     now = now or datetime.now()
+    simulations_by_ticker = _load_simulations_by_ticker(simulations_file) if simulations_file else {}
 
     try:
         with open(sorted_screen_csv, newline="") as f:
@@ -156,14 +187,21 @@ def build_recommendations(
     candidates = []
     for row in rows:
         ticker = row["ticker"]
+        rating = row.get("rating")
         score = to_float(row.get("score"))
         inst_change = institutional.get(ticker, {}).get("pctShareChangeQoQ")
+        notes = (
+            simulations_by_ticker[ticker].get("notes")
+            if rating in NOTES_RATINGS and ticker in simulations_by_ticker
+            else None
+        )
         candidates.append(
             {
                 "ticker": ticker,
                 "name": row.get("name"),
                 "sector": row.get("sector"),
-                "rating": row.get("rating"),
+                "rating": rating,
+                "notes": notes,
                 "score": score,
                 "scorePercentile": round(percentile_by_ticker[ticker], 1) if ticker in percentile_by_ticker else None,
                 "price": to_float(row.get("price")),
@@ -198,10 +236,12 @@ def write_recommendations(
     short_interest_file,
     raw_data_file,
     ratings,
+    simulations_file=None,
     out_file=OUT_FILE,
 ):
     result = build_recommendations(
-        sorted_screen_csv, news_file, form4_file, institutional_holdings_file, short_interest_file, raw_data_file, ratings
+        sorted_screen_csv, news_file, form4_file, institutional_holdings_file, short_interest_file, raw_data_file, ratings,
+        simulations_file=simulations_file,
     )
     with open(out_file, "w") as f:
         json.dump(result, f, indent=2)
