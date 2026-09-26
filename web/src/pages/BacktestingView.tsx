@@ -264,9 +264,12 @@ export default function BacktestingView() {
             <p className="dataset-note">
               Equal-weight mean position P&amp;L: +stock return for Long groups, −stock return for Short groups, so
               positive always means the pick worked. n (hover a cell) = candidates with IB daily bars in the window.
-              "blocked" = failed a Recommendations entry gate (weak/strong-momentum continuation, a bad entry-timing
-              day, or earnings within the week) — a working gate makes the blocked group worse than its un-blocked
-              counterpart.
+              "blocked" = failed a Recommendations entry gate (weak/strong-momentum continuation, a simulation
+              pointing the wrong way, too-strong revenue growth to short, or earnings within the week) — a working
+              gate makes the blocked group worse than its un-blocked counterpart. Short interest is no longer one of
+              these — it's a continuous scoring factor now (short_interest_rank), not a gate, after a working gate
+              turned out to be excluding the best-performing shorts (see modules/scoring.py's own FACTOR_WEIGHTS
+              comment).
               Portfolio = the gated Strong Buy long leg + gated Strong Sell short leg summed (dollar-neutral, each leg
               equal-weight 100% gross). Every number here is the <strong>current model</strong> — that week's factor
               columns re-scored with today's scoring.py and gates (see modules/backtest.py's own

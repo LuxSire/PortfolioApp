@@ -2816,19 +2816,30 @@ def _to_float(v):
 # a valuation-based short thesis got run over by, not crowding or
 # earnings surprises. Must match RecommendationsView.tsx's own
 # SHORT_GROWTH_CEILING/growthBlocksShortEntry -- same 10% threshold,
-# same OR-across-trailing-and-forward-growth shape. The old crowded-short
-# INFORMATIONAL threshold (MAX_SHORT_INTEREST, 10%) was removed entirely
-# as an entry gate -- backtesting showed it was consistently
-# counterproductive. _REC_SHORT_INTEREST_ENTRY_CAP below is a SEPARATE,
-# much looser hard cap reinstated after a real case slipped through (a
-# Strong Sell recommended with 69% of float already short) -- must match
-# RecommendationsView.tsx's own SHORT_INTEREST_ENTRY_CAP.
+# same OR-across-trailing-and-forward-growth shape.
+#
+# meanReversionOkForLong/meanReversionOkForShort (the _REC_MEAN_REVERSION_*
+# checks below) were removed here too, catching this file up with the
+# frontend's own removal -- meanReversion was found backwards on both
+# books (rho=+0.071 long/-0.106 short, wrong sign for the "overbought
+# predicts a pullback"/"oversold predicts a bounce" premise) and is
+# retired entirely now (see modules/derive.py's reconcile_mean_reversion
+# retirement comment) -- this Python mirror had drifted stale, still
+# gating on a signal the live app stopped gating on.
+#
+# The old crowded-short INFORMATIONAL threshold (MAX_SHORT_INTEREST, 10%)
+# was removed entirely as an entry gate -- backtesting showed it was
+# consistently counterproductive. A SEPARATE, much looser hard cap (30%
+# of float, _REC_SHORT_INTEREST_ENTRY_CAP) was reinstated after a real
+# case slipped through (a Strong Sell recommended with 69% of float
+# already short) -- then retired again still later, once a full 5
+# backtested weeks showed it excluded names that compounded +16.95%,
+# almost double short_strong_sell's own +9.29%. Folded into
+# scoring.short_interest_rank's weight instead (continuous, not a gate)
+# -- nothing left for this file to mirror.
 _REC_MOMENTUM_NO_BUY = 35
 _REC_MOMENTUM_NO_SELL = 65
 _REC_REVENUE_GROWTH_THRESHOLD = 0.1
-_REC_MEAN_REVERSION_OVERBOUGHT = 80
-_REC_MEAN_REVERSION_OVERSOLD = 20
-_REC_SHORT_INTEREST_ENTRY_CAP = 0.3
 # Blocks a NEW entry (either side) with earnings due within this many
 # calendar days -- explicit instruction after BBW (-23% Strong Buy) and
 # CRWD (-13.8% Strong Sell) both turned out to be clean earnings-day gaps
@@ -2852,11 +2863,10 @@ def _rec_earnings_blocks(row):
 
 def _passes_long_gates(row):
     """Mirrors RecommendationsView.tsx's eligibleToBuy +
-    sufficientGrowthForLong + meanReversionOkForLong -- the exact set of
-    checks a Buy/Strong Buy candidate must clear to appear in the Long
-    list (the entry-side EPS-trend gate was removed -- backtesting showed
-    it was consistently counterproductive on the short side, see the
-    crowded-short removal note above for the same reasoning). See
+    sufficientGrowthForLong -- the exact set of checks a Buy/Strong Buy
+    candidate must clear to appear in the Long list (the entry-side
+    EPS-trend gate and meanReversionOkForLong are both removed -- see the
+    crowded-short/mean-reversion removal notes above). See
     _priority_tickers' own docstring for why this needed replicating in
     Python at all: without it, this file has no way to tell "will actually
     show up on the Recommendations page" apart from "is RATED_FOR_EXTRAS,"
@@ -2871,9 +2881,6 @@ def _passes_long_gates(row):
     growth = _to_float(row.get("revenueGrowth"))
     if growth is not None and growth < _REC_REVENUE_GROWTH_THRESHOLD:
         return False
-    mr = _to_float(row.get("meanReversion"))
-    if mr is not None and mr >= _REC_MEAN_REVERSION_OVERBOUGHT:
-        return False
     return True
 
 
@@ -2881,11 +2888,10 @@ def _passes_short_gates(row):
     """Mirrors RecommendationsView.tsx's eligibleToSell -- momentum +
     growthBlocksShortEntry (trailing OR forward revenue growth above
     _REC_REVENUE_GROWTH_THRESHOLD, reinstated -- see that constant's own
-    comment) + meanReversionOkForShort + shortInterestBlocksEntry. The
-    old crowded-short INFORMATIONAL threshold and EPS-trend gate are both
-    still removed (see _passes_long_gates' own comment); the much looser
-    _REC_SHORT_INTEREST_ENTRY_CAP hard block below is a separate, later
-    reinstatement, not a revival of that removed one. The momentum gate
+    comment). meanReversionOkForShort, the old crowded-short INFORMATIONAL
+    threshold, the later short-interest hard cap, and the EPS-trend gate
+    are all removed (see _passes_long_gates' own comment and the
+    mean-reversion/short-interest removal notes above). The momentum gate
     BLOCKS the whole strong-momentum half (MSI >= NO_SELL), the mirror of
     the long gate above; neutral, falling-knife and oversold candidates
     all stay eligible."""
@@ -2899,12 +2905,6 @@ def _passes_short_gates(row):
         return False
     expected_growth = _to_float(row.get("eulerRevGrowth1y"))
     if expected_growth is not None and expected_growth > _REC_REVENUE_GROWTH_THRESHOLD:
-        return False
-    mr = _to_float(row.get("meanReversion"))
-    if mr is not None and mr <= _REC_MEAN_REVERSION_OVERSOLD:
-        return False
-    short_pct = _to_float(row.get("shortPercentOfFloat"))
-    if short_pct is not None and short_pct > _REC_SHORT_INTEREST_ENTRY_CAP:
         return False
     return True
 

@@ -1735,7 +1735,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Biotechnology"
   },
   {
@@ -6098,7 +6098,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Other Industrial Metals & Mining"
   },
   {
@@ -6125,7 +6125,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Biotechnology"
   },
   {
@@ -11333,7 +11333,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Oil & Gas Equipment & Services"
   },
   {
@@ -22974,7 +22974,7 @@
     "currency": "USD",
     "market": "SMART",
     "country": "US",
-    "active": 1,
+    "active": 0,
     "sector": "Biotechnology"
   },
   {

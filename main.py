@@ -579,6 +579,11 @@ FIELDNAMES = [
     # epsRevision0y/1y above (analyst ESTIMATES moving before the print);
     # this is the actual beat/miss TRACK RECORD after the fact.
     "earningsSurpriseAvg",
+    # Recency-weighted read on the MOST RECENT surprise alone, decayed to
+    # 0 over derive.PEAD_DECAY_DAYS (see derive.earnings_pead_from_statements)
+    # -- a post-earnings-announcement-drift read, distinct from the
+    # slow-moving track record above.
+    "earningsPead",
 ]
 # FINRA biweekly short-interest figures (finra.SHORT_INTEREST_FILE +
 # raw_data.json floatShares, via scoring.load_short_interest_scores) -- the
@@ -1544,8 +1549,20 @@ def download(tickers=None):
         if isinstance(raw_info.get(t), dict) and not raw_info[t].get("error")
         and (raw_info[t].get("country") == "United States" or t in (COUNTRY_OVERRIDE_TICKERS or ()))
     ]
+    # A cached entry missing "earningsDates" entirely counts as stale too,
+    # regardless of _fetchedAt -- a one-time backfill condition so a
+    # newly-added statement key (see get_yf_statements' own getter tuple)
+    # reaches every ticker on its next `download` rather than waiting out
+    # the full 72h freshness window for each one, or requiring an
+    # expensive explicit-list refetch of the whole universe just to pick
+    # up one new field. Once every cached entry has been refreshed at
+    # least once past this point, this clause is permanently a no-op --
+    # left in rather than removed, since it costs nothing and protects
+    # the next such addition too.
     stmt_stale = us if explicit else [
-        t for t in us if not is_fresh((raw_stmts.get(t) or {}).get("_fetchedAt"), STATEMENTS_FRESH_HOURS)
+        t for t in us
+        if "earningsDates" not in (raw_stmts.get(t) or {})
+        or not is_fresh((raw_stmts.get(t) or {}).get("_fetchedAt"), STATEMENTS_FRESH_HOURS)
     ]
     print(f"  statements: {len(stmt_stale)} to fetch (of {len(us)} US-domiciled)")
     now = datetime.now().isoformat(timespec="seconds")
@@ -1585,15 +1602,16 @@ def recalc(fresh_momentum=False, force_prices=False):
     else:
         add_momentum_from_cache(app, data)
     # Overwrites the MSI-based momentum add_momentum_from_cache/
-    # add_momentum_and_persist_history just set with the new Trend Score
-    # (see derive.reconcile_momentum's own comment) -- zero network calls,
-    # reads DAILY_3MO_HISTORY_FILE straight off disk, same as every other
-    # reconcile_* below.
-    derive.reconcile_momentum(data, _load_json_or_empty(DAILY_3MO_HISTORY_FILE))
-    # Same replacement, hourly timeframe -- see derive.reconcile_mean_reversion's
-    # own comment for why this recalibrates rather than sign-flips the old
-    # hourly-MFI-based meanReversion.
-    derive.reconcile_mean_reversion(data, _load_json_or_empty(HOURLY_HISTORY_FILE))
+    # add_momentum_and_persist_history just set with the Trend Score (see
+    # derive.reconcile_momentum's own comment) -- zero network calls,
+    # reads DAILY_3MO_HISTORY_FILE/HOURLY_HISTORY_FILE straight off disk,
+    # same as every other reconcile_* below. hourly_history feeds the
+    # trend_health gate inside reconcile_momentum now -- this is also
+    # where the retired reconcile_mean_reversion/meanReversion call used
+    # to live (see derive.py's own retirement comment on that function).
+    derive.reconcile_momentum(
+        data, _load_json_or_empty(DAILY_3MO_HISTORY_FILE), _load_json_or_empty(HOURLY_HISTORY_FILE)
+    )
     # New, deliberately unscored field -- a 1-trading-day-ahead entry-
     # timing read (35h hourly formation, see derive.reconcile_entry_timing's
     # own comment for why this is a different window/horizon from

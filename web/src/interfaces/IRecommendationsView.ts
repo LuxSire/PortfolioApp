@@ -89,6 +89,16 @@ export interface Candidate {
   // a good day to place this entry," not "is this a good stock." Lives
   // on tickerScreener like meanReversion, not on the candidate itself.
   entryTiming?: number | null
+  // Trailing average reported-vs-estimate EPS surprise % (see
+  // modules/derive.py's earnings_surprise_from_statements) -- the
+  // beat/miss TRACK RECORD, not an analyst-estimate revision. Lives on
+  // tickerScreener like entryTiming, not on the candidate itself.
+  earningsSurpriseAvg?: number | null
+  // Recency-weighted read on the MOST RECENT surprise alone, decayed to
+  // 0 a couple months after the print (see derive.earnings_pead_from_statements)
+  // -- a post-earnings-announcement-drift read, distinct from the
+  // average above. null once fully decayed, same as never having one.
+  earningsPead?: number | null
   // MSI (Money Flow Index) computed on ONLY the last 3 distinct trading
   // dates of the hourly series (modules/IBApp.py _money_flow_index_last_days)
   // -- a short pre-earnings read of where money flow sits heading into the

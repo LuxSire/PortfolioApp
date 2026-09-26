@@ -208,8 +208,8 @@ def earnings_surprise_from_statements(stmts):
     function only ever sees actually-reported quarters either way. None
     when there are no reported quarters with a surprise value at all
     (thin/no earnings-date coverage) -- earnings_surprise_rank ranks a
-    missing value worst, same treatment as every other factor's missing
-    data (a track record needs history to exist)."""
+    missing value NEUTRAL (0.5), same treatment as earnings_growth_rank/
+    eps_volatility_rank (no track record on file isn't itself bearish)."""
     dates = (stmts or {}).get("earningsDates") or {}
     surprises = []
     for row in dates.values():
@@ -220,6 +220,66 @@ def earnings_surprise_from_statements(stmts):
         if len(surprises) >= EARNINGS_SURPRISE_LOOKBACK_QUARTERS:
             break
     return statistics.fmean(surprises) if surprises else None
+
+
+# How long a surprise keeps mattering for the PEAD (post-earnings-
+# announcement-drift) read below -- calendar days, not trading days (no
+# trading calendar handy in this file; ~56 calendar days is roughly 8
+# trading weeks, comfortably inside the ~60-trading-day window the PEAD
+# literature typically studies). Linear decay to 0 over this window,
+# rather than a hard cutoff, so the signal fades smoothly rather than
+# vanishing the day after some arbitrary deadline.
+PEAD_DECAY_DAYS = 56
+
+
+def earnings_pead_from_statements(stmts, today=None):
+    """Recency-weighted read on the SAME earningsDates data
+    earnings_surprise_from_statements averages -- but built for a
+    DIFFERENT anomaly. That function answers "has this company been a
+    reliable beater" (a slow-moving quality tilt, all 8 quarters weighted
+    equally); this one answers "did it just surprise the market, and are
+    we still inside the window where the stock's own price tends to keep
+    drifting in that direction" (a fast-moving, event-driven read on the
+    MOST RECENT print alone, decayed to 0 by PEAD_DECAY_DAYS after it).
+
+    Finds the most recent REPORTED quarter (skips the next unreported
+    print the same way earnings_surprise_from_statements does), clamps
+    its surprise % to +/-EARNINGS_SURPRISE_CAP same as that function, then
+    scales it by max(0, 1 - days_since_report / PEAD_DECAY_DAYS) -- full
+    weight the day after the print, linearly fading to exactly 0 (not a
+    small residual) once PEAD_DECAY_DAYS have passed. `today` defaults to
+    date.today() but takes an explicit value for testability, same
+    convention modules.eulerpool.get_forward_estimates uses.
+
+    None when there's no reported quarter to read at all (thin coverage)
+    OR the most recent one has already fully decayed (> PEAD_DECAY_DAYS
+    old) -- both cases mean "no live drift signal right now," not
+    "bearish": earnings_pead_rank ranks either NEUTRAL (0.5), same
+    convention as earnings_surprise_from_statements above. Deliberately
+    NOT the same missing-data case as that function even though they
+    share a return value here -- a fully-decayed recent beat is a
+    genuinely different state (there WAS a real surprise, it just no
+    longer counts) from never having reported at all, but both resolve to
+    "nothing to act on" for this factor either way."""
+    today = today or date.today()
+    dates = (stmts or {}).get("earningsDates") or {}
+    for key, row in dates.items():
+        pct = row.get("Surprise(%)")
+        if pct is None:
+            continue
+        try:
+            reported = date.fromisoformat(key[:10])
+        except ValueError:
+            continue
+        days_since = (today - reported).days
+        if days_since < 0:
+            continue  # defensive -- shouldn't happen, a "reported" row with a future date
+        weight = max(0.0, 1.0 - days_since / PEAD_DECAY_DAYS)
+        if weight <= 0:
+            return None
+        clamped = max(-EARNINGS_SURPRISE_CAP, min(EARNINGS_SURPRISE_CAP, pct / 100.0))
+        return clamped * weight
+    return None
 
 
 def statement_metrics(stmts):
@@ -344,6 +404,7 @@ def build_screen_row(info, stmts):
     row["epsRevision0y"], row["epsRevision1y"] = r0, r1
     row["epsVolatility"] = eps_volatility_from_statements(stmts)
     row["earningsSurpriseAvg"] = earnings_surprise_from_statements(stmts)
+    row["earningsPead"] = earnings_pead_from_statements(stmts)
 
     row.update(statement_metrics(stmts))
 
@@ -1296,41 +1357,103 @@ def reconcile_earnings_growth(data, xbrl):
 #     term reversal -- a stock up sharply over 1-3 weeks tends to give
 #     some back, not keep running).
 #   - ~20-30 trading-day lookbacks predict POSITIVE forward returns
-#     (genuine continuation) -- best-supported pair: 20-day formation,
-#     20-day holding (top-decile-minus-bottom-decile spread +4.58%,
-#     Spearman +0.089, n=3,994 non-overlapping windows).
-#   - Volume acceleration during the formation window (second half vs
-#     first half) predicts WORSE forward returns in BOTH directions --
-#     top price-momentum decile: falling volume +3.69% next 20d vs.
-#     rising volume -0.34%; bottom decile: falling volume -1.76% vs.
-#     rising volume -4.07%. Not a direction-dependent "exhaustion for
-#     rallies only" effect -- rising volume during formation is a
-#     general bearish tilt on top of price momentum either way, so it
-#     enters the formula with one sign, not a conditional one.
+#     (genuine continuation) -- best-supported pair at the time: 20-day
+#     formation, 20-day holding (top-decile-minus-bottom-decile spread
+#     +4.58%, Spearman +0.089, n=3,994 non-overlapping windows).
 # MSI (Money Flow Index/RSI, see IBApp.get_momentum) answers a
 # DIFFERENT, shorter-horizon question and was never wrong on its own
 # terms -- it's built around exactly the 1-3 week window this
 # cross-section shows is reversal-prone, which is why a genuine
 # multi-week trend (confirmed live: DINO, Hold-rated, +76% over 3
 # months) reads as "overbought" under MSI instead of "trending."
-MOMENTUM_FORMATION_DAYS = 20
+#
+# UPDATE, re-run months later after DINO itself reversed hard: rescanning
+# formation windows 5-35 days on BOTH the (by-then-shifted) 3-month IB
+# window and an independent 8-month yfinance sample found 20 days had
+# become one of the WORST lookbacks on both (rho -0.079 and -0.138
+# respectively), while 10-12 days was consistently the best-supported
+# pair on both (rho +0.021/+0.112, +0.108-ish neighbor at 12) -- not a
+# marginal re-tune, a genuine regime change (momentum-crash-shaped: this
+# stretch had more DINO-style reversals than the period 20d was first
+# tuned on). MOMENTUM_FORMATION_DAYS moved to 10 on that basis. r5/
+# vol_accel's own weights were NOT re-tuned at the new window -- both
+# came back sign-inconsistent across the two datasets when re-checked
+# (r5: +0.036 vs -0.010; vol_accel: sign flipped from the original
+# finding entirely) -- kept at their legacy weights rather than fit a
+# new number to data too noisy to trust one from.
+MOMENTUM_FORMATION_DAYS = 10
 MOMENTUM_REVERSAL_DAYS = 5
-# Weights on the three z-scored legs before percentile-ranking to 0-100 --
-# r20 at full weight (the primary, best-validated signal), vol_accel and
-# r5 at partial weight (real but secondary effects, and r5 is already
-# correlated with r20 by construction so shouldn't cancel it outright).
+# Weights on the z-scored legs before percentile-ranking to 0-100 -- r10
+# at full weight (the primary, best-validated signal), vol_accel/r5 at
+# their original partial weights (see UPDATE above -- not re-validated at
+# the new window, kept rather than re-fit on noise), trend_health at a
+# weight comparable to vol_accel since it's the strongest single
+# conditional effect found this round (see its own section below).
 MOMENTUM_VOL_WEIGHT = 0.5
 MOMENTUM_REVERSAL_WEIGHT = 0.3
-# Bars needed: MOMENTUM_FORMATION_DAYS (r20) + 1 (the day before it, as
-# the r20 base) + a little slack -- 25 is comfortably enough for both
-# r20 and r5/vol_accel, which live entirely inside the r20 window.
+MOMENTUM_HEALTH_WEIGHT = 0.5
+# Caps the trend_health gate's multiplier (see its own use-site comment,
+# below, for the META bug this fixes) -- an above-average 20-day trend
+# counts fully toward turning trend_health on; further extremity past
+# this doesn't amplify it further.
+MOMENTUM_HEALTH_GATE_CAP = 1.0
+# Bars needed: MOMENTUM_FORMATION_DAYS (r10) + 1 (the day before it, as
+# the r10 base) + a little slack. Separately, TREND_HEALTH_GATE_DAYS (see
+# below) still needs a real 20-trading-day daily history regardless of
+# the shorter primary window, so this stays generous rather than
+# shrinking in step with MOMENTUM_FORMATION_DAYS.
 MOMENTUM_MIN_BARS = 25
+# The daily lookback trend_health is GATED on -- deliberately kept at the
+# OLD 20-day window rather than following MOMENTUM_FORMATION_DAYS down to
+# 10. Explicit finding: trend_health's strong conditional effect
+# (Spearman +0.268 within the top quintile of a GENUINE 20-day trend, IB
+# 3-month data) collapsed to +0.080 when re-conditioned on the new
+# 10-day primary window instead -- the "topping" story it detects
+# (DINO-shaped: a trend that's been running for WEEKS starting to fade
+# on the hourly tape) specifically needs a multi-week trend to define
+# "trending" against, not a 10-day one. So r20 stays in the formula
+# purely as this gate, decoupled from being the primary continuation
+# signal it used to be.
+TREND_HEALTH_GATE_DAYS = 20
+# The hourly window trend_health itself is measured over -- 14 hours
+# recent pace vs. the preceding 21 hours (35h total, ~5 trading days),
+# NON-overlapping segments so this is a genuine acceleration/deceleration
+# read, not two overlapping windows double-counting the same hours. See
+# derive.py session notes: recent_pace - earlier_pace, both hourly rates
+# (return / hours), validated via a formation/holding cross-section on 3
+# months of IB hourly bars restricted to stocks already in a genuine
+# TREND_HEALTH_GATE_DAYS-day uptrend.
+TREND_HEALTH_RECENT_HOURS = 14
+TREND_HEALTH_EARLIER_HOURS = 21
+TREND_HEALTH_MIN_HOURLY_BARS = TREND_HEALTH_RECENT_HOURS + TREND_HEALTH_EARLIER_HOURS
 
 
-def reconcile_momentum(data, daily_history):
+def _trend_health(hourly_series):
+    """recent_pace - earlier_pace (both hourly rates: return / hours) from
+    a ticker's hourly closes, or None if there aren't
+    TREND_HEALTH_MIN_HOURLY_BARS of them. Positive = accelerating (the
+    most recent TREND_HEALTH_RECENT_HOURS hours moved faster, per hour,
+    than the TREND_HEALTH_EARLIER_HOURS before that) -- a fresh breakout
+    within an existing trend. Negative = decelerating -- the "topping"
+    shape: strong over the whole window, but visibly losing steam right
+    now."""
+    if not hourly_series or len(hourly_series) < TREND_HEALTH_MIN_HOURLY_BARS:
+        return None
+    closes = [to_float(b.get("close")) for b in hourly_series[-TREND_HEALTH_MIN_HOURLY_BARS:]]
+    if any(c is None for c in closes):
+        return None
+    recent_base = closes[-1 - TREND_HEALTH_RECENT_HOURS]
+    earlier_base = closes[0]
+    if not recent_base or recent_base <= 0 or not earlier_base or earlier_base <= 0 or closes[-1] <= 0:
+        return None
+    recent_pace = (closes[-1] / recent_base - 1.0) / TREND_HEALTH_RECENT_HOURS
+    earlier_pace = (recent_base / earlier_base - 1.0) / TREND_HEALTH_EARLIER_HOURS
+    return recent_pace - earlier_pace
+
+
+def reconcile_momentum(data, daily_history, hourly_history=None):
     """Mutates `data` in place: overwrites each row's momentum with the
-    new Trend Score (see this section's own comment for what it replaces
-    and why), a cross-sectional percentile rank 0-100 (0=most bearish,
+    Trend Score, a cross-sectional percentile rank 0-100 (0=most bearish,
     100=most bullish) -- SAME scale and SAME semantics the old MSI-based
     momentum already used, so RecommendationsView.tsx's existing gate
     thresholds (MOMENTUM_NO_BUY=35, NO_SELL=65, OVERSOLD=20,
@@ -1345,7 +1468,19 @@ def reconcile_momentum(data, daily_history):
     build_screen_row/add_momentum already set (graceful degrade, same
     convention every other reconcile_* here uses) -- this only replaces
     momentum where the new computation actually has enough data to
-    trust."""
+    trust.
+
+    `hourly_history` (optional, defaults to None/skipped) = loaded
+    HOURLY_HISTORY_FILE -- feeds the trend_health gate (see
+    TREND_HEALTH_GATE_DAYS' own comment). This REPLACES what
+    reconcile_mean_reversion/meanReversion used to do with the hourly
+    series (retired -- backwards on both books, see that function's own
+    removal), but the mechanism is deliberately different: gated by r20
+    and folded directly into momentum, not a standalone rank a human
+    reads as "oversold/overbought." A ticker missing hourly coverage (not
+    in CANDLESTICK_TOP_N, or too few bars) just gets zero contribution
+    from this term -- same graceful-degrade spirit as everything else
+    here, not a reason to skip the rest of the Trend Score."""
     raw = {}
     for ticker, row in data.items():
         series = daily_history.get(ticker)
@@ -1355,12 +1490,14 @@ def reconcile_momentum(data, daily_history):
         vols = [to_float(b.get("volume")) or 0.0 for b in series[-MOMENTUM_MIN_BARS:]]
         if any(c is None for c in closes):
             continue
-        base20 = closes[-1 - MOMENTUM_FORMATION_DAYS]
+        base10 = closes[-1 - MOMENTUM_FORMATION_DAYS]
         base5 = closes[-1 - MOMENTUM_REVERSAL_DAYS]
-        if base20 is None or base20 <= 0 or base5 is None or base5 <= 0 or closes[-1] <= 0:
+        base20 = closes[-1 - TREND_HEALTH_GATE_DAYS]
+        if base10 is None or base10 <= 0 or base5 is None or base5 <= 0 or closes[-1] <= 0:
             continue
-        r20 = closes[-1] / base20 - 1.0
+        r10 = closes[-1] / base10 - 1.0
         r5 = closes[-1] / base5 - 1.0
+        r20 = closes[-1] / base20 - 1.0 if base20 and base20 > 0 else None
         formation_vols = vols[-MOMENTUM_FORMATION_DAYS:]
         half = MOMENTUM_FORMATION_DAYS // 2
         v_first = statistics.mean(formation_vols[:half])
@@ -1368,23 +1505,50 @@ def reconcile_momentum(data, daily_history):
         if v_first <= 0:
             continue
         vol_accel = v_second / v_first - 1.0
-        raw[ticker] = {"r20": r20, "r5": r5, "vol_accel": vol_accel}
+        trend_health = _trend_health((hourly_history or {}).get(ticker))
+        raw[ticker] = {"r10": r10, "r5": r5, "vol_accel": vol_accel, "r20": r20, "trend_health": trend_health}
 
     if len(raw) < 10:
         return
 
     def zscores(key):
-        vals = [v[key] for v in raw.values()]
+        vals = [v[key] for v in raw.values() if v[key] is not None]
+        if len(vals) < 10:
+            return {t: 0.0 for t in raw}
         mean = statistics.mean(vals)
         stdev = statistics.pstdev(vals)
-        return {t: ((v[key] - mean) / stdev if stdev > 0 else 0.0) for t, v in raw.items()}
+        return {
+            t: ((v[key] - mean) / stdev if stdev > 0 else 0.0) if v[key] is not None else 0.0
+            for t, v in raw.items()
+        }
 
-    z_r20 = zscores("r20")
+    z_r10 = zscores("r10")
     z_r5 = zscores("r5")
     z_vol = zscores("vol_accel")
+    z_r20 = zscores("r20")
+    z_health = zscores("trend_health")
 
+    # Gate: trend_health only counts for a ticker already ABOVE-average on
+    # the 20-day (genuine multi-week trend) measure -- min(max(0, z_r20),
+    # MOMENTUM_HEALTH_GATE_CAP), not the raw z_r20 value. A below-average/
+    # negative-trend ticker gets exactly zero contribution (max(0, ...)),
+    # same as originally intended -- but CAPPING the top end matters too:
+    # confirmed live (META, z_r20=+3.37 during a genuine ~15% rally) that
+    # an uncapped gate lets an extreme r20 outlier amplify trend_health's
+    # contribution far past what was ever validated -- the gate was only
+    # ever tested as "does trend_health matter AT ALL for a top-quintile
+    # stock" (yes/no), never as "multiply by how extreme the 20-day
+    # return is." Uncapped, META's -1.30 (modest, not dramatic)
+    # trend_health z-score got multiplied into a -2.19 penalty bigger
+    # than its entire +2.04 primary r10 signal, mis-scoring a strongly
+    # uptrending stock as a "strong downtrend." Capped at 1.0 (an
+    # above-average trend counts fully; further extremity past that
+    # doesn't buy additional amplification).
     scores = {
-        t: z_r20[t] - MOMENTUM_VOL_WEIGHT * z_vol[t] - MOMENTUM_REVERSAL_WEIGHT * z_r5[t]
+        t: z_r10[t]
+        - MOMENTUM_VOL_WEIGHT * z_vol[t]
+        - MOMENTUM_REVERSAL_WEIGHT * z_r5[t]
+        + MOMENTUM_HEALTH_WEIGHT * min(max(0.0, z_r20[t]), MOMENTUM_HEALTH_GATE_CAP) * z_health[t]
         for t in raw
     }
     ordered = sorted(scores, key=lambda t: scores[t])
@@ -1395,79 +1559,23 @@ def reconcile_momentum(data, daily_history):
 
 
 # --------------------------------------------------------------------------- #
-#  Mean reversion -- hourly Reversal Score, replacing the hourly MFI          #
+#  Mean reversion -- RETIRED (see reconcile_momentum's trend_health term)     #
 # --------------------------------------------------------------------------- #
-# Explicit instruction, same formation/holding cross-section methodology
-# as reconcile_momentum above, run on HOURLY IB Gateway bars instead of
-# daily (11,988-290,000 observations per cell across a 1-21 hour x 1-21
-# hour grid). Unlike the daily result, the hourly timeframe is
-# mean-reverting EVERYWHERE tested -- the spread is negative or flat
-# across all 64 (formation, holding) combinations, never flipping
-# positive the way daily did past 20 trading days. So this is a
-# RECALIBRATION of mean_reversion's existing "low=oversold=good entry,
-# high=overbought=bad" convention, not a sign flip the way momentum
-# needed -- the old hourly MFI had the right instinct, just not
-# necessarily tuned to the horizon that best expresses it.
-# Best-supported cell in the grid: a 14-HOUR (~2 trading days) formation
-# window predicts the NEXT 21 HOURS (~3 trading days) best of everything
-# tested -- top-decile-minus-bottom-decile spread -2.16%, Spearman
-# -0.168, n=11,988. Confirmed live that volume does NOT meaningfully
-# improve this the way it improved the daily momentum signal -- Spearman
-# of volume-acceleration-during-formation against the 21h outcome was
-# +0.015 (top decile), -0.035 (bottom decile), an order of magnitude
-# weaker than the daily case's -0.174 -- so, deliberately, no volume
-# term here, price-only.
-MEAN_REVERSION_FORMATION_HOURS = 14
-MEAN_REVERSION_MIN_BARS = 20  # formation window + a little slack
-
-
-def reconcile_mean_reversion(data, hourly_history):
-    """Mutates `data` in place: overwrites each row's meanReversion with
-    the new hourly Reversal Score -- a cross-sectional percentile rank
-    0-100, SAME scale and SAME "low=oversold=good entry, high=overbought
-    =bad" convention the old hourly-MFI-based meanReversion already
-    used, so mean_reversion_rank's own value/100 direct read, and
-    RecommendationsView.tsx's meanReversionOkForLong/OkForShort/
-    buildCloseReasons thresholds, all keep meaning exactly what they
-    always meant without needing to be recalibrated -- only what feeds
-    `meanReversion` upstream changes.
-
-    `hourly_history` = loaded HOURLY_HISTORY_FILE. Same coverage scope
-    the old hourly MFI already had -- IB Gateway only fetches hourly
-    candlesticks for CANDLESTICK_TOP_N ranked/held tickers (~40% of the
-    universe), not the whole screen; a ticker outside that scope, or
-    with fewer than MEAN_REVERSION_MIN_BARS hourly bars, keeps whatever
-    meanReversion build_screen_row/add_momentum already set (graceful
-    degrade, same convention reconcile_momentum uses for `momentum`)."""
-    raw = {}
-    for ticker, row in data.items():
-        series = hourly_history.get(ticker)
-        if not series or len(series) < MEAN_REVERSION_MIN_BARS:
-            continue
-        closes = [to_float(b.get("close")) for b in series[-MEAN_REVERSION_MIN_BARS:]]
-        if any(c is None for c in closes):
-            continue
-        base = closes[-1 - MEAN_REVERSION_FORMATION_HOURS]
-        if base is None or base <= 0 or closes[-1] <= 0:
-            continue
-        raw[ticker] = closes[-1] / base - 1.0
-
-    if len(raw) < 10:
-        return
-
-    mean = statistics.mean(raw.values())
-    stdev = statistics.pstdev(raw.values())
-    scores = {t: ((v - mean) / stdev if stdev > 0 else 0.0) for t, v in raw.items()}
-
-    ordered = sorted(scores, key=lambda t: scores[t])
-    n = len(ordered)
-    for i, ticker in enumerate(ordered):
-        pct = (i / (n - 1) * 100.0) if n > 1 else 50.0
-        data[ticker]["meanReversion"] = round(pct, 2)
-
-
+# reconcile_mean_reversion/meanReversion (the hourly Reversal Score) is
+# gone -- explicit instruction. It was backwards on both books (long
+# rho=+0.071, short rho=-0.106, both the wrong sign for its own
+# "oversold=good entry, overbought=bad" premise) despite being a
+# recalibration of a real, validated hourly-timeframe mean-reversion
+# effect (14h formation predicting the next 21h, rho=-0.168 in the
+# dedicated grid study) -- the standalone-rank, human-facing framing
+# ("oversold/overbought") never actually paid off live. Its role is
+# replaced by reconcile_momentum's trend_health term above: same 14h-
+# adjacent hourly measurement, but folded directly into the Trend Score,
+# gated on an existing 20-day trend, rather than surfaced as its own
+# independent oversold/overbought read.
+#
 # 35 hours (~5 trading days at 7 bars/day) -- NOT the same window as
-# meanReversion's 14h. Found via a dedicated formation/holding scan fixed
+# meanReversion's old 14h. Found via a dedicated formation/holding scan fixed
 # at a 1-TRADING-DAY holding period (7 hourly bars): rho against next-day
 # return is negative (mean-reverting) at every formation length tested,
 # but forms a clean, isolated peak at 35h (rho=-0.104, n~29,976) --

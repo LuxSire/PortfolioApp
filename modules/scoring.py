@@ -1012,15 +1012,33 @@ def earnings_surprise_rank(rows):
     (thin coverage, recent IPO) isn't itself a bearish signal. A
     DIFFERENT signal from eps_trend_rank (analyst ESTIMATES moving before
     the print) and epsVolatility (dispersion of reported EPS itself) --
-    this is the historical beat/miss track record, the input behind
-    earnings-surprise persistence and post-earnings-announcement drift,
-    neither of which either of those two already captures. 0% everywhere
-    for now -- explicit instruction, brand new factor, left unweighted
-    until it can be correlation-checked the same way every other factor
-    here has been this session (see e.g. guidance_rank's own comment for
-    the same "measure before you weight it" reasoning)."""
+    this is the historical beat/miss track record -- the surprise-
+    PERSISTENCE half of what this data can capture. See
+    earnings_pead_rank below for the other half (post-earnings-
+    announcement drift, a different, recency-weighted read on the same
+    underlying data). 2% everywhere -- explicit instruction, funded by
+    trimming short_interest_rank (see FACTOR_WEIGHTS' own comment for
+    why)."""
     def key(d):
         value = to_float(d.get("earningsSurpriseAvg"))
+        return -value if value is not None else None
+    return rank_ascending(rows, key, missing=0.5)
+
+
+def earnings_pead_rank(rows):
+    """High earningsPead (see derive.earnings_pead_from_statements --
+    the most recent quarter's surprise alone, decayed to 0 over
+    derive.PEAD_DECAY_DAYS) ranks better; missing ranked NEUTRAL (0.5) --
+    covers both "no reported quarter on file" and "the last one has fully
+    decayed," neither of which is bearish (see that function's own
+    docstring for why both resolve the same way here). The post-earnings-
+    announcement-DRIFT half of what earningsDates can capture -- a fast-
+    moving, event-driven read on the MOST RECENT print specifically,
+    unlike earnings_surprise_rank's slow-moving multi-quarter average
+    just above. 2% everywhere -- same funding as earnings_surprise_rank,
+    see FACTOR_WEIGHTS' own comment."""
+    def key(d):
+        value = to_float(d.get("earningsPead"))
         return -value if value is not None else None
     return rank_ascending(rows, key, missing=0.5)
 
@@ -1081,44 +1099,15 @@ def momentum_rank(rows):
     percentile by construction (reconcile_momentum ranks it against the
     universe itself), so re-deriving "good" from this file's own ranking
     machinery would just repeat the same step twice. Missing ranked
-    worst, same convention as most other factors here. A pure
-    medium-term trend read, independent of mean_reversion_rank's
-    hourly one below -- see that function's docstring for why they're
-    two separate factors, not one blended number."""
+    worst, same convention as most other factors here. mean_reversion_rank
+    (a separate hourly factor) is RETIRED -- see modules/derive.py's own
+    retirement comment on reconcile_mean_reversion; its hourly signal now
+    feeds directly into this same Trend Score as a gated trend_health
+    term (see reconcile_momentum), not a second standalone factor here."""
     result = {}
     for symbol, d in rows:
         value = to_float(d.get("momentum"))
         result[symbol] = 1.0 if value is None else 1.0 - value / 100.0
-    return result
-
-
-def mean_reversion_rank(rows):
-    """Hourly-timeframe Reversal Score (see modules.derive.
-    reconcile_mean_reversion -- a 14-hour-return cross-sectional
-    percentile, replacing the old hourly Money Flow Index; validated by
-    a formation/holding cross-section showing the hourly timeframe is
-    mean-reverting across every horizon tested, unlike momentum_rank's
-    daily one), bounded [0, 100] -- a direct linear read (rank =
-    value / 100), NOT momentum_rank's sweet-spot curve: this factor's
-    job is entry timing, not strength, so low (oversold) should always
-    rank best and high (overbought) always worst, with no "moderate is
-    best" hump the way daily strength has one. A stock already
-    overbought on the hour is one you'd be chasing (bad timing for a new
-    long), read against a long that's already held, one that may be due
-    for a pullback (worth a look) -- see RecommendationsView.tsx's
-    meanReversionOkForLong/meanReversionOkForShort and buildCloseReasons
-    for exactly how each side reads this. Missing ranked NEUTRAL (0.5),
-    not worst: unlike this file's other factors, "missing" here
-    overwhelmingly means "outside IB Gateway's ~40%-of-universe
-    hourly-bar coverage scope" (CANDLESTICK_TOP_N ranked/held tickers
-    only, no fallback data source the way momentum_rank falls back to
-    yfinance daily), not a real signal about the ticker -- scoring it as
-    if it were the worst possible reading was wrong for roughly 60% of
-    the universe."""
-    result = {}
-    for symbol, d in rows:
-        value = to_float(d.get("meanReversion"))
-        result[symbol] = 0.5 if value is None else value / 100
     return result
 
 
@@ -1924,26 +1913,71 @@ FACTOR_WEIGHTS = {
     "eps_volatility": ("Yearly EPS volatility", 0.05, 0.05, 0.05, 0.05, 0.0),
     "fcf": ("Price/FCF", 0.05, 0.0, 0.0, 0.05, 0.05),
     "ev_ebitda": ("EV/EBITDA", 0.04, 0.0, 0.05, 0.0, 0.0),
-    "momentum": ("Trend Score (20d momentum, volume & reversal adjusted)", 0.11, 0.11, 0.11, 0.11, 0.11),
-    "mean_reversion": ("Reversal Score (14h overbought/oversold)", 0.0, 0.0, 0.0, 0.0, 0.0),
+    "momentum": ("Trend Score (10d momentum, volume/reversal/hourly-trend-health adjusted)", 0.11, 0.11, 0.11, 0.11, 0.11),
     "eps_trend": ("EPS-estimate revision trend", 0.07, 0.15, 0.07, 0.10, 0.10),
     "analyst": ("Analyst conviction", 0.01, 0.01, 0.01, 0.01, 0.01),
     "forecast_return": ("Simulations (sim return)", 0.10, 0.10, 0.10, 0.10, 0.13),
     "sim_prob_above": ("Simulations (% paths above price)", 0.03, 0.03, 0.03, 0.03, 0.03),
-    "pe_vs_trailing": ("Forward P/E vs. Trailing P/E", 0.03, 0.03, 0.03, 0.03, 0.0),
+    # Trimmed in Standard only (3%->2%) to help fund earnings_surprise/
+    # earnings_pead, alongside short_interest -- explicit instruction to
+    # keep short_interest at a 2% floor rather than cutting it to 0% in
+    # Financials/Utilities. Financials/Utilities keep pe_vs_trailing at a
+    # 2% floor too (explicit instruction) -- their share of that funding
+    # comes out of roe instead (see that factor's own comment), not this
+    # one.
+    "pe_vs_trailing": ("Forward P/E vs. Trailing P/E", 0.02, 0.02, 0.02, 0.03, 0.0),
     "peg": ("PEG ratio", 0.0, 0.05, 0.02, 0.02, 0.01),
     "trailing_ps": ("Trailing P/S", 0.01, 0.01, 0.01, 0.01, 0.01),
     "growth": ("Revenue growth", 0.03, 0.05, 0.01, 0.05, 0.06),
     "earnings_growth": ("Earnings growth", 0.06, 0.06, 0.06, 0.06, 0.06),
-    "earnings_surprise": ("Earnings surprise track record (beat/miss history)", 0.0, 0.0, 0.0, 0.0, 0.0),
+    "earnings_surprise": ("Earnings surprise track record (beat/miss history)", 0.02, 0.02, 0.02, 0.02, 0.02),
+    "earnings_pead": ("Post-earnings-announcement drift (most recent surprise)", 0.02, 0.02, 0.02, 0.02, 0.02),
     "exp_revenue_growth": ("Eulerpool expected revenue growth (forward consensus)", 0.04, 0.04, 0.04, 0.04, 0.04),
     "debt": ("Debt/equity vs. sector average", 0.07, 0.02, 0.07, 0.02, 0.07),
-    "liquidity": ("Quick/current ratio", 0.02, 0.0, 0.0, 0.0, 0.02),
-    "roe": ("Return on equity", 0.03, 0.03, 0.06, 0.03, 0.0),
-    "short_interest": ("Short interest (contrarian)", 0.05, 0.03, 0.04, 0.06, 0.08),
+    # Growth only, trimmed 2%->1% -- covers the last 1pp of insiders' cut
+    # below that its own weight couldn't absorb (Growth's insiders was
+    # only 1% to begin with). Weak but tested (+0.014 to +0.06), had room.
+    "liquidity": ("Quick/current ratio", 0.02, 0.0, 0.0, 0.0, 0.01),
+    # Financials/Utilities trimmed (3%->1%, 6%->5%) -- explicit
+    # instruction: pe_vs_trailing keeps a 2% floor in both rather than
+    # being cut to fund earnings_surprise/earnings_pead, so roe pays that
+    # share instead (weak but tested this session, +0.024 to +0.050).
+    # Standard/Real-Estate/Growth untouched.
+    "roe": ("Return on equity", 0.03, 0.01, 0.05, 0.03, 0.0),
+    # Cut to help fund earnings_surprise/earnings_pead -- explicit
+    # instruction, after confirming live that this factor's own main leg
+    # (pctOfFloat) is dead for longs (rho=0.0008, the flattest reading
+    # found all session) and backwards from its own "contrarian squeeze"
+    # premise for shorts (rho=+0.089 -- high short interest predicts a
+    # BETTER short, i.e. confirmation, not squeeze risk). Kept at a 2%
+    # floor everywhere rather than cut to 0% in Financials/Utilities --
+    # explicit instruction -- with the remainder funded from
+    # pe_vs_trailing instead (see that factor's own comment).
+    # +2pp everywhere -- explicit instruction, absorbing
+    # RecommendationsView.tsx's old shortInterestBlocksEntry hard gate
+    # (30% of float) directly into this factor instead of a binary cutoff.
+    # Confirmed live over 5 backtested weeks: names the hard gate excluded
+    # compounded +16.95%, almost double short_strong_sell's own +9.29% --
+    # the gate was costing real return, not just protecting against
+    # squeeze risk (which is real -- see VITL, -23.1% in one week -- but a
+    # 30%-of-float cliff-edge exclusion was too blunt an instrument for
+    # it). Folding it into the existing contrarian rank lets a very
+    # crowded short still get picked, just increasingly counted AGAINST a
+    # short thesis as crowding rises (this factor's whole "high short
+    # interest = bullish squeeze setup" direction), rather than an
+    # all-or-nothing cliff at one threshold.
+    "short_interest": ("Short interest (contrarian)", 0.04, 0.04, 0.04, 0.04, 0.06),
     "sentiment": ("News/social sentiment", 0.01, 0.01, 0.01, 0.01, 0.01),
     "institutional": ("Institutional 13F ownership change (QoQ)", 0.02, 0.02, 0.02, 0.02, 0.05),
-    "insiders": ("Insider open-market buy/sell activity", 0.02, 0.03, 0.03, 0.03, 0.01),
+    # Cut 2pp everywhere (1pp in Growth, which only had 1% to begin with --
+    # the last 1pp of ITS cut comes from liquidity instead, see that
+    # factor's own comment) to fund short_interest's +2pp above --
+    # explicit instruction, after confirming dollar-weighting (see
+    # load_insider_scores' own comment) did NOT fix this factor's
+    # backwards long-side reading -- if anything made it worse (rho -0.134
+    # count-based -> -0.193 dollar-weighted) -- the clearest "give weight
+    # away" candidate found this session.
+    "insiders": ("Insider open-market buy/sell activity", 0.0, 0.01, 0.01, 0.01, 0.0),
     "margin": ("Profit/operating margins", 0.05, 0.0, 0.05, 0.05, 0.05),
     "fair_value": ("Eulerpool fair-value upside (independent valuation)", 0.03, 0.03, 0.03, 0.03, 0.02),
     "guidance": ("SEC 8-K management guidance (raise/lower/affirm)", 0.0, 0.0, 0.0, 0.0, 0.0),
@@ -2023,7 +2057,6 @@ def score_rows(
         "fcf": fcf_rank(rows),
         "ev_ebitda": ev_ebitda_rank(rows),
         "momentum": momentum_rank(rows),
-        "mean_reversion": mean_reversion_rank(rows),
         "eps_trend": eps_trend_rank(rows),
         "analyst": analyst_conviction_rank(rows, consensus_scores),
         "forecast_return": forecast_return_rank(rows),
@@ -2034,6 +2067,7 @@ def score_rows(
         "growth": growth_rank(rows),
         "earnings_growth": earnings_growth_rank(rows),
         "earnings_surprise": earnings_surprise_rank(rows),
+        "earnings_pead": earnings_pead_rank(rows),
         "exp_revenue_growth": exp_revenue_growth_rank(rows),
         "debt": debt_rank(rows),
         "liquidity": liquidity_rank(rows),
