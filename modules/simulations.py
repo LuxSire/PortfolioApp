@@ -32,13 +32,13 @@ For a ticker currently trading at price P0:
    schedule:
 
      ownGrowthRate      = avg(epsTrend, marginAdjustedRevenueGrowth,        -- THIS ticker's own,
-                              eulerRevGrowth1y)                            1/3 each when all
-                                                                            three present (see
+                              eulerRevGrowth1y, eulerRevGrowth0y)          1/4 each when all
+                                                                            four present (see
                                                                             _combine_growth)
      industryGrowthRate = avg(industryEpsTrend,                            -- peer MEDIAN of
                               industryMarginAdjRevGrowth,                     each leg, same
-                              industryEulerRevGrowth)                         3-way blend as
-                                                                               ownGrowthRate
+                              industryEulerRevGrowth,                        4-way blend as
+                              industryEulerRevGrowth0y)                       ownGrowthRate
      N = EPS_PROJECTION_YEARS - 1   (= 4 growth steps)
      w_t = sqrt((N - t) / N)        -- concave weight; w_1 ≈ 0.87, w_4 = 0
      g_t = w_t * ownGrowthRate + (1 - w_t) * industryGrowthRate
@@ -956,7 +956,7 @@ MAX_FLOOR_VS_PRICE_MULTIPLE = 1.3
 METRIC_KEYS = (
     "forwardPE", "trailingPE", "epsTrend", "revenueGrowth", "earningsGrowth",
     "earningsMarginDelta", "operatingMargin", "grossMargin", "analystDispersion",
-    "eulerRevGrowth1y", "eulerRevGrowth2y", "epsVolatility", "beta",
+    "eulerRevGrowth0y", "eulerRevGrowth1y", "eulerRevGrowth2y", "epsVolatility", "beta",
 )
 
 
@@ -1038,6 +1038,12 @@ def _build_peer_pools(data):
             # growth_margin (ownGrossMargin - (indGross - indOp)).
             "grossMargin": gm if (gm := to_float(d.get("grossMargins"))) is not None and gm > 0 else None,
             "analystDispersion": disp if disp is not None and disp > 0 else None,
+            # Last-FY-actual -> This-FY Eulerpool revenue growth (see
+            # modules.derive.reconcile_forward_eps) -- a SEPARATE leg from
+            # eulerRevGrowth1y below, not a duplicate: anchored off a real
+            # reported fiscal year instead of two consensus estimates
+            # against each other. Pooled the same way, same reasoning.
+            "eulerRevGrowth0y": to_float(d.get("eulerRevGrowth0y")),
             # Eulerpool's own forward revenue-growth consensus (see
             # modules.derive.reconcile_forward_eps) -- pooled here so
             # industry_growth_rate gets the SAME forward-looking Eulerpool
@@ -1196,21 +1202,32 @@ def _price_stats(prices, current_price):
     }
 
 
-def _combine_growth(eps_trend, margin_adjusted_revenue_growth, euler_rev_growth=None):
-    """avg(eps_trend, margin_adjusted_revenue_growth, euler_rev_growth),
-    whichever are present, clamped to [GROWTH_FLOOR, GROWTH_CAP]; 0.0
-    (flat) when all are missing -- shared by both the ticker's own year-1
-    growth rate and the industry/sector-median rate used for years 2+ (see
-    simulate_ticker's own comment on why they differ). euler_rev_growth is
-    THIS ticker's own eulerRevGrowth1y at the own-rate call site, and the
-    peer-pooled MEDIAN eulerRevGrowth1y (see METRIC_KEYS/_build_peer_pools)
+def _combine_growth(eps_trend, margin_adjusted_revenue_growth, euler_rev_growth=None, euler_rev_growth0y=None):
+    """avg(eps_trend, margin_adjusted_revenue_growth, euler_rev_growth,
+    euler_rev_growth0y), whichever are present, clamped to [GROWTH_FLOOR,
+    GROWTH_CAP]; 0.0 (flat) when all are missing -- shared by both the
+    ticker's own year-1 growth rate and the industry/sector-median rate
+    used for years 2+ (see simulate_ticker's own comment on why they
+    differ). euler_rev_growth/euler_rev_growth0y are THIS ticker's own
+    eulerRevGrowth1y/eulerRevGrowth0y at the own-rate call site, and the
+    peer-pooled MEDIANs of the same two (see METRIC_KEYS/_build_peer_pools)
     at the industry-median call site -- explicit instruction: closing the
     asymmetry where only the near-term own-rate saw Eulerpool's forward
-    consensus and the years-2+ industry reversion target didn't. Equal 1/3
-    weight alongside eps_trend and margin_adjusted_revenue_growth when all
-    three are present, not a 50/50 blend folded into either of the other
-    two, at BOTH call sites."""
-    parts = [v for v in (eps_trend, margin_adjusted_revenue_growth, euler_rev_growth) if v is not None]
+    consensus and the years-2+ industry reversion target didn't. Equal
+    1/4 weight alongside eps_trend and margin_adjusted_revenue_growth
+    when all four are present (1/N for however many of the four ARE
+    present otherwise), not a blend folded into any of the other three,
+    at BOTH call sites. euler_rev_growth0y is kept as its own independent
+    leg rather than averaged into euler_rev_growth first -- explicit
+    instruction: the two can disagree meaningfully (e.g. a name just off
+    a depressed cyclical year showing outsized 0y growth off that low
+    base while 1y already looks normalized), and collapsing them into one
+    number before this function ever saw them would hide that, plus it
+    would leave Eulerpool's own consensus at 1/3 of the total weight
+    instead of 1/2 -- explicit instruction, accepting that larger
+    Eulerpool weight rather than diluting it back down to preserve the
+    original 3-leg split."""
+    parts = [v for v in (eps_trend, margin_adjusted_revenue_growth, euler_rev_growth, euler_rev_growth0y) if v is not None]
     if not parts:
         return 0.0
     return min(max(sum(parts) / len(parts), GROWTH_FLOOR), GROWTH_CAP)
@@ -1278,6 +1295,14 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
     # through growth_margin (a trailing-revenue-to-EPS conversion) would
     # apply a transform it doesn't need.
     euler_rev_growth = to_float(row.get("eulerRevGrowth1y"))
+    # Last-FY-actual -> This-FY Eulerpool revenue growth (see
+    # modules.derive.reconcile_forward_eps) -- explicit instruction: a
+    # SEPARATE, independent leg from euler_rev_growth (eulerRevGrowth1y)
+    # above, not averaged into it first. Anchored off a real reported
+    # fiscal year instead of two consensus estimates against each other,
+    # so it reacts the moment an actual print lands rather than waiting
+    # for the analyst consensus itself to move.
+    euler_rev_growth0y = to_float(row.get("eulerRevGrowth0y"))
     # Eulerpool's own year-after-next EPS and revenue consensus (see
     # modules.derive.reconcile_forward_eps) -- no yfinance counterpart for
     # either, both used as year 2's direct real-data leg below (see
@@ -1320,6 +1345,7 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
     margin_distorted = _has_distorted_operating_margin(industry)
 
     ind_eps_trend, _, _ = _peer_median(ticker, industry, *peer_pools["epsTrend"])
+    ind_euler_rev_growth0y, _, _ = _peer_median(ticker, industry, *peer_pools["eulerRevGrowth0y"])
     ind_euler_rev_growth, _, _ = _peer_median(ticker, industry, *peer_pools["eulerRevGrowth1y"])
     ind_euler_rev_growth2y, _, _ = _peer_median(ticker, industry, *peer_pools["eulerRevGrowth2y"])
     ind_revenue_growth, _, _ = _peer_median(ticker, industry, *peer_pools["revenueGrowth"])
@@ -1328,7 +1354,7 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
     ind_gross_margin, _, _ = _peer_median(ticker, industry, *peer_pools["grossMargin"])
     earnings_growth = to_float(row.get("earningsGrowth"))
 
-    # Thin-coverage gate on eulerRevGrowth1y/2y -- explicit instruction
+    # Thin-coverage gate on eulerRevGrowth0y/1y/2y -- explicit instruction
     # (proposal part A): a ticker with fewer than MIN_CREDIBLE_ANALYSTS
     # (3) contributing analysts gets its OWN Eulerpool revenue-growth
     # estimate replaced by the peer/sector median, the SAME "too few
@@ -1342,6 +1368,8 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
     # (own_growth_rate, direct_eps_2's growth rate).
     n_analysts_for_euler = to_float(row.get("numberOfAnalystOpinions"))
     if n_analysts_for_euler is None or n_analysts_for_euler < MIN_CREDIBLE_ANALYSTS:
+        if ind_euler_rev_growth0y is not None:
+            euler_rev_growth0y = ind_euler_rev_growth0y
         if ind_euler_rev_growth is not None:
             euler_rev_growth = ind_euler_rev_growth
         if ind_euler_rev_growth2y is not None:
@@ -1400,7 +1428,18 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
     # computed below) that fades own -> industry, so a name whose growth
     # isn't reaching the bottom line gets a negative overlay instead of a
     # rate cap.
-    own_growth_rate = _combine_growth(eps_trend, margin_adjusted_revenue_growth, euler_rev_growth)
+    # A 3x-outlier-vs-the-other-three-legs gate on eulerRevGrowth0y was
+    # tried here and REMOVED again -- explicit instruction. It correctly
+    # caught FUBO's +120.9% (Hulu + Live TV combination, a real inorganic
+    # step-change), but it fired just as readily on MU's +94.6%, which was
+    # confirmed to be genuine growth off a real depressed cyclical base
+    # year, not a data artifact -- a magnitude-only outlier test can't
+    # distinguish "inorganic" from "organic but unusually sharp," so it
+    # was suppressing legitimate reads along with the bad one. Back to
+    # eulerRevGrowth0y always standing as its own independent leg,
+    # unfiltered (see reconcile_forward_eps/this function's own docstring
+    # for the original design and its accepted risk).
+    own_growth_rate = _combine_growth(eps_trend, margin_adjusted_revenue_growth, euler_rev_growth, euler_rev_growth0y)
 
     # Same exclusion as margin_adjusted_revenue_growth above --
     # ind_operating_margin is a peer MEDIAN of the same structurally
@@ -1420,7 +1459,7 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
         ind_margin_adjusted_revenue_growth = min(
             ind_margin_adjusted_revenue_growth, max(ind_earnings_growth, 0.0)
         )
-    industry_growth_rate = _combine_growth(ind_eps_trend, ind_margin_adjusted_revenue_growth, ind_euler_rev_growth)
+    industry_growth_rate = _combine_growth(ind_eps_trend, ind_margin_adjusted_revenue_growth, ind_euler_rev_growth, ind_euler_rev_growth0y)
     # convergence_growth_rate: the actual reversion TARGET the growth
     # schedule fades toward, everywhere industry_growth_rate used to play
     # that role -- explicit instruction. 70% industryGrowthRate (the peer
@@ -1768,7 +1807,34 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
             REAL_BASE_BLEND_WEIGHT * current_year_eps + (1.0 - REAL_BASE_BLEND_WEIGHT) * trailing_eps
             if trailing_eps_consistent else current_year_eps
         )
-    elif trailing_eps is not None and trailing_eps > 0:
+    # trailing_eps corroborated against fwd_eps here too, when there's a
+    # credible fwd_eps to check it against -- explicit fix, FUBO:
+    # current_year_eps negative (-$0.84, a real loss this year) so the
+    # branch above never ran, and trailing_eps ($3.84, implying a 2.46x
+    # trailing P/E -- almost certainly a one-time gain from the Hulu +
+    # Live TV combination, not repeatable earnings) got used as real_base
+    # with NO consistency check at all, since current_year_eps itself
+    # (negative) can't serve as trailing_eps's corroboration partner the
+    # way the branch above uses it. fwd_eps is always available by this
+    # point (see this function's own docstring) and is a genuine,
+    # credible small-positive figure here ($0.26) -- used as the
+    # corroboration anchor instead, same FWD_TRAILING_PE_RATIO_MIN/MAX
+    # band the branch above already trusts. Confirmed live: trailing_eps/
+    # fwd_eps = 14.7x for FUBO, nowhere near that band, so this falls
+    # through to the fwd_eps branch below instead of anchoring real_base
+    # on a merger-distorted trailing figure -- the EPS path no longer
+    # jumps from a ~$0.68 anchor to a ~$2.8 year-1 level in one step
+    # purely off that one bad number. Only rejects trailing_eps when
+    # fwd_eps is ACTUALLY there to contradict it (fwd_eps missing/non-
+    # positive falls through to the unconditional "use trailing_eps"
+    # behavior this branch always had, unchanged) -- a real, if
+    # temporarily loss-making, business with no analyst forward estimate
+    # at all shouldn't lose a perfectly good trailing figure just because
+    # there's nothing to double-check it against.
+    elif trailing_eps is not None and trailing_eps > 0 and (
+        fwd_eps is None or fwd_eps <= 0
+        or FWD_TRAILING_PE_RATIO_MIN <= trailing_eps / fwd_eps <= FWD_TRAILING_PE_RATIO_MAX
+    ):
         real_base = trailing_eps
     # forwardEps inserted ahead of revenue_based_eps -- explicit fix,
     # FWRD: current_year_eps negative, trailing_eps missing, so real_base
@@ -2807,10 +2873,12 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
             "growthMargin": growth_margin,
             "marginAdjustedRevenueGrowth": margin_adjusted_revenue_growth,
             "ownGrowthRate": own_growth_rate,
+            "eulerRevGrowth0y": euler_rev_growth0y,
             "eulerRevGrowth1y": euler_rev_growth,
             "eulerFwdEps2y": euler_fwd_eps2y,
             "eulerRevGrowth2y": euler_rev_growth2y,
             "industryEpsTrend": ind_eps_trend,
+            "industryEulerRevGrowth0y": ind_euler_rev_growth0y,
             "industryEulerRevGrowth": ind_euler_rev_growth,
             "industryRevenueGrowth": ind_revenue_growth,
             "industryEarningsGrowth": ind_earnings_growth,

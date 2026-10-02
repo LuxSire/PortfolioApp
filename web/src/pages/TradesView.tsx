@@ -58,6 +58,12 @@ function actionClass(action: string): string {
   return action === 'BUY' ? 'perf-pos' : action === 'SELL' ? 'perf-neg' : ''
 }
 
+// Sortable execution key: Flex dateTime "YYYYMMDD;HHMMSS", else the date
+// as "YYYYMMDD" (sorts as the start of that day).
+function execKey(t: HistoricalTrade): string {
+  return t.raw?.dateTime ?? (t.date ?? '').replace(/-/g, '')
+}
+
 export default function TradesView() {
   const [trades, setTrades] = useState<TradesByTicker>({})
   const [openOrders, setOpenOrders] = useState<OpenOrder[]>([])
@@ -114,8 +120,11 @@ export default function TradesView() {
       avgPrice: t.qty ? t.value / t.qty : null,
       realizedPnl: t.realizedPnl ?? null,
       commission: t.commission ?? null,
+      lastTime: t.lastTime ?? null,
     }))
-    .sort((a, b) => Math.abs(b.value ?? 0) - Math.abs(a.value ?? 0))
+    // Latest execution first (explicit instruction); rows without a fill
+    // time (older ib_server) fall back to the old value-descending order.
+    .sort((a, b) => (b.lastTime ?? '').localeCompare(a.lastTime ?? '') || Math.abs(b.value ?? 0) - Math.abs(a.value ?? 0))
 
   // Working orders first (most likely to move soon), then everything
   // else alphabetically -- there's no dollar value to rank by the way
@@ -127,14 +136,16 @@ export default function TradesView() {
     return a.ticker.localeCompare(b.ticker)
   })
 
-  // Most recent first (tradeID as the tiebreaker within a date, so same-
-  // day fills stay in a stable, deterministic order across re-renders
-  // instead of shuffling on every fetch).
+  // Latest EXECUTION first (explicit instruction) -- by the Flex export's
+  // own dateTime ("YYYYMMDD;HHMMSS"), not `date` (a report date that can be
+  // days later, e.g. an FX fill executed Friday night reported Monday);
+  // `date` only as a fallback, tradeID as the final tiebreaker so equal
+  // times keep a stable order across re-renders.
   const historyRows = useMemo(
     () =>
       [...history]
         .filter((t) => !historySymbolFilter || (t.symbol ?? '').toUpperCase().includes(historySymbolFilter.toUpperCase()))
-        .sort((a, b) => (b.date ?? '').localeCompare(a.date ?? '') || (b.tradeID ?? '').localeCompare(a.tradeID ?? '')),
+        .sort((a, b) => execKey(b).localeCompare(execKey(a)) || (b.tradeID ?? '').localeCompare(a.tradeID ?? '')),
     [history, historySymbolFilter]
   )
 

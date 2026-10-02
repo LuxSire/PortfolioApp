@@ -1074,36 +1074,20 @@ def exp_revenue_growth_rank(rows):
 # "chasing an already-overbought, reversal-prone stock," a real risk on
 # THAT indicator's own ~1-3 week timeframe.
 #
-# REPLACED (explicit instruction) along with `momentum` itself (see
-# modules.derive.reconcile_momentum) -- a formation/holding-period
-# cross-section on 3 months of daily bars showed the 1-3 week horizon
-# MSI operates on is actually reversal-PRONE (negative forward-return
-# correlation), while a ~20-trading-day horizon shows genuine
-# continuation. The new Trend Score already prices the "don't reward a
-# blow-off-top" concern directly into its own raw value BEFORE
-# percentile-ranking (a volume-acceleration penalty and a 5-day-reversal
-# penalty are subtracted from the 20-day-return leg) -- confirmed live,
-# DINO (a genuine +76% / 3-month trend, Hold-rated under the old MSI-tied
-# scoring since MSI read it as overbought) is exactly the kind of name
-# this was built to stop penalizing. Re-applying a "penalize the top"
-# curve on top of a score that's already been penalized for exhaustion
-# upstream would double-count that concern, so this is now a plain
-# linear "high percentile = better" read instead -- same shape
-# mean_reversion_rank already uses for its own 0-100 field, just
-# high-is-better instead of low-is-better.
+# REPLACED (explicit instruction) along with `momentum` itself -- first by
+# a 10-20 day Trend Score, now (2026-10-01) by the next-day Reversal Score
+# (see modules.derive.reconcile_momentum for the evidence). The field is
+# already a 0-100 score with "100 = best for a long" baked in, so this
+# stays a plain linear read -- no extra curve on top.
 def momentum_rank(rows):
-    """Trend Score (see modules.derive.reconcile_momentum) -- a
-    cross-sectional percentile 0-100, 100=strongest supported uptrend --
-    scored as a direct linear read (rank = 1 - value/100), NOT a
-    population-relative rank_ascending call: the field is ALREADY a
-    percentile by construction (reconcile_momentum ranks it against the
-    universe itself), so re-deriving "good" from this file's own ranking
-    machinery would just repeat the same step twice. Missing ranked
-    worst, same convention as most other factors here. mean_reversion_rank
-    (a separate hourly factor) is RETIRED -- see modules/derive.py's own
-    retirement comment on reconcile_mean_reversion; its hourly signal now
-    feeds directly into this same Trend Score as a gated trend_health
-    term (see reconcile_momentum), not a second standalone factor here."""
+    """Reversal (see modules.derive.reconcile_momentum) -- the next-day
+    Reversal Score, 0-100, 100 = weak close / oversold / recent loser,
+    i.e. most bullish for tomorrow -- scored as a direct linear read
+    (rank = 1 - value/100), NOT a population-relative rank_ascending call:
+    the field is ALREADY a cross-sectional percentile blend, so re-deriving
+    "good" from this file's own ranking machinery would repeat the same
+    step twice. Missing ranked worst, same convention as most other
+    factors here."""
     result = {}
     for symbol, d in rows:
         value = to_float(d.get("momentum"))
@@ -1877,6 +1861,23 @@ def is_growth_cohort(d):
 # growth: bottom-line growth is its own signal, and growth_rank only uses
 # earningsGrowth as a one-way cap.
 #
+# momentum cut 11% -> 5% in EVERY column, the 6pp moved to forecast_return
+# (10% -> 16%, Growth 13% -> 19%) -- explicit instruction, after a 2-year
+# per-date cross-section (99 formation dates, ~840 tickers) found the
+# Trend Score's rank IC indistinguishable from zero (-0.001 at 5d, no
+# weight combination of r10/r5/vol_accel/r20 beat a shuffled-returns
+# benchmark or held up out of sample), and the backtest showed the
+# whole-model IC essentially unchanged with momentum at 0%/11%/22%.
+# Then 5% -> 3% (explicit instruction, 2026-10-01), +1pp each to growth
+# and eps_trend in EVERY column -- the two factors with the most
+# consistent per-week skill on the archived snapshots (rank IC +0.030 and
+# +0.042, positive in 4 of 5 weeks each); the backtest showed every 2pp
+# move out of momentum within noise (about -0.05..-0.10%/wk). The Trend
+# entry gates were removed separately the same day. Later that day the
+# factor itself (same key, same 3%) became the next-day Reversal Score --
+# explicit instruction, the user trades a next-day horizon (see
+# modules.derive.reconcile_momentum).
+#
 # fair_value (Eulerpool's DCF-style upside, load_fair_value_scores) added
 # as its own 5% factor in EVERY column, explicit instruction, funded by
 # trimming short_interest 2% and sentiment 3% everywhere (e.g. Standard:
@@ -1913,10 +1914,10 @@ FACTOR_WEIGHTS = {
     "eps_volatility": ("Yearly EPS volatility", 0.05, 0.05, 0.05, 0.05, 0.0),
     "fcf": ("Price/FCF", 0.05, 0.0, 0.0, 0.05, 0.05),
     "ev_ebitda": ("EV/EBITDA", 0.04, 0.0, 0.05, 0.0, 0.0),
-    "momentum": ("Trend Score (10d momentum, volume/reversal/hourly-trend-health adjusted)", 0.11, 0.11, 0.11, 0.11, 0.11),
-    "eps_trend": ("EPS-estimate revision trend", 0.07, 0.15, 0.07, 0.10, 0.10),
+    "momentum": ("Reversal (next-day: close location, RSI(2), 3-day return)", 0.03, 0.03, 0.03, 0.03, 0.03),
+    "eps_trend": ("EPS-estimate revision trend", 0.08, 0.16, 0.08, 0.11, 0.11),
     "analyst": ("Analyst conviction", 0.01, 0.01, 0.01, 0.01, 0.01),
-    "forecast_return": ("Simulations (sim return)", 0.10, 0.10, 0.10, 0.10, 0.13),
+    "forecast_return": ("Simulations (sim return)", 0.16, 0.16, 0.16, 0.16, 0.19),
     "sim_prob_above": ("Simulations (% paths above price)", 0.03, 0.03, 0.03, 0.03, 0.03),
     # Trimmed in Standard only (3%->2%) to help fund earnings_surprise/
     # earnings_pead, alongside short_interest -- explicit instruction to
@@ -1928,7 +1929,7 @@ FACTOR_WEIGHTS = {
     "pe_vs_trailing": ("Forward P/E vs. Trailing P/E", 0.02, 0.02, 0.02, 0.03, 0.0),
     "peg": ("PEG ratio", 0.0, 0.05, 0.02, 0.02, 0.01),
     "trailing_ps": ("Trailing P/S", 0.01, 0.01, 0.01, 0.01, 0.01),
-    "growth": ("Revenue growth", 0.03, 0.05, 0.01, 0.05, 0.06),
+    "growth": ("Revenue growth", 0.04, 0.06, 0.02, 0.06, 0.07),
     "earnings_growth": ("Earnings growth", 0.06, 0.06, 0.06, 0.06, 0.06),
     "earnings_surprise": ("Earnings surprise track record (beat/miss history)", 0.02, 0.02, 0.02, 0.02, 0.02),
     "earnings_pead": ("Post-earnings-announcement drift (most recent surprise)", 0.02, 0.02, 0.02, 0.02, 0.02),
@@ -2101,17 +2102,21 @@ def score_rows(
 # ---------------------------------------------------------------------- #
 #  Rating -- what to do with the score once it's computed                 #
 # ---------------------------------------------------------------------- #
-# Zacks Rank's actual bucket shape (roughly 6/14/60/14/6), not equal
-# quintiles -- a top-6% "Strong Buy" is a meaningfully selective badge,
-# unlike a generic top-20% one. Thresholds are on percentile position (0 =
-# best score, approaching 1 = worst); symmetric around the middle so
-# Strong Buy and Strong Sell always come out to the same count (up to
-# rounding by however many rows don't divide evenly).
+# Zacks Rank's actual bucket shape (roughly 7.5/12.5/60/12.5/7.5), not
+# equal quintiles -- a top-7.5% "Strong Buy" is a meaningfully selective
+# badge, unlike a generic top-20% one. Thresholds are on percentile
+# position (0 = best score, approaching 1 = worst); symmetric around the
+# middle so Strong Buy and Strong Sell always come out to the same count
+# (up to rounding by however many rows don't divide evenly). Widened from
+# 6% (roughly 6/14/60/14/6) -- explicit instruction, Strong Buy/Strong
+# Sell raised to 7.5%, Buy/Sell's own 0.20/0.80 boundaries left in place
+# (so the Buy/Sell tiers themselves shrink slightly, from 14pp to 12.5pp
+# each, to make room).
 RATING_THRESHOLDS = [
-    (0.06, "Strong Buy"),
+    (0.075, "Strong Buy"),
     (0.20, "Buy"),
     (0.80, "Hold"),
-    (0.94, "Sell"),
+    (0.925, "Sell"),
 ]
 RATING_WORST = "Strong Sell"
 # Not a percentile bucket at all -- for the negative/non-positive-forwardPE

@@ -18,10 +18,12 @@ function fmtPct(v) {
 // as performance — and a month's return is the geometric compounding of
 // its daily returns (the product of (1 + daily), minus 1), not a simple
 // sum, which is the correct way to combine returns over time.
-export default function MonthlyReturnsTable({ rows }) {
+// baselineNav (optional): the NAV of the day before rows[0], so the first
+// row's own return can be computed when rows is a trimmed window.
+export default function MonthlyReturnsTable({ rows, baselineNav = null }) {
   const { years, cellByYearMonth, ytdByYear } = useMemo(() => {
     const cellByYearMonth = new Map() // "YYYY-MM" -> compounded monthly return
-    let prevNav = null
+    let prevNav = baselineNav
     let currentKey = null
     let compounded = null
 
@@ -73,7 +75,7 @@ export default function MonthlyReturnsTable({ rows }) {
     }
 
     return { years, cellByYearMonth, ytdByYear }
-  }, [rows])
+  }, [rows, baselineNav])
 
   if (years.length === 0) return null
 

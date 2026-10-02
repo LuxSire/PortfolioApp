@@ -2,7 +2,7 @@
 
 OVERVIEW
 --------
-Selects a 20-long + 20-short equity portfolio from the universe of rated
+Selects a 30-long + 30-short equity portfolio from the universe of rated
 candidates, maximising the portfolio Sharpe ratio while explicitly penalising
 sector concentration. The optimizer runs fully in Python (no network calls)
 and writes data/output/target_portfolio.json, which TargetView.tsx simply
@@ -18,8 +18,8 @@ INPUTS (both must be fresh before running this module)
 ALGORITHM
 ---------
 1. PRE-FILTER
-   Longs  : Strong Buy / Buy  AND simReturn > 0
-   Shorts : Strong Sell / Sell AND simReturn < 0
+   Longs  : Strong Buy  AND simReturn > 0
+   Shorts : Strong Sell AND simReturn < 0
    (simReturn = modules/simulations.py's risk-premium-haircut simulated-
    path price-vs-current return -- the same signal scoring.forecast_return_
    rank and RecommendationsView's own long/short gate use. Replaced
@@ -108,7 +108,7 @@ BETA_CAP   = 2.0    # clamp high-beta stocks: prevents extreme vol estimates
 # vol(i) = clamp(|beta_i|, BETA_FLOOR, BETA_CAP) × MARKET_VOL  → range [15%, 40%]
 SECTOR_CORR = 0.65     # same-sector correlation floor (anti-concentration)
 CANDIDATE_POOL = 160   # top N pre-screened per side before the greedy pass
-POSITIONS = 50         # final portfolio size per side
+POSITIONS = 30         # final portfolio size per side
 IDIO_VOL = 0.25        # idiosyncratic vol added to diagonal in CAPM fallback
 SHRINKAGE = 0.10       # toward-diagonal shrinkage applied to sample covariance
 MIN_HIST_BARS = 20     # minimum daily bars required to use historical returns
@@ -118,23 +118,15 @@ ANNUALIZE = 252        # trading days per year
 _HIST_IB_FILE = os.path.join("data", "IB", "price_history_daily_3mo.json")
 _HIST_YF_FILE = os.path.join("data", "yfinance", "price_history.json")
 
-# Hard MSI/ST-MSI gate on the Long/Short pools, matching
-# RecommendationsView.tsx's own MOMENTUM_* / MEAN_REVERSION_* thresholds
-# exactly ("mom"/"mr" here, same raw [0, 100] values). MSI is a pure
-# two-threshold continuation gate:
-#   Long  blocked for mom <= NO_BUY  -- the whole weak-momentum half
-#         (oversold + falling knife). mom > NO_BUY (neutral, strong
-#         uptrend, overbought) is fine.
-#   Short blocked for mom >= NO_SELL -- the whole strong-momentum half
-#         (strong uptrend + overbought). mom < NO_SELL (neutral, falling
-#         knife, oversold) is fine.
-# The old far-extreme mean-reversion carve-outs (buy-the-dip, short-the-
-# top) were dropped -- hourly entry-timing analysis showed counter-trend
-# entries lost while continuation entries won. ST-MSI keeps its simpler
-# far-extreme-only block. Missing mom/mr does NOT exclude a candidate.
-# Keep in sync with RecommendationsView.tsx and ib_server.py by hand.
-MOMENTUM_NO_BUY = 35
-MOMENTUM_NO_SELL = 65
+# Hard ST-MSI gate on the Long/Short pools, matching
+# RecommendationsView.tsx's own MEAN_REVERSION_* thresholds ("mr" here,
+# raw [0, 100]). The Trend ("mom") gate was REMOVED everywhere --
+# explicit instruction (2026-10-01): its effect on 2-5 day forward returns isn't established. Missing mr does NOT exclude a candidate. Keep in sync with
+# RecommendationsView.tsx and ib_server.py by hand.
+DAILY_MOVE_GATE_SD = 1.0
+SHORT_GROWTH_CEILING = 0.10
+TREND_NO_BUY = 35
+TREND_NO_SELL = 65
 MEAN_REVERSION_OVERBOUGHT = 80
 MEAN_REVERSION_OVERSOLD = 20
 
@@ -163,8 +155,12 @@ def _earnings_blocks_entry(earnings_ts):
 # composite score below (a squeeze-risk/contrarian signal, penalizing a
 # crowded short's rank rather than excluding it outright).
 
-LONG_RATINGS = {"Strong Buy", "Buy"}
-SHORT_RATINGS = {"Strong Sell", "Sell"}
+# Strong Buy/Strong Sell only, matching RecommendationsView.tsx's own
+# Long/Short idea lists. Rating strength (signal c below) is now a
+# constant 1.0 for every candidate as a result -- harmless, since an
+# identical value for everyone changes no comparison between candidates.
+LONG_RATINGS = {"Strong Buy"}
+SHORT_RATINGS = {"Strong Sell"}
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -252,6 +248,9 @@ def _load_screener_signals():
     screen_mom: dict[str, float | None] = {}
     screen_mr:  dict[str, float | None] = {}
     screen_earn: dict[str, float | None] = {}
+    screen_move_z: dict[str, float | None] = {}
+    screen_growth: dict[str, tuple[float | None, float | None]] = {}
+    screen_trend: dict[str, float | None] = {}
     if os.path.exists(_SCREENER_CSV):
         with open(_SCREENER_CSV, newline="") as f:
             reader = csv.DictReader(f)
@@ -265,6 +264,9 @@ def _load_screener_signals():
                 screen_mom[t] = _fn("momentum")
                 screen_mr[t]  = _fn("meanReversion")
                 screen_earn[t] = _fn("earningsTimestampStart")
+                screen_move_z[t] = _fn("dailyMoveZ")
+                screen_growth[t] = (_fn("revenueGrowth"), _fn("eulerRevGrowth1y"))
+                screen_trend[t] = _fn("trend")
     tickers = list(screen_mom.keys())
 
     social: dict[str, float | None] = {}
@@ -311,6 +313,10 @@ def _load_screener_signals():
             "mom":        screen_mom.get(t),
             "mr":         screen_mr.get(t),
             "earningsTs": screen_earn.get(t),
+            "dailyMoveZ": screen_move_z.get(t),
+            "trend": screen_trend.get(t),
+            "revenueGrowth": screen_growth.get(t, (None, None))[0],
+            "eulerRevGrowth1y": screen_growth.get(t, (None, None))[1],
             "sent":       sent_scaled[i],
             "newsSent":   news_scaled[i],
             "instChange": inst_scaled[i],
@@ -689,14 +695,31 @@ def build_target_portfolio(rec_file, sim_file, exclude_groups=None):
                 continue
             if _earnings_blocks_entry(c.get("earningsTs")):
                 continue
-            mom, mr = c.get("mom"), c.get("mr")
+            # Daily-move gate -- same rule as RecommendationsView.tsx's
+            # dailyMoveBlocks / ib_server.py's _rec_daily_move_blocks: no new
+            # long above +1 sd, no new short below -1 sd (prior ~3 months'
+            # daily returns, derive.reconcile_daily_move).
+            mz = c.get("dailyMoveZ")
+            if mz is not None and (mz > DAILY_MOVE_GATE_SD if side == "Long" else mz < -DAILY_MOVE_GATE_SD):
+                continue
+            # Never short high revenue growth -- explicit instruction: trailing
+            # OR expected (Eulerpool) revenue growth above SHORT_GROWTH_CEILING
+            # excludes a Short, same rule as modules/backtest.py's
+            # _growth_blocks_short.
+            # Trend entry filter -- same rule as RecommendationsView.tsx's
+            # trendBlocks: don't buy weak stocks, don't sell strong ones.
+            tr = c.get("trend")
+            if tr is not None and (tr <= TREND_NO_BUY if side == "Long" else tr >= TREND_NO_SELL):
+                continue
+            if side == "Short" and any(g is not None and g > SHORT_GROWTH_CEILING
+                                       for g in (c.get("revenueGrowth"), c.get("eulerRevGrowth1y"))):
+                continue
+            mr = c.get("mr")
             if side == "Long":
-                mom_blocks = mom is not None and mom <= MOMENTUM_NO_BUY  # weak-momentum half
-                if mom_blocks or (mr is not None and mr >= MEAN_REVERSION_OVERBOUGHT):
+                if mr is not None and mr >= MEAN_REVERSION_OVERBOUGHT:
                     continue
             else:
-                mom_blocks = mom is not None and mom >= MOMENTUM_NO_SELL  # strong-momentum half
-                if mom_blocks or (mr is not None and mr <= MEAN_REVERSION_OVERSOLD):
+                if mr is not None and mr <= MEAN_REVERSION_OVERSOLD:
                     continue
             raw.append(c)
         return raw
@@ -760,7 +783,7 @@ def build_target_portfolio(rec_file, sim_file, exclude_groups=None):
     longs = results.get("Long", [])
     shorts = results.get("Short", [])
 
-    # Per-leg statistics -- each leg on its own, 1/50 equal weight (100%
+    # Per-leg statistics -- each leg on its own, 1/POSITIONS equal weight (100%
     # gross), so the long book and the short book can be compared
     # side by side. The short leg's return is the profit from prices
     # FALLING (sign -1 on simReturn); vol is sign-invariant. Sharpe

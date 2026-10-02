@@ -41,7 +41,7 @@ export const FACTOR_COLUMNS = [
   { key: 'liq', label: 'Liq Ratio' },
   { key: 'shortInt', label: 'Short Interest' },
   { key: 'upside', label: 'Upside' },
-  { key: 'mom', label: 'MSI' },
+  { key: 'mom', label: 'Reversal' },
   { key: 'mr', label: 'ST-MSI' },
   { key: 'sent', label: 'Sentiment' },
   { key: 'newsSent', label: 'News' },

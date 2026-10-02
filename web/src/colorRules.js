@@ -59,10 +59,14 @@ export function targetClass(target, lastPrice) {
 // use, kept in sync by hand. Not direction/side-dependent the way that
 // page's Long/Short-specific signal is -- the Screener has no long/short
 // concept, this is just "is this reading at an extreme" at a glance.
+// `momentum` is now the next-day Reversal Score (modules/derive.py's
+// reconcile_momentum): 0-100, HIGH = weak close / oversold / recent loser =
+// bullish for tomorrow. So high (>70) is green and low (<30) red -- the
+// opposite of the old MSI convention described above.
 export function momentumClass(v) {
   if (typeof v !== 'number') return ''
-  if (v < 30) return 'good'
-  if (v > 70) return 'bad'
+  if (v > 70) return 'good'
+  if (v < 30) return 'bad'
   return ''
 }
 

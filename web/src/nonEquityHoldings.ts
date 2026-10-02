@@ -2,14 +2,14 @@ import { useEffect, useState } from 'react'
 
 // Tickers that IBKR reports as account positions but which are NOT
 // directional equity holdings -- cash / short-term-Treasury equivalents
-// (IB01 = IBKR's cash sweep, SGOV = 0-3mo T-bill ETF, ...). They must be
-// kept out of every exposure / long-short / beta / vol figure in the
+// (IB01 = IBKR's cash sweep, SGOV/SHV = 0-3mo T-bill ETFs, ...). They must
+// be kept out of every exposure / long-short / beta / vol figure in the
 // frontend and shown in their own "Bonds & cash equivalents" table.
 //
 // The live list is data/cash.json (served at /cash.json -- hand-edit that
 // file to add or remove one, no rebuild needed). DEFAULT_CASH_TICKERS is
 // only the fallback used before the fetch resolves or if it fails.
-export const DEFAULT_CASH_TICKERS = ['IB01', 'SGOV'] as const
+export const DEFAULT_CASH_TICKERS = ['IB01', 'SGOV', 'SHV'] as const
 
 let cachedPromise: Promise<Set<string>> | null = null
 

@@ -1,4 +1,6 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import IbFreshnessBadge from './components/IbFreshnessBadge'
+import ExportTabButton from './components/ExportTabButton'
 import ScreenerView from './pages/ScreenerView'
 import PositionsView from './pages/PositionsView'
 import TradesView from './pages/TradesView'
@@ -37,6 +39,8 @@ const TABS = [
 
 export default function App() {
   const [tab, setTab] = useState('positions')
+  const contentRef = useRef(null)
+  const tabLabel = TABS.find((t) => t.key === tab)?.label ?? tab
 
   return (
     <div className="app">
@@ -51,8 +55,11 @@ export default function App() {
             {t.label}
           </button>
         ))}
+        <IbFreshnessBadge />
+        <ExportTabButton tabKey={tab} tabLabel={tabLabel} contentRef={contentRef} />
       </div>
 
+      <div className="tab-content" ref={contentRef}>
       {tab === 'screener' && <ScreenerView />}
       {tab === 'positions' && <PositionsView />}
       {tab === 'trades' && <TradesView />}
@@ -69,6 +76,7 @@ export default function App() {
       {tab === 'scoring' && <ScoringView />}
       {tab === 'backtesting' && <BacktestingView />}
       {tab === 'maths' && <MathsView />}
+      </div>
     </div>
   )
 }

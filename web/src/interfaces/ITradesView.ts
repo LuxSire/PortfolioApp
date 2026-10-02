@@ -10,6 +10,8 @@ export interface Trade {
   value: number
   realizedPnl?: number | null
   commission?: number | null
+  // Most recent fill time today (ISO, UTC); absent from an older ib_server.
+  lastTime?: string | null
 }
 export type TradesByTicker = Record<string, Trade>
 
@@ -48,6 +50,7 @@ export interface TradeRow {
   avgPrice: number | null
   realizedPnl: number | null
   commission: number | null
+  lastTime: string | null
 }
 
 // One row of /trades.json (see ib_server.py's fetch_trades_report /
@@ -73,4 +76,6 @@ export interface HistoricalTrade {
   openClose: string | null
   orderType: string | null
   exchange: string | null
+  // IBKR Flex fields as exported; dateTime = execution time "YYYYMMDD;HHMMSS".
+  raw?: { dateTime?: string | null } | null
 }

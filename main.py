@@ -29,8 +29,10 @@ download_all():    download() then, concurrently, an IB Gateway daily+hourly
                     then recalc(fresh_momentum=True) and a history snapshot.
                     `python main.py all` also calls download_eulerpool()
                     right after (see that function's own docstring) --
-                    its own blanket 3-day cooldown makes that a no-op on
-                    most runs. `python main.py all` (`all overwrite`
+                    its own blanket 1-day cooldown means it actually
+                    refetches on the first `all` run of each day (and
+                    no-ops on any later same-day run). `python main.py
+                    all` (`all overwrite`
                     bypasses the IB bar-refresh 3h cooldown AND
                     download_eulerpool's own cooldown).
 download_prices():  recalc(fresh_momentum=True) -- rebuild from the raw dumps
@@ -66,10 +68,10 @@ download_eulerpool(): fetch all five of Eulerpool's own per-ticker datasets
                     (analyst grades, fair value, forward EPS/revenue,
                     short-volume, historical EPS estimates -- see that
                     function's own docstring) for the ENTIRE scored
-                    universe. Gated by ONE blanket 3-day cooldown
+                    universe. Gated by ONE blanket 1-day cooldown
                     (EULERPOOL_ALL_MAX_AGE_DAYS) across all five -- no-ops
                     entirely if Eulerpool data of any kind was refreshed
-                    within the last 3 days, `overwrite` bypasses it. Run
+                    within the last day, `overwrite` bypasses it. Run
                     via `python main.py eulerpool`, or automatically as
                     part of `python main.py all` (explicit instruction --
                     the cooldown is what makes that safe to do on every
@@ -282,8 +284,8 @@ root):
                      Sorted best (lowest score) first. Also carries a
                      `rating` column: a forced-distribution Strong Buy/Buy/
                      Hold/Sell/Strong Sell label from this file's own score
-                     percentile (top/bottom 6% = Strong Buy/Strong Sell,
-                     next 14% each = Buy/Sell, middle 60% = Hold — same
+                     percentile (top/bottom 7.5% = Strong Buy/Strong Sell,
+                     next 12.5% each = Buy/Sell, middle 60% = Hold — same
                      shape as Zacks Rank's bucketing, unlike Wall Street's
                      own analyst consensus, which skews heavily toward
                      "Buy" since sell-side analysts rarely publish Sell
@@ -413,6 +415,7 @@ from modules.eulerpool import (
     FAIR_VALUE_FILE,
     FORWARD_EPS_FILE,
     GRADES_FILE,
+    REVENUE_ESTIMATES_FILE,
     SHORT_VOLUME_FILE,
     TRANSCRIPTS_FILE,
     fetch_analyst_grades,
@@ -569,7 +572,7 @@ FIELDNAMES = [
     # reconciles and available to the Simulations forward-EPS anchor.
     "annualRevenueGrowth", "ttmRevenueGrowth", "latestQuarterEnd",
     "dilutedEpsAnnual", "dilutedEpsGrowth",
-    "fwdEps0y", "fwdEps1y", "estimateGrowth1y", "estimateAnalysts", "eulerRevGrowth1y", "eulerFwdEps2y", "eulerRevGrowth2y",
+    "fwdEps0y", "fwdEps1y", "estimateGrowth1y", "estimateAnalysts", "eulerRevGrowth0y", "eulerRevGrowth1y", "eulerFwdEps2y", "eulerRevGrowth2y",
     "targetMeanPrice", "targetHighPrice", "targetLowPrice", "targetUpside", "recommendationKey",
     "recommendationMean", "numberOfAnalystOpinions", "momentum", "meanReversion", "entryTiming", "earningsMsi", "epsRevision0y",
     "epsRevision1y", "epsVolatility", "heldPercentInsiders", "earningsTimestampStart", "yearReturn", "lastDownload",
@@ -584,6 +587,19 @@ FIELDNAMES = [
     # -- a post-earnings-announcement-drift read, distinct from the
     # slow-moving track record above.
     "earningsPead",
+    # Trailing 1-month annualized price volatility (see
+    # derive.reconcile_price_volatility) -- feeds RecommendationsView.tsx's
+    # low-volatility gate (VOL_GATE_MIN_ANNUALIZED), catching stocks frozen
+    # at/near an acquisition price rather than being a scored factor.
+    "priceVolAnnualized",
+    # Last completed day's move and its size in sd of the prior ~3 months'
+    # daily returns (see derive.reconcile_daily_move) -- feeds the daily-move
+    # entry gate (no new long above +1 sd, no new short below -1 sd).
+    "dailyMove",
+    "dailyMoveZ",
+    # 10-day Trend Score (derive.reconcile_trend) -- an ENTRY FILTER only,
+    # not scored: no new long at <= 35, no new short at >= 65.
+    "trend",
 ]
 # FINRA biweekly short-interest figures (finra.SHORT_INTEREST_FILE +
 # raw_data.json floatShares, via scoring.load_short_interest_scores) -- the
@@ -701,14 +717,23 @@ def load_top_tickers(path, n=None):
     toward a top-N slice or (for ib_server.py's unbounded calls)
     ever be treated as part of the live-priced universe.
 
-    Returns [] if the file doesn't exist yet (e.g. first-ever run)."""
+    Returns [] if the file doesn't exist yet (e.g. first-ever run).
+
+    Cross-checked against symbols.json's LIVE active flag (see
+    _active_only) before returning -- sorted_screen.csv only reflects
+    whichever tickers were active as of the last `recalc`, so a ticker
+    deactivated since then (e.g. from a live IB "Unknown contract"
+    warning) would otherwise keep being treated as part of the
+    live-priced/downloadable universe until the next recalc happened to
+    rebuild the file. Explicit instruction: deactivating a ticker must
+    stop it from being fetched immediately, not just eventually."""
     try:
         with open(path, newline="") as f:
             reader = csv.DictReader(f)
             scored = (row for row in reader if row.get("score"))
             if n is None:
-                return [row["ticker"] for row in scored]
-            return [row["ticker"] for _, row in zip(range(n), scored)]
+                return _active_only([row["ticker"] for row in scored])
+            return _active_only([row["ticker"] for _, row in zip(range(n), scored)])
     except FileNotFoundError:
         return []
 
@@ -718,10 +743,12 @@ def load_rated_tickers(path, ratings):
     column (see scoring.rating_for_percentile) is one of `ratings` -- e.g.
     RATED_FOR_EXTRAS, every Strong Buy/Buy/Sell/Strong Sell ticker,
     skipping the broad Hold middle and the unranked/NA rows. Returns []
-    if the file doesn't exist yet (e.g. first-ever run)."""
+    if the file doesn't exist yet (e.g. first-ever run). Cross-checked
+    against symbols.json's live active flag -- see load_top_tickers' own
+    comment for why."""
     try:
         with open(path, newline="") as f:
-            return [row["ticker"] for row in csv.DictReader(f) if row.get("rating") in ratings]
+            return _active_only([row["ticker"] for row in csv.DictReader(f) if row.get("rating") in ratings])
     except FileNotFoundError:
         return []
 
@@ -733,12 +760,24 @@ def load_all_tickers(path):
     RATED_FOR_EXTRAS subset (a Hold-rated name today can become a Buy/Sell
     next week as fundamentals shift, and this factor data is worth having
     on file before that happens rather than fetched reactively). Returns
-    [] if the file doesn't exist yet (e.g. first-ever run)."""
+    [] if the file doesn't exist yet (e.g. first-ever run). Cross-checked
+    against symbols.json's live active flag -- see load_top_tickers' own
+    comment for why."""
     try:
         with open(path, newline="") as f:
-            return [row["ticker"] for row in csv.DictReader(f) if row.get("ticker")]
+            return _active_only([row["ticker"] for row in csv.DictReader(f) if row.get("ticker")])
     except FileNotFoundError:
         return []
+
+
+def _active_only(tickers):
+    """Filters `tickers` down to symbols.json's LIVE active set -- shared
+    by load_top_tickers/load_rated_tickers/load_all_tickers so a ticker
+    deactivated after sorted_screen.csv was last written can never leak
+    back into a download scope through one of those, regardless of which
+    stale rating/score/row it still has on file."""
+    active = set(load_tickers(SYMBOLS_FILE))
+    return [t for t in tickers if t in active]
 
 
 def _load_json_or_empty(path):
@@ -1103,6 +1142,67 @@ def _progress_printer(label, total):
     return on_ticker
 
 
+def _merge_bar_series(existing, fresh):
+    """{ticker: [bars]} merge for DAILY_3MO_HISTORY_FILE/HOURLY_HISTORY_FILE
+    -- combines `fresh` (a batch of IB's own trailing-window bars, e.g.
+    "3 M") into `existing` BY DATE per ticker, rather than the
+    `existing.update(fresh)` this replaced, which let a routine refetch
+    silently drop every bar older than that request's own window. IB's
+    "3 M" duration always means "3 months back from right now," so a
+    ticker refetched today loses everything before ~3 months ago under
+    plain dict.update -- confirmed exactly this way live: backtesting a
+    week from August would eventually go dark once "today" drifted far
+    enough past it, purely because a LATER, unrelated refresh happened to
+    touch that ticker again. Explicit instruction: price history (or any
+    other data) must never be removed just because new data came in --
+    these files should only ever grow.
+
+    A ticker only in `existing` is kept untouched. A ticker only in
+    `fresh` is added. A ticker in both has its old and new bars unioned by
+    `date` (fresh's own bar wins on an exact-date collision -- a
+    revised/completed bar should replace a stale one, not be dropped),
+    sorted back into date order. An EMPTY fresh result for a ticker (the
+    fetch came back with nothing -- a bad symbol, a transient API error)
+    leaves `existing` for that ticker alone rather than erasing it --
+    same "never remove on a failed/partial fetch" principle.
+
+    Returns a new dict; does not mutate either input."""
+    merged = dict(existing)
+    for ticker, new_bars in fresh.items():
+        if not new_bars:
+            continue
+        old_bars = existing.get(ticker) or []
+        by_date = {b.get("date"): b for b in old_bars}
+        by_date.update({b.get("date"): b for b in new_bars})
+        merged[ticker] = sorted(by_date.values(), key=lambda b: b.get("date") or "")
+    return merged
+
+
+def _prune_inactive_tickers(bars_dict, keep_extra=()):
+    """{ticker: [bars]} with every key NOT in symbols.json's live active
+    set (see load_tickers) OR `keep_extra` removed -- explicit
+    instruction: a deactivated ticker (GBTG, CRML, the "Unknown contract"
+    batch, etc.) should eventually disappear from DAILY_3MO_HISTORY_FILE/
+    HOURLY_HISTORY_FILE entirely, not just stop being refetched. This is a
+    DELIBERATE prune, distinct from _merge_bar_series's own "never drop a
+    bar just because a refetch happened" guarantee just above -- that one
+    protects against ACCIDENTALLY losing history for a ticker still in
+    scope; this one INTENTIONALLY drops a ticker that's fallen out of
+    scope entirely. `keep_extra` is this call's own `tickers` argument
+    (whatever scope the caller actually requested) -- a currently-HELD
+    position that's been deactivated in symbols.json still needs its
+    price history for the Positions/Recommendations "To close" review
+    (see refresh_ib_daily_history's own held-ticker union), so it's kept
+    as long as some caller is still explicitly asking for it, even though
+    it's no longer in the live active set on its own.
+
+    Returns a new dict; does not mutate the input. Call sites print how
+    many tickers this actually dropped, so a prune is visible in the
+    logs, not silent."""
+    keep = set(load_tickers(SYMBOLS_FILE)) | set(keep_extra)
+    return {t: v for t, v in bars_dict.items() if t in keep}
+
+
 async def download_ib_daily_history(app, tickers):
     """Refreshes DAILY_3MO_HISTORY_FILE (IB Gateway's own 3-month daily
     bars -- see that constant's own comment) for `tickers`, via an
@@ -1112,11 +1212,13 @@ async def download_ib_daily_history(app, tickers):
     limit (200 requests/6min, see IBApp.get_ib_historical_bars_async)
     still makes a large stale ticker list take a while, and this runs on
     every `prices`/`all` call, so a day where the data's already current
-    does no IB Gateway work at all. Merges into the existing file rather
-    than replacing it wholesale (unlike ib_server.py's own version of
-    this fetch, which always refetches its whole scope) -- exactly
-    because this staleness gate means a given run may only be touching a
-    handful of tickers out of the full scope. Async (awaits
+    does no IB Gateway work at all. Merges BY DATE into the existing file
+    (see _merge_bar_series) rather than replacing a refetched ticker's
+    whole array wholesale -- explicit instruction: never let a later
+    refresh silently drop bars older than that request's own "3 M"
+    window (IB's "3 M" is always relative to NOW, not to when the file
+    was first seeded, so plain dict.update used to lose history here).
+    Async (awaits
     get_ib_historical_bars_async, not the sync get_ib_historical_bars)
     so refresh_ib_daily_history/refresh_ib_hourly_history can run
     concurrently as asyncio tasks (see download_all) the same way
@@ -1141,11 +1243,15 @@ async def download_ib_daily_history(app, tickers):
         return
     print(f"Fetching IB 3mo daily bars for {len(stale)}/{len(tickers)} stale/missing ticker(s) (paced, can take a while)...")
     fresh = await app.get_ib_historical_bars_async(stale, "3 M", "1 day", on_ticker=_progress_printer("Daily", len(stale)))
-    existing.update(fresh)
+    existing = _merge_bar_series(existing, fresh)
+    before = len(existing)
+    existing = _prune_inactive_tickers(existing, keep_extra=tickers)
+    pruned = before - len(existing)
     with open(DAILY_3MO_HISTORY_FILE, "w") as f:
         json.dump(existing, f)
     got = sum(1 for v in fresh.values() if v)
-    print(f"Wrote {DAILY_3MO_HISTORY_FILE} ({got}/{len(stale)} fetched tickers had bars; {len(existing)} tickers total on file)")
+    print(f"Wrote {DAILY_3MO_HISTORY_FILE} ({got}/{len(stale)} fetched tickers had bars; {len(existing)} tickers total on file"
+          + (f", {pruned} inactive ticker(s) pruned" if pruned else "") + ")")
     _update_missings("ib_daily", [t for t in tickers if not existing.get(t)])
 
 
@@ -1305,7 +1411,8 @@ async def download_ib_hourly_history(app, tickers):
     most_recent_completed_trading_day() gets refetched -- date-only,
     same as the daily check, even though these bars carry a time-of-day
     too: "has at least one bar from the most recent session" is what
-    matters here, not which hour), same merge-not-replace behavior, same
+    matters here, not which hour), same _merge_bar_series merge-by-date
+    (never dropping older bars a plain dict.update would have), same
     MISSINGS_FILE "ib_hourly" tracking, and same async reasoning (see
     download_ib_daily_history's own docstring)."""
     try:
@@ -1321,11 +1428,15 @@ async def download_ib_hourly_history(app, tickers):
         return
     print(f"Fetching IB 3mo hourly bars for {len(stale)}/{len(tickers)} stale/missing ticker(s) (paced, can take a while)...")
     fresh = await app.get_ib_historical_bars_async(stale, "3 M", "1 hour", on_ticker=_progress_printer("Hourly", len(stale)))
-    existing.update(fresh)
+    existing = _merge_bar_series(existing, fresh)
+    before = len(existing)
+    existing = _prune_inactive_tickers(existing, keep_extra=tickers)
+    pruned = before - len(existing)
     with open(HOURLY_HISTORY_FILE, "w") as f:
         json.dump(existing, f)
     got = sum(1 for v in fresh.values() if v)
-    print(f"Wrote {HOURLY_HISTORY_FILE} ({got}/{len(stale)} fetched tickers had bars; {len(existing)} tickers total on file)")
+    print(f"Wrote {HOURLY_HISTORY_FILE} ({got}/{len(stale)} fetched tickers had bars; {len(existing)} tickers total on file"
+          + (f", {pruned} inactive ticker(s) pruned" if pruned else "") + ")")
     _update_missings("ib_hourly", [t for t in tickers if not existing.get(t)])
 
 
@@ -1602,14 +1713,19 @@ def recalc(fresh_momentum=False, force_prices=False):
     else:
         add_momentum_from_cache(app, data)
     # Overwrites the MSI-based momentum add_momentum_from_cache/
-    # add_momentum_and_persist_history just set with the Trend Score (see
-    # derive.reconcile_momentum's own comment) -- zero network calls,
-    # reads DAILY_3MO_HISTORY_FILE/HOURLY_HISTORY_FILE straight off disk,
-    # same as every other reconcile_* below. hourly_history feeds the
-    # trend_health gate inside reconcile_momentum now -- this is also
+    # add_momentum_and_persist_history just set with the next-day Reversal
+    # Score (see derive.reconcile_momentum's own comment) -- zero network
+    # calls, reads DAILY_3MO_HISTORY_FILE straight off disk, same as every
+    # other reconcile_* below (the hourly file is passed but unused) -- this
+    # is also
     # where the retired reconcile_mean_reversion/meanReversion call used
     # to live (see derive.py's own retirement comment on that function).
     derive.reconcile_momentum(
+        data, _load_json_or_empty(DAILY_3MO_HISTORY_FILE), _load_json_or_empty(HOURLY_HISTORY_FILE)
+    )
+    # Trend Score as its own `trend` field -- entry filter only, no scoring
+    # weight (see derive.reconcile_trend's section comment).
+    derive.reconcile_trend(
         data, _load_json_or_empty(DAILY_3MO_HISTORY_FILE), _load_json_or_empty(HOURLY_HISTORY_FILE)
     )
     # New, deliberately unscored field -- a 1-trading-day-ahead entry-
@@ -1617,6 +1733,12 @@ def recalc(fresh_momentum=False, force_prices=False):
     # own comment for why this is a different window/horizon from
     # meanReversion above, not a duplicate of it). No FACTOR_WEIGHTS entry.
     derive.reconcile_entry_timing(data, _load_json_or_empty(HOURLY_HISTORY_FILE))
+    # Low-volatility gate input (see derive.reconcile_price_volatility's own
+    # comment) -- catches acquisition-capped/frozen tickers. Reuses the same
+    # already-loaded daily history, no extra fetch.
+    derive.reconcile_price_volatility(data, _load_json_or_empty(DAILY_3MO_HISTORY_FILE))
+    # Daily-move gate input (see derive.reconcile_daily_move) -- same file.
+    derive.reconcile_daily_move(data, _load_json_or_empty(DAILY_3MO_HISTORY_FILE))
     _xbrl = _load_json_or_empty(XBRL_FACTS_FILE)
     _raw_stmts = _load_json_or_empty(RAW_STATEMENTS_FILE)
     # Recomputes trailingEps/trailingPE from the 4 most recent quarters in
@@ -1635,7 +1757,9 @@ def recalc(fresh_momentum=False, force_prices=False):
     derive.reconcile_eps_volatility(
         data, _xbrl, _raw_stmts, _load_json_or_empty(EPS_ESTIMATES_FILE)
     )
-    derive.reconcile_forward_eps(data, _load_json_or_empty(FORWARD_EPS_FILE))
+    derive.reconcile_forward_eps(
+        data, _load_json_or_empty(FORWARD_EPS_FILE), _load_json_or_empty(REVENUE_ESTIMATES_FILE), _xbrl
+    )
     # Needs forwardEps (just reconciled above) and earningsGrowth (reconciled
     # earlier by reconcile_earnings_growth) -- must run after both.
     derive.reconcile_peg_ratio(data)
@@ -2040,7 +2164,7 @@ def download_13f():
     fetch_13f_holdings(ticker_names)
 
 
-EULERPOOL_ALL_MAX_AGE_DAYS = 3
+EULERPOOL_ALL_MAX_AGE_DAYS = 1
 
 
 def download_eulerpool():
@@ -2062,7 +2186,10 @@ def download_eulerpool():
          figure modules.simulations actually anchors its EPS path on),
          and derives eulerRevGrowth1y (a new forward revenue-growth signal
          with no yfinance equivalent) feeding both exp_revenue_growth_rank
-         and modules.simulations' own ownGrowthRate.
+         and modules.simulations' own ownGrowthRate. Also derives
+         eulerRevGrowth0y (Last-FY-actual -> This-FY, a SEPARATE
+         ownGrowthRate/industryGrowthRate leg from eulerRevGrowth1y) using
+         step 5's own past-revenue-actuals output below.
       4. Daily short-volume ratio (modules.eulerpool.fetch_short_volume)
          -- a trailing 10-trading-day average of FINRA's own daily short-
          sale volume tape, feeding modules.scoring.load_short_interest_
@@ -2079,13 +2206,15 @@ def download_eulerpool():
          SEC GAAP diluted EPS for MSFT/AMZN, it reads closer to a "Street"/
          adjusted EPS, excluding at least some one-off items that inflate
          GAAP-based volatility without reflecting genuine earnings
-         unpredictability).
+         unpredictability). The SAME get_estimates call also writes
+         REVENUE_ESTIMATES_FILE (past-actual revenue, same shape) -- step
+         3's eulerRevGrowth0y above is the only consumer of that one.
 
-    Explicit instruction: ALL FIVE now share ONE blanket 3-day cooldown
+    Explicit instruction: ALL FIVE now share ONE blanket 1-day cooldown
     (EULERPOOL_ALL_MAX_AGE_DAYS) at this function's own entry point,
     keyed off GRADES_FILE's mtime (the one file every prior run always
     touches) -- if Eulerpool data of ANY kind was downloaded within the
-    last 3 days, the ENTIRE step is skipped, not just re-checked
+    last day, the ENTIRE step is skipped, not just re-checked
     per-dataset the way step 1 alone used to self-throttle (steps 2-4 used
     to always refetch regardless of age; that's gone now). This is what
     lets `python main.py all` include this step on every run (a new
@@ -2113,7 +2242,7 @@ def download_eulerpool():
     fetch_fair_values(tickers, out_file=FAIR_VALUE_FILE)
     fetch_forward_eps(tickers, out_file=FORWARD_EPS_FILE)
     fetch_short_volume(tickers, out_file=SHORT_VOLUME_FILE)
-    fetch_eps_estimates(tickers, out_file=EPS_ESTIMATES_FILE)
+    fetch_eps_estimates(tickers, out_file=EPS_ESTIMATES_FILE, revenue_out_file=REVENUE_ESTIMATES_FILE)
 
 
 # Deliberately its OWN standalone step, NOT folded into download_eulerpool's
@@ -2373,13 +2502,26 @@ if __name__ == "__main__":
         # `all overwrite` bypasses IB_REFRESH_STATE_FILE's 3h cooldown --
         # see download_all's own overwrite param. The only command that can.
         download_all(overwrite=(len(sys.argv) > 2 and sys.argv[2] == "overwrite"))
-        # Eulerpool downloads (explicit instruction) -- own blanket 3-day
+        # Eulerpool downloads (explicit instruction) -- own blanket 1-day
         # cooldown inside download_eulerpool itself (EULERPOOL_ALL_MAX_AGE_
         # DAYS), so this is safe to call on every `all` run: it no-ops
         # immediately unless Eulerpool data is actually stale. `all
         # overwrite` forces it through the same way it forces the IB
         # refresh through, above.
         download_eulerpool()
+        # Account performance Flex Query (explicit instruction): same as
+        # `python ib_server.py performance` -- IBKR's Flex web service, not IB
+        # Gateway -- which also saves the raw statement as Results.xml.
+        # Run as a subprocess because ib_server.py imports from this module
+        # (a direct import would be circular). Last, and non-fatal: an IBKR
+        # "statement could not be generated" (error 1001) is common and
+        # shouldn't fail the whole `all` run.
+        import subprocess
+        _repo = os.path.dirname(os.path.abspath(__file__))
+        print("Fetching the account performance Flex Query (Results.xml / portfolio_performance.json)...")
+        _rc = subprocess.run([sys.executable, os.path.join(_repo, "ib_server.py"), "performance"], cwd=_repo).returncode
+        if _rc != 0:
+            print(f"Account performance Flex Query did not complete (exit {_rc}) -- portfolio_performance.json left as it was")
     elif mode == "download":
         download(sys.argv[2:] if len(sys.argv) > 2 else None)
     elif mode in ("recalc", "rescore"):

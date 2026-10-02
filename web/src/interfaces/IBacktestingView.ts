@@ -8,17 +8,51 @@ export const GROUPS = [
   'short_strong_sell',
   'short_sell',
   'short_blocked',
+  'hold',
 ] as const
 export type GroupKey = (typeof GROUPS)[number]
 
 export const GROUP_LABEL: Record<GroupKey, string> = {
-  long_strong_buy: 'Long · Strong Buy',
+  // (7.5%) is scoring.RATING_THRESHOLDS' own cut, called out now that the
+  // (5%)/(2.5%) cuts below sit next to it in the same table. Was 6% --
+  // widened, same proportional change scoring.RATING_THRESHOLDS itself
+  // made (see that constant's own comment).
+  long_strong_buy: 'Long · Strong Buy (7.5%)',
   long_buy: 'Long · Buy',
   long_blocked: 'Long blocked',
-  short_strong_sell: 'Short · Strong Sell',
+  short_strong_sell: 'Short · Strong Sell (7.5%)',
   short_sell: 'Short · Sell',
   short_blocked: 'Short blocked',
+  hold: 'Hold', // no gates -- the unrated middle, held long as a baseline
 }
+
+// Two nested, non-partitioning reference stats per side (2.5% ⊂ 5% ⊂ the
+// 7.5% rating cut) -- every candidate is still classified into exactly
+// one of the seven GROUPS above, these are strict subsets of
+// long_strong_buy/short_strong_sell reported separately. Optional: an
+// older archived week may have no `score` column to derive a percentile
+// from. The "_4"/"_2"-suffixed KEYS below are legacy names (were 4%/2%
+// before this widening) -- left as-is rather than renaming every key/
+// group-key string this type feeds into across both this file and
+// modules/backtest.py's own JSON output; only the LABELS shown to the
+// user changed.
+export type RestrictedGroupKey =
+  | 'long_strong_buy_restricted_4'
+  | 'long_strong_buy_restricted_2'
+  | 'short_strong_sell_restricted_4'
+  | 'short_strong_sell_restricted_2'
+export const RESTRICTED_GROUP_LABEL: Record<RestrictedGroupKey, string> = {
+  long_strong_buy_restricted_4: 'Long · Strong Buy (5%)',
+  long_strong_buy_restricted_2: 'Long · Strong Buy (2.5%)',
+  short_strong_sell_restricted_4: 'Short · Strong Sell (5%)',
+  short_strong_sell_restricted_2: 'Short · Strong Sell (2.5%)',
+}
+// Mirrors modules/backtest.py's RESTRICTED_PCT_4/_2 -- used by
+// BacktestingView.tsx's Candidates table to show the TIGHTEST cut a
+// long_strong_buy/short_strong_sell ticker's own `pct` actually clears,
+// instead of always the plain 7.5% group label.
+export const RESTRICTED_PCT_4 = 0.05
+export const RESTRICTED_PCT_2 = 0.025
 
 export interface GroupStats {
   // Equal-weight mean POSITION P&L over the week (+stock return for longs,
@@ -60,13 +94,20 @@ export interface GroupStats {
 // checkable GOING FORWARD, since simReturn was never archived into
 // sorted_screen <date>.csv until main.py started writing it; any week
 // from before that column existed just won't show this reason firing.
-export type GateReason = 'momentum' | 'sim_return' | 'growth' | 'earnings'
+// low_vol mirrors RecommendationsView.tsx's lowVolBlocksEntry -- a stock
+// whose trailing 1-month annualized price volatility is under 5% is
+// blocked on BOTH sides (unlike every other reason here, which is
+// side-specific), catching names frozen at/near an acquisition price
+// (see modules/derive.py's reconcile_price_volatility).
+export type GateReason = 'sim_return' | 'daily_move' | 'trend' | 'growth' | 'earnings' | 'low_vol'
 
 export const GATE_REASON_LABEL: Record<GateReason, string> = {
-  momentum: 'Trend Score',
   sim_return: 'Simulation return (wrong direction)',
+  daily_move: 'Daily move beyond ±1σ (3-month)',
+  trend: 'Trend filter (no long ≤35, no short ≥65)',
   growth: 'Revenue growth too strong to short (>10%)',
   earnings: 'Earnings within the week',
+  low_vol: 'Volatility too low (<5% annualized, likely acquisition-capped)',
 }
 
 export interface BacktestTicker {
@@ -76,6 +117,12 @@ export interface BacktestTicker {
   blockedBy: GateReason[]
   sector: string | null // granular industry, straight from that week's sorted_screen.csv row
   return: number // position P&L, same sign convention as GroupStats.return
+  // 0 (best)..1 (worst) score percentile that week -- null when it
+  // couldn't be reconstructed (see modules/backtest.py's own `pct`
+  // comments). Used by BacktestingView.tsx's Candidates table to show
+  // the tightest RESTRICTED_PCT_4/_2 cut a long_strong_buy/
+  // short_strong_sell ticker actually clears, instead of always (7.5%).
+  pct: number | null
 }
 
 // {groups, portfolio, blockedBreakdown, tickers} -- one full classification
@@ -85,10 +132,13 @@ export interface BacktestTicker {
 // modules.scoring -- see modules/backtest.py's _rescore_current_model for
 // exactly what that can and can't reconstruct).
 export interface BacktestModel {
-  groups: Record<GroupKey, GroupStats>
+  groups: Record<GroupKey, GroupStats> & Partial<Record<RestrictedGroupKey, GroupStats>>
   // Gated Strong Buy long leg + gated Strong Sell short leg, summed
-  // (dollar-neutral, each leg equal-weight 100% gross).
+  // (dollar-neutral, each leg equal-weight 100% gross). portfolioRestricted4/
+  // 2 are the same combination using the (5%)/(2.5%) legs instead of (7.5%).
   portfolio: { return: number | null; count: number }
+  portfolioRestricted4: { return: number | null; count: number }
+  portfolioRestricted2: { return: number | null; count: number }
   // Per side, per gate reason that fired at least once this week: the
   // same {return, count} shape as `groups`, restricted to *_blocked rows
   // that failed THAT one reason -- isolates which single rule is behind

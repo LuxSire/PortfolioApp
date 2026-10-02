@@ -64,6 +64,14 @@ function fmtDate(iso: string | null | undefined): string {
   return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
+// Monday of the current week as YYYY-MM-DD (local time) -- on a weekend,
+// the Monday of the week just ended.
+function startOfCurrentWeek(): string {
+  const d = new Date()
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7))
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 // The extracts of the IBKR Flex Query configured in ib_server.py's
 // fetch_account_performance — real, IB-computed daily cash/NAV/realized/
 // unrealized (see Results.csv for the exported reference shape), not
@@ -81,7 +89,19 @@ export default function PortfolioView() {
       .catch(() => setError(true))
   }, [])
 
-  const rows: PortfolioDayRow[] | null = data?.kind === 'daily' ? (data.rows ?? null) : null
+  const allRows: PortfolioDayRow[] | null = data?.kind === 'daily' ? (data.rows ?? null) : null
+  // Explicit instruction: EVERYTHING on this page (stats, charts, monthly
+  // and daily tables) covers only the current week, Monday onward -- a
+  // display-only trim applied client-side, not by rewriting
+  // portfolio_performance.json, so the stored history is never at risk.
+  // The last NAV before Monday is kept only as the base for Monday's own
+  // return (P&L over the prior day's NAV, same rule as everywhere else),
+  // so a deposit/withdrawal on Monday isn't counted as performance.
+  const periodStart = startOfCurrentWeek()
+  const rows: PortfolioDayRow[] | null = allRows ? allRows.filter((r) => r.date >= periodStart) : null
+  const baselineNav: number | null =
+    [...(allRows ?? [])].reverse().find((r) => r.date < periodStart && r.nav !== null)?.nav ?? null
+  const chartRows = rows
   // Running total of realized+unrealized through each day, keyed by date,
   // plus each day's own return (that day's Total P&L over the PRIOR day's
   // NAV — the base capital that P&L was actually earned on) — rows is
@@ -111,7 +131,7 @@ export default function PortfolioView() {
     let compounded = 1
     let peakCompounded = 1
     let worstDrawdown = 0
-    let prevNav: number | null = null
+    let prevNav: number | null = baselineNav
     for (const r of rows) {
       const dayTotalPnl = r.realized !== null && r.unrealized !== null ? r.realized + r.unrealized : null
       if (dayTotalPnl !== null) running += dayTotalPnl
@@ -280,9 +300,9 @@ export default function PortfolioView() {
       {error && <p className="status-row">Couldn't load portfolio_performance.json — run: python ib_server.py performance</p>}
       {!error && !data && <p className="status-row">Loading…</p>}
 
-      {rows && rows.length > 0 && <NavChart rows={rows} />}
-      {rows && rows.length > 0 && <ExposureChart rows={rows} />}
-      {rows && rows.length > 0 && <MonthlyReturnsTable rows={rows} />}
+      {chartRows && chartRows.length > 0 && <NavChart rows={chartRows} />}
+      {chartRows && chartRows.length > 0 && <ExposureChart rows={chartRows} />}
+      {rows && rows.length > 0 && <MonthlyReturnsTable rows={rows} baselineNav={baselineNav} />}
 
       {rows && (
         <div className="table-wrap positions-table-wrap">

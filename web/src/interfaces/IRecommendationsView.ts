@@ -155,6 +155,21 @@ export interface Candidate {
   targetPoolSide?: 'Long' | 'Short' | null
   targetPoolRank?: number | null
   targetPoolSize?: number | null
+  // Trailing 1-month annualized price volatility (see modules/derive.py's
+  // reconcile_price_volatility) -- feeds the low-volatility gate
+  // (lowVolBlocksEntry/VOL_GATE_MIN_ANNUALIZED), catching stocks frozen
+  // at/near an acquisition price. Lives on tickerScreener like
+  // revenueGrowth/meanReversion, not on the recommendations.json
+  // candidate itself.
+  priceVolAnnualized?: number | null
+  // Last completed session's move and its size in sd of the prior ~3
+  // months' daily returns (modules/derive.py's reconcile_daily_move) --
+  // fallback for the daily-move gate when the page can't compute it live.
+  dailyMove?: number | null
+  dailyMoveZ?: number | null
+  // 10-day Trend Score (modules/derive.py's reconcile_trend), 0-100 -- an
+  // entry FILTER only (no long <= 35, no short >= 65), not scored.
+  trend?: number | null
 }
 
 export interface RecommendationsData {

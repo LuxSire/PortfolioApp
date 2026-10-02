@@ -89,6 +89,25 @@ function fmtMoney(v: number): string {
   return '$' + v.toLocaleString(undefined, { maximumFractionDigits: 0 })
 }
 
+// Compact $B/$M for the Eulerpool revenue table -- fmtMoney's full digit
+// string (e.g. "$250,580,700,000") is fine for a 13F position value but
+// unreadable for a company-wide revenue figure.
+function fmtBig(v: number | null | undefined): string {
+  if (typeof v !== 'number') return '—'
+  const abs = Math.abs(v)
+  if (abs >= 1e9) return '$' + (v / 1e9).toFixed(2) + 'B'
+  if (abs >= 1e6) return '$' + (v / 1e6).toFixed(1) + 'M'
+  return fmtMoney(v)
+}
+
+// YoY growth between two consecutive Eulerpool consensus figures (revenue
+// or EPS) -- null if either side is missing/non-positive (a growth % off
+// a zero or negative base isn't meaningful).
+function fmtGrowth(from: number | null | undefined, to: number | null | undefined): string {
+  if (typeof from !== 'number' || typeof to !== 'number' || from <= 0) return '—'
+  return fmtPct(to / from - 1)
+}
+
 function fmtShares(v: number): string {
   return v.toLocaleString()
 }
@@ -147,6 +166,100 @@ function useTickerSeries<T>(url: string, ticker: string): T | null {
     }
   }, [url, ticker])
   return state.ticker === ticker ? state.series : null
+}
+
+// data/eulerpool/forward_eps.json's per-ticker entry (see
+// modules.eulerpool.fetch_forward_eps) -- Eulerpool's OWN raw consensus,
+// not this app's blended forwardEps/eulerRevGrowth1y figures shown
+// elsewhere on this page (modules.derive.reconcile_forward_eps blends
+// fwdEps0y/1y 50/50 with yfinance's own before those land in
+// sorted_screen.csv -- these are the pre-blend Eulerpool numbers).
+interface ForwardEstimates {
+  fwdEps0y: number | null
+  fwdEps1y: number | null
+  fwdEps2y: number | null
+  fwdRevenue0y: number | null
+  fwdRevenue1y: number | null
+  fwdRevenue2y: number | null
+}
+
+// data/eulerpool/eps_estimates.json / revenue_estimates.json -- both
+// {period (ISO fiscal-year-end date): value}, ONLY already-completed
+// fiscal years (see modules.eulerpool.fetch_eps_estimates). Picks the
+// most recent one as "last FY actual" -- ISO dates sort correctly as
+// plain strings, so the max key is the latest completed year.
+function latestPeriodValue(byPeriod: Record<string, number> | null): number | null {
+  if (!byPeriod) return null
+  const periods = Object.keys(byPeriod)
+  if (!periods.length) return null
+  const latest = periods.reduce((a, b) => (b > a ? b : a))
+  return byPeriod[latest] ?? null
+}
+
+// Eulerpool's own revenue/EPS consensus -- last completed fiscal year
+// (actual) through 2 years out (consensus), plus YoY growth computed
+// between each consecutive pair -- explicit instruction, placed after the
+// simulation chart. "Last FY" anchors the first growth number to a real
+// completed year rather than starting the table mid-stream at "this FY."
+// 1y/2y have no yfinance counterpart to blend against (see
+// modules.eulerpool.fetch_forward_eps's own docstring), so unlike
+// forwardEps/eulerRevGrowth1y elsewhere on this page, every number here
+// is Eulerpool's alone.
+function EulerpoolEstimatesPanel({
+  est,
+  lastFyEps,
+  lastFyRevenue,
+}: {
+  est: ForwardEstimates
+  lastFyEps: number | null
+  lastFyRevenue: number | null
+}) {
+  return (
+    <div className="asset-card">
+      <h2>Estimates</h2>
+      <table>
+        <thead>
+          <tr>
+            <th className="col-left"> </th>
+            <th>Last FY</th>
+            <th>This FY</th>
+            <th>Next FY</th>
+            <th>FY+2</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td className="col-left">Revenue</td>
+            <td className="num">{fmtBig(lastFyRevenue)}</td>
+            <td className="num">{fmtBig(est.fwdRevenue0y)}</td>
+            <td className="num">{fmtBig(est.fwdRevenue1y)}</td>
+            <td className="num">{fmtBig(est.fwdRevenue2y)}</td>
+          </tr>
+          <tr>
+            <td className="col-left">Revenue growth (YoY)</td>
+            <td className="num">—</td>
+            <td className="num">{fmtGrowth(lastFyRevenue, est.fwdRevenue0y)}</td>
+            <td className="num">{fmtGrowth(est.fwdRevenue0y, est.fwdRevenue1y)}</td>
+            <td className="num">{fmtGrowth(est.fwdRevenue1y, est.fwdRevenue2y)}</td>
+          </tr>
+          <tr>
+            <td className="col-left">EPS</td>
+            <td className="num">{fmtPrice(lastFyEps)}</td>
+            <td className="num">{fmtPrice(est.fwdEps0y)}</td>
+            <td className="num">{fmtPrice(est.fwdEps1y)}</td>
+            <td className="num">{fmtPrice(est.fwdEps2y)}</td>
+          </tr>
+          <tr>
+            <td className="col-left">EPS growth (YoY)</td>
+            <td className="num">—</td>
+            <td className="num">{fmtGrowth(lastFyEps, est.fwdEps0y)}</td>
+            <td className="num">{fmtGrowth(est.fwdEps0y, est.fwdEps1y)}</td>
+            <td className="num">{fmtGrowth(est.fwdEps1y, est.fwdEps2y)}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  )
 }
 
 // holders: data/sec/13f/institutional_holders.json's per-ticker array (see
@@ -358,6 +471,9 @@ export default function AssetView({ ticker }: { ticker: string }) {
   const hourlyHistory = useTickerSeries<CandlePoint[]>('/price_history_hourly.json', ticker)
   const dailyHistory3mo = useTickerSeries<CandlePoint[]>('/price_history_daily_3mo.json', ticker)
   const holders = useTickerSeries<Holder[]>('/sec/13f/institutional_holders.json', ticker)
+  const fwdEstimates = useTickerSeries<ForwardEstimates>('/forward_eps.json', ticker)
+  const epsHistory = useTickerSeries<Record<string, number>>('/eps_estimates.json', ticker)
+  const revenueHistory = useTickerSeries<Record<string, number>>('/revenue_estimates.json', ticker)
   // Live from ib_server.py (GET /api/news), not a static build
   // artifact — same best-effort contract as the series above, just a
   // different (absolute, cross-origin) URL.
@@ -604,6 +720,14 @@ export default function AssetView({ ticker }: { ticker: string }) {
             />
           )}
 
+          {fwdEstimates && (
+            <EulerpoolEstimatesPanel
+              est={fwdEstimates}
+              lastFyEps={latestPeriodValue(epsHistory)}
+              lastFyRevenue={latestPeriodValue(revenueHistory)}
+            />
+          )}
+
           {hourlyHistory && hourlyHistory.length > 1 && (
             <CandlestickChart
               data={hourlyHistory}
@@ -763,7 +887,7 @@ export default function AssetView({ ticker }: { ticker: string }) {
           </Section>
 
           <Section title="Momentum">
-            <Stat label="LT Strength (MFI/RSI)" value={fmtNum(ltMomentum)} valueClass={momentumClass(ltMomentum)} />
+            <Stat label="Reversal (next day)" value={fmtNum(ltMomentum)} valueClass={momentumClass(ltMomentum)} />
             <Stat label="ST Overbought/Oversold (MFI)" value={fmtNum(stMomentum)} valueClass={meanReversionClass(stMomentum)} />
           </Section>
         </>

@@ -20,7 +20,7 @@ import time as time_module
 import xml.etree.ElementTree as ET
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 # Python 3.10+ no longer creates a default event loop automatically.
 # ib_insync's eventkit dependency requires one to exist at import time.
@@ -598,10 +598,17 @@ class IBApp:
             ex = fill.execution
             signed_qty = ex.shares if ex.side == "BOT" else -ex.shares
             entry = trades.setdefault(
-                symbol, {"qty": 0.0, "value": 0.0, "realizedPnl": None, "commission": None}
+                symbol, {"qty": 0.0, "value": 0.0, "realizedPnl": None, "commission": None, "lastTime": None}
             )
             entry["qty"] += signed_qty
             entry["value"] += signed_qty * ex.price
+            # Most recent fill time today (ISO, UTC) -- the Trades tab sorts
+            # today's rows by it, newest first.
+            fill_time = getattr(fill, "time", None) or getattr(ex, "time", None)
+            if fill_time is not None:
+                iso = fill_time.astimezone(timezone.utc).isoformat(timespec="seconds")
+                if entry["lastTime"] is None or iso > entry["lastTime"]:
+                    entry["lastTime"] = iso
 
         for trade in self.ib.trades():
             symbol = trade.contract.symbol
@@ -679,10 +686,12 @@ class IBApp:
             "Trades:\n" + _table(trades, ["symbol", "action", "quantity", "order_type", "status", "filled", "price"]),
         ])
 
-    def place_order(self, asset, action, quantity, order_type="MKT", limit_price=None, transmit=False):
+    def place_order(self, asset, action, quantity, order_type="MKT", limit_price=None, transmit=False, outside_rth=True):
+        """outside_rth=False keeps the order to regular trading hours only
+        (ib_server.py's automatic take-profit orders use that); the default
+        True preserves the original behaviour for any other caller."""
         try:
             contract = self.make_contract(getattr(asset, "symbol", None), asset)
-            outside_rth = True
             if order_type == "MKT":
                 order = MarketOrder(action, quantity, transmit=transmit, outsideRth=outside_rth)
             elif order_type == "LMT" and limit_price is not None:
@@ -1099,6 +1108,40 @@ class IBApp:
             for sym, data in (f.result() for f in as_completed(futures)):
                 results[sym] = data
         return results
+
+    def get_price_history(self, tickers, max_workers=2):
+        """
+        Returns {ticker: [{date, close}, ...]} — the trailing ~1 month of
+        daily closes from Yahoo Finance, same shape as get_momentum's
+        history_out. Standalone (no momentum score computed) for callers
+        that just need a recent-price fallback for tickers outside the
+        regular screener pipeline — e.g. ib_server.py uses this for
+        IBKR positions on tickers the screener never fetches (not in
+        symbols.json) or whose live IB quote is unavailable (missing
+        market data permissions for that ticker's exchange).
+        """
+
+        def fetch(symbol):
+            for attempt in range(3):
+                try:
+                    hist = yf.Ticker(symbol).history(period="1mo")
+                    closes = hist["Close"].dropna()
+                    return symbol, [
+                        {"date": ts.strftime("%Y-%m-%d"), "close": round(c, 4)}
+                        for ts, c in closes.items()
+                    ]
+                except Exception:
+                    if attempt == 2:
+                        return symbol, []
+                    time.sleep(1.5)
+
+        history = {}
+        with ThreadPoolExecutor(max_workers=max_workers) as ex:
+            futures = {ex.submit(fetch, s): s for s in tickers}
+            for sym, series in (f.result() for f in as_completed(futures)):
+                history[sym] = series
+
+        return history
 
     def get_ib_historical_bars(self, tickers, duration, bar_size, max_requests_per_window=HISTORICAL_PACING_MAX_REQUESTS, window_seconds=HISTORICAL_PACING_WINDOW_SECONDS):
         """

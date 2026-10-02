@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { AlertTriangle, Flag, Info, Search, ThumbsDown, ThumbsUp } from 'lucide-react'
 import { parseCSV } from '../csv'
-import { businessMillisBetween, fmtEarningsDate, useNowTick } from '../earnings'
+import { fmtEarningsDate, useNowTick } from '../earnings'
+import { mostRecentCompletedTradingDay } from '../ibFreshness'
 import { IB_SCORING_FORMULA_URL, IB_STREAM_URL } from '../ibStream'
 import { useCashEquivalents } from '../nonEquityHoldings'
 import type { ScoringFactor } from '../interfaces/IScoringView'
@@ -46,6 +47,11 @@ function useOutsideClick(ref: RefObject<HTMLElement | null>, onOutside: () => vo
 
 const BUY_RATINGS = new Set(['Strong Buy', 'Buy'])
 const SELL_RATINGS = new Set(['Sell', 'Strong Sell'])
+// Long/Short idea lists are Strong-only now; BUY_RATINGS/SELL_RATINGS
+// above stay as-is for held-position review (buildCloseReasons), which
+// still cares about the plain Buy/Sell boundary.
+const STRONG_BUY_RATINGS = new Set(['Strong Buy'])
+const STRONG_SELL_RATINGS = new Set(['Strong Sell'])
 
 // The last close strictly before today, comparing BOTH bar series --
 // price_history_daily_3mo.json (IB Gateway's own history, fetched once
@@ -95,18 +101,10 @@ function previousClose(
   return previousCloseInfo(dailyHistory3mo, monthlyHistory)?.close ?? null
 }
 
-// Mirrors scoring.py's own most_recent_completed_trading_day() exactly --
-// yesterday, rolled back over the weekend. Not a real market-holiday
-// calendar, same "good enough, don't over-engineer it" spirit as that
-// function's own docstring -- see PreviousCloseFlag for what this drives.
-function mostRecentCompletedTradingDay(): string {
-  const d = new Date()
-  d.setDate(d.getDate() - 1)
-  while (d.getDay() === 0 || d.getDay() === 6) {
-    d.setDate(d.getDate() - 1)
-  }
-  return d.toISOString().slice(0, 10)
-}
+// mostRecentCompletedTradingDay now lives in ../ibFreshness -- shared
+// with IbFreshnessBadge.tsx's app-wide top-bar flag so the two can never
+// silently disagree about what "current" means. See PreviousCloseFlag
+// below for what this drives on this page.
 
 function fmtPctAbs(v: number): string {
   return (Math.abs(v) * 100).toFixed(1) + '%'
@@ -229,7 +227,7 @@ type RationaleLine = { text: string; signal: Signal; factor?: RationaleFactor }
 // thumbs up in Trend, or thumbs down in Revenue growth." One entry per
 // RationaleFactor; label is what the dropdown/filter chip shows.
 const THUMB_FACTORS: { key: RationaleFactor; label: string }[] = [
-  { key: 'momentum', label: 'Trend' },
+  { key: 'momentum', label: 'Reversal' },
   { key: 'revenueGrowth', label: 'Revenue growth' },
   { key: 'epsTrend', label: 'EPS trend' },
   { key: 'shortInterest', label: 'Short interest' },
@@ -376,27 +374,36 @@ function consensusLabel(score: number): string {
   return 'Strong Sell'
 }
 
-// Informational rationale line only -- revenue growth no longer GATES the
-// idea lists (the sim-return gate, simReturnOkForLong/ForShort, replaced
-// it), but the reported figure is still shown as context on the card.
-// revenueGrowth lives on tickerScreener, not the recommendations.json
-// candidate itself -- the longs/shorts pool builders copy it onto each
-// RankedCandidate for exactly this line; CloseRow already gets it from the
-// same tickerScreener merge its own close-reasons check uses. Plain sign,
-// same as momentum/EPS trend -- positive growth good for a Long/bad for a
-// Short, negative the mirror.
+// Informational rationale line only -- revenue growth doesn't GATE the
+// idea lists (the sim-return gate replaced it), but the figure is shown as
+// context with a thumb. revenueGrowth / eulerRevGrowth1y live on
+// tickerScreener; the pool builders copy them onto each RankedCandidate.
+// Thumb rule -- explicit instruction, BOTH trailing (revenueGrowth) and
+// expected (eulerRevGrowth1y, Eulerpool forward consensus) must agree:
+//   Long:  both > 10% -> up;   both < 10% -> down;  otherwise none
+//   Short: both > 10% -> down; both < 0%  -> up;    otherwise none
+// Either figure missing -> no thumb (the rule needs both).
+const REVENUE_GROWTH_THUMB = 0.1
+function revenueGrowthSignal(trailing: number, expected: number | null | undefined, side: 'Long' | 'Short'): Signal {
+  if (expected === null || expected === undefined) return null
+  const bothAbove = trailing > REVENUE_GROWTH_THUMB && expected > REVENUE_GROWTH_THUMB
+  if (side === 'Long') {
+    if (bothAbove) return 'good'
+    if (trailing < REVENUE_GROWTH_THUMB && expected < REVENUE_GROWTH_THUMB) return 'bad'
+    return null
+  }
+  if (bothAbove) return 'bad'
+  if (trailing < 0 && expected < 0) return 'good'
+  return null
+}
+
 function revenueGrowthLine(c: Candidate, side: 'Long' | 'Short'): RationaleLine | null {
   if (c.revenueGrowth === null || c.revenueGrowth === undefined) return null
-  // eulerRevGrowth1y -- Eulerpool's own forward consensus, shown in
-  // parens alongside the trailing figure, same "both numbers together"
-  // treatment as the Fwd PE line below (explicit instruction). Doesn't
-  // affect the signal -- that's still read off the trailing, reconciled
-  // revenueGrowth alone, same as before this was added.
   const expSuffix =
     c.eulerRevGrowth1y !== null && c.eulerRevGrowth1y !== undefined ? ` (exp ${fmtPct(c.eulerRevGrowth1y)})` : ''
   return {
     text: `Revenue growth ${fmtPct(c.revenueGrowth)}${expSuffix}`,
-    signal: sidedSignal(c.revenueGrowth, side),
+    signal: revenueGrowthSignal(c.revenueGrowth, c.eulerRevGrowth1y, side),
     factor: 'revenueGrowth',
   }
 }
@@ -425,78 +432,76 @@ function fwdPeExpLine(c: Candidate): RationaleLine | null {
   return { text: `Fwd PE ${c.forwardPE.toFixed(1)} (exp ${impliedFwdPEText})`, signal: null }
 }
 
-// momentum is now the Trend Score (modules.derive.reconcile_momentum) --
-// a cross-sectional percentile 0-100 (100=strongest, most-supported
-// uptrend) built from a 20-trading-day return, penalized by volume
-// acceleration and 5-day reversal, replacing the old daily Money Flow
-// Index/RSI -- explicit instruction after a formation/holding
-// cross-section showed Trend's own ~1-3 week timeframe is actually
-// reversal-prone, while ~20 trading days shows genuine continuation
-// (confirmed live: DINO, a genuine +76%/3-month trend, read as
-// "overbought" under the old Trend-tied factor). Still a bounded [0, 100]
-// read, so this shows a plain magnitude with a conventional zone word
-// instead of a +/- sign, same shape as before. Every card that reaches
-// the page has already passed the hard momentum-direction rule (see
-// eligibleToBuy/eligibleToSell below), so this line is showing the
-// reader the gate it already cleared, not a new judgment call. Signal
-// mirrors those same gates' own thresholds (MOMENTUM_OVERSOLD/
-// MOMENTUM_OVERBOUGHT) rather than a plain sign check -- there's no
-// "positive/negative" on a 0-100 scale, only "is this an actual
-// overbought/oversold extreme" (here, "extended" vs. "not yet supported
-// by a real trend" rather than a literal MFI overbought/oversold read).
-// The five Trend Score zones -- see MOMENTUM_OVERSOLD/NO_BUY/NO_SELL/OVERBOUGHT.
-// Deliberately NOT "overbought"/"oversold"/"falling knife" -- explicit
-// instruction, after confirming live that this score's forward return
-// rises MONOTONICALLY with the score itself, all the way to the 99th
-// percentile (no reversal hump anywhere in the range, unlike the old
-// MSI this replaced). Calling the top band "overbought" implied a
-// reversal risk the data doesn't support -- it's the single BEST
-// forward-return band of the five. Named for what the data actually
-// shows instead: a stronger/weaker version of the SAME continuing
-// trend at both ends, not a warning at either extreme.
+// momentum is now the next-day Reversal Score (modules.derive.
+// reconcile_momentum), shown as "Reversal" -- explicit instruction, it
+// replaced the 10d Trend Score. 0-100, a blend of where today's close sits
+// in the day's range, RSI(2) and the 3-day return: 100 = closed at the
+// low, deeply oversold, biggest recent loser -> most likely to bounce
+// TOMORROW (most bullish for a Long); 0 = the opposite. NOTE the score is
+// inverted vs. the stock: a LOW score means the stock is overbought, so
+// the MOMENTUM_OVERSOLD (20) / MOMENTUM_OVERBOUGHT (80) constants below
+// are just score cut-offs here, not stock states. Informational line +
+// thumb only, no gate.
 function momentumZone(value: number): string {
-  if (value >= MOMENTUM_OVERBOUGHT) return 'strong uptrend'
-  if (value >= MOMENTUM_NO_SELL) return 'uptrend'
-  if (value <= MOMENTUM_OVERSOLD) return 'strong downtrend'
-  if (value <= MOMENTUM_NO_BUY) return 'downtrend'
+  if (value >= MOMENTUM_OVERBOUGHT) return 'deeply oversold, bounce likely'
+  if (value >= MOMENTUM_NO_SELL) return 'oversold'
+  if (value <= MOMENTUM_OVERSOLD) return 'deeply overbought, pullback likely'
+  if (value <= MOMENTUM_NO_BUY) return 'overbought'
   return 'neutral'
 }
 
-// True when Trend blocks a trade on THIS side (see eligibleToBuy/Sell). A
-// pure two-threshold continuation gate -- one cut per side, no far-extreme
-// carve-outs:
-//   Long  blocked for m <= NO_BUY  -- the whole weak-momentum half
-//         (oversold AND falling knife). Buying weakness lost over the next
-//         few days in every hourly entry-timing test.
-//   Short blocked for m >= NO_SELL -- the whole strong-momentum half
-//         (strong uptrend AND overbought). Shorting strength lost the same
-//         way. Overbought is NOT a short-the-top exception any more, and
-//         oversold is NOT a buy-the-dip exception -- momentum continues at
-//         the extremes, it doesn't revert (over a 1-3d horizon).
-function momentumBlocks(value: number, side: 'Long' | 'Short'): boolean {
+// True when Reversal leans AGAINST this side: an overbought stock (low
+// score) for a Long, an oversold one (high score) for a Short. Drives the
+// card's thumb only -- no entry gate anywhere.
+function momentumAgainst(value: number, side: 'Long' | 'Short'): boolean {
   return side === 'Long' ? value <= MOMENTUM_NO_BUY : value >= MOMENTUM_NO_SELL
 }
 
-// Continuation read: the whole continuation half is a thumb-up -- strong
-// uptrend AND overbought (>= NO_SELL) for a Long, falling knife AND
-// oversold (<= NO_BUY) for a Short. The far extreme used to be treated as
-// merely "not blocked" (momentum reverses at extremes, no credit) --
-// corrected after the tail-behavior check on the new Trend Score found
-// the opposite: forward return rises monotonically all the way through
-// the 99th percentile, with the single best bucket AT the extreme. So the
-// far extreme is a genuine point in the trade's favour, not just neutral.
-// The weak side (m <= NO_BUY for a Long, m >= NO_SELL for a Short) is
-// blocked = BAD; the middle carries no signal.
+// Thumb: oversold (>= NO_SELL) is good for a Long / bad for a Short,
+// overbought (<= NO_BUY) the reverse, the middle carries no signal.
 function momentumSignal(value: number, side: 'Long' | 'Short'): Signal {
-  if (momentumBlocks(value, side)) return 'bad'
+  if (momentumAgainst(value, side)) return 'bad'
   return side === 'Long' ? (value >= MOMENTUM_NO_SELL ? 'good' : null) : value <= MOMENTUM_NO_BUY ? 'good' : null
+}
+
+// Trend entry filter -- explicit instruction (2026-10-02): the old 10-day
+// Trend Score (modules/derive.py's reconcile_trend, field `trend`, 0-100,
+// 100 = strongest supported uptrend) is back ONLY as a blocker, not scored:
+// "do not buy weak stocks, do not sell strong stocks" -- no new long at
+// trend <= TREND_NO_BUY, no new short at trend >= TREND_NO_SELL. Same rule
+// in modules/backtest.py, ib_server.py and portfolio_optimizer.py. Missing
+// trend never blocks.
+const TREND_NO_BUY = 35
+const TREND_NO_SELL = 65
+
+function trendBlocks(trend: number | null | undefined, side: 'Long' | 'Short'): boolean {
+  if (typeof trend !== 'number' || !Number.isFinite(trend)) return false
+  return side === 'Long' ? trend <= TREND_NO_BUY : trend >= TREND_NO_SELL
+}
+
+function trendZone(trend: number): string {
+  if (trend >= 80) return 'strong uptrend'
+  if (trend >= TREND_NO_SELL) return 'uptrend'
+  if (trend <= 20) return 'strong downtrend'
+  if (trend <= TREND_NO_BUY) return 'downtrend'
+  return 'neutral'
+}
+
+function trendLine(c: Candidate, side: 'Long' | 'Short'): RationaleLine | null {
+  const t = c.trend
+  if (typeof t !== 'number' || !Number.isFinite(t)) return null
+  const blocks = trendBlocks(t, side)
+  const favours = side === 'Long' ? t >= TREND_NO_SELL : t <= TREND_NO_BUY
+  return {
+    text: `Trend ${t.toFixed(0)} (${trendZone(t)}${blocks ? ` — no ${side === 'Long' ? 'buy' : 'short'}` : ''})`,
+    signal: blocks ? 'bad' : favours ? 'good' : null,
+  }
 }
 
 function momentumLine(c: Candidate, side: 'Long' | 'Short'): RationaleLine | null {
   if (c.momentum === null || c.momentum === undefined) return null
-  const suffix = momentumBlocks(c.momentum, side) ? ` — no ${side === 'Long' ? 'buy' : 'short'}` : ''
   return {
-    text: `Trend ${c.momentum.toFixed(0)} (${momentumZone(c.momentum)}${suffix})`,
+    text: `Reversal ${c.momentum.toFixed(0)} (${momentumZone(c.momentum)})`,
     signal: momentumSignal(c.momentum, side),
     factor: 'momentum',
   }
@@ -725,12 +730,16 @@ function rationaleLines(
 
   const revenueGrowth = revenueGrowthLine(c, side)
   if (revenueGrowth) lines.push(revenueGrowth)
+  const growthWarning = shortGrowthWarningLine(c, side)
+  if (growthWarning) lines.push(growthWarning)
 
   const fwdPeExp = fwdPeExpLine(c)
   if (fwdPeExp) lines.push(fwdPeExp)
 
   const momentum = momentumLine(c, side)
   if (momentum) lines.push(momentum)
+  const trend = trendLine(c, side)
+  if (trend) lines.push(trend)
 
   // meanReversionLine dropped from the card rationale -- Reversal Score is
   // 0%-weighted in scoring.py (backwards on both long and short books per
@@ -1119,6 +1128,8 @@ function RecommendationCard({
 }) {
   const lines = rationaleLines(c, side)
   const factors = useScoringFactors()
+  const moveLine = dailyMoveLine(dailyMoveOf(dailyHistory3mo[c.ticker], live, c.dailyMove, c.dailyMoveZ), side)
+  if (moveLine) lines.push(moveLine)
   const earningsLine = earningsReviewLine(c, held, now)
   if (earningsLine) lines.push(earningsLine)
   const earningsMomLine = earningsMomentumLine(c, side, dailyHistory3mo[c.ticker], monthlyHistory[c.ticker], now)
@@ -1205,6 +1216,8 @@ function CloseCard({
 }) {
   const lines = rationaleLines(c, c.closeSide)
   const factors = useScoringFactors()
+  const moveLine = dailyMoveLine(dailyMoveOf(dailyHistory3mo[c.ticker], live, c.dailyMove, c.dailyMoveZ), c.closeSide)
+  if (moveLine) lines.push(moveLine)
   // Same target-portfolio dark-green treatment RecommendationCard applies --
   // see recommendation-card-target-portfolio's own CSS comment for why it's
   // a standalone class that outranks the plain -held brown (and, tied on
@@ -1302,6 +1315,8 @@ function RejectedCard({
 }) {
   const lines = rationaleLines(c, side)
   const factors = useScoringFactors()
+  const moveLine = dailyMoveLine(dailyMoveOf(dailyHistory3mo[c.ticker], live, c.dailyMove, c.dailyMoveZ), side)
+  if (moveLine) lines.push(moveLine)
   const earningsLine = earningsReviewLine(c, held, now)
   if (earningsLine) lines.push(earningsLine)
   const earningsMomLine = earningsMomentumLine(c, side, dailyHistory3mo[c.ticker], monthlyHistory[c.ticker], now)
@@ -1456,26 +1471,11 @@ function RecommendationSection<T>({
 // raw number (see that curve's own comment for why the composite score
 // wants "healthy middle-strength" as a quality factor; this page wants
 // "is this a genuinely overbought/oversold extreme worth acting on").
-// The entry gate is a pure continuation read on Trend, one threshold per
-// side (momentumBlocks / momentumSignal above). Hourly entry-timing
-// analysis (buy/short each Trend zone, hold 1-3 days) showed every
-// counter-trend entry losing (~1.5-3.4% over 3d, 20-40% hit) and every
-// continuation entry winning (~1.4-3.4%, 60-78% hit), so the old
-// far-extreme mean-reversion carve-outs -- buy-the-dip below oversold,
-// short-the-top above overbought, plus the asymmetric SHORT_OVERSOLD=15
-// floor -- were all removed.
-//
-//   <= 35  NO-BUY half   no LONG  (oversold + falling knife -- buying
-//                         weakness; SHORT allowed and favoured here)
-//   35..65 neutral        both sides eligible, no thumb signal
-//   >= 65  NO-SELL half  no SHORT (strong uptrend + overbought -- shorting
-//                         strength; LONG allowed and favoured here)
-//
-// OVERSOLD (20) / OVERBOUGHT (80) survive ONLY as zone-label words on the
-// Trend line (momentumZone) and as the held-position review buckets /
-// close-reason checks further down -- they gate nothing on entry. Keep
-// momentumBlocks in sync with ib_server.py's _REC_MOMENTUM_* and
-// portfolio_optimizer.py's MOMENTUM_* by hand.
+// Reversal score cut-offs for the card line's zone word and thumb
+// (momentumZone / momentumSignal above) -- see momentumZone's comment for
+// why OVERSOLD/OVERBOUGHT read inverted on this score. They gate NOTHING
+// (the old Trend entry gate was removed here and in ib_server.py,
+// modules/backtest.py and modules/portfolio_optimizer.py).
 const MOMENTUM_OVERSOLD = 20
 const MOMENTUM_NO_BUY = 35
 const MOMENTUM_NO_SELL = 65
@@ -1500,24 +1500,10 @@ function earningsBlocksEntry(earningsTimestampStart: number | null | undefined, 
   const daysAway = daysUntilEarnings(earningsTimestampStart, now)
   return daysAway !== null && daysAway <= EARNINGS_BLOCK_DAYS
 }
-// Momentum-only, deliberately -- earningsBlocksEntry is checked as its own
-// separate clause everywhere this is called (same pattern
-// simReturnOkForLong/meanReversionOkForLong already use), NOT folded in
-// here, because earningsTimestampStart lives on tickerScreener and isn't
-// reliably present on every shape of `c` this function sees (recommendations
-// .json's own candidates don't carry it -- see the Long/Short pool
-// filters' own tickerScreener[c.ticker] lookups).
-function eligibleToBuy(c: Candidate): boolean {
-  return c.momentum !== null && c.momentum !== undefined && !momentumBlocks(c.momentum, 'Long')
-}
-function eligibleToSell(c: Candidate): boolean {
-  return (
-    c.momentum !== null &&
-    c.momentum !== undefined &&
-    !momentumBlocks(c.momentum, 'Short') &&
-    !growthBlocksShortEntry(c)
-  )
-}
+// No candidate-level gate is left on either side (Trend gate and the short
+// revenue-growth gate both removed) -- earningsBlocksEntry/lowVolBlocksEntry/
+// dailyMoveBlocks/simReturnOkFor* are checked as their own clauses in the
+// pool builders, so there's no eligibleToBuy/eligibleToSell any more.
 
 // FINRA's biweekly-settlement pct-of-float (shortPctOfFloatFinra) is
 // fresher than yfinance's shortPercentOfFloat -- the latter only ever
@@ -1535,7 +1521,9 @@ function effectiveShortPctOfFloat(c: Candidate): number | null | undefined {
 // measured weeks) -- kept only as the threshold the informational
 // short-interest rationale line (below) and buildCloseReasons' "short has
 // become crowded since entry" flag on an already-open position still use.
-const MAX_SHORT_INTEREST = 0.1
+// 20% -- explicit instruction (raised from 10%, which was flagging
+// routine short interest as "crowded" too eagerly).
+const MAX_SHORT_INTEREST = 0.2
 
 // The hard SHORT_INTEREST_ENTRY_CAP gate (30% of float) is RETIRED --
 // explicit instruction, after confirming live over 5 backtested weeks
@@ -1549,32 +1537,133 @@ const MAX_SHORT_INTEREST = 0.1
 // thesis as crowding rises, rather than an all-or-nothing exclusion at
 // one threshold.
 
-// A hard growth-ceiling gate for shorts -- explicit instruction, after a
-// biggest-losers analysis of the backtest's worst short positions showed
-// the recurring pattern wasn't crowding (only 1 of 9 worst short losses
-// had short interest above 15%) or earnings surprises (none had earnings
-// that week) -- it was shorting names with genuinely strong revenue
-// growth: AVAV +140%, S +20.6%, PANW +24.8%, DOCN +24.5%, all real,
-// substantial top-line growth. A real growth story tends to attract
-// buyers regardless of what a valuation-based short thesis says, and
-// that narrative can overwhelm the trade. Checked against BOTH trailing
-// revenueGrowth and Eulerpool's own forward consensus (eulerRevGrowth1y)
-// -- a company that's not growing today but is expected to next year is
-// just as risky a short as one already growing, so either one alone
-// blocks. 10% -- explicit instruction; comfortably below the ~13% median
-// revenueGrowth across the scored universe (see scoring.
-// GROWTH_COHORT_MIN_REVENUE_GROWTH's own comment for that figure), so
-// this blocks genuine growth, not just noise around a flat baseline.
-const SHORT_GROWTH_CEILING = 0.10
-
-function growthBlocksShortEntry(c: Candidate): boolean {
+// Never short high revenue growth -- explicit instruction: trailing OR
+// expected (Eulerpool) revenue growth above SHORT_GROWTH_CEILING must never
+// be shorted. ENFORCED in modules/backtest.py and portfolio_optimizer.py
+// (target portfolio). On THIS page (explicit instruction): a Strong Sell
+// with BOTH trailing and expected growth above the ceiling (the thumb-down
+// case) is BLOCKED -- moved to Short blocked (shortGrowthBlocksEntry);
+// one with only ONE of the two above it stays in the Short tab, flagged by
+// the red shortGrowthWarningLine, so it can be checked by eye.
+const SHORT_GROWTH_CEILING = 0.1
+function shortGrowthBlocksEntry(c: Candidate): boolean {
   const trailing = to_float_or_null(c.revenueGrowth)
   const expected = to_float_or_null(c.eulerRevGrowth1y)
-  return (trailing !== null && trailing > SHORT_GROWTH_CEILING) || (expected !== null && expected > SHORT_GROWTH_CEILING)
+  return trailing !== null && expected !== null && trailing > SHORT_GROWTH_CEILING && expected > SHORT_GROWTH_CEILING
+}
+function shortGrowthWarningLine(c: Candidate, side: 'Long' | 'Short'): RationaleLine | null {
+  if (side !== 'Short') return null
+  const trailing = to_float_or_null(c.revenueGrowth)
+  const expected = to_float_or_null(c.eulerRevGrowth1y)
+  const over = [trailing, expected].filter((g): g is number => g !== null && g > SHORT_GROWTH_CEILING)
+  if (over.length === 0) return null
+  return {
+    text: `Revenue growth above ${fmtPct(SHORT_GROWTH_CEILING)} (${fmtPct(trailing)} trailing, ${fmtPct(expected)} expected) — never short: excluded from the backtest and the target portfolio.`,
+    signal: 'bad',
+  }
 }
 
 function to_float_or_null(v: number | null | undefined): number | null {
   return v === null || v === undefined || Number.isNaN(v) ? null : v
+}
+
+// Explicit instruction, after CZR and a batch of similar names turned up
+// with suspiciously flat 1-month price action -- a stock whose trailing
+// annualized volatility is under VOL_GATE_MIN_ANNUALIZED gets blocked on
+// BOTH Long and Short (unlike every other gate here, which is
+// side-specific): a name frozen at/near an announced acquisition price
+// has nowhere left to move for either thesis to play out. Takes the raw
+// value rather than a Candidate -- priceVolAnnualized lives on
+// tickerScreener like earningsTimestampStart, and isn't reliably present
+// on every shape of `c` this gate is checked against (see eligibleToBuy's
+// own comment on earningsBlocksEntry for why that one is a separate
+// clause too, not folded into eligibleToBuy/ForSell). Fail-open like
+// every other data-dependent gate here: a ticker this couldn't be
+// computed for (thin daily-bar coverage) is NOT treated as frozen, so
+// missing data never masquerades as an acquisition cap.
+const VOL_GATE_MIN_ANNUALIZED = 0.05
+
+function lowVolBlocksEntry(priceVolAnnualized: number | null | undefined): boolean {
+  const vol = to_float_or_null(priceVolAnnualized)
+  return vol !== null && vol < VOL_GATE_MIN_ANNUALIZED
+}
+
+// Daily-move gate -- explicit instruction: no NEW long when today's move is
+// above +1 sd of the stock's own daily returns, no NEW short below -1 sd
+// (next-day reversal: a big up day tends to give some back, a big down day
+// to bounce). sd = sample stdev of the daily returns over the prior ~3
+// months of price_history_daily_3mo.json (explicit instruction), today
+// excluded. LIVE when an IB tick from today is available (live price vs.
+// the last close before today), otherwise the last completed session from
+// the daily file, falling back to sorted_screen.csv's dailyMove/dailyMoveZ.
+// Same rule as modules/backtest.py's _daily_move_blocks, ib_server.py's
+// _rec_daily_move_blocks and portfolio_optimizer.py (file-based there).
+// Fail-open: no value -> never blocks.
+const DAILY_MOVE_GATE_SD = 1
+// Take-profit for HELD positions -- explicit instruction: a held position
+// whose move today is >= TAKE_PROFIT_SD sd IN ITS FAVOUR (up for a long,
+// down for a short) is flagged in the "Take profit" section. Same
+// threshold as modules/backtest.py's TAKE_PROFIT_SD, where closing at that
+// day's close beat holding to day 5 (~+0.75% per closed position on the
+// archived weeks).
+const TAKE_PROFIT_SD = 1.5
+const DAILY_MOVE_SD_DAYS = 63
+const DAILY_MOVE_MIN_DAYS = 40
+
+interface DailyMove {
+  move: number
+  z: number
+  live: boolean
+}
+
+function dailyMoveOf(
+  bars: { date: string; close: number }[] | undefined,
+  live: LiveTick | undefined,
+  fileMove?: number | null,
+  fileZ?: number | null
+): DailyMove | null {
+  const fallback =
+    typeof fileMove === 'number' && typeof fileZ === 'number' && Number.isFinite(fileZ) ? { move: fileMove, z: fileZ, live: false } : null
+  if (!bars || bars.length < DAILY_MOVE_MIN_DAYS + 2) return fallback
+  const today = new Date().toISOString().slice(0, 10)
+  const liveDate = live?.timestamp?.slice(0, 10)
+  const isLive = typeof live?.last === 'number' && live.last > 0 && liveDate === today
+  const hist = isLive ? bars.filter((b) => b.date.slice(0, 10) < today) : bars
+  const closes = hist.slice(-(DAILY_MOVE_SD_DAYS + 2)).map((b) => b.close)
+  if (closes.length < DAILY_MOVE_MIN_DAYS + 2 || closes.some((c) => !(c > 0))) return fallback
+  const rets = closes.slice(1).map((c, i) => c / closes[i] - 1)
+  const move = isLive ? (live!.last as number) / closes[closes.length - 1] - 1 : rets[rets.length - 1]
+  const prior = isLive ? rets.slice(-DAILY_MOVE_SD_DAYS) : rets.slice(0, -1).slice(-DAILY_MOVE_SD_DAYS)
+  if (prior.length < DAILY_MOVE_MIN_DAYS) return fallback
+  const mean = prior.reduce((a, b) => a + b, 0) / prior.length
+  const sd = Math.sqrt(prior.reduce((a, r) => a + (r - mean) ** 2, 0) / (prior.length - 1))
+  if (!(sd > 0)) return fallback
+  return { move, z: move / sd, live: isLive }
+}
+
+function dailyMoveBlocks(m: DailyMove | null | undefined, side: 'Long' | 'Short'): boolean {
+  if (!m) return false
+  return side === 'Long' ? m.z > DAILY_MOVE_GATE_SD : m.z < -DAILY_MOVE_GATE_SD
+}
+
+function fmtSigma(z: number): string {
+  return `${z >= 0 ? '+' : ''}${z.toFixed(1)}σ`
+}
+
+// Card line, every card: today's (or last session's) move and its size in
+// sd -- red thumb when it blocks this side, green when the move is a big
+// one in the trade's favour for tomorrow (a big down day for a Long, a big
+// up day for a Short).
+function dailyMoveLine(m: DailyMove | null, side: 'Long' | 'Short'): RationaleLine | null {
+  if (!m) return null
+  const blocks = dailyMoveBlocks(m, side)
+  const favours = dailyMoveBlocks(m, side === 'Long' ? 'Short' : 'Long')
+  return {
+    text: `${m.live ? 'Today' : 'Last session'} ${fmtPct(m.move)} (${fmtSigma(m.z)} vs its 3-month daily moves)${
+      blocks ? ` — beyond ${side === 'Long' ? '+' : '-'}1σ, no new ${side === 'Long' ? 'long' : 'short'}` : ''
+    }`,
+    signal: blocks ? 'bad' : favours ? 'good' : null,
+  }
 }
 
 // Sim-return gate on the idea lists themselves (separate from the To close
@@ -1617,25 +1706,24 @@ function simReturnOkForShort(simReturn: number | null | undefined): boolean {
 // NEW idea" use is gone.
 
 // To close only (not an opening gate) -- explicit instruction, "review"
-// tier: a held position reporting earnings within EARNINGS_REVIEW_HOURS is
-// flagged for a look regardless of side, rating, or any other signal --
-// an earnings call is a binary, thesis-agnostic volatility event, not
-// something the momentum/growth/mean-reversion story says anything about
-// either way. Business hours, not calendar days (see earnings.js's own
-// businessMillisBetween -- same distance earningsUrgencyClass buckets
-// already use elsewhere in this app), so a Friday-evening report doesn't
-// read as further out than it actually is in trading days just because a
-// weekend sits in between.
-const EARNINGS_REVIEW_HOURS = 48
-function hoursUntilEarnings(earningsTimestampStart: number | null | undefined, now: number): number | null {
-  if (earningsTimestampStart === null || earningsTimestampStart === undefined) return null
-  const earningsMs = earningsTimestampStart * 1000
-  if (earningsMs <= now) return null
-  return businessMillisBetween(now, earningsMs) / 3600000
-}
+// tier: a held position reporting earnings within EARNINGS_BLOCK_DAYS
+// (the SAME window the entry gate refuses a fresh position over -- see
+// earningsBlocksEntry) is flagged for a look regardless of side, rating,
+// or any other signal -- an earnings call is a binary, thesis-agnostic
+// volatility event, not something the momentum/growth/mean-reversion
+// story says anything about either way. Used to be its own narrower
+// EARNINGS_REVIEW_HOURS (48 BUSINESS hours, ~2 business days via
+// businessMillisBetween) -- a real gap, confirmed live: a held position
+// reporting in 5 calendar days cleared the entry gate's own same-week
+// "don't open a new position into this" bar yet sailed through days 3-5
+// with no review flag at all, only picking one up in the last ~2
+// business days. Matching the two windows exactly (plain calendar days,
+// via daysUntilEarnings, not business hours) closes that gap: a position
+// is now flagged for review for exactly as long as a fresh entry into it
+// would be blocked.
 
 // The same earnings-proximity review flag buildCloseReasons raises for a
-// held position (within EARNINGS_REVIEW_HOURS business hours), surfaced as
+// held position (within EARNINGS_BLOCK_DAYS calendar days), surfaced as
 // a rationale line on the recommendation/blocked card too -- but ONLY when
 // the name is already in the book. A binary, thesis-agnostic volatility
 // event is worth seeing on the card of a position you actually hold,
@@ -1653,8 +1741,8 @@ function earningsReviewLine(
   now: number,
 ): RationaleLine | null {
   if (!held) return null
-  const hoursAway = hoursUntilEarnings(c.earningsTimestampStart, now)
-  if (hoursAway === null || hoursAway > EARNINGS_REVIEW_HOURS) return null
+  const daysAway = daysUntilEarnings(c.earningsTimestampStart, now)
+  if (daysAway === null || daysAway > EARNINGS_BLOCK_DAYS) return null
   const emsi = c.earningsMsi
   const emsiText =
     emsi === null || emsi === undefined
@@ -1679,10 +1767,10 @@ function earningsReviewLine(
 // bar-to-bar flow math -- so this is a plain RAW PRICE RETURN check
 // instead, not another MFI variant: cumulative close-to-close return over
 // the last 5 trading sessions, compared against which way the position
-// is thought to go. "Soon" is calendar days (EARNINGS_SOON_DAYS), NOT
-// hoursUntilEarnings' business-hour distance -- a different, wider
-// window than the 48-business-hour close-review line, matching how this
-// check and the "Reporting soon" section below both think about it.
+// is thought to go. "Soon" is calendar days (EARNINGS_SOON_DAYS), a
+// NARROWER window than the EARNINGS_BLOCK_DAYS close-review line -- this
+// check and the "Reporting soon" section below both think about it on
+// their own, tighter timescale.
 const EARNINGS_SOON_DAYS = 3
 // +/-5%: comfortably past ordinary week-to-week noise (see the whole-
 // universe scan this check is based on -- most Strong Sell/Sell names
@@ -1893,8 +1981,8 @@ function buildCloseReasons({ shares, c, now }: { shares: number; c: Candidate; n
     })
   }
 
-  const earningsHoursAway = hoursUntilEarnings(c?.earningsTimestampStart, now)
-  if (earningsHoursAway !== null && earningsHoursAway <= EARNINGS_REVIEW_HOURS) {
+  const earningsDaysAway = daysUntilEarnings(c?.earningsTimestampStart, now)
+  if (earningsDaysAway !== null && earningsDaysAway <= EARNINGS_BLOCK_DAYS) {
     reasons.push({
       type: 'earnings',
       text: `Reports earnings ${fmtEarningsDate(c.earningsTimestampStart as number)} — a volatility event coming up either way, worth a look regardless of thesis.`,
@@ -1936,10 +2024,12 @@ function buildRejectionReasons({
   c,
   tickerScreener,
   now,
+  dailyMove,
 }: {
   c: Candidate
   tickerScreener: ScreenerByTicker
   now: number
+  dailyMove?: DailyMove | null
 }): Reason[] {
   const reasons: Reason[] = []
   const screenerRow = tickerScreener[c.ticker]
@@ -1948,12 +2038,16 @@ function buildRejectionReasons({
   const earningsSoon = earningsBlocksEntry(earningsTs, now)
 
   if (c.rating === 'Strong Buy') {
-    if (c.momentum === null || c.momentum === undefined) {
-      reasons.push({ type: 'momentum', text: 'Trend data is unavailable.' })
-    } else if (momentumBlocks(c.momentum, 'Long')) {
+    if (trendBlocks(c.trend, 'Long')) {
       reasons.push({
-        type: 'momentum',
-        text: `Trend is ${c.momentum.toFixed(0)}, in the weak-momentum half (≤ ${MOMENTUM_NO_BUY}) — don't buy into a downtrend.`,
+        type: 'trend',
+        text: `Trend is ${(c.trend as number).toFixed(0)}, in the weak third (≤ ${TREND_NO_BUY}) — don't buy weak stocks.`,
+      })
+    }
+    if (dailyMove && dailyMoveBlocks(dailyMove, 'Long')) {
+      reasons.push({
+        type: 'daily-move',
+        text: `${dailyMove.live ? 'Today' : 'Last session'} ${fmtPct(dailyMove.move)} (${fmtSigma(dailyMove.z)}) — above +1σ of its 3-month daily moves, next-day pullback risk, no new long.`,
       })
     }
     if (earningsSoon) {
@@ -1968,18 +2062,28 @@ function buildRejectionReasons({
         text: `Sim return is ${fmtPct(c.simReturn as number)} — simulation says the price should fall.`,
       })
     }
+    if (lowVolBlocksEntry(c.priceVolAnnualized)) {
+      reasons.push({
+        type: 'low-vol',
+        text: `Trailing 1-month volatility is only ${fmtPct(c.priceVolAnnualized as number)} annualized — likely frozen at an acquisition price, no room for either thesis.`,
+      })
+    }
     // meanReversionOkForLong gate removed -- explicit instruction, after
     // the factor-performance check found meanReversion backwards for the
     // long book (rho=+0.071, when this gate's own "overbought predicts a
     // pullback" premise requires it to be negative). Blocking a Long for
     // being "already spiked" wasn't supported by the data.
   } else if (c.rating === 'Strong Sell') {
-    if (c.momentum === null || c.momentum === undefined) {
-      reasons.push({ type: 'momentum', text: 'Trend data is unavailable.' })
-    } else if (momentumBlocks(c.momentum, 'Short')) {
+    if (trendBlocks(c.trend, 'Short')) {
       reasons.push({
-        type: 'momentum',
-        text: `Trend is ${c.momentum.toFixed(0)}, in the strong-momentum half (≥ ${MOMENTUM_NO_SELL}) — don't short into strength.`,
+        type: 'trend',
+        text: `Trend is ${(c.trend as number).toFixed(0)}, in the strong third (≥ ${TREND_NO_SELL}) — don't sell strong stocks.`,
+      })
+    }
+    if (dailyMove && dailyMoveBlocks(dailyMove, 'Short')) {
+      reasons.push({
+        type: 'daily-move',
+        text: `${dailyMove.live ? 'Today' : 'Last session'} ${fmtPct(dailyMove.move)} (${fmtSigma(dailyMove.z)}) — below -1σ of its 3-month daily moves, next-day bounce risk, no new short.`,
       })
     }
     if (earningsSoon) {
@@ -1994,23 +2098,19 @@ function buildRejectionReasons({
         text: `Sim return is ${fmtPct(c.simReturn as number)} — simulation says the price should rise.`,
       })
     }
+    if (lowVolBlocksEntry(c.priceVolAnnualized)) {
+      reasons.push({
+        type: 'low-vol',
+        text: `Trailing 1-month volatility is only ${fmtPct(c.priceVolAnnualized as number)} annualized — likely frozen at an acquisition price, no room for either thesis.`,
+      })
+    }
     // meanReversionOkForShort gate removed too -- same backwards finding
     // (meanReversion rho=-0.106 for the short book, the wrong side of
     // zero for this gate's "oversold predicts a bounce" premise to hold).
-    // growthBlocksShortEntry was missing here entirely -- a real bug, not
-    // just a missing label: eligibleToSell (the shorts pool builder)
-    // already excludes a candidate blocked by it, but this function found
-    // zero reasons for the same candidate, so the `reasons.length === 0`
-    // skip below dropped it from "Short blocked" too -- it vanished off
-    // the whole page instead of showing up blocked. Confirmed live: S
-    // (revenueGrowth +20.6%) was invisible on both tabs.
-    if (growthBlocksShortEntry(c)) {
-      const trailing = to_float_or_null(c.revenueGrowth)
-      const expected = to_float_or_null(c.eulerRevGrowth1y)
-      const worst = Math.max(trailing ?? -Infinity, expected ?? -Infinity)
+    if (shortGrowthBlocksEntry(c)) {
       reasons.push({
         type: 'growth',
-        text: `Revenue growth is ${fmtPct(worst)} — above the ${fmtPct(SHORT_GROWTH_CEILING)} ceiling, too strong to short.`,
+        text: `Revenue growth ${fmtPct(c.revenueGrowth)} and expected ${fmtPct(c.eulerRevGrowth1y)} — both above ${fmtPct(SHORT_GROWTH_CEILING)}, too strong to short.`,
       })
     }
     // shortInterestBlocksEntry gate removed -- explicit instruction, see
@@ -2031,8 +2131,15 @@ function buildRejectionReasons({
 // strings, so these have to be kept in sync by hand whenever the
 // corresponding filter/reason function changes.
 const LONG_RULES = [
-  { label: 'Rating', note: 'Strong Buy or Buy.' },
-  { label: 'Trend', note: `Blocked across the whole weak-momentum half (≤ ${MOMENTUM_NO_BUY} — oversold and falling knife alike, buying into a downtrend). Everything above ${MOMENTUM_NO_BUY}, overbought included, is fine. Unknown Trend excluded.` },
+  { label: 'Rating', note: 'Strong Buy.' },
+  {
+    label: 'Trend',
+    note: `Blocked when the 10-day Trend Score is ≤ ${TREND_NO_BUY} (weakest third of the universe) — don't buy weak stocks. A filter only, not part of the score. Unknown Trend not excluded.`,
+  },
+  {
+    label: 'Daily move',
+    note: `Blocked when today's move is above +${DAILY_MOVE_GATE_SD}σ of the stock's own daily moves over the last 3 months — a big up day tends to give some back the next day. Live during the session (IB price vs. yesterday's close), otherwise the last completed session. Unknown not excluded.`,
+  },
   {
     label: 'Earnings',
     note: `Blocked when earnings are due within ${EARNINGS_BLOCK_DAYS} days — no new entry into a binary event, regardless of thesis. Unknown earnings date not excluded.`,
@@ -2046,14 +2153,29 @@ const LONG_RULES = [
   // replaced it on the long side -- unlike Short, growth/short-interest
   // don't apply to a Long entry.
   {
+    label: 'Volatility',
+    note: `Blocked when trailing 1-month annualized volatility is under ${fmtPct(VOL_GATE_MIN_ANNUALIZED)} — likely frozen at an acquisition price, nowhere for either a long or short thesis to play out. Unknown volatility not excluded.`,
+  },
+  {
     label: 'Ranking',
     note: 'Best composite score first. A non-held candidate that hedges an existing short position (same industry/sector) gets a small score bonus.',
   },
 ]
 
 const SHORT_RULES = [
-  { label: 'Rating', note: 'Strong Sell or Sell.' },
-  { label: 'Trend', note: `Blocked across the whole strong-momentum half (≥ ${MOMENTUM_NO_SELL} — strong uptrend and overbought alike, shorting into strength / squeeze risk). Everything below ${MOMENTUM_NO_SELL}, oversold included, is fine. Unknown Trend excluded.` },
+  { label: 'Rating', note: 'Strong Sell.' },
+  {
+    label: 'Trend',
+    note: `Blocked when the 10-day Trend Score is ≥ ${TREND_NO_SELL} (strongest third of the universe) — don't sell strong stocks. A filter only, not part of the score. Unknown Trend not excluded.`,
+  },
+  {
+    label: 'Revenue growth',
+    note: `Blocked when BOTH trailing and expected (Eulerpool) revenue growth are above ${fmtPct(SHORT_GROWTH_CEILING)}. If only one of the two is above it, the name stays here with a red "never short" line — the backtest and target portfolio exclude it either way.`,
+  },
+  {
+    label: 'Daily move',
+    note: `Blocked when today's move is below -${DAILY_MOVE_GATE_SD}σ of the stock's own daily moves over the last 3 months — a big down day tends to bounce the next day. Live during the session (IB price vs. yesterday's close), otherwise the last completed session. Unknown not excluded.`,
+  },
   {
     label: 'Earnings',
     note: `Blocked when earnings are due within ${EARNINGS_BLOCK_DAYS} days — no new entry into a binary event, regardless of thesis. Unknown earnings date not excluded.`,
@@ -2065,10 +2187,6 @@ const SHORT_RULES = [
   // Reversal (meanReversionOkForShort) removed -- backwards on the short
   // book too (rho=-0.106, wrong sign for this gate's own premise).
   // Replaced below by two DIFFERENT gates, not a revival of this one.
-  {
-    label: 'Revenue growth',
-    note: `Blocked when trailing OR expected (Eulerpool) revenue growth is above ${fmtPct(SHORT_GROWTH_CEILING)} — a company growing this fast is the wrong short thesis regardless of valuation; unknown growth not excluded.`,
-  },
   // Short interest (SHORT_INTEREST_ENTRY_CAP, a hard 30%-of-float cliff)
   // removed entirely -- explicit instruction, no flat threshold at all
   // now: folded into scoring.short_interest_rank as pure LINEAR,
@@ -2076,6 +2194,10 @@ const SHORT_RULES = [
   // short thesis as it rises, no cutoff anywhere) -- see
   // modules/scoring.py's own FACTOR_WEIGHTS comment for the backtest
   // numbers that motivated dropping the cliff.
+  {
+    label: 'Volatility',
+    note: `Blocked when trailing 1-month annualized volatility is under ${fmtPct(VOL_GATE_MIN_ANNUALIZED)} — likely frozen at an acquisition price, nowhere for either a long or short thesis to play out. Unknown volatility not excluded.`,
+  },
   {
     label: 'Ranking',
     note: 'Worst composite score first. A non-held candidate that hedges an existing long position (same industry/sector) gets a small score bonus.',
@@ -2085,7 +2207,7 @@ const SHORT_RULES = [
 const CLOSE_RULES = [
   {
     label: 'Rating contradiction',
-    note: 'Held long no longer rated Buy/Strong Buy, or held short no longer rated Sell/Strong Sell — fires regardless of Trend.',
+    note: 'Held long no longer rated Buy/Strong Buy, or held short no longer rated Sell/Strong Sell — fires regardless of the Reversal score.',
   },
   {
     label: 'Score near Hold boundary',
@@ -2105,7 +2227,7 @@ const CLOSE_RULES = [
   },
   {
     label: 'Earnings coming up',
-    note: `Reports within ${EARNINGS_REVIEW_HOURS} business hours — either side, regardless of rating; an earnings call is a volatility event the Trend/growth/Reversal story doesn't speak to.`,
+    note: `Reports within ${EARNINGS_BLOCK_DAYS} days — either side, regardless of rating; an earnings call is a volatility event the rating/growth/Reversal story doesn't speak to. Same window the entry gate itself refuses a fresh position over.`,
   },
 ]
 
@@ -2224,11 +2346,25 @@ export default function RecommendationsView() {
   const [activeSection, setActiveSection] = useState<'toClose' | 'long' | 'short' | 'longBlocked' | 'shortBlocked' | 'industry'>(
     'toClose'
   )
-  // Live instant for the earnings-within-EARNINGS_REVIEW_HOURS close-review
+  // Live instant for the earnings-within-EARNINGS_BLOCK_DAYS close-review
   // check below -- same ticking clock PeTable.jsx/Asset.jsx already use for
   // earningsUrgencyClass, so a position due to report doesn't need a full
   // data refresh for that flag to age in as the actual moment approaches.
   const now = useNowTick()
+  // Live daily-move z per candidate, refreshed on the minute tick (not on
+  // every price tick -- the Long/Short pools below depend on it), reading
+  // the latest livePrices through a ref.
+  const livePricesRef = useRef(livePrices)
+  livePricesRef.current = livePrices
+  const moveByTicker: Record<string, DailyMove | null> = useMemo(() => {
+    const out: Record<string, DailyMove | null> = {}
+    for (const c of data?.candidates ?? []) {
+      const sc = tickerScreener[c.ticker]
+      out[c.ticker] = dailyMoveOf(dailyHistory3mo[c.ticker], livePricesRef.current[c.ticker], sc?.dailyMove, sc?.dailyMoveZ)
+    }
+    return out
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, dailyHistory3mo, tickerScreener, now])
 
   useEffect(() => {
     const source = new EventSource(IB_STREAM_URL)
@@ -2344,6 +2480,10 @@ export default function RecommendationsView() {
             earningsPead: row.earningsPead ? Number(row.earningsPead) : null,
             earningsMsi: row.earningsMsi ? Number(row.earningsMsi) : null,
             earningsTimestampStart: row.earningsTimestampStart ? Number(row.earningsTimestampStart) : null,
+            priceVolAnnualized: row.priceVolAnnualized ? Number(row.priceVolAnnualized) : null,
+            dailyMove: row.dailyMove ? Number(row.dailyMove) : null,
+            dailyMoveZ: row.dailyMoveZ ? Number(row.dailyMoveZ) : null,
+            trend: row.trend !== undefined && row.trend !== '' ? Number(row.trend) : null,
           }
         }
         setTickerSector(sectors)
@@ -2469,9 +2609,11 @@ export default function RecommendationsView() {
     const pool = data.candidates
       .filter(
         (c) =>
-          BUY_RATINGS.has(c.rating as string) &&
-          eligibleToBuy(c) &&
+          STRONG_BUY_RATINGS.has(c.rating as string) &&
+          !dailyMoveBlocks(moveByTicker[c.ticker], 'Long') &&
+          !trendBlocks(tickerScreener[c.ticker]?.trend, 'Long') &&
           !earningsBlocksEntry(tickerScreener[c.ticker]?.earningsTimestampStart, now) &&
+          !lowVolBlocksEntry(tickerScreener[c.ticker]?.priceVolAnnualized) &&
           simReturnOkForLong(tickerSimPerf[c.ticker]?.simReturn)
         // meanReversionOkForLong gate removed here too -- see its own
         // removal comment in buildRejectReasons above.
@@ -2493,6 +2635,7 @@ export default function RecommendationsView() {
           epsRevision0y: tickerScreener[c.ticker]?.epsRevision0y,
           epsRevision1y: tickerScreener[c.ticker]?.epsRevision1y,
           revenueGrowth: tickerScreener[c.ticker]?.revenueGrowth,
+          trend: tickerScreener[c.ticker]?.trend,
           eulerRevGrowth1y: tickerScreener[c.ticker]?.eulerRevGrowth1y,
           heldPercentInsiders: tickerScreener[c.ticker]?.heldPercentInsiders,
           forwardPE: tickerScreener[c.ticker]?.forwardPE,
@@ -2513,7 +2656,7 @@ export default function RecommendationsView() {
         }
       })
     return pool.sort((a, b) => a._sortScore - b._sortScore)
-  }, [data, heldShortTickers, heldLongTickers, tickerSector, tickerScreener, tickerForecast, tickerSimPerf, tickerTargetSide, tickerTargetPool, now])
+  }, [data, heldShortTickers, heldLongTickers, tickerSector, tickerScreener, tickerForecast, tickerSimPerf, tickerTargetSide, tickerTargetPool, now, moveByTicker])
 
   const shorts: RankedCandidate[] = useMemo(() => {
     if (!data) return []
@@ -2522,9 +2665,12 @@ export default function RecommendationsView() {
     const pool = data.candidates
       .filter(
         (c) =>
-          SELL_RATINGS.has(c.rating as string) &&
-          eligibleToSell(c) &&
+          STRONG_SELL_RATINGS.has(c.rating as string) &&
+          !dailyMoveBlocks(moveByTicker[c.ticker], 'Short') &&
+          !trendBlocks(tickerScreener[c.ticker]?.trend, 'Short') &&
+          !shortGrowthBlocksEntry({ ...c, ...tickerScreener[c.ticker] }) &&
           !earningsBlocksEntry(tickerScreener[c.ticker]?.earningsTimestampStart, now) &&
+          !lowVolBlocksEntry(tickerScreener[c.ticker]?.priceVolAnnualized) &&
           simReturnOkForShort(tickerSimPerf[c.ticker]?.simReturn)
         // meanReversionOkForShort gate removed here too -- see its own
         // removal comment in buildRejectReasons above.
@@ -2546,6 +2692,7 @@ export default function RecommendationsView() {
           epsRevision0y: tickerScreener[c.ticker]?.epsRevision0y,
           epsRevision1y: tickerScreener[c.ticker]?.epsRevision1y,
           revenueGrowth: tickerScreener[c.ticker]?.revenueGrowth,
+          trend: tickerScreener[c.ticker]?.trend,
           eulerRevGrowth1y: tickerScreener[c.ticker]?.eulerRevGrowth1y,
           heldPercentInsiders: tickerScreener[c.ticker]?.heldPercentInsiders,
           forwardPE: tickerScreener[c.ticker]?.forwardPE,
@@ -2566,7 +2713,7 @@ export default function RecommendationsView() {
         }
       })
     return pool.sort((a, b) => b._sortScore - a._sortScore)
-  }, [data, heldLongTickers, heldShortTickers, tickerSector, tickerScreener, tickerForecast, tickerSimPerf, tickerTargetSide, tickerTargetPool, now])
+  }, [data, heldLongTickers, heldShortTickers, tickerSector, tickerScreener, tickerForecast, tickerSimPerf, tickerTargetSide, tickerTargetPool, now, moveByTicker])
 
   // Held positions whose own rating now contradicts the side they're held
   // on -- a long position that's drifted to Hold/Sell/Strong Sell, or a
@@ -2579,7 +2726,7 @@ export default function RecommendationsView() {
   // are. Sorted by how far the rating leans the
   // "wrong" way for that side, not by side, so the most urgent flags
   // surface first regardless of direction.
-  // Built once and shared by closes/msiSections' six buckets/stayPositions
+  // Built once and shared by closes/notStrongSections/stayPositions
   // below -- all of those used to separately rebuild this same
   // 675-candidate Map AND re-merge every held position from scratch,
   // redundant work on every data/positions/tickerScreener change
@@ -2615,7 +2762,7 @@ export default function RecommendationsView() {
   const heldMerged = useMemo(() => {
     const rows: { ticker: string; shares: number; c: Candidate }[] = []
     for (const [ticker, p] of Object.entries(positions)) {
-      if (!p?.shares) continue
+      if (!p?.shares || cashTickers.has(ticker)) continue
       rows.push({
         ticker,
         shares: p.shares,
@@ -2634,7 +2781,7 @@ export default function RecommendationsView() {
       })
     }
     return rows
-  }, [positions, tickerScreener, byTicker, tickerForecast, tickerTargetSide, tickerTargetPool])
+  }, [positions, tickerScreener, byTicker, tickerForecast, tickerTargetSide, tickerTargetPool, cashTickers])
 
   const closes: CloseRow[] = useMemo(() => {
     const rows: CloseRow[] = []
@@ -2660,81 +2807,46 @@ export default function RecommendationsView() {
     return rows.sort((a, b) => b._severity - a._severity)
   }, [heldMerged, now])
 
-  // TWO INDEPENDENT sets of buckets -- explicit instruction, split apart
-  // after confirming the daily Trend Score and the hourly Reversal Score
-  // are no longer the same kind of signal (see momentumZone's own
-  // comment): Trend is pure continuation (no reversal hump anywhere in
-  // its range, so its four tiers are all "how strong is the current
-  // trend," never "is a reversal due"), while Reversal genuinely does
-  // mean-revert at its own extremes (validated separately). Merging them
-  // into shared "oversold"/"overbought" buckets the way this used to
-  // work made half of each bucket's own subtitle wrong. A held position
-  // can now land in one Trend bucket AND one Reversal bucket
-  // independently (0, 1, or 2 total), not just one bucket overall --
-  // genuinely more informative, since the two axes can disagree (a
-  // strong daily uptrend that's gotten hourly-overbought along the way,
-  // say). Trend tiers, checked extremes-first, mutually exclusive:
-  //   strongDowntrend  Trend <= OVERSOLD
-  //   downtrend        OVERSOLD < Trend <= NO_BUY
-  //   uptrend          NO_SELL <= Trend < OVERBOUGHT
-  //   strongUptrend    Trend >= OVERBOUGHT
-  // Reversal tiers (meanReversion-based) REMOVED -- explicit instruction,
-  // after confirming meanReversion backwards on both books (rho=+0.071
-  // long / -0.106 short, wrong sign for the "genuinely does mean-revert"
-  // framing this section used to carry), same finding that already got
-  // the meanReversionOkForLong/ForShort gates and the close-reason check
-  // removed.
-  // Not conditioned on side -- whether the shape helps or hurts depends
-  // on which way the position is held, shown by each card's own Trend/
-  // Reversal thumb and the goodSign/badSign passed to CloseCard below.
-  // reasons/hasRatingReason/_severity are CloseRow-shaped so these reuse
-  // CloseCard; always "Review", never "Close".
-  const msiSections = useMemo(() => {
-    const strongDowntrend: CloseRow[] = []
-    const downtrend: CloseRow[] = []
-    const uptrend: CloseRow[] = []
-    const strongUptrend: CloseRow[] = []
+  // Held positions whose rating isn't the strongest one for their side --
+  // explicit instruction, replacing the four Trend-tier review buckets
+  // (strong downtrend .. strong uptrend), since Trend's effect on forward
+  // returns isn't established. Longs not rated Strong Buy and shorts not
+  // rated Strong Sell, each in its own section, worst rating for the side
+  // first, then by score (worst first) within a rating. A position can
+  // also appear in To review (e.g. a rating contradiction) -- these lists
+  // are a complete view of the side, not a residual. reasons/
+  // hasRatingReason/_severity are CloseRow-shaped so these reuse CloseCard.
+  const notStrongSections = useMemo(() => {
+    const LONG_ORDER: Record<string, number> = { 'Strong Sell': 4, Sell: 3, Hold: 2, Buy: 1 }
+    const SHORT_ORDER: Record<string, number> = { 'Strong Buy': 4, Buy: 3, Hold: 2, Sell: 1 }
+    const longs: CloseRow[] = []
+    const shorts: CloseRow[] = []
     for (const { shares, c } of heldMerged) {
-      const m = typeof c.momentum === 'number' ? c.momentum : null
-      const row = (reasons: Reason[], severity: number): CloseRow => ({
+      const side: 'Long' | 'Short' = shares > 0 ? 'Long' : 'Short'
+      const rating = (c.rating as string | undefined) ?? 'Unrated'
+      if (side === 'Long' ? rating === 'Strong Buy' : rating === 'Strong Sell') continue
+      const order = (side === 'Long' ? LONG_ORDER : SHORT_ORDER)[rating] ?? 5
+      const score = typeof c.score === 'number' ? c.score : Number(c.score)
+      const row: CloseRow = {
         ...c,
-        closeSide: shares > 0 ? 'Long' : 'Short',
+        closeSide: side,
         shares,
-        reasons,
+        reasons: [{ type: 'rating', text: `Held ${side.toLowerCase()}, rated ${rating}.` }],
         hasRatingReason: false,
-        _severity: severity,
-      })
-
-      if (m !== null && m <= MOMENTUM_OVERSOLD) {
-        strongDowntrend.push(row([{ type: 'momentum', text: `Trend ${m.toFixed(0)} — strong downtrend.` }], -m))
-      } else if (m !== null && m <= MOMENTUM_NO_BUY) {
-        downtrend.push(row([{ type: 'momentum', text: `Trend ${m.toFixed(0)} — downtrend.` }], -m))
-      } else if (m !== null && m >= MOMENTUM_OVERBOUGHT) {
-        strongUptrend.push(row([{ type: 'momentum', text: `Trend ${m.toFixed(0)} — strong uptrend.` }], m))
-      } else if (m !== null && m >= MOMENTUM_NO_SELL) {
-        uptrend.push(row([{ type: 'momentum', text: `Trend ${m.toFixed(0)} — uptrend.` }], m))
+        _severity: order * 10 + (Number.isFinite(score) ? (side === 'Long' ? score : 1 - score) : 0),
       }
+      ;(side === 'Long' ? longs : shorts).push(row)
     }
-    const bySeverity = (a: CloseRow, b: CloseRow) => b._severity - a._severity
-    return {
-      strongDowntrend: strongDowntrend.sort(bySeverity),
-      downtrend: downtrend.sort(bySeverity),
-      uptrend: uptrend.sort(bySeverity),
-      strongUptrend: strongUptrend.sort(bySeverity),
-    }
+    const bySeverity = (x: CloseRow, y: CloseRow) => y._severity - x._severity
+    return { longs: longs.sort(bySeverity), shorts: shorts.sort(bySeverity) }
   }, [heldMerged])
-  const {
-    strongDowntrend: strongDowntrendPositions,
-    downtrend: downtrendPositions,
-    uptrend: uptrendPositions,
-    strongUptrend: strongUptrendPositions,
-  } = msiSections
+  const { longs: longNotStrongBuyPositions, shorts: shortNotStrongSellPositions } = notStrongSections
 
   // Held positions reporting earnings within EARNINGS_SOON_DAYS -- the
   // FEIM check (see earningsMomentumCheck's own comment). Every held
   // position with imminent earnings is listed (not just the adverse
   // ones), same "audit every case, not just the flagged ones" shape
-  // closes/msiSections use -- explicit instruction: "showing the
+  // closes/notStrongSections use -- explicit instruction: "showing the
   // combination check as a red flag" means the check should be visible
   // here regardless of which way it comes out, red only when it actually
   // fires. Sorted adverse-first, then soonest-first within each group, so
@@ -2767,6 +2879,36 @@ export default function RecommendationsView() {
     return rows.sort((a, b) => b._severity - a._severity)
   }, [heldMerged, dailyHistory3mo, monthlyHistory, now])
 
+  // Held positions up >= TAKE_PROFIT_SD sd in their favour today (see that
+  // constant) -- live when an IB tick from today exists, otherwise the last
+  // completed session. Biggest favourable move first. Refreshed on the
+  // minute tick, reading the latest livePrices through livePricesRef.
+  const takeProfitPositions: CloseRow[] = useMemo(() => {
+    const rows: CloseRow[] = []
+    for (const { ticker, shares, c } of heldMerged) {
+      const side: 'Long' | 'Short' = shares > 0 ? 'Long' : 'Short'
+      const m = dailyMoveOf(dailyHistory3mo[ticker], livePricesRef.current[ticker], c.dailyMove, c.dailyMoveZ)
+      if (!m) continue
+      const favour = (side === 'Long' ? 1 : -1) * m.z
+      if (favour < TAKE_PROFIT_SD) continue
+      rows.push({
+        ...c,
+        closeSide: side,
+        shares,
+        reasons: [
+          {
+            type: 'take-profit',
+            text: `${m.live ? 'Today' : 'Last session'} ${fmtPct(m.move)} (${fmtSigma(m.z)} vs its 3-month daily moves) in the ${side.toLowerCase()}'s favour — at least ${TAKE_PROFIT_SD}σ, take profit at the close (big favourable days tend to give some back).`,
+          },
+        ],
+        hasRatingReason: false,
+        _severity: favour,
+      })
+    }
+    return rows.sort((a, b) => b._severity - a._severity)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [heldMerged, dailyHistory3mo, now])
+
   // Every held position NOT already in one of the lists above -- explicit
   // instruction: the "nothing to see here" bucket, so every held position
   // accounted for across the Portfolio containers, no ticker silently
@@ -2776,10 +2918,9 @@ export default function RecommendationsView() {
     const flagged = new Set(
       [
         ...closes,
-        ...strongDowntrendPositions,
-        ...downtrendPositions,
-        ...uptrendPositions,
-        ...strongUptrendPositions,
+        ...takeProfitPositions,
+        ...longNotStrongBuyPositions,
+        ...shortNotStrongSellPositions,
         ...reportingSoonPositions,
       ].map((c) => c.ticker)
     )
@@ -2792,10 +2933,9 @@ export default function RecommendationsView() {
   }, [
     heldMerged,
     closes,
-    strongDowntrendPositions,
-    downtrendPositions,
-    uptrendPositions,
-    strongUptrendPositions,
+    takeProfitPositions,
+    longNotStrongBuyPositions,
+    shortNotStrongSellPositions,
     reportingSoonPositions,
   ])
 
@@ -2836,12 +2976,12 @@ export default function RecommendationsView() {
         targetPoolSize: tickerTargetPool[raw.ticker]?.size ?? null,
       }
       if (c.rating !== 'Strong Buy' && c.rating !== 'Strong Sell') continue
-      const reasons = buildRejectionReasons({ c, tickerScreener, now })
+      const reasons = buildRejectionReasons({ c, tickerScreener, now, dailyMove: moveByTicker[raw.ticker] })
       if (reasons.length === 0) continue
       rows.push({ ...c, reasons })
     }
     return rows.sort((a, b) => a.ticker.localeCompare(b.ticker))
-  }, [data, tickerScreener, tickerForecast, tickerSimPerf, tickerTargetSide, tickerTargetPool, now])
+  }, [data, tickerScreener, tickerForecast, tickerSimPerf, tickerTargetSide, tickerTargetPool, now, moveByTicker])
   const rejectedStrongBuy = useMemo(() => rejectedStrong.filter((c) => c.rating === 'Strong Buy'), [rejectedStrong])
   const rejectedStrongSell = useMemo(() => rejectedStrong.filter((c) => c.rating === 'Strong Sell'), [rejectedStrong])
 
@@ -2955,10 +3095,9 @@ export default function RecommendationsView() {
     for (const c of rejectedStrongBuy) tally(c, 'Long')
     for (const c of rejectedStrongSell) tally(c, 'Short')
     for (const c of closes) tally(c, c.closeSide)
-    for (const c of strongDowntrendPositions) tally(c, c.closeSide)
-    for (const c of downtrendPositions) tally(c, c.closeSide)
-    for (const c of uptrendPositions) tally(c, c.closeSide)
-    for (const c of strongUptrendPositions) tally(c, c.closeSide)
+    for (const c of takeProfitPositions) tally(c, c.closeSide)
+    for (const c of longNotStrongBuyPositions) tally(c, c.closeSide)
+    for (const c of shortNotStrongSellPositions) tally(c, c.closeSide)
     for (const c of reportingSoonPositions) tally(c, c.closeSide)
     for (const c of stayPositions) tally(c, c.closeSide)
     return THUMB_FILTER_ITEMS.map((item) => [item.name, counts.get(`${item.factor}:${item.signal}`) ?? 0])
@@ -2968,10 +3107,9 @@ export default function RecommendationsView() {
     rejectedStrongBuy,
     rejectedStrongSell,
     closes,
-    strongDowntrendPositions,
-    downtrendPositions,
-    uptrendPositions,
-    strongUptrendPositions,
+    takeProfitPositions,
+    longNotStrongBuyPositions,
+    shortNotStrongSellPositions,
     reportingSoonPositions,
     stayPositions,
   ])
@@ -3107,10 +3245,10 @@ export default function RecommendationsView() {
                 label="Closing rules"
                 header="Any one of these flags a held position for review"
                 rules={CLOSE_RULES}
-                footer="A position can trip more than one of these at once — the card below lists every reason that applies, ranked with rating contradictions first, then Trend, then the rest."
+                footer="A position can trip more than one of these at once — the card below lists every reason that applies, ranked with rating contradictions first, then the rest."
               />
             }
-            subtitle="Held positions tripping a rating/Trend/score-boundary contradiction, a fundamentals reversal, or a crowded-short flag"
+            subtitle="Held positions tripping a rating/score-boundary contradiction, a fundamentals reversal, or a crowded-short flag"
             rows={filterByThumbs(filterBySector(filterBySymbol(closes)), (c) => c.closeSide)}
             renderCard={(c) => (
               <CloseCard
@@ -3121,7 +3259,23 @@ export default function RecommendationsView() {
                 monthlyHistory={monthlyHistory}
               />
             )}
-            emptyMessage="No held position currently has a rating/Trend contradiction or a risk flag."
+            emptyMessage="No held position currently has a rating contradiction or a risk flag."
+          />
+          <RecommendationSection
+            title="Take profit"
+            subtitle={`Held positions whose move today is at least ${TAKE_PROFIT_SD}σ in their favour (up for a long, down for a short; σ = the stock's 3-month daily volatility) — consider closing at the close: big favourable days tend to give some back the next day, and closing on them beat holding in the backtest. Live during the session, otherwise the last completed session.`}
+            rows={filterByThumbs(filterBySector(filterBySymbol(takeProfitPositions)), (c) => c.closeSide)}
+            renderCard={(c) => (
+              <CloseCard
+                key={c.ticker}
+                c={c}
+                live={livePrices[c.ticker]}
+                dailyHistory3mo={dailyHistory3mo}
+                monthlyHistory={monthlyHistory}
+                goodSign
+              />
+            )}
+            emptyMessage={`No held position has moved ${TAKE_PROFIT_SD}σ or more in its favour today.`}
           />
           <RecommendationSection
             title="Reporting soon"
@@ -3141,9 +3295,9 @@ export default function RecommendationsView() {
             emptyMessage="No held position reports earnings in the next 3 days."
           />
           <RecommendationSection
-            title="Strong downtrend"
-            subtitle={`Held positions with a daily Trend at/below ${MOMENTUM_OVERSOLD} — the strongest downtrend tier, tends to continue (this score doesn't mean-revert). Not a close signal, just a shape worth a look (a held Short here is a good sign, a held Long a warning).`}
-            rows={filterByThumbs(filterBySector(filterBySymbol(strongDowntrendPositions)), (c) => c.closeSide)}
+            title="Long positions not Strong Buy"
+            subtitle="Held longs whose current rating is anything but Strong Buy — worst rating first (a held long rated Sell/Strong Sell or Hold also shows in To review), then weakest score."
+            rows={filterByThumbs(filterBySector(filterBySymbol(longNotStrongBuyPositions)), (c) => c.closeSide)}
             renderCard={(c) => (
               <CloseCard
                 key={c.ticker}
@@ -3151,16 +3305,14 @@ export default function RecommendationsView() {
                 live={livePrices[c.ticker]}
                 dailyHistory3mo={dailyHistory3mo}
                 monthlyHistory={monthlyHistory}
-                goodSign={c.closeSide === 'Short'}
-                badSign={c.closeSide === 'Long'}
               />
             )}
-            emptyMessage="No held position is currently in the strong-downtrend Trend zone."
+            emptyMessage="Every held long is rated Strong Buy."
           />
           <RecommendationSection
-            title="Downtrend"
-            subtitle={`Held positions with a daily Trend in ${MOMENTUM_OVERSOLD}–${MOMENTUM_NO_BUY} — a moderate downtrend that tends to continue. Not a close signal, just a shape worth a look (a held Short here is a good sign, a held Long a warning).`}
-            rows={filterByThumbs(filterBySector(filterBySymbol(downtrendPositions)), (c) => c.closeSide)}
+            title="Short positions not Strong Sell"
+            subtitle="Held shorts whose current rating is anything but Strong Sell — worst rating first (a held short rated Buy/Strong Buy or Hold also shows in To review), then weakest score."
+            rows={filterByThumbs(filterBySector(filterBySymbol(shortNotStrongSellPositions)), (c) => c.closeSide)}
             renderCard={(c) => (
               <CloseCard
                 key={c.ticker}
@@ -3168,49 +3320,13 @@ export default function RecommendationsView() {
                 live={livePrices[c.ticker]}
                 dailyHistory3mo={dailyHistory3mo}
                 monthlyHistory={monthlyHistory}
-                goodSign={c.closeSide === 'Short'}
-                badSign={c.closeSide === 'Long'}
               />
             )}
-            emptyMessage="No held position is currently in the downtrend Trend zone."
-          />
-          <RecommendationSection
-            title="Uptrend"
-            subtitle={`Held positions with a daily Trend in ${MOMENTUM_NO_SELL}–${MOMENTUM_OVERBOUGHT} — a strong uptrend that tends to continue. Not a close signal, just a shape worth a look (a held Long here is a good sign, a held Short a warning).`}
-            rows={filterByThumbs(filterBySector(filterBySymbol(uptrendPositions)), (c) => c.closeSide)}
-            renderCard={(c) => (
-              <CloseCard
-                key={c.ticker}
-                c={c}
-                live={livePrices[c.ticker]}
-                dailyHistory3mo={dailyHistory3mo}
-                monthlyHistory={monthlyHistory}
-                goodSign={c.closeSide === 'Long'}
-                badSign={c.closeSide === 'Short'}
-              />
-            )}
-            emptyMessage="No held position is currently in the uptrend Trend zone."
-          />
-          <RecommendationSection
-            title="Strong uptrend"
-            subtitle={`Held positions with a daily Trend at/above ${MOMENTUM_OVERBOUGHT} — the strongest uptrend tier, tends to continue (this score doesn't mean-revert). Not a close signal, just a shape worth a look (a held Long here is a good sign, a held Short a warning).`}
-            rows={filterByThumbs(filterBySector(filterBySymbol(strongUptrendPositions)), (c) => c.closeSide)}
-            renderCard={(c) => (
-              <CloseCard
-                key={c.ticker}
-                c={c}
-                live={livePrices[c.ticker]}
-                dailyHistory3mo={dailyHistory3mo}
-                monthlyHistory={monthlyHistory}
-                goodSign={c.closeSide === 'Long'}
-                badSign={c.closeSide === 'Short'}
-              />
-            )}
-            emptyMessage="No held position is currently in the strong-uptrend Trend zone."
+            emptyMessage="Every held short is rated Strong Sell."
           />
           <RecommendationSection
             title="Stay"
-            subtitle="Held positions not flagged To review, Reporting soon, Strong downtrend, Downtrend, Uptrend, or Strong uptrend — nothing here needs attention right now"
+            subtitle="Held Strong Buy longs and Strong Sell shorts not flagged To review, Take profit or Reporting soon — nothing here needs attention right now"
             rows={filterByThumbs(filterBySector(filterBySymbol(stayPositions)), (c) => c.closeSide)}
             renderCard={(c) => (
               <CloseCard
@@ -3229,7 +3345,7 @@ export default function RecommendationsView() {
           <RecommendationSection
             title="Long"
             titleInfo={<RulesInfo label="Selection rules" header="Every candidate must clear all of these" rules={LONG_RULES} />}
-            subtitle={`Strong Buy / Buy with Trend above the weak-momentum half (> ${MOMENTUM_NO_BUY}), and sim return not negative, best composite score first`}
+            subtitle="Strong Buy with sim return not negative, best composite score first"
             rows={filterByThumbs(filterBySector(filterBySymbol(longs)), 'Long')}
             renderCard={(c) => (
               <RecommendationCard
@@ -3243,13 +3359,13 @@ export default function RecommendationsView() {
                 now={now}
               />
             )}
-            emptyMessage="No Strong Buy/Buy candidates clearing the Trend/growth/Reversal/EPS gates right now."
+            emptyMessage="No Strong Buy candidates clearing the earnings/sim-return/volatility gates right now."
           />
           )}
           {activeSection === 'longBlocked' && (
           <RecommendationSection
             title="Strong Buy — blocked"
-            subtitle="Strong Buy candidates that still failed a Trend or sim-return gate — see Long's Selection rules for what each gate checks"
+            subtitle="Strong Buy candidates that still failed an earnings, sim-return, or volatility gate — see Long's Selection rules for what each gate checks"
             rows={filterByThumbs(filterBySector(filterBySymbol(rejectedStrongBuy)), 'Long')}
             renderCard={(c) => (
               <RejectedCard
@@ -3270,7 +3386,7 @@ export default function RecommendationsView() {
           <RecommendationSection
             title="Short"
             titleInfo={<RulesInfo label="Selection rules" header="Every candidate must clear all of these" rules={SHORT_RULES} />}
-            subtitle={`Strong Sell / Sell with Trend below the strong-momentum half (< ${MOMENTUM_NO_SELL}), and sim return not positive, worst composite score first`}
+            subtitle="Strong Sell with sim return not positive, worst composite score first"
             rows={filterByThumbs(filterBySector(filterBySymbol(shorts)), 'Short')}
             renderCard={(c) => (
               <RecommendationCard
@@ -3284,13 +3400,13 @@ export default function RecommendationsView() {
                 now={now}
               />
             )}
-            emptyMessage="No Sell/Strong Sell candidates clearing the Trend/growth/Reversal/EPS gates right now."
+            emptyMessage="No Strong Sell candidates clearing the earnings/sim-return/growth/volatility gates right now."
           />
           )}
           {activeSection === 'shortBlocked' && (
           <RecommendationSection
             title="Strong Sell — blocked"
-            subtitle="Strong Sell candidates that still failed a Trend, sim-return, short-interest, or growth gate — see Short's Selection rules for what each gate checks"
+            subtitle="Strong Sell candidates that still failed an earnings, sim-return, growth, or volatility gate — see Short's Selection rules for what each gate checks"
             rows={filterByThumbs(filterBySector(filterBySymbol(rejectedStrongSell)), 'Short')}
             renderCard={(c) => (
               <RejectedCard

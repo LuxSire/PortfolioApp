@@ -254,9 +254,9 @@ const SCORE_FACTORS = [
     note: 'stdev / mean(|value|) of the last (up to) 5 years’ annual Diluted EPS; low is better',
   },
   {
-    label: 'Momentum',
-    weight: 5,
-    note: 'daily-timeframe Money Flow Index (or RSI on the yfinance-fallback tier); scored on a sweet-spot curve peaking at 60, not "high is better" -- a healthy strength reading beats both weak/oversold AND extreme overbought',
+    label: 'Reversal',
+    weight: 3,
+    note: 'next-day reversal: blend of where today\'s close sits in the day\'s range, RSI(2) and the 3-day return; high = closed weak / oversold = expected to bounce tomorrow, scored "high is better"',
   },
   {
     label: 'Short-term mean reversion',
@@ -432,8 +432,8 @@ function ScoreFormula() {
           </ul>
           <div className="score-formula-footer">
             The <strong>Rating</strong> column buckets this score's percentile into a
-            forced Strong Buy/Buy/Hold/Sell/Strong Sell distribution (top/bottom 6% =
-            Strong Buy/Strong Sell, next 14% each = Buy/Sell, middle 60% = Hold) — same
+            forced Strong Buy/Buy/Hold/Sell/Strong Sell distribution (top/bottom 7.5% =
+            Strong Buy/Strong Sell, next 12.5% each = Buy/Sell, middle 60% = Hold) — same
             shape as Zacks Rank, independent of the Rec column's analyst consensus.
           </div>
         </div>

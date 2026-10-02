@@ -248,6 +248,8 @@ from main import (
     SYMBOLS_FILE,
     _ib_refresh_recently_completed,
     _mark_ib_refresh_completed,
+    _merge_bar_series,
+    _prune_inactive_tickers,
     _update_missings,
     load_rated_tickers,
     load_top_tickers,
@@ -728,9 +730,9 @@ def _price_history_staleness(path):
         "expectedBarDate": expected_bar_date,
         "stale": latest_bar_date < expected_bar_date,
     }
-# The query's own range starts 2026-06-30/07-01, but that first day (and
-# the bare baseline row before it) isn't a real trading day's worth of
-# activity in this account, so the Portfolio tab starts from here instead.
+# The query's own range starts 2026-06-30/07-01, but the Portfolio tab's
+# charts are meant to start later than that -- explicit instruction: show
+# from Oct 1 on, not from just after the account's real first trading day.
 # Only trims rows client-side, same as passing this as fetch_account_
 # performance's start_date argument -- doesn't shrink what IBKR generates.
 PORTFOLIO_START_DATE = "2026-07-03"
@@ -1024,7 +1026,14 @@ async def fetch_candlestick_history(streamed_tickers):
 
     Writes HOURLY_HISTORY_FILE and DAILY_HISTORY_FILE once each series is
     done; Asset.jsx fetches them as static files, same as
-    main.py's price_history.json."""
+    main.py's price_history.json. Merges BY DATE into whatever's already
+    on disk (see main._merge_bar_series) rather than replacing each file
+    wholesale -- explicit instruction: this used to overwrite both files
+    outright on every server startup, which both dropped any ticker that
+    had fallen out of today's top-N/rated/streamed scope entirely AND
+    truncated every remaining ticker back to just its "3 M" window,
+    silently losing older history (e.g. an August snapshot) on nothing
+    more than a routine restart."""
     ranked = set(load_top_tickers(SORTED_SCREEN_CSV, CANDLESTICK_TOP_N))
     rated = set(load_rated_tickers(SORTED_SCREEN_CSV, RATED_FOR_EXTRAS))
     covered = ranked | rated
@@ -1038,15 +1047,29 @@ async def fetch_candlestick_history(streamed_tickers):
 
     print(f"Fetching 3mo hourly bars for {len(tickers)} ticker(s) (this can take a while, paced by IB's rate limit)...")
     hourly = await app.get_ib_historical_bars_async(tickers, "3 M", "1 hour")
+    try:
+        with open(HOURLY_HISTORY_FILE) as f:
+            existing_hourly = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        existing_hourly = {}
+    hourly = _merge_bar_series(existing_hourly, hourly)
+    hourly = _prune_inactive_tickers(hourly, keep_extra=tickers)
     with open(HOURLY_HISTORY_FILE, "w") as f:
         json.dump(hourly, f)
-    print(f"Wrote {HOURLY_HISTORY_FILE} ({sum(1 for v in hourly.values() if v)}/{len(tickers)} tickers with bars)")
+    print(f"Wrote {HOURLY_HISTORY_FILE} ({sum(1 for v in hourly.values() if v)}/{len(hourly)} tickers with bars, {len(tickers)} in this run's scope)")
 
     print(f"Fetching 3mo daily bars for {len(tickers)} ticker(s)...")
     daily = await app.get_ib_historical_bars_async(tickers, "3 M", "1 day")
+    try:
+        with open(DAILY_HISTORY_FILE) as f:
+            existing_daily = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        existing_daily = {}
+    daily = _merge_bar_series(existing_daily, daily)
+    daily = _prune_inactive_tickers(daily, keep_extra=tickers)
     with open(DAILY_HISTORY_FILE, "w") as f:
         json.dump(daily, f)
-    print(f"Wrote {DAILY_HISTORY_FILE} ({sum(1 for v in daily.values() if v)}/{len(tickers)} tickers with bars)")
+    print(f"Wrote {DAILY_HISTORY_FILE} ({sum(1 for v in daily.values() if v)}/{len(daily)} tickers with bars, {len(tickers)} in this run's scope)")
 
 
 async def refresh_daily_history_on_demand(log_fn=None, tickers=None, overwrite=False):
@@ -1083,11 +1106,12 @@ async def refresh_daily_history_on_demand(log_fn=None, tickers=None, overwrite=F
     scope is never gated by this cooldown -- it keeps only its own
     per-ticker staleness gate below, same as before.
 
-    Merges into the existing DAILY_HISTORY_FILE rather than replacing it
-    wholesale, unlike fetch_candlestick_history's own startup fetch --
-    same reasoning as download_ib_daily_history's own docstring: the
-    staleness gate here means a given call may only touch a handful of
-    tickers out of the full scope.
+    Merges BY DATE into the existing DAILY_HISTORY_FILE (see
+    main._merge_bar_series), same as fetch_candlestick_history's own
+    startup fetch now does too -- explicit instruction: a refetched
+    ticker's IB "3 M" window must never silently drop bars older than
+    that window, whether from this staleness-gated on-demand path or the
+    startup one.
 
     log_fn, if given, is called with a line of progress text as it
     happens (one ticker at a time via get_ib_historical_bars_async's own
@@ -1126,7 +1150,8 @@ async def refresh_daily_history_on_demand(log_fn=None, tickers=None, overwrite=F
     if log_fn:
         log_fn(f"Fetching IB 3mo daily bars for {len(stale)}/{len(tickers)} stale/missing ticker(s) (paced, can take a while)...")
     fresh = await app.get_ib_historical_bars_async(stale, "3 M", "1 day", on_ticker=(lambda s: log_fn(f"Fetching {s}...")) if log_fn else None)
-    existing.update(fresh)
+    existing = _merge_bar_series(existing, fresh)
+    existing = _prune_inactive_tickers(existing, keep_extra=tickers)
     with open(DAILY_HISTORY_FILE, "w") as f:
         json.dump(existing, f)
     got = sum(1 for v in fresh.values() if v)
@@ -1176,7 +1201,8 @@ async def refresh_hourly_history_on_demand(log_fn=None, tickers=None, overwrite=
     if log_fn:
         log_fn(f"Fetching IB 3mo hourly bars for {len(stale)}/{len(tickers)} stale/missing ticker(s) (paced, can take a while)...")
     fresh = await app.get_ib_historical_bars_async(stale, "3 M", "1 hour", on_ticker=(lambda s: log_fn(f"Fetching {s}...")) if log_fn else None)
-    existing.update(fresh)
+    existing = _merge_bar_series(existing, fresh)
+    existing = _prune_inactive_tickers(existing, keep_extra=tickers)
     with open(HOURLY_HISTORY_FILE, "w") as f:
         json.dump(existing, f)
     got = sum(1 for v in fresh.values() if v)
@@ -1412,6 +1438,164 @@ async def open_orders_loop():
     while True:
         await refresh_open_orders()
         await asyncio.sleep(OPEN_ORDERS_REFRESH_SECONDS)
+
+# ---------------------------------------------------------------------- #
+#  Automatic take-profit orders                                          #
+# ---------------------------------------------------------------------- #
+# Weekdays 16:00-22:00 Europe/Rome, every TAKE_PROFIT_CHECK_SECONDS: for each
+# HELD position (cash equivalents excluded) whose live price is >=
+# TAKE_PROFIT_TRIGGER_SD sd in its favour vs. the previous close, AND has
+# moved no more than TAKE_PROFIT_MAX_STEP_SD sd since the previous check,
+# place a closing LIMIT for the whole position at previous close x
+# (1 +/- TAKE_PROFIT_LIMIT_SD sd): SELL for a long, BUY for a short. DAY,
+# regular hours only, transmitted. One order per ticker per day, none while
+# a closing order for it is already working. Same rule the backtest uses
+# (modules/backtest.py _position_pnl). Kill switch: AUTO_TAKE_PROFIT=0 in
+# .env; log-only mode: AUTO_TAKE_PROFIT_DRY_RUN=1.
+from types import SimpleNamespace  # noqa: E402
+from zoneinfo import ZoneInfo  # noqa: E402
+
+from modules.backtest import TAKE_PROFIT_LIMIT_SD, TAKE_PROFIT_TRIGGER_SD  # noqa: E402
+from modules.derive import DAILY_MOVE_MIN_DAYS, DAILY_MOVE_SD_DAYS  # noqa: E402
+
+AUTO_TAKE_PROFIT_ENABLED = os.getenv("AUTO_TAKE_PROFIT", "1") != "0"
+AUTO_TAKE_PROFIT_DRY_RUN = os.getenv("AUTO_TAKE_PROFIT_DRY_RUN", "0") == "1"
+TAKE_PROFIT_WINDOW = ((16, 0), (22, 0))   # Europe/Rome local time, weekdays
+TAKE_PROFIT_CHECK_SECONDS = 600           # every 10 minutes
+TAKE_PROFIT_MAX_STEP_SD = 0.5             # max move since the previous check
+TAKE_PROFIT_STATE_FILE = os.path.join(IB_DIR, "take_profit_orders.json")
+TAKE_PROFIT_LOG_FILE = os.path.join(IB_DIR, "take_profit_orders.log")
+_TP_ROME = ZoneInfo("Europe/Rome")
+_tp_bases = {"date": None, "base": {}}    # {ticker: (prev_close, sd)} for today
+_tp_prev_price = {}                       # {ticker: price at the previous check}
+
+
+def _tp_read_json(path):
+    try:
+        with open(path) as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+
+def _tp_write_json(path, data):
+    tmp = path + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump(data, f, indent=2)
+    os.replace(tmp, path)
+
+
+def _tp_log(entry):
+    line = json.dumps(entry)
+    print(f"take-profit: {line}")
+    with open(TAKE_PROFIT_LOG_FILE, "a") as f:
+        f.write(line + "\n")
+
+
+def _tp_window_open(now):
+    (h0, m0), (h1, m1) = TAKE_PROFIT_WINDOW
+    return now.weekday() < 5 and (h0, m0) <= (now.hour, now.minute) < (h1, m1)
+
+
+def _tp_day_bases(today_iso):
+    """{ticker: (previous close, daily sd)} from bars dated before today."""
+    if _tp_bases["date"] == today_iso:
+        return _tp_bases["base"]
+    base = {}
+    for ticker, bars in _tp_read_json(DAILY_HISTORY_FILE).items():
+        closes = [_safe_float(b.get("close")) for b in bars or [] if (b.get("date") or "")[:10] < today_iso]
+        closes = [c for c in closes[-(DAILY_MOVE_SD_DAYS + 1):] if c and c > 0]
+        rets = [b / a - 1 for a, b in zip(closes, closes[1:])]
+        if len(rets) < DAILY_MOVE_MIN_DAYS:
+            continue
+        mean = sum(rets) / len(rets)
+        sd = math.sqrt(sum((r - mean) ** 2 for r in rets) / (len(rets) - 1))
+        if sd > 0:
+            base[ticker] = (closes[-1], sd)
+    _tp_bases.update(date=today_iso, base=base)
+    return base
+
+
+async def _tp_check(cash):
+    now = datetime.now(_TP_ROME)
+    if not _tp_window_open(now):
+        _tp_prev_price.clear()  # stability check restarts each session
+        return
+    today = now.date().isoformat()
+    bases = _tp_day_bases(today)
+    state = _tp_read_json(TAKE_PROFIT_STATE_FILE)
+    done_today = state.get(today, {})
+    with lock:
+        held = {t: p["shares"] for t, p in positions_by_ticker.items() if p.get("shares")}
+        ticks = {t: dict(last_price_by_ticker.get(t) or {}) for t in held}
+        working = {(o["ticker"], o["action"]) for o in open_orders
+                   if o.get("status") not in ("Filled", "Cancelled", "ApiCancelled", "Inactive")}
+    for ticker, shares in sorted(held.items()):
+        if ticker in cash or ticker not in bases:
+            continue
+        tick = ticks.get(ticker) or {}
+        last = _safe_float(tick.get("last"))
+        if not last or not str(tick.get("timestamp") or "").startswith(today):
+            continue  # no live price from today
+        prev_check = _tp_prev_price.get(ticker)
+        _tp_prev_price[ticker] = last
+        if ticker in done_today or prev_check is None:
+            continue  # already handled today / need a price from 10 min ago
+        prev_close, sd = bases[ticker]
+        side = 1 if shares > 0 else -1
+        move_sd = side * (last / prev_close - 1) / sd
+        if move_sd < TAKE_PROFIT_TRIGGER_SD:
+            continue
+        step_sd = abs(last / prev_check - 1) / sd
+        if step_sd > TAKE_PROFIT_MAX_STEP_SD:
+            print(f"take-profit: {ticker} +{move_sd:.2f}sd but moved {step_sd:.2f}sd in 10 min -- waiting")
+            continue
+        action = "SELL" if side > 0 else "BUY"
+        if (ticker, action) in working:
+            continue
+        qty = abs(int(round(shares)))
+        raw_limit = prev_close * (1 + side * TAKE_PROFIT_LIMIT_SD * sd)
+        
+        limit_basis = f"{TAKE_PROFIT_LIMIT_SD}sd"
+        if side * (last - raw_limit) > 0:
+            # Already beyond the 1.75 sd level: don't undercut the market --
+            # rest the closing order on the current offer (long) / bid (short).
+            quote = _safe_float(tick.get("ask" if side > 0 else "bid"))
+            raw_limit = quote if quote and quote > 0 else last
+            limit_basis = "offer" if side > 0 else "bid"
+        limit = round(raw_limit, 2) if raw_limit >= 1 else round(raw_limit, 4)
+        trade = None
+        if not AUTO_TAKE_PROFIT_DRY_RUN:
+            trade = app.place_order(SimpleNamespace(symbol=ticker), action, qty, "LMT", limit,
+                                    transmit=True, outside_rth=False)
+        entry = {"time": now.isoformat(timespec="seconds"), "ticker": ticker, "action": action,
+                 "quantity": qty, "limit": limit, "limitBasis": limit_basis, "prevClose": prev_close,
+                 "sd": round(sd, 6), "last": last, "moveSd": round(move_sd, 2), "stepSd": round(step_sd, 2),
+                 "dryRun": AUTO_TAKE_PROFIT_DRY_RUN, "placed": trade is not None,
+                 "orderId": getattr(getattr(trade, "order", None), "orderId", None)}
+
+        _tp_log(entry)
+        done_today[ticker] = entry
+        _tp_write_json(TAKE_PROFIT_STATE_FILE, {today: done_today})
+        if trade is not None:
+            await refresh_open_orders()
+
+
+async def take_profit_loop():
+    """Background task on the shared IB connection (see run_ib_client)."""
+    if not AUTO_TAKE_PROFIT_ENABLED:
+        print("take-profit: disabled (AUTO_TAKE_PROFIT=0)")
+        return
+    cash = set(_tp_read_json(CASH_FILE).get("tickers", []))
+    print(f"take-profit: armed{' (DRY RUN, no orders sent)' if AUTO_TAKE_PROFIT_DRY_RUN else ''} -- "
+          f"trigger {TAKE_PROFIT_TRIGGER_SD}sd, limit {TAKE_PROFIT_LIMIT_SD}sd, max 10-min move "
+          f"{TAKE_PROFIT_MAX_STEP_SD}sd, every {TAKE_PROFIT_CHECK_SECONDS // 60} min, 16:00-22:00 Europe/Rome")
+    while True:
+        try:
+            await _tp_check(cash)
+        except Exception as exc:  # never let this kill the shared event loop
+            print(f"take-profit: check failed: {exc!r}")
+        await asyncio.sleep(TAKE_PROFIT_CHECK_SECONDS)
 
 
 # ---------------------------------------------------------------------- #
@@ -2495,6 +2679,19 @@ def fetch_account_performance(start_date=None):
             rows = _parse_portfolio_report(raw)
         if rows:
             source = "live Flex Query"
+            # Keep the raw statement on disk as Results.xml (or Results.csv
+            # for a CSV-format query) -- the same file a manual Account
+            # Management export lands in, which _local_flex_export_fallback
+            # reads when a later live fetch fails. Only written on a
+            # successful, parseable fetch, so a failed one never clobbers a
+            # good manual export.
+            export_path = "Results.xml" if raw.lstrip().startswith(b"<") else "Results.csv"
+            try:
+                with open(export_path, "wb") as f:
+                    f.write(raw)
+                print(f"Saved the raw Flex Query statement to {export_path}")
+            except OSError as exc:
+                print(f"Could not save {export_path}: {exc}")
         else:
             print("Live Flex Query fetch failed or returned no usable sections; checking for a fresher local export...")
     else:
@@ -2536,6 +2733,11 @@ def fetch_account_performance(start_date=None):
 
 
 PERFORMANCE_REFRESH_SECONDS = 6 * 3600  # 6 hours -- daily-granularity NAV data doesn't need finer than this, and the Flex Query API is slow/flaky (see fetch_account_performance's own docstring), so a patient interval beats a tight one.
+# Gap between the performance and trades SendRequest calls in
+# performance_loop below -- see that loop's own comment on why (IBKR's
+# per-token rate limit, errorCode 1018, confirmed hit live when both
+# fired back-to-back).
+FLEX_QUERY_BACK_TO_BACK_COOLDOWN_SECONDS = 60
 
 
 async def performance_loop():
@@ -2568,7 +2770,13 @@ async def performance_loop():
     shared event loop would. Sequential, not concurrent (one
     asyncio.to_thread call, then the next) -- deliberately, so a slow
     trades poll doesn't pile up behind a slow performance one on the same
-    underlying Flex Web Service rate limit.
+    underlying Flex Web Service rate limit. A
+    FLEX_QUERY_BACK_TO_BACK_COOLDOWN_SECONDS gap sits between the two
+    calls -- confirmed live: without it, a FAST-failing performance fetch
+    (rejected before it even reaches its own poll loop) let the trades
+    fetch's SendRequest follow immediately after on the same QUERY_TOKEN,
+    which IBKR's Flex Web Service rejected outright (errorCode 1018, "Too
+    many requests have been made from this token").
 
     Both also call sys.exit() on a hard failure (no live fetch AND no
     local export fallback for performance; no token/query-id/rows for
@@ -2587,6 +2795,17 @@ async def performance_loop():
             print(f"performance_loop: fetch_account_performance exited without writing (code {e.code}) -- will retry next cycle")
         except Exception as e:
             print(f"performance_loop: fetch_account_performance failed: {e}")
+        # Confirmed live: when fetch_account_performance's own SendRequest
+        # fails FAST (rejected immediately, never even reaching its 15s
+        # GetStatement poll loop), fetch_trades_report's SendRequest used
+        # to fire essentially back-to-back on the same QUERY_TOKEN right
+        # after -- IBKR's Flex Web Service rate-limits by TOKEN, not by
+        # query id, and rejected the second one outright (errorCode 1018,
+        # "Too many requests have been made from this token"). A short
+        # cooldown between the two sequential SendRequest calls is enough
+        # to clear that -- IBKR's own error message says "try again
+        # shortly", not a multi-minute lockout.
+        await asyncio.sleep(FLEX_QUERY_BACK_TO_BACK_COOLDOWN_SECONDS)
         try:
             await asyncio.to_thread(fetch_trades_report)
         except SystemExit as e:
@@ -2837,8 +3056,9 @@ def _to_float(v):
 # almost double short_strong_sell's own +9.29%. Folded into
 # scoring.short_interest_rank's weight instead (continuous, not a gate)
 # -- nothing left for this file to mirror.
-_REC_MOMENTUM_NO_BUY = 35
-_REC_MOMENTUM_NO_SELL = 65
+# Trend (momentum) gate REMOVED (was _REC_MOMENTUM_NO_BUY=35/_NO_SELL=65)
+# -- explicit instruction (2026-10-01): its effect on 2-5 day forward returns isn't established. Same removal as RecommendationsView.tsx/backtest.py/
+# portfolio_optimizer.py.
 _REC_REVENUE_GROWTH_THRESHOLD = 0.1
 # Blocks a NEW entry (either side) with earnings due within this many
 # calendar days -- explicit instruction after BBW (-23% Strong Buy) and
@@ -2851,6 +3071,45 @@ _REC_REVENUE_GROWTH_THRESHOLD = 0.1
 # modules/backtest.py's own earnings-block window (that week's entry-to-
 # exit span, also 7 days).
 _REC_EARNINGS_BLOCK_DAYS = 7
+# Must match RecommendationsView.tsx's own VOL_GATE_MIN_ANNUALIZED/
+# lowVolBlocksEntry -- a stock whose trailing 1-month annualized price
+# volatility (modules/derive.py's reconcile_price_volatility) is under
+# this floor is blocked on BOTH sides, unlike every other gate here.
+# Catches names frozen at/near an announced acquisition price.
+_REC_VOL_GATE_MIN_ANNUALIZED = 0.05
+
+
+def _rec_low_vol_blocks(row):
+    vol = _to_float(row.get("priceVolAnnualized"))
+    return vol is not None and vol < _REC_VOL_GATE_MIN_ANNUALIZED
+
+
+# Must match RecommendationsView.tsx's dailyMoveBlocks / modules/backtest.py's
+# _daily_move_blocks: no new long above +1 sd daily move, no new short below
+# -1 sd (sd = prior ~3 months of daily returns, derive.reconcile_daily_move).
+# File-based (last completed day) -- the page itself recomputes it live.
+_REC_DAILY_MOVE_GATE_SD = 1.0
+
+
+# Trend entry filter -- must match RecommendationsView.tsx's trendBlocks /
+# modules/backtest.py's _trend_blocks: no new long at trend <= 35, no new
+# short at trend >= 65 (derive.reconcile_trend; filter only, not scored).
+_REC_TREND_NO_BUY = 35
+_REC_TREND_NO_SELL = 65
+
+
+def _rec_trend_blocks(row, side):
+    t = _to_float(row.get("trend"))
+    if t is None:
+        return False
+    return t <= _REC_TREND_NO_BUY if side == "long" else t >= _REC_TREND_NO_SELL
+
+
+def _rec_daily_move_blocks(row, side):
+    z = _to_float(row.get("dailyMoveZ"))
+    if z is None:
+        return False
+    return z > _REC_DAILY_MOVE_GATE_SD if side == "long" else z < -_REC_DAILY_MOVE_GATE_SD
 
 
 def _rec_earnings_blocks(row):
@@ -2863,48 +3122,52 @@ def _rec_earnings_blocks(row):
 
 def _passes_long_gates(row):
     """Mirrors RecommendationsView.tsx's eligibleToBuy +
-    sufficientGrowthForLong -- the exact set of checks a Buy/Strong Buy
-    candidate must clear to appear in the Long list (the entry-side
-    EPS-trend gate and meanReversionOkForLong are both removed -- see the
-    crowded-short/mean-reversion removal notes above). See
+    sufficientGrowthForLong + lowVolBlocksEntry -- the exact set of checks
+    a Strong Buy candidate must clear to appear in the Long list (the
+    entry-side EPS-trend gate and meanReversionOkForLong are both removed
+    -- see the crowded-short/mean-reversion removal notes above). See
     _priority_tickers' own docstring for why this needed replicating in
     Python at all: without it, this file has no way to tell "will actually
     show up on the Recommendations page" apart from "is RATED_FOR_EXTRAS,"
-    and the Long/Short lists are a much smaller, gated subset of that. The
-    momentum gate BLOCKS the whole weak-momentum half (MSI <= NO_BUY);
-    neutral, strong-uptrend and overbought candidates all stay eligible."""
-    momentum = _to_float(row.get("momentum"))
-    if momentum is None or momentum <= _REC_MOMENTUM_NO_BUY:
+    and the Long/Short lists are a much smaller, gated subset of that. No
+    momentum gate (removed, see the _REC_* comment above)."""
+    if _rec_daily_move_blocks(row, "long"):
+        return False
+    if _rec_trend_blocks(row, "long"):
         return False
     if _rec_earnings_blocks(row):
         return False
     growth = _to_float(row.get("revenueGrowth"))
     if growth is not None and growth < _REC_REVENUE_GROWTH_THRESHOLD:
         return False
+    if _rec_low_vol_blocks(row):
+        return False
     return True
 
 
 def _passes_short_gates(row):
-    """Mirrors RecommendationsView.tsx's eligibleToSell -- momentum +
-    growthBlocksShortEntry (trailing OR forward revenue growth above
-    _REC_REVENUE_GROWTH_THRESHOLD, reinstated -- see that constant's own
-    comment). meanReversionOkForShort, the old crowded-short INFORMATIONAL
+    """Mirrors RecommendationsView.tsx's Short pool gates -- daily move,
+    earnings, lowVolBlocksEntry, and the page's shortGrowthBlocksEntry: BOTH
+    trailing and expected revenue growth above 10% blocks the short here
+    too (only ONE above 10% still shows on the page, flagged "never short";
+    the stricter either-one rule is enforced in modules/backtest.py and
+    modules/portfolio_optimizer.py). meanReversionOkForShort, the old crowded-short INFORMATIONAL
     threshold, the later short-interest hard cap, and the EPS-trend gate
     are all removed (see _passes_long_gates' own comment and the
-    mean-reversion/short-interest removal notes above). The momentum gate
-    BLOCKS the whole strong-momentum half (MSI >= NO_SELL), the mirror of
-    the long gate above; neutral, falling-knife and oversold candidates
-    all stay eligible."""
-    momentum = _to_float(row.get("momentum"))
-    if momentum is None or momentum >= _REC_MOMENTUM_NO_SELL:
+    mean-reversion/short-interest removal notes above). No momentum gate
+    (removed, same as _passes_long_gates)."""
+    if _rec_daily_move_blocks(row, "short"):
+        return False
+    if _rec_trend_blocks(row, "short"):
         return False
     if _rec_earnings_blocks(row):
         return False
     growth = _to_float(row.get("revenueGrowth"))
-    if growth is not None and growth > _REC_REVENUE_GROWTH_THRESHOLD:
-        return False
     expected_growth = _to_float(row.get("eulerRevGrowth1y"))
-    if expected_growth is not None and expected_growth > _REC_REVENUE_GROWTH_THRESHOLD:
+    if (growth is not None and expected_growth is not None
+            and growth > _REC_REVENUE_GROWTH_THRESHOLD and expected_growth > _REC_REVENUE_GROWTH_THRESHOLD):
+        return False
+    if _rec_low_vol_blocks(row):
         return False
     return True
 
@@ -2955,8 +3218,11 @@ def _priority_tickers():
             for r in sorted(rows_subset, key=lambda r: _to_float(r.get("score")) or 0, reverse=not worst_first)
         ]
 
-    long_ok = by_score([r for r in rows if r.get("rating") in ("Strong Buy", "Buy") and _passes_long_gates(r)], worst_first=False)
-    short_ok = by_score([r for r in rows if r.get("rating") in ("Strong Sell", "Sell") and _passes_short_gates(r)], worst_first=True)
+    # Strong-only -- explicit instruction, matching RecommendationsView.tsx's
+    # own Long/Short idea lists (narrowed from Buy/Sell to Strong-only); this
+    # tuple had drifted stale until caught here.
+    long_ok = by_score([r for r in rows if r.get("rating") == "Strong Buy" and _passes_long_gates(r)], worst_first=False)
+    short_ok = by_score([r for r in rows if r.get("rating") == "Strong Sell" and _passes_short_gates(r)], worst_first=True)
     page_tickers = _interleave(long_ok, short_ok)
 
     # Sell/Strong Sell reversed (worst score first) -- the most extreme,
@@ -3097,7 +3363,15 @@ async def stream_prices_and_positions(ranked_tickers):
         # get_price_history is a blocking yfinance call — offloaded to a
         # worker thread so it doesn't stall this connection's shared event
         # loop (ticks, snapshot polling) for however long yfinance takes.
-        history = await asyncio.to_thread(app.get_price_history, held_tickers)
+        # Best-effort: a failure here (network, yfinance, or the method
+        # itself going missing in a refactor, as it once did) must not kill
+        # this task -- everything below it, including the candlestick
+        # history refresh, would silently never start.
+        try:
+            history = await asyncio.to_thread(app.get_price_history, held_tickers)
+        except Exception as exc:
+            print(f"Historical price fallback failed, continuing without it: {exc!r}")
+            history = {}
         with lock:
             filled = [
                 ticker
@@ -3985,6 +4259,7 @@ def run_ib_client(tickers, no_news=False):
     asyncio.ensure_future(snapshot_loop())
     asyncio.ensure_future(trades_loop())
     asyncio.ensure_future(open_orders_loop())
+    asyncio.ensure_future(take_profit_loop())
     asyncio.ensure_future(performance_loop())
     # Seeds news_by_ticker from news.json either way, so GET /api/news
     # still serves the existing rolling window even when no_news skips

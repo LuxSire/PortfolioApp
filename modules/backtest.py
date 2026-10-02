@@ -3,19 +3,23 @@ RECOMMENDATION groups.
 
 For every ``data/output/history/sorted_screen <YYYYMMDD>.csv`` snapshot,
 every rated candidate (Strong Buy / Buy / Sell / Strong Sell -- the same
-set the Recommendations page draws from) is put into one of six groups
-by the same entry gates RecommendationsView.tsx applies:
+set the Recommendations page draws from -- plus Hold, as an unrated
+baseline) is put into one of seven groups by the same entry gates
+RecommendationsView.tsx applies:
 
   long_strong_buy   Strong Buy that clears the long gates
   long_buy          Buy that clears the long gates
   long_blocked      Buy/Strong Buy that fails one (weak momentum, a
                     simulation saying it should fall, earnings within
-                    the week)
+                    the week, frozen/acquisition-capped volatility)
   short_strong_sell Strong Sell that clears the short gates
   short_sell        Sell that clears the short gates
   short_blocked     Sell/Strong Sell that fails one (strong momentum, a
                     simulation saying it should rise, strong revenue
-                    growth, earnings within the week)
+                    growth, earnings within the week, frozen/
+                    acquisition-capped volatility)
+  hold              The broad Hold middle, held long, no gates -- a
+                    "not rated at all" baseline for the six above
 
 Each candidate's forward return is taken from IB's daily bars
 (``data/IB/price_history_daily_3mo.json``), held exactly HOLDING_TRADING_DAYS
@@ -88,6 +92,7 @@ GROUPS = [
     "short_strong_sell",
     "short_sell",
     "short_blocked",
+    "hold",
 ]
 
 _LONG_RATINGS = {"Strong Buy", "Buy"}
@@ -119,19 +124,10 @@ _SHORT_RATINGS = {"Strong Sell", "Sell"}
 # reconstructable GOING FORWARD; every week archived before that column
 # existed still has nothing to check (fails open, same as any other
 # missing-data case).
-# MSI is now a pure two-threshold continuation gate: long blocked at/below
-# NO_BUY, short blocked at/above NO_SELL, nothing else. The old
-# mean-reversion carve-outs at the far extremes (buy-the-dip below
-# _MOMENTUM_OVERSOLD, short-the-top above _MOMENTUM_OVERBOUGHT, and the
-# asymmetric _MOMENTUM_SHORT_OVERSOLD=15 floor) were all dropped: hourly
-# entry-timing analysis showed every counter-trend entry (buy oversold /
-# falling knife, short overbought / strong uptrend) lost ~1.5-3.4% over
-# the next 3 days with 20-40% hit rates, while every continuation entry
-# (buy uptrend / overbought, short falling knife / oversold) made
-# ~1.4-3.4% at 60-78% hit. OVERSOLD/OVERBOUGHT survive only as zone-label
-# text in RecommendationsView.tsx, not as gate thresholds.
-_MOMENTUM_NO_BUY = 35
-_MOMENTUM_NO_SELL = 65
+# Trend (momentum) gate REMOVED (was _MOMENTUM_NO_BUY=35/_NO_SELL=65) --
+# explicit instruction (2026-10-01): its effect on 2-5 day forward returns isn't established. Kept in sync with RecommendationsView.tsx/ib_server.py/
+# portfolio_optimizer.py; `momentum` (now the next-day Reversal Score) is
+# still a scored factor.
 # meanReversion gate REMOVED (was _MEAN_REVERSION_OVERBOUGHT=80/OVERSOLD=20)
 # -- kept in sync with RecommendationsView.tsx's own removal of
 # meanReversionOkForLong/meanReversionOkForShort: the factor-performance
@@ -172,7 +168,13 @@ _MOMENTUM_NO_SELL = 65
 # weight instead (see modules/scoring.py's own FACTOR_WEIGHTS comment) --
 # a continuous, linear scoring effect, not a gate, so there is nothing
 # left for this module to mirror here.
-_SHORT_GROWTH_CEILING = 0.10  # RecommendationsView.tsx SHORT_GROWTH_CEILING
+# Short-side revenue-growth gate -- explicit instruction: never short a
+# stock whose trailing OR expected (Eulerpool) revenue growth is above 10%.
+# ENFORCED here and in modules/portfolio_optimizer.py; the Recommendations
+# Short tab deliberately still SHOWS such names (with a red "never short"
+# line on the card) so they can be checked by eye, but they are never
+# counted as a short in the backtest or picked for the target portfolio.
+_SHORT_GROWTH_CEILING = 0.10
 
 
 def _growth_blocks_short(row):
@@ -181,6 +183,46 @@ def _growth_blocks_short(row):
     return (trailing is not None and trailing > _SHORT_GROWTH_CEILING) or (
         expected is not None and expected > _SHORT_GROWTH_CEILING
     )
+
+
+# Mirrors RecommendationsView.tsx's VOL_GATE_MIN_ANNUALIZED / lowVolBlocksEntry
+# -- see derive.reconcile_price_volatility's own comment for the motivation
+# (acquisition-capped/frozen tickers). Side-agnostic: blocks BOTH long and
+# short, unlike every other gate here. Same forward-only caveat as
+# sim_return above: priceVolAnnualized was never archived into
+# sorted_screen <date>.csv until main.py started writing it, so this
+# fails open (not blocked) for every already-archived week.
+_VOL_GATE_MIN_ANNUALIZED = 0.05
+
+
+def _low_vol_blocks(row):
+    vol = _f(row.get("priceVolAnnualized"))
+    return vol is not None and vol < _VOL_GATE_MIN_ANNUALIZED
+
+
+# Daily-move gate -- mirrors RecommendationsView.tsx's dailyMoveBlocks: no
+# new long when the entry day's move is above +DAILY_MOVE_GATE_SD sd of the
+# stock's prior ~3 months of daily returns, no new short below -that.
+# dailyMoveZ is recomputed as of each week's own date in
+# _recompute_momentum_asof (derive.reconcile_daily_move), so it applies to
+# every archived week, not only ones written after the column existed.
+# Trend entry filter -- mirrors RecommendationsView.tsx's trendBlocks: no new
+# long at trend <= derive.TREND_NO_BUY ("don't buy weak stocks"), no new
+# short at trend >= derive.TREND_NO_SELL ("don't sell strong stocks"). Not a
+# scored factor. Recomputed as of each week in _recompute_momentum_asof.
+# Missing never blocks.
+def _trend_blocks(row, side):
+    t = _f(row.get("trend"))
+    if t is None:
+        return False
+    return t <= derive.TREND_NO_BUY if side == "long" else t >= derive.TREND_NO_SELL
+
+
+def _daily_move_blocks(row, side):
+    z = _f(row.get("dailyMoveZ"))
+    if z is None:
+        return False
+    return z > derive.DAILY_MOVE_GATE_SD if side == "long" else z < -derive.DAILY_MOVE_GATE_SD
 
 _HISTORY_RE = re.compile(r"sorted_screen[ _](\d{4})(\d{2})(\d{2})\.csv$")
 
@@ -220,11 +262,8 @@ def _long_gate_reasons(row, entry_cutoff, exit_cutoff):
     actually costing return, instead of only knowing the row was blocked
     for SOME reason.
 
-    Momentum (MSI) blocks a long at or below NO_BUY -- the whole
-    weak-momentum half, oversold and falling knife alike (continuation:
-    buying weakness kept losing over the next few days). Everything above
-    NO_BUY, overbought included, is fine. Mirrors
-    RecommendationsView.tsx's momentumBlocks('Long'). No EPS-trend check
+    No momentum check -- the Trend gate is removed (see the comment
+    where _MOMENTUM_* used to live). No EPS-trend check
     -- removed from the live gate: backtesting showed it was consistently
     counterproductive on the short side (the largest short_blocked
     population every week, and consistently positive -- i.e. a bad short
@@ -242,14 +281,17 @@ def _long_gate_reasons(row, entry_cutoff, exit_cutoff):
     (not blocked) for every already-archived week that predates that
     column, same as every other missing-data case here."""
     reasons = []
-    momentum = _f(row.get("momentum"))
-    if momentum is None or momentum <= _MOMENTUM_NO_BUY:
-        reasons.append("momentum")
     sim_return = _f(row.get("simReturn"))
     if sim_return is not None and sim_return < 0:
         reasons.append("sim_return")
+    if _daily_move_blocks(row, "long"):
+        reasons.append("daily_move")
+    if _trend_blocks(row, "long"):
+        reasons.append("trend")
     if _earnings_blocks(row, entry_cutoff, exit_cutoff):
         reasons.append("earnings")
+    if _low_vol_blocks(row):
+        reasons.append("low_vol")
     return reasons
 
 
@@ -258,20 +300,13 @@ def _short_gate_reasons(row, entry_cutoff, exit_cutoff):
     eligibleToSell, each named independently. No EPS-trend check (removed
     from the live gate, see _long_gate_reasons' own comment).
 
-    Momentum (MSI) blocks a short at or above NO_SELL -- the whole
-    strong-momentum half, strong uptrend and overbought alike
-    (continuation: shorting strength kept losing). Everything below
-    NO_SELL, oversold included, is fine. Mirrors
-    RecommendationsView.tsx's momentumBlocks('Short').
+    No momentum check -- removed, same as _long_gate_reasons.
 
     No entry_timing check -- same removal as _long_gate_reasons' own.
 
-    growth: added after confirming live that this module had drifted out
-    of sync with RecommendationsView.tsx's own growthBlocksShortEntry
-    (S, PANW both showed up as clean short_strong_sell weeks with an ugly
-    loss when the live app would already refuse to short either today)
-    -- see _growth_blocks_short's own comment. No short_interest check --
-    that gate is retired, see this module's own top-of-file comment.
+    growth: never short trailing OR expected revenue growth > 10% -- see
+    _growth_blocks_short's own comment. No short_interest check -- that
+    gate is retired, see this module's own top-of-file comment.
 
     sim_return: mirrors RecommendationsView.tsx's simReturnOkForShort --
     blocked when the Monte Carlo simulation says the price should RISE
@@ -279,16 +314,19 @@ def _short_gate_reasons(row, entry_cutoff, exit_cutoff):
     sim_return paragraph -- fails open for any week archived before
     simReturn started being written to sorted_screen <date>.csv."""
     reasons = []
-    momentum = _f(row.get("momentum"))
-    if momentum is None or momentum >= _MOMENTUM_NO_SELL:
-        reasons.append("momentum")
     sim_return = _f(row.get("simReturn"))
     if sim_return is not None and sim_return > 0:
         reasons.append("sim_return")
+    if _daily_move_blocks(row, "short"):
+        reasons.append("daily_move")
+    if _trend_blocks(row, "short"):
+        reasons.append("trend")
     if _growth_blocks_short(row):
         reasons.append("growth")
     if _earnings_blocks(row, entry_cutoff, exit_cutoff):
         reasons.append("earnings")
+    if _low_vol_blocks(row):
+        reasons.append("low_vol")
     return reasons
 
 
@@ -312,6 +350,8 @@ def _group_for(rating, row, entry_cutoff, exit_cutoff):
         if reasons:
             return "short_blocked", reasons
         return ("short_strong_sell" if rating == "Strong Sell" else "short_sell"), []
+    if rating == "Hold":
+        return "hold", []  # no gates -- see module docstring's "hold" line
     return None, []
 
 
@@ -379,7 +419,31 @@ def _group_stats(members):
     }
 
 
-_GATE_REASONS = ("momentum", "sim_return", "growth", "earnings")
+_GATE_REASONS = ("sim_return", "daily_move", "trend", "growth", "earnings", "low_vol")
+
+# Two stricter, nested cuts of Strong Buy/Strong Sell (2.5% ⊂ 5% ⊂ the
+# rating's own 7.5% -- scoring.RATING_THRESHOLDS) -- reported as extra
+# reference stats in _summarize, not real gates: missing a cut still
+# fully counts toward long_strong_buy/short_strong_sell, just not the
+# tighter subset. The RESTRICTED_PCT_4/_2 NAMES are legacy (were 4%/2%
+# before scoring.RATING_THRESHOLDS itself widened from 6% to 7.5%, same
+# proportional widening applied here) -- left as-is rather than renaming
+# these plus every "_4"/"_2"-suffixed group key/label that reads off
+# them, which would be a much larger, purely cosmetic rename touching the
+# frontend's own GroupKey/RestrictedGroupKey types too.
+RESTRICTED_PCT_4 = 0.05
+RESTRICTED_PCT_2 = 0.025
+
+
+def _percentile_ranks(pairs):
+    """{ticker: i/n} for (ticker, score) pairs, ascending by score -- 0 is
+    the best score that week, approaching 1 the worst. Same convention
+    main.py used to write the archived `rating` column."""
+    ordered = sorted(pairs, key=lambda p: p[1])
+    n = len(ordered)
+    if n == 0:
+        return {}
+    return {ticker: i / n for i, (ticker, _) in enumerate(ordered)}
 
 
 def _blocked_breakdown(long_blocked, short_blocked):
@@ -405,8 +469,11 @@ def _blocked_breakdown(long_blocked, short_blocked):
 
 
 def _rescore_current_model(csv_rows):
-    """{ticker: rating} using TODAY's modules.scoring.score_rows, re-run on
-    THIS SAME week's already-archived factor columns -- "what would the
+    """({ticker: rating}, {ticker: pct}) using TODAY's modules.scoring.
+    score_rows, re-run on THIS SAME week's already-archived factor
+    columns -- pct is the 0 (best)..1 (worst) percentile position
+    rating_for_percentile was called with, exposed separately for the
+    RESTRICTED_PCT_4/_2 cuts. "what would the
     CURRENT model have rated this ticker, given only the data that was
     actually on file that week" (a counterfactual against the rating the
     snapshot actually shipped with, from whatever scoring.py was live
@@ -437,10 +504,12 @@ def _rescore_current_model(csv_rows):
          comparison between tickers."""
     rows = [(r["ticker"], r) for r in csv_rows if r.get("ticker") and _f(r.get("score")) is not None]
     if not rows:
-        return {}
+        return {}, {}
     scored = sorted(score_rows(rows), key=lambda item: item[2])
     n = len(scored)
-    return {symbol: rating_for_percentile(i / n) for i, (symbol, _, _) in enumerate(scored)}
+    ratings = {symbol: rating_for_percentile(i / n) for i, (symbol, _, _) in enumerate(scored)}
+    pcts = {symbol: i / n for i, (symbol, _, _) in enumerate(scored)}
+    return ratings, pcts
 
 
 def _summarize(records):
@@ -451,15 +520,38 @@ def _summarize(records):
     by_group = {g: [r for r in records if r["group"] == g] for g in GROUPS}
     groups = {g: _group_stats(by_group[g]) for g in GROUPS}
 
-    # Dollar-neutral book: the gated Strong Buy longs + gated Strong Sell
-    # shorts, each leg equal-weight & 100% gross. P&L is just the sum of
-    # the two group P&Ls (already position-signed). None if either leg is
-    # empty for the week.
-    sb, ss = groups["long_strong_buy"], groups["short_strong_sell"]
-    portfolio = {
-        "return": round(sb["return"] + ss["return"], 6) if sb["return"] is not None and ss["return"] is not None else None,
-        "count": sb["count"] + ss["count"],
-    }
+    # Nested restricted subsets (see RESTRICTED_PCT_4/_2 above) -- not a
+    # partition, so missing a cut doesn't remove a name from
+    # long_strong_buy/short_strong_sell. `pct` is None when _records_for
+    # had no `score` column to reconstruct a percentile from that week --
+    # excluded rather than guessed.
+    groups["long_strong_buy_restricted_4"] = _group_stats(
+        [r for r in by_group["long_strong_buy"] if r["pct"] is not None and r["pct"] < RESTRICTED_PCT_4]
+    )
+    groups["long_strong_buy_restricted_2"] = _group_stats(
+        [r for r in by_group["long_strong_buy"] if r["pct"] is not None and r["pct"] < RESTRICTED_PCT_2]
+    )
+    groups["short_strong_sell_restricted_4"] = _group_stats(
+        [r for r in by_group["short_strong_sell"] if r["pct"] is not None and r["pct"] >= 1 - RESTRICTED_PCT_4]
+    )
+    groups["short_strong_sell_restricted_2"] = _group_stats(
+        [r for r in by_group["short_strong_sell"] if r["pct"] is not None and r["pct"] >= 1 - RESTRICTED_PCT_2]
+    )
+
+    # Dollar-neutral book: gated Strong Buy longs + gated Strong Sell
+    # shorts, each leg equal-weight & 100% gross, P&L summed (already
+    # position-signed); None if either leg is empty. Same combination one
+    # nesting level down each time, using the 5%/2.5% legs instead of 7.5%.
+    def _portfolio(long_key, short_key):
+        sb, ss = groups[long_key], groups[short_key]
+        return {
+            "return": round(sb["return"] + ss["return"], 6) if sb["return"] is not None and ss["return"] is not None else None,
+            "count": sb["count"] + ss["count"],
+        }
+
+    portfolio = _portfolio("long_strong_buy", "short_strong_sell")
+    portfolio_restricted_4 = _portfolio("long_strong_buy_restricted_4", "short_strong_sell_restricted_4")
+    portfolio_restricted_2 = _portfolio("long_strong_buy_restricted_2", "short_strong_sell_restricted_2")
 
     order = {g: i for i, g in enumerate(GROUPS)}
     tickers = sorted(
@@ -471,6 +563,7 @@ def _summarize(records):
                 "blockedBy": r["blockedBy"],
                 "sector": r.get("sector"),
                 "return": round(r["pnl"], 6),
+                "pct": r["pct"],
             }
             for r in records
         ),
@@ -480,6 +573,8 @@ def _summarize(records):
     return {
         "groups": groups,
         "portfolio": portfolio,
+        "portfolioRestricted4": portfolio_restricted_4,
+        "portfolioRestricted2": portfolio_restricted_2,
         "blockedBreakdown": _blocked_breakdown(by_group["long_blocked"], by_group["short_blocked"]),
         "tickers": tickers,
     }
@@ -505,11 +600,10 @@ def _recompute_momentum_asof(rows, week_iso, daily_history, hourly_history):
     loaded DAILY_3MO_HISTORY_FILE/HOURLY_HISTORY_FILE dicts -- truncated
     to <= week_iso HERE, per call, rather than the caller doing it once,
     so build_backtest can load each raw file exactly once and share it
-    across every week's own cutoff. hourly_trunc feeds reconcile_momentum
-    too now (the trend_health gate) -- meanReversion/reconcile_mean_reversion
-    is gone entirely (see derive.py's own retirement comment); trend_health
-    replaces its role, folded directly into momentum instead of a
-    standalone field.
+    across every week's own cutoff. momentum is now the next-day Reversal
+    Score, computed from daily bars only (hourly_trunc is passed to
+    reconcile_momentum but unused) -- meanReversion/reconcile_mean_reversion
+    is gone entirely (see derive.py's own retirement comment).
 
     Coverage caveat, confirmed live: HOURLY_HISTORY_FILE only carries
     ~3-4 weeks of history at any given time, so a week_iso older than
@@ -519,9 +613,8 @@ def _recompute_momentum_asof(rows, week_iso, daily_history, hourly_history):
     already on the row -- entryTiming simply stays unset if there's
     nothing to fall back to, since it's a new field, not a stale-value
     carryover) means entryTiming silently misses out for a week that old,
-    and the trend_health gate inside reconcile_momentum contributes zero
-    for the same tickers that week, while r10/r5/vol_accel (backed by the
-    3-month-deep daily file) are reliably recomputed much further back.
+    while momentum (daily-only, backed by the 3-month-deep daily file) is
+    reliably recomputed much further back.
 
     Also recomputes entryTiming here (same truncated hourly_trunc, 35h
     formation -- see derive.reconcile_entry_timing) -- no longer a gate
@@ -534,10 +627,69 @@ def _recompute_momentum_asof(rows, week_iso, daily_history, hourly_history):
     daily_trunc = {t: [b for b in bars if (b.get("date") or "")[:10] <= week_iso] for t, bars in daily_history.items()}
     hourly_trunc = {t: [b for b in bars if (b.get("date") or "")[:10] <= week_iso] for t, bars in hourly_history.items()}
     derive.reconcile_momentum(data, daily_trunc, hourly_trunc)
+    derive.reconcile_trend(data, daily_trunc, hourly_trunc)
+    derive.reconcile_daily_move(data, daily_trunc)
     derive.reconcile_entry_timing(data, hourly_trunc)
 
 
 HOLDING_TRADING_DAYS = 5
+
+# Take-profit -- explicit instruction (2026-10-01), mirroring the AUTOMATIC
+# live orders ib_server.py places (see its take_profit_loop): once a held
+# position is up TAKE_PROFIT_TRIGGER_SD sd on the day (vs. the previous
+# close), a closing LIMIT is placed at previous close x (1 +/-
+# TAKE_PROFIT_LIMIT_SD sd). With daily bars that limit fills iff the day's
+# HIGH (long) / LOW (short) reaches it -- reaching 1.75 sd implies 1.5 sd
+# was crossed first, so the trigger never changes whether it fills -- at
+# the limit, or at the OPEN if the stock gapped through it. A day order
+# that doesn't fill expires and is re-armed the next day; otherwise the
+# position is held the full HOLDING_TRADING_DAYS. sd = sample stdev of the
+# up-to-derive.DAILY_MOVE_SD_DAYS daily returns ending at the entry bar
+# (known at entry, no lookahead). On the 6 archived weeks: filled on ~16%
+# of Strong Buy/Strong Sell positions (+0.87% each vs holding), portfolio
+# +1.05% (hold) / +1.21% (old exit-at-close-on-a-1.5sd-day) -> +1.29%/wk.
+TAKE_PROFIT_TRIGGER_SD = 1.5
+TAKE_PROFIT_LIMIT_SD = 1.75
+
+
+def _entry_sigma(series, entry_date):
+    """Sample stdev of the daily returns over the up-to-DAILY_MOVE_SD_DAYS
+    bars ending at entry_date, or None with fewer than DAILY_MOVE_MIN_DAYS
+    returns (then the take-profit rule simply doesn't apply)."""
+    if not series:
+        return None
+    idx = next((i for i, (d, _) in enumerate(series) if d == entry_date), None)
+    if idx is None:
+        return None
+    hist = [c for _, c in series[max(0, idx - derive.DAILY_MOVE_SD_DAYS): idx + 1]]
+    rets = [b / a - 1 for a, b in zip(hist, hist[1:]) if a]
+    if len(rets) < derive.DAILY_MOVE_MIN_DAYS:
+        return None
+    sd = statistics.stdev(rets)
+    return sd if sd > 0 else None
+
+
+def _position_pnl(path, sigma, sign, bars=None):
+    """Signed P&L of one position over `path` [(date, close), ...] with the
+    take-profit limit applied (see TAKE_PROFIT_LIMIT_SD): each day, a limit
+    at the previous close x (1 + sign x TAKE_PROFIT_LIMIT_SD x sigma) fills
+    when that day's high (long) / low (short) reaches it -- at the open if
+    it gapped through. `bars` = {date: (open, high, low)} for this ticker;
+    a day without them falls back to its close reaching the limit.
+    Otherwise closes at the last bar."""
+    c0 = path[0][1]
+    if sigma:
+        for i in range(1, len(path)):
+            day, close = path[i]
+            limit = path[i - 1][1] * (1 + sign * TAKE_PROFIT_LIMIT_SD * sigma)
+            o, h, l = (bars or {}).get(day, (None, None, None))
+            reach = (h if sign > 0 else l) if (h is not None and l is not None) else close
+            if sign * (reach - limit) >= 0:
+                fill = limit
+                if o is not None and sign * (o - limit) > 0:
+                    fill = o
+                return sign * (fill / c0 - 1)
+    return sign * (path[-1][1] / c0 - 1)
 
 def _build_week(week_iso, csv_path, closes, daily_history=None, hourly_history=None):
     screen_date = date.fromisoformat(week_iso)
@@ -562,6 +714,15 @@ def _build_week(week_iso, csv_path, closes, daily_history=None, hourly_history=N
     # classifies it (long vs short, which flips the pnl sign, is applied
     # per-model in _records_for).
     paths = {}
+    sigmas = {}
+    # {ticker: {date: (open, high, low)}} for the take-profit limit fill check
+    ohlc = {}
+    if daily_history:
+        for t, bars in daily_history.items():
+            ohlc[t] = {
+                (b.get("date") or "")[:10]: (_f(b.get("open")), _f(b.get("high")), _f(b.get("low")))
+                for b in bars or []
+            }
     for row in rows:
         ticker = row.get("ticker")
         if not ticker:
@@ -572,8 +733,9 @@ def _build_week(week_iso, csv_path, closes, daily_history=None, hourly_history=N
             # fewer are actually available (short data at the edge of the
             # cache), use what's there rather than dropping the ticker.
             paths[ticker] = path[: HOLDING_TRADING_DAYS + 1]
+            sigmas[ticker] = _entry_sigma(closes.get(ticker), path[0][0])
 
-    def _records_for(rating_of):
+    def _records_for(rating_of, pct_of):
         records = []
         for row in rows:
             path = paths.get(row.get("ticker"))
@@ -582,20 +744,27 @@ def _build_week(week_iso, csv_path, closes, daily_history=None, hourly_history=N
             group, reasons = _group_for(rating_of(row), row, entry_cutoff, exit_cutoff)
             if group is None:
                 continue
-            sign = 1.0 if group.startswith("long") else -1.0
+            sign = -1.0 if group.startswith("short") else 1.0  # long_* and hold both held long
             records.append({
                 "ticker": row["ticker"],
                 "rating": rating_of(row),
                 "group": group,
                 "blockedBy": reasons,
                 "sector": row.get("sector") or None,
-                "pnl": sign * (path[-1][1] / path[0][1] - 1),
+                "pnl": _position_pnl(path, sigmas.get(row["ticker"]), sign, ohlc.get(row["ticker"])),
+                "pct": pct_of(row),
             })
         return records
 
-    actual_records = _records_for(lambda row: row.get("rating"))
-    rescored = _rescore_current_model(rows)
-    current_records = _records_for(lambda row: rescored.get(row.get("ticker")))
+    # Actual model's percentile isn't archived, but is reconstructable
+    # from the archived `score` column directly -- no rescoring needed,
+    # unlike the rating itself.
+    actual_pct = _percentile_ranks(
+        [(r["ticker"], _f(r.get("score"))) for r in rows if r.get("ticker") and _f(r.get("score")) is not None]
+    )
+    actual_records = _records_for(lambda row: row.get("rating"), lambda row: actual_pct.get(row.get("ticker")))
+    rescored, current_pct = _rescore_current_model(rows)
+    current_records = _records_for(lambda row: rescored.get(row.get("ticker")), lambda row: current_pct.get(row.get("ticker")))
 
     result = {
         "week": week_iso,
@@ -630,7 +799,10 @@ def build_backtest(history_dir, daily_file, hourly_file=None):
     back to the old archived-value behavior for callers that don't have
     these files handy."""
     closes = _load_daily_closes(daily_file)
-    daily_history = _load_json_or_empty(daily_file) if hourly_file is not None else None
+    # Always loaded now: the take-profit limit needs each day's open/high/low
+    # (_position_pnl), not just closes. Momentum is still only recomputed
+    # as-of each week when hourly_history is also given (see _build_week).
+    daily_history = _load_json_or_empty(daily_file)
     hourly_history = _load_json_or_empty(hourly_file) if hourly_file is not None else None
     weeks = [
         w

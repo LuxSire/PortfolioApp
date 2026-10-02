@@ -104,6 +104,21 @@ def _rate_limit():
         _last_request_at = time.time()
 
 
+# Explicit instruction: log the fetch_* progress a bit more verbosely --
+# these can run silent for minutes at a time otherwise (~7min for the
+# full ~2000-ticker universe at 5 req/sec, see fetch_analyst_grades' own
+# docstring). Prints every PROGRESS_LOG_EVERY completions rather than
+# every single one -- one line per ticker would be ~2000 lines per
+# fetch_* call, a firehose rather than "a bit more verbose"; this still
+# surfaces progress every few seconds without flooding the console.
+PROGRESS_LOG_EVERY = 50
+
+
+def _progress_log(label, count, total):
+    if count % PROGRESS_LOG_EVERY == 0 or count == total:
+        print(f"  {label}: {count}/{total}")
+
+
 def _get(path, **params):
     """GET {BASE_URL}{path} with the API token + browser UA, ->
     parsed JSON (list or dict, whatever the endpoint returns). Raises
@@ -381,10 +396,12 @@ def fetch_short_volume(tickers, out_file=SHORT_VOLUME_FILE, window_days=SHORT_VO
             return None
         return sum(ratios) / len(ratios), len(ratios)
 
+    count = 0
     with ThreadPoolExecutor(max_workers=max_workers) as ex:
         futures = {ex.submit(_one, t): t for t in tickers}
         for fut in as_completed(futures):
             ticker = futures[fut]
+            count += 1
             try:
                 result = fut.result()
                 if result is not None:
@@ -392,6 +409,7 @@ def fetch_short_volume(tickers, out_file=SHORT_VOLUME_FILE, window_days=SHORT_VO
                     results[ticker] = {"shortVolumeRatio": ratio, "days": n_days}
             except Exception as e:
                 errors.append((ticker, str(e)))
+            _progress_log("fetch_short_volume", count, len(tickers))
 
     os.makedirs(os.path.dirname(out_file), exist_ok=True)
     with open(out_file, "w") as f:
@@ -540,14 +558,17 @@ def fetch_analyst_grades(tickers, out_file=GRADES_FILE, max_workers=4, force=Fal
             return merged
 
     errors = []
+    count = 0
     with ThreadPoolExecutor(max_workers=max_workers) as ex:
         futures = {ex.submit(get_analyst_grades, t): t for t in tickers}
         for fut in as_completed(futures):
             ticker = futures[fut]
+            count += 1
             try:
                 merged[ticker] = fut.result()
             except Exception as e:
                 errors.append((ticker, str(e)))
+            _progress_log("fetch_analyst_grades", count, len(tickers))
 
     with open(out_file, "w") as f:
         json.dump(merged, f)
@@ -581,14 +602,17 @@ def fetch_fair_values(tickers, out_file=FAIR_VALUE_FILE, max_workers=4):
     are logged and skipped per-ticker rather than aborting the batch."""
     results = {}
     errors = []
+    count = 0
     with ThreadPoolExecutor(max_workers=max_workers) as ex:
         futures = {ex.submit(get_fair_value, t): t for t in tickers}
         for fut in as_completed(futures):
             ticker = futures[fut]
+            count += 1
             try:
                 results[ticker] = fut.result()
             except Exception as e:
                 errors.append((ticker, str(e)))
+            _progress_log("fetch_fair_values", count, len(tickers))
 
     os.makedirs(os.path.dirname(out_file), exist_ok=True)
     with open(out_file, "w") as f:
@@ -627,10 +651,12 @@ def fetch_forward_eps(tickers, out_file=FORWARD_EPS_FILE, max_workers=4):
     logged and skipped per-ticker rather than aborting the batch."""
     results = {}
     errors = []
+    count = 0
     with ThreadPoolExecutor(max_workers=max_workers) as ex:
         futures = {ex.submit(get_forward_estimates, t): t for t in tickers}
         for fut in as_completed(futures):
             ticker = futures[fut]
+            count += 1
             try:
                 fwd_eps0y, fwd_eps1y, fwd_eps2y, fwd_rev0y, fwd_rev1y, fwd_rev2y = fut.result()
                 if any(v is not None for v in (fwd_eps0y, fwd_eps1y, fwd_eps2y, fwd_rev0y, fwd_rev1y, fwd_rev2y)):
@@ -640,6 +666,7 @@ def fetch_forward_eps(tickers, out_file=FORWARD_EPS_FILE, max_workers=4):
                     }
             except Exception as e:
                 errors.append((ticker, str(e)))
+            _progress_log("fetch_forward_eps", count, len(tickers))
 
     os.makedirs(os.path.dirname(out_file), exist_ok=True)
     with open(out_file, "w") as f:
@@ -653,9 +680,20 @@ def fetch_forward_eps(tickers, out_file=FORWARD_EPS_FILE, max_workers=4):
 
 
 EPS_ESTIMATES_FILE = os.path.join("data", "eulerpool", "eps_estimates.json")
+# Same get_estimates call as EPS_ESTIMATES_FILE above (each row already
+# carries revenueEstimate alongside epsEstimate -- see get_forward_estimates'
+# own comment), just the REVENUE half of those same past-actual rows,
+# written to its own file rather than folded into eps_estimates.json's
+# {period: epsEstimate} shape (which modules.derive.eps_volatility_merged
+# already depends on staying a flat float-per-period map). Powers
+# AssetView.tsx's Eulerpool Estimates table's "last FY" revenue anchor
+# (fwdRevenue0y's own "this FY" column needs a completed prior year to
+# show a YoY growth number against, and fetch_forward_eps's own 0y/1y/2y
+# trio starts at the CURRENT year, one full year short of that).
+REVENUE_ESTIMATES_FILE = os.path.join("data", "eulerpool", "revenue_estimates.json")
 
 
-def fetch_eps_estimates(tickers, out_file=EPS_ESTIMATES_FILE, max_workers=4):
+def fetch_eps_estimates(tickers, out_file=EPS_ESTIMATES_FILE, revenue_out_file=REVENUE_ESTIMATES_FILE, max_workers=4):
     """Fetch get_estimates for every ticker in `tickers`, OVERWRITE out_file
     with {ticker: {period: epsEstimate, ...}} -- ONLY the already-completed
     fiscal years (period <= today), keyed by ISO 'YYYY-MM-DD' fiscal-year-
@@ -684,44 +722,59 @@ def fetch_eps_estimates(tickers, out_file=EPS_ESTIMATES_FILE, max_workers=4):
     functions -- errors logged and skipped per-ticker rather than aborting
     the batch.
 
-    Exact-zero epsEstimate values are dropped as missing-data placeholders,
-    not genuine readings -- confirmed live, TPL (Texas Pacific Land, a
-    hugely profitable royalty trust with no realistic path to a real
-    $0.00 EPS year) has a 2024-12-31 epsEstimate of exactly 0 sandwiched
-    between $50.69 (2023) and $6.98 (2025); scanning the full universe,
-    316 (ticker, period) pairs across 216 tickers (12% of coverage) land
-    on exactly 0, far too common to be genuine breakeven years and
-    consistent with Eulerpool using 0 as a null placeholder for some
-    periods. Left in, a zero corrupts eps_volatility twice over: it turns
-    the transition INTO it into a false -100% YoY move, and the
-    transition OUT of it gets silently dropped entirely (dividing by a
-    zero prior is undefined -- see eps_volatility's own guard), losing a
-    real data point on top of gaining a fake one."""
+    Exact-zero epsEstimate/revenueEstimate values are dropped as
+    missing-data placeholders, not genuine readings -- confirmed live, TPL
+    (Texas Pacific Land, a hugely profitable royalty trust with no
+    realistic path to a real $0.00 EPS year) has a 2024-12-31 epsEstimate
+    of exactly 0 sandwiched between $50.69 (2023) and $6.98 (2025);
+    scanning the full universe, 316 (ticker, period) pairs across 216
+    tickers (12% of coverage) land on exactly 0, far too common to be
+    genuine breakeven years and consistent with Eulerpool using 0 as a
+    null placeholder for some periods. Left in, a zero corrupts
+    eps_volatility twice over: it turns the transition INTO it into a
+    false -100% YoY move, and the transition OUT of it gets silently
+    dropped entirely (dividing by a zero prior is undefined -- see
+    eps_volatility's own guard), losing a real data point on top of
+    gaining a fake one. Same treatment applied to revenueEstimate here,
+    same reasoning -- a real company doesn't have a genuine $0 revenue
+    year either.
+
+    Also writes revenue_out_file (REVENUE_ESTIMATES_FILE) -- the same
+    rows' revenueEstimate half, same {period: revenueEstimate} shape, from
+    this SAME get_estimates call (no extra network cost)."""
     today = date.today().isoformat()
     results = {}
+    revenue_results = {}
     errors = []
     with ThreadPoolExecutor(max_workers=max_workers) as ex:
         futures = {ex.submit(get_estimates, t): t for t in tickers}
+        count = 0
         for fut in as_completed(futures):
             ticker = futures[fut]
+            count += 1
             try:
                 rows = fut.result() or []
-                past = {
-                    r["period"]: r["epsEstimate"]
-                    for r in rows
-                    if r.get("period") and r["period"] <= today and r.get("epsEstimate")
-                }
+                past_rows = [r for r in rows if r.get("period") and r["period"] <= today]
+                past = {r["period"]: r["epsEstimate"] for r in past_rows if r.get("epsEstimate")}
+                past_revenue = {r["period"]: r["revenueEstimate"] for r in past_rows if r.get("revenueEstimate")}
                 if past:
                     results[ticker] = past
+                if past_revenue:
+                    revenue_results[ticker] = past_revenue
             except Exception as e:
                 errors.append((ticker, str(e)))
+            _progress_log("fetch_eps_estimates", count, len(tickers))
 
     os.makedirs(os.path.dirname(out_file), exist_ok=True)
     with open(out_file, "w") as f:
         json.dump(results, f)
+    os.makedirs(os.path.dirname(revenue_out_file), exist_ok=True)
+    with open(revenue_out_file, "w") as f:
+        json.dump(revenue_results, f)
 
     print(f"fetch_eps_estimates: wrote {out_file} ({len(tickers)} requested, "
-          f"{len(results)} with at least one historical value, {len(errors)} failed)")
+          f"{len(results)} with at least one historical EPS value) and {revenue_out_file} "
+          f"({len(revenue_results)} with at least one historical revenue value), {len(errors)} failed")
     if errors:
         print("  failed:", ", ".join(t for t, _ in errors[:20]), "..." if len(errors) > 20 else "")
     return results

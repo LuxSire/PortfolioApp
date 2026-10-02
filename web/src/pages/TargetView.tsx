@@ -119,7 +119,7 @@ interface TargetRow {
   compositeScore: number    // average of 4 rank-percentile signals (see portfolio_optimizer.py's _composite_score)
   alternates: Alternate[]   // 2nd/3rd choice for this slot -- see Alternate's own comment
   // screener signals
-  mom: number | null        // MSI — momentum index [0, 100]
+  mom: number | null        // Reversal — next-day reversal score [0, 100], 100 = most bullish
   mr: number | null         // ST-MSI — mean reversion index [0, 100]
   sent: number | null       // social sentiment rank-rescaled [-100, 100]
   newsSent: number | null   // news sentiment rank-rescaled [-100, 100]
@@ -232,7 +232,7 @@ export default function TargetView() {
                 <th title="FINRA pctOfFloat (fresher), else yfinance shortPercentOfFloat -- high short interest favors a long (squeeze/contrarian upside) and penalizes a short (crowded-trade squeeze risk)">Short Int.</th>
                 <th title="Screener percentile rank (0 = top of screener, 100 = bottom)">Screener %</th>
                 <th title="Average of 4 rank-percentile signals: Sharpe · screener · rating strength · short interest">Composite</th>
-                <th title="MSI: Money Flow / RSI momentum index [0=oversold, 100=overbought]">MSI</th>
+                <th title="Reversal: next-day reversal score [0 = overbought, pullback likely; 100 = oversold, bounce likely]">Reversal</th>
                 <th title="ST-MSI: short-term mean-reversion index [0=oversold, 100=overbought]">ST-MSI</th>
                 <th
                   className="col-left"

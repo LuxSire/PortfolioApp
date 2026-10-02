@@ -84,6 +84,50 @@ body {
   font-style: italic;
 }
 
+/* BacktestingView.tsx's Recommendation groups table -- explicit
+   instruction: highlight a cell where the gated pick beat its own naive
+   baseline (long_strong_buy vs. All long; Portfolio vs. All rated long -
+   all rated short), same decisive dark green
+   recommendation-card-goodsign/-target-portfolio already use elsewhere,
+   just as a table-cell background here rather than a whole card. */
+/* BacktestingView.tsx's Long/Short/Portfolio/Baselines divider rows --
+   plain labeled row spanning the full table width, so the three blocks
+   read as visually separate sections instead of one long undivided list. */
+.table-section-header td {
+  background: var(--surface-2);
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  border-top: 2px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  padding: 6px 12px;
+}
+
+/* BacktestingView.tsx's fmtN() -- small "n=<count>" next to a row's
+   Group-column label, the effective number of names behind that row. */
+.cell-n {
+  font-size: 0.7em;
+  color: var(--muted);
+  margin-left: 4px;
+}
+
+.cell-beats-baseline {
+  background: #0f3d24;
+  color: #e3f3e8;
+}
+
+/* BacktestingView.tsx's riskStats() -- "vol · Sharpe · Sortino" line
+   under a row's Compounded %, built from that row's own weekly returns. */
+.cell-risk-stats {
+  display: block;
+  font-size: 0.7em;
+  font-weight: 400;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
 .tooltip-cell[data-tip] {
   cursor: help;
   position: relative;
@@ -126,6 +170,13 @@ body {
   margin-top: 20px;
 }
 
+/* App.jsx wraps the active tab in .tab-content (so ExportTabButton can
+   read it) -- same spacing between the page's own top-level blocks as
+   .app > * + * gave them when they were .app's direct children. */
+.tab-content > * + * {
+  margin-top: 20px;
+}
+
 .tab-bar {
   display: flex;
   gap: 20px;
@@ -150,6 +201,83 @@ body {
 .tab-btn.active {
   color: var(--accent);
   border-bottom-color: var(--accent);
+}
+
+/* IbFreshnessBadge.tsx -- App.jsx's own top tab-bar, pushed to the far
+   right (margin-left: auto, the tab-bar's only other children are the
+   left-aligned tab buttons) so it reads as "after the menu items," kept
+   visible across every page since it's mounted once in App.jsx above the
+   tab switch, not per-page. */
+.ib-freshness-badge {
+  margin-left: auto;
+  align-self: center;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 6px;
+  white-space: nowrap;
+  cursor: default;
+}
+
+.ib-freshness-loading {
+  color: var(--muted);
+}
+
+.ib-freshness-fresh {
+  color: var(--good);
+  background: color-mix(in srgb, var(--good) 12%, transparent);
+}
+
+.ib-freshness-stale {
+  color: var(--bad);
+  background: color-mix(in srgb, var(--bad) 12%, transparent);
+}
+
+/* ExportTabButton.tsx -- sits right after .ib-freshness-badge in the tab
+   bar (the badge's margin-left: auto pushes both to the far right). */
+.export-tab-btn {
+  align-self: center;
+  margin-left: -10px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--line);
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.export-tab-btn:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+/* BacktestingView.tsx's week pager -- one control for every table on the
+   page, since they all share the same paginated week columns. */
+.week-pagination {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 0 16px;
+}
+
+.week-pagination .tab-btn {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 4px 10px;
+}
+
+.week-pagination .tab-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.week-pagination-label {
+  font-size: 13px;
+  color: var(--muted);
+  font-weight: 600;
 }
 
 header.masthead {
@@ -2812,6 +2940,21 @@ tfoot td.col-left {
   text-align: left;
 }
 
+/* BacktestingView.tsx's Portfolio+Baselines <tbody> -- same bold/border
+   emphasis as tfoot above, but a plain <tbody> (not <tfoot>) since it
+   needs to render FIRST in the table, and <tfoot> always renders last
+   regardless of source position. */
+.table-emphasis-body td {
+  padding: 8px 12px;
+  text-align: right;
+  font-weight: 600;
+  border-top: 2px solid var(--line);
+}
+
+.table-emphasis-body td.col-left {
+  text-align: left;
+}
+
 /* A factor whose weight differs between the standard and Bank Score
    formulas (see scoring.py's FACTOR_WEIGHTS -- pe/sector_pe/eps_trend/
    growth go up, fcf/ev_ebitda/debt/liquidity go to zero) -- the row
@@ -3074,6 +3217,13 @@ tr.has-notes {
   .no-print,
   .tab-bar {
     display: none !important;
+  }
+
+  // .tab-content is .app's second child, so .app > * + * gives it a
+  // 20px top margin even with .tab-bar hidden -- the same extra height
+  // .factsheet-print-frame's own margin-top: 0 below guards against.
+  .app > .tab-content {
+    margin-top: 0;
   }
 
   @page {
