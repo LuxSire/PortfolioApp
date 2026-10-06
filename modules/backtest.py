@@ -169,20 +169,18 @@ _SHORT_RATINGS = {"Strong Sell", "Sell"}
 # a continuous, linear scoring effect, not a gate, so there is nothing
 # left for this module to mirror here.
 # Short-side revenue-growth gate -- explicit instruction: never short a
-# stock whose trailing OR expected (Eulerpool) revenue growth is above 10%.
-# ENFORCED here and in modules/portfolio_optimizer.py; the Recommendations
-# Short tab deliberately still SHOWS such names (with a red "never short"
-# line on the card) so they can be checked by eye, but they are never
-# counted as a short in the backtest or picked for the target portfolio.
+# stock whose trailing AND expected (Eulerpool) revenue growth are BOTH above
+# 10% (corrected from "either": one figure alone no longer blocks).
+# ENFORCED here and in modules/portfolio_optimizer.py, matching the
+# Recommendations page's shortGrowthBlocksEntry.
 _SHORT_GROWTH_CEILING = 0.10
 
 
 def _growth_blocks_short(row):
     trailing = _f(row.get("revenueGrowth"))
     expected = _f(row.get("eulerRevGrowth1y"))
-    return (trailing is not None and trailing > _SHORT_GROWTH_CEILING) or (
-        expected is not None and expected > _SHORT_GROWTH_CEILING
-    )
+    return (trailing is not None and expected is not None
+            and trailing > _SHORT_GROWTH_CEILING and expected > _SHORT_GROWTH_CEILING)
 
 
 # Mirrors RecommendationsView.tsx's VOL_GATE_MIN_ANNUALIZED / lowVolBlocksEntry
@@ -207,15 +205,15 @@ def _low_vol_blocks(row):
 # _recompute_momentum_asof (derive.reconcile_daily_move), so it applies to
 # every archived week, not only ones written after the column existed.
 # Trend entry filter -- mirrors RecommendationsView.tsx's trendBlocks: no new
-# long at trend <= derive.TREND_NO_BUY ("don't buy weak stocks"), no new
-# short at trend >= derive.TREND_NO_SELL ("don't sell strong stocks"). Not a
+# long at trend < derive.TREND_NO_BUY ("don't buy weak stocks"), no new
+# short at trend > derive.TREND_NO_SELL ("don't sell strong stocks"). Not a
 # scored factor. Recomputed as of each week in _recompute_momentum_asof.
 # Missing never blocks.
 def _trend_blocks(row, side):
     t = _f(row.get("trend"))
     if t is None:
         return False
-    return t <= derive.TREND_NO_BUY if side == "long" else t >= derive.TREND_NO_SELL
+    return t < derive.TREND_NO_BUY if side == "long" else t > derive.TREND_NO_SELL
 
 
 def _daily_move_blocks(row, side):
@@ -422,7 +420,7 @@ def _group_stats(members):
 _GATE_REASONS = ("sim_return", "daily_move", "trend", "growth", "earnings", "low_vol")
 
 # Two stricter, nested cuts of Strong Buy/Strong Sell (2.5% ⊂ 5% ⊂ the
-# rating's own 7.5% -- scoring.RATING_THRESHOLDS) -- reported as extra
+# rating's own 10% -- scoring.RATING_THRESHOLDS) -- reported as extra
 # reference stats in _summarize, not real gates: missing a cut still
 # fully counts toward long_strong_buy/short_strong_sell, just not the
 # tighter subset. The RESTRICTED_PCT_4/_2 NAMES are legacy (were 4%/2%
@@ -512,6 +510,62 @@ def _rescore_current_model(csv_rows):
     return ratings, pcts
 
 
+def _daily_series(members, records):
+    """{"dates": [...], "series": {key: [daily return, ...]}} for one week's
+    holding period. Each series is built from the equal-weight mean of its
+    members' CUMULATIVE signed P&L from entry (buy-and-hold, frozen after a
+    take-profit fill), differenced day by day, and then expressed as a return
+    on the PREVIOUS day's value, d / (1 + cum_prev) -- so compounding a week's
+    daily values reproduces that group's weekly return exactly (and compounding
+    across weeks reproduces the weekly page's Compounded). The three
+    portfolios are the long leg + the short leg, each leg 100% equal-weight
+    (the leg-balanced rule): their P&L increments are summed first, then
+    rebased the same way. A date a position has no bar for carries its
+    previous cumulative value. None when the week has no positions with a
+    price path."""
+    axis = max((list(r["cumByDate"]) for r in records if r.get("cumByDate")), key=len, default=[])
+    if not axis:
+        return None
+
+    def cum_at(rec, day):
+        value = 0.0
+        for d, v in rec["cumByDate"].items():  # insertion order = date order
+            if d > day:
+                break
+            value = v
+        return value
+
+    increments = {}
+    for key, group_members in members.items():
+        if not group_members:
+            increments[key] = None
+            continue
+        cum = [sum(cum_at(m, d) for m in group_members) / len(group_members) for d in axis]
+        increments[key] = [c - (cum[i - 1] if i else 0.0) for i, c in enumerate(cum)]
+
+    def leg_sum(a, b):
+        if increments.get(a) is None or increments.get(b) is None:
+            return None
+        return [x + y for x, y in zip(increments[a], increments[b])]
+
+    increments["portfolio"] = leg_sum("long_strong_buy", "short_strong_sell")
+    increments["portfolioRestricted4"] = leg_sum("long_strong_buy_restricted_4", "short_strong_sell_restricted_4")
+    increments["portfolioRestricted2"] = leg_sum("long_strong_buy_restricted_2", "short_strong_sell_restricted_2")
+    increments["allRatedLongShort"] = leg_sum("all_rated_long", "all_rated_short")
+
+    series = {}
+    for key, inc in increments.items():
+        if inc is None:
+            series[key] = None
+            continue
+        out, cum = [], 0.0
+        for d in inc:
+            out.append(round(d / (1.0 + cum), 6))  # return on the previous day's value
+            cum += d
+        series[key] = out
+    return {"dates": axis, "series": series}
+
+
 def _summarize(records):
     """{groups, portfolio, blockedBreakdown, tickers} from one already-
     classified record list -- shared by both the actual-rating model and
@@ -519,6 +573,26 @@ def _summarize(records):
     byte-for-byte the same shape."""
     by_group = {g: [r for r in records if r["group"] == g] for g in GROUPS}
     groups = {g: _group_stats(by_group[g]) for g in GROUPS}
+    daily_members = {
+        "long_strong_buy": by_group["long_strong_buy"],
+        "short_strong_sell": by_group["short_strong_sell"],
+        "long_strong_buy_restricted_4": [r for r in by_group["long_strong_buy"] if r["pct"] is not None and r["pct"] < RESTRICTED_PCT_4],
+        "long_strong_buy_restricted_2": [r for r in by_group["long_strong_buy"] if r["pct"] is not None and r["pct"] < RESTRICTED_PCT_2],
+        "short_strong_sell_restricted_4": [r for r in by_group["short_strong_sell"] if r["pct"] is not None and r["pct"] >= 1 - RESTRICTED_PCT_4],
+        "short_strong_sell_restricted_2": [r for r in by_group["short_strong_sell"] if r["pct"] is not None and r["pct"] >= 1 - RESTRICTED_PCT_2],
+    }
+    # Baselines shown next to the portfolios on the Daily tab (same definitions
+    # as the Weekly tab's "All long" / "All rated long" / "All rated short"):
+    # all_long = every rated name, treated as a long (a short-grouped name's
+    # position P&L is un-flipped back to the stock's own return); all_rated_*
+    # = the names actually rated for that side, position P&L as is.
+    daily_members["all_long"] = [
+        r if not r["group"].startswith("short") else {**r, "cumByDate": {d: -v for d, v in r["cumByDate"].items()}}
+        for r in records
+    ]
+    daily_members["all_rated_long"] = [r for r in records if r["group"].startswith("long")]
+    daily_members["all_rated_short"] = [r for r in records if r["group"].startswith("short")]
+    daily = _daily_series(daily_members, records)
 
     # Nested restricted subsets (see RESTRICTED_PCT_4/_2 above) -- not a
     # partition, so missing a cut doesn't remove a name from
@@ -541,7 +615,7 @@ def _summarize(records):
     # Dollar-neutral book: gated Strong Buy longs + gated Strong Sell
     # shorts, each leg equal-weight & 100% gross, P&L summed (already
     # position-signed); None if either leg is empty. Same combination one
-    # nesting level down each time, using the 5%/2.5% legs instead of 7.5%.
+    # nesting level down each time, using the 5%/2.5% legs instead of 10%.
     def _portfolio(long_key, short_key):
         sb, ss = groups[long_key], groups[short_key]
         return {
@@ -576,6 +650,7 @@ def _summarize(records):
         "portfolioRestricted4": portfolio_restricted_4,
         "portfolioRestricted2": portfolio_restricted_2,
         "blockedBreakdown": _blocked_breakdown(by_group["long_blocked"], by_group["short_blocked"]),
+        "daily": daily,
         "tickers": tickers,
     }
 
@@ -639,7 +714,7 @@ HOLDING_TRADING_DAYS = 5
 # position is up TAKE_PROFIT_TRIGGER_SD sd on the day (vs. the previous
 # close), a closing LIMIT is placed at previous close x (1 +/-
 # TAKE_PROFIT_LIMIT_SD sd). With daily bars that limit fills iff the day's
-# HIGH (long) / LOW (short) reaches it -- reaching 1.75 sd implies 1.5 sd
+# HIGH (long) / LOW (short) reaches it -- reaching 1.6 sd implies 1.5 sd
 # was crossed first, so the trigger never changes whether it fills -- at
 # the limit, or at the OPEN if the stock gapped through it. A day order
 # that doesn't fill expires and is re-armed the next day; otherwise the
@@ -649,7 +724,7 @@ HOLDING_TRADING_DAYS = 5
 # of Strong Buy/Strong Sell positions (+0.87% each vs holding), portfolio
 # +1.05% (hold) / +1.21% (old exit-at-close-on-a-1.5sd-day) -> +1.29%/wk.
 TAKE_PROFIT_TRIGGER_SD = 1.5
-TAKE_PROFIT_LIMIT_SD = 1.75
+TAKE_PROFIT_LIMIT_SD = 1.6
 
 
 def _entry_sigma(series, entry_date):
@@ -669,27 +744,271 @@ def _entry_sigma(series, entry_date):
     return sd if sd > 0 else None
 
 
-def _position_pnl(path, sigma, sign, bars=None):
-    """Signed P&L of one position over `path` [(date, close), ...] with the
-    take-profit limit applied (see TAKE_PROFIT_LIMIT_SD): each day, a limit
-    at the previous close x (1 + sign x TAKE_PROFIT_LIMIT_SD x sigma) fills
-    when that day's high (long) / low (short) reaches it -- at the open if
-    it gapped through. `bars` = {date: (open, high, low)} for this ticker;
-    a day without them falls back to its close reaching the limit.
-    Otherwise closes at the last bar."""
+# ---- Intraday (hourly-bar) execution of the take-profit / entry rules -------
+# Explicit instruction (2026-10-03): the rules are tested on HOURLY bars, not just
+# daily highs/lows, mirroring the Trading robot (ib_server.py, which checks every
+# 10 minutes): at each hourly bar CLOSE, if the price is >= TAKE_PROFIT_TRIGGER_SD
+# sigma away from the previous daily close IN THE RULE'S DIRECTION and it moved no
+# more than TAKE_PROFIT_MAX_STEP_SD sigma FURTHER in that direction since the previous
+# bar's close (the one-sided stability test, 1 hour, same as the live robot's lookback; not applied on the day's last hourly bar), an order is placed
+# -- ONE per ticker per day (like the robot). If the bar's close is already
+# beyond the TAKE_PROFIT_LIMIT_SD sigma level the order rests on the passive
+# quote, modelled as filled at that bar's CLOSE; otherwise it is a resting limit at
+# previous close x (1 +/- LIMIT sigma) that fills at the first LATER bar of the
+# day whose high/low reaches it (at that bar's open if it gapped through), and
+# expires unfilled at the close. A day with no hourly bars falls back to the
+# daily-bar approximation (limit fills iff the day's high/low reaches it).
+TAKE_PROFIT_MAX_STEP_SD = 0.5  # over 1 hour, here and in ib_server.py
+
+
+def _hourly_by_day(bars):
+    """{day: [(open, high, low, close), ...]} in time order from a ticker's
+    hourly bars."""
+    out = {}
+    for b in sorted(bars or [], key=lambda x: x.get("date") or ""):
+        d = (b.get("date") or "")[:10]
+        o, h, l, c = _f(b.get("open")), _f(b.get("high")), _f(b.get("low")), _f(b.get("close"))
+        if d and None not in (o, h, l, c):
+            out.setdefault(d, []).append((o, h, l, c))
+    return out
+
+
+def _intraday_fill(day_bars, prev_close, sigma, direction, entry=False):
+    """Fill price of the rule's order on one day, or None. direction = +1 when
+    the rule needs the price to RISE vs the previous close (take-profit on a
+    long, entry of a short), -1 when it needs it to FALL (take-profit on a
+    short, entry of a long). See the block comment above. entry=True (the
+    entry rule): there is no resting limit -- at a bar that triggered (>= 1.5σ
+    move) and is not still running (stability test), the entry is made at that
+    bar's close only if the price is beyond the 1.6σ level; if it has pulled
+    back between 1.5σ and 1.6σ, no entry on this bar and the scan goes on."""
+    level = prev_close * (1 + direction * TAKE_PROFIT_LIMIT_SD * sigma)
+    last_close = day_bars[0][0]  # the first bar's "previous hour" price is its own open
+    for k, (_, _, _, close) in enumerate(day_bars):
+        moved = direction * (close / prev_close - 1)
+        # One-sided stability: the price must not have run a further
+        # TAKE_PROFIT_MAX_STEP_SD sigma IN THE RULE'S DIRECTION over the last hour
+        # (a long entry: not -0.5σ vs the previous hour; a short entry: not +0.5σ).
+        # Skipped on the day's last bar (15:00 NY = 21:00 Rome, the final hour).
+        stable = k == len(day_bars) - 1 or direction * (close / last_close - 1) < TAKE_PROFIT_MAX_STEP_SD * sigma
+        last_close = close
+        if moved < TAKE_PROFIT_TRIGGER_SD * sigma or not stable:
+            continue
+        if direction * (close - level) >= 0:
+            return close  # already beyond the limit level: passive quote ~ this bar's close
+        if entry:
+            continue  # pulled back inside 1.6σ: no entry now, look at the next bar
+        for o, h, l, _ in day_bars[k + 1:]:  # resting limit: first later bar that reaches it
+            reach = h if direction > 0 else l
+            if direction * (reach - level) >= 0:
+                return o if direction * (o - level) > 0 else level
+        return None  # one order per day: unfilled, expires at the close
+    return None
+
+
+def _position_cum(path, sigma, sign, bars=None, with_exit=False, intraday=None):
+    """Cumulative signed P&L from entry at each later bar of `path` [(date,
+    close), ...] -- one value per bar after the entry bar -- with the take-
+    profit limit applied (see TAKE_PROFIT_LIMIT_SD): each day, a limit at
+    the previous close x (1 + sign x TAKE_PROFIT_LIMIT_SD x sigma) fills when
+    that day's high (long) / low (short) reaches it -- at the open if it
+    gapped through. `bars` = {date: (open, high, low)} for this ticker; a
+    day without them falls back to its close reaching the limit. After a fill
+    the cumulative P&L stays frozen at the fill; otherwise the position is
+    carried to the last bar. with_exit=True returns (cum, exit_index) where
+    exit_index is the path index of the take-profit fill day (None if held)."""
     c0 = path[0][1]
-    if sigma:
-        for i in range(1, len(path)):
+    cum = []
+    exited = None
+    exit_i = None
+    for i in range(1, len(path)):
+        if exited is not None:
+            cum.append(exited)
+            continue
+        day, close = path[i]
+        if sigma:
+            if intraday and day in intraday:
+                fill = _intraday_fill(intraday[day], path[i - 1][1], sigma, sign)
+            else:  # no hourly bars for this day: daily-bar approximation
+                limit = path[i - 1][1] * (1 + sign * TAKE_PROFIT_LIMIT_SD * sigma)
+                o, h, l = (bars or {}).get(day, (None, None, None))
+                reach = (h if sign > 0 else l) if (h is not None and l is not None) else close
+                fill = None
+                if sign * (reach - limit) >= 0:
+                    fill = limit
+                    if o is not None and sign * (o - limit) > 0:
+                        fill = o
+            if fill is not None:
+                exited = sign * (fill / c0 - 1)
+                exit_i = i
+                cum.append(exited)
+                continue
+        cum.append(sign * (close / c0 - 1))
+    return (cum, exit_i) if with_exit else cum
+
+
+def _position_pnl(path, sigma, sign, bars=None, intraday=None):
+    """Signed P&L of one position over its whole hold (the last value of
+    _position_cum)."""
+    return _position_cum(path, sigma, sign, bars, intraday=intraday)[-1]
+
+
+# ---- Entry rule overlay (the Trading robot's log-only entry rule) ----------
+# Explicit instruction (2026-10-03): positions NOT in the weekly portfolio get
+# the robot's entry rule applied in the backtest. Candidates are Strong Buy /
+# Strong Sell names that (a) were left out of the portfolio only because the
+# file-based daily-move gate fired (the robot replaces that gate by the live
+# move test below) -- every other gate must pass -- or (b) were in the portfolio
+# but already CLOSED by the take-profit limit (no longer held, so re-enterable
+# after the exit day). Rules, approximated with daily bars: portfolio beta
+# (week-start portfolio, Positions-page definition) must allow the side (buy
+# needs beta < +ENTRY_BETA_BAND, sell needs beta > -band); the net sector /
+# industry weight of the week-start portfolio (each leg 100% equal-weight)
+# must not exceed +/-ENTRY_SECTOR_NET_LIMIT / ENTRY_INDUSTRY_NET_LIMIT against
+# the side; the trigger / stability / fill logic runs on HOURLY bars (see
+# _intraday_fill: a Strong Buy needs the price at least TAKE_PROFIT_TRIGGER_SD
+# sigma BELOW the previous close at an hourly close, stable vs the previous
+# hour, and fills at the -TAKE_PROFIT_LIMIT_SD sigma limit or the hour's close
+# if already beyond; a Strong Sell mirrors it upward). One entry per ticker per
+# week; held to the week's last close (no take-profit on the entered
+# position). Sized ENTRY_SIZE_PCT of NAV, added on top of the portfolio.
+# NOT modelled: the 3%-of-NAV price cap, integer share rounding, take-profit
+# on the entered position, bid/ask spreads.
+ENTRY_BETA_BAND = 0.2
+ENTRY_SECTOR_NET_LIMIT = 0.10
+ENTRY_INDUSTRY_NET_LIMIT = 0.05
+ENTRY_SIZE_PCT = 0.02
+ENTRY_TRIGGER_GATES = {"daily_move"}  # reasons the entry rule overrides (replaced by the live move test)
+
+
+def _entry_rule_overlay(current_records, rows_by_ticker, paths, ohlc, sigmas, intra=None, cut=None):
+    """{"trades": [...], "count", "buys", "sells", "contribution", "daily":
+    {date: increment}} for one week, or None when nothing triggered. See the
+    block comment above for the rules. `cut` (None = the 10% portfolio, or
+    RESTRICTED_PCT_4/_2) restricts the portfolio AND the entry candidates to
+    that percentile cut, so the 5% / 2.5% portfolios get their own entries."""
+    from modules.sector_groups import get_sector_group
+
+    def in_cut(r):
+        if cut is None:
+            return True
+        pct = r.get("pct")
+        if pct is None:
+            return False
+        return pct < cut if r["rating"] in ("Strong Buy", "Buy") or r["group"].startswith("long") else pct >= 1 - cut
+
+    current_records = [r for r in current_records if in_cut(r)]
+    members = [r for r in current_records if r["group"] in ("long_strong_buy", "short_strong_sell")]
+    longs = [r for r in members if r["group"] == "long_strong_buy"]
+    shorts = [r for r in members if r["group"] == "short_strong_sell"]
+    if not longs or not shorts:
+        return None
+
+    def beta_of(t):
+        b = _f(rows_by_ticker.get(t, {}).get("beta"))
+        return 1.0 if b is None else b
+
+    beta = (sum(beta_of(r["ticker"]) for r in longs) / len(longs) - sum(beta_of(r["ticker"]) for r in shorts) / len(shorts)) / 2
+    buy_ok = beta < ENTRY_BETA_BAND
+    sell_ok = beta > -ENTRY_BETA_BAND
+    sector_net, industry_net = {}, {}
+    for leg, sgn in ((longs, 1.0), (shorts, -1.0)):
+        for r in leg:
+            ind = rows_by_ticker.get(r["ticker"], {}).get("sector") or ""
+            w = sgn / len(leg)
+            industry_net[ind] = industry_net.get(ind, 0.0) + w
+            sg = get_sector_group(ind)
+            sector_net[sg] = sector_net.get(sg, 0.0) + w
+
+    trades = []
+    for r in current_records:
+        if r["rating"] not in ("Strong Buy", "Strong Sell"):
+            continue
+        is_long = r["rating"] == "Strong Buy"
+        path = paths.get(r["ticker"])
+        sigma = sigmas.get(r["ticker"])
+        if not path or not sigma or len(path) < 2:
+            continue
+        if r["group"] in ("long_blocked", "short_blocked"):
+            if not r["blockedBy"] or not set(r["blockedBy"]) <= ENTRY_TRIGGER_GATES:
+                continue
+            first_day = 1
+        elif r["group"] in ("long_strong_buy", "short_strong_sell") and r.get("exitDate"):
+            first_day = next(i for i, (d, _) in enumerate(path) if d == r["exitDate"]) + 1
+        else:
+            continue
+        if (is_long and not buy_ok) or (not is_long and not sell_ok):
+            continue
+        ind = rows_by_ticker.get(r["ticker"], {}).get("sector") or ""
+        sec_w, ind_w = sector_net.get(get_sector_group(ind), 0.0), industry_net.get(ind, 0.0)
+        if is_long and (sec_w > ENTRY_SECTOR_NET_LIMIT or ind_w > ENTRY_INDUSTRY_NET_LIMIT):
+            continue
+        if not is_long and (sec_w < -ENTRY_SECTOR_NET_LIMIT or ind_w < -ENTRY_INDUSTRY_NET_LIMIT):
+            continue
+        side = 1 if is_long else -1
+        for i in range(first_day, len(path)):
             day, close = path[i]
-            limit = path[i - 1][1] * (1 + sign * TAKE_PROFIT_LIMIT_SD * sigma)
-            o, h, l = (bars or {}).get(day, (None, None, None))
-            reach = (h if sign > 0 else l) if (h is not None and l is not None) else close
-            if sign * (reach - limit) >= 0:
-                fill = limit
-                if o is not None and sign * (o - limit) > 0:
-                    fill = o
-                return sign * (fill / c0 - 1)
-    return sign * (path[-1][1] / c0 - 1)
+            prev_close = path[i - 1][1]
+            day_bars = (intra(r["ticker"]) or {}).get(day) if intra else None
+            if day_bars:
+                fill = _intraday_fill(day_bars, prev_close, sigma, -side, entry=True)  # an entry needs the OPPOSITE move
+                if fill is None:
+                    continue
+            else:  # no hourly bars that day: daily-bar approximation
+                o, h, l = ohlc.get(r["ticker"], {}).get(day, (None, None, None))
+                reach = l if is_long else h
+                if reach is None:
+                    continue
+                trigger = prev_close * (1 - side * TAKE_PROFIT_TRIGGER_SD * sigma)
+                limit = prev_close * (1 - side * TAKE_PROFIT_LIMIT_SD * sigma)
+                if side * (trigger - reach) < 0 or side * (limit - reach) < 0:
+                    continue  # never got to the trigger / the limit
+                fill = o if (o is not None and side * (limit - o) >= 0) else limit
+            pnl = side * (path[-1][1] / fill - 1)
+            increments = {day: ENTRY_SIZE_PCT * side * (close / fill - 1)}
+            for j in range(i + 1, len(path)):
+                increments[path[j][0]] = ENTRY_SIZE_PCT * side * (path[j][1] / path[j - 1][1] - 1)
+            trades.append({"ticker": r["ticker"], "side": "BUY" if is_long else "SELL", "date": day,
+                           "fill": round(fill, 4), "pnl": round(pnl, 6), "increments": increments,
+                           "source": "daily-move gate" if r["group"].endswith("blocked") else "after take-profit exit"})
+            break
+    if not trades:
+        return None
+    daily = {}
+    for t in trades:
+        for d, v in t["increments"].items():
+            daily[d] = daily.get(d, 0.0) + v
+    return {
+        "trades": [{k: v for k, v in t.items() if k != "increments"} for t in trades],
+        "count": len(trades),
+        "buys": sum(t["side"] == "BUY" for t in trades),
+        "sells": sum(t["side"] == "SELL" for t in trades),
+        "contribution": round(sum(ENTRY_SIZE_PCT * t["pnl"] for t in trades), 6),
+        "portfolioBeta": round(beta, 3),
+        "daily": {d: round(v, 6) for d, v in daily.items()},
+    }
+
+
+def _add_entry_overlay_to_daily(daily, overlay, key="portfolio"):
+    """Replaces series[key] (portfolio / portfolioRestricted4 / ...) with its
+    daily returns plus the entry-rule trades' P&L on top (same rebase-to-
+    previous-day as the other series). `daily` = this week's {"dates",
+    "series"} (mutated)."""
+    base = daily["series"].get(key)
+    if not base:
+        return
+    increments, cum = [], 0.0
+    for r in base:  # recover the additive increments from the rebased returns
+        d = r * (1.0 + cum)
+        increments.append(d)
+        cum += d
+    out, cum = [], 0.0
+    for date_, d in zip(daily["dates"], increments):
+        d += overlay["daily"].get(date_, 0.0)
+        out.append(round(d / (1.0 + cum), 6))
+        cum += d
+    daily["series"][key] = out
+
 
 def _build_week(week_iso, csv_path, closes, daily_history=None, hourly_history=None):
     screen_date = date.fromisoformat(week_iso)
@@ -715,6 +1034,15 @@ def _build_week(week_iso, csv_path, closes, daily_history=None, hourly_history=N
     # per-model in _records_for).
     paths = {}
     sigmas = {}
+    hourly_cache = {}
+
+    def intra(ticker):
+        """{day: hourly bars} for a ticker (built once), or None without hourly data."""
+        if hourly_history is None:
+            return None
+        if ticker not in hourly_cache:
+            hourly_cache[ticker] = _hourly_by_day(hourly_history.get(ticker))
+        return hourly_cache[ticker] or None
     # {ticker: {date: (open, high, low)}} for the take-profit limit fill check
     ohlc = {}
     if daily_history:
@@ -745,13 +1073,17 @@ def _build_week(week_iso, csv_path, closes, daily_history=None, hourly_history=N
             if group is None:
                 continue
             sign = -1.0 if group.startswith("short") else 1.0  # long_* and hold both held long
+            cum, exit_i = _position_cum(path, sigmas.get(row["ticker"]), sign, ohlc.get(row["ticker"]), with_exit=True,
+                                        intraday=intra(row["ticker"]))
             records.append({
+                "exitDate": path[exit_i][0] if exit_i is not None else None,
                 "ticker": row["ticker"],
                 "rating": rating_of(row),
                 "group": group,
                 "blockedBy": reasons,
                 "sector": row.get("sector") or None,
-                "pnl": _position_pnl(path, sigmas.get(row["ticker"]), sign, ohlc.get(row["ticker"])),
+                "pnl": cum[-1],
+                "cumByDate": {d: v for (d, _), v in zip(path[1:], cum)},
                 "pct": pct_of(row),
             })
         return records
@@ -773,6 +1105,24 @@ def _build_week(week_iso, csv_path, closes, daily_history=None, hourly_history=N
     }
     result.update(_summarize(actual_records))
     result["currentModel"] = _summarize(current_records)
+    by_ticker = {r["ticker"]: r for r in rows if r.get("ticker")}
+    for key, cut, field in (("portfolio", None, "entryRule"), ("portfolioRestricted4", RESTRICTED_PCT_4, "entryRuleRestricted4"),
+                            ("portfolioRestricted2", RESTRICTED_PCT_2, "entryRuleRestricted2")):
+        overlay = _entry_rule_overlay(current_records, by_ticker, paths, ohlc, sigmas, intra, cut)
+        if overlay:
+            result["currentModel"][field] = overlay
+            if result["currentModel"].get("daily"):
+                _add_entry_overlay_to_daily(result["currentModel"]["daily"], overlay, key)
+            # The Weekly tab shows the same portfolio WITH its entries: the week's
+            # return = the compounded daily series just rebuilt (equal to the old
+            # figure when no entry trades fired).
+            series = (result["currentModel"].get("daily") or {}).get("series", {}).get(key)
+            if series and result["currentModel"].get(key):
+                total = 1.0
+                for x in series:
+                    total *= 1.0 + x
+                result["currentModel"][key]["returnWithoutEntries"] = result["currentModel"][key]["return"]
+                result["currentModel"][key]["return"] = round(total - 1.0, 6)
     return result
 
 

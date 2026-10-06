@@ -372,14 +372,105 @@ projected upside built on an unpredictable estimate is worth less than
 the same upside from a predictable one. `forecastReturn` is what the
 Simulations tab ranks on.
 
+### Analyst EPS distribution and the P/E draw — what we do and why
+
+`simPrice`/`simReturn`/`simSharpe` (the simulated-path numbers; `forecastPrice`
+above is the deterministic cousin) use Eulerpool's analyst **EPS** estimates —
+mean, low, high and analyst count for the next two fiscal years, downloaded by
+`python main.py eulerpooleps` into `data/eulerpool/forward_eps.json` — instead
+of only the analyst *price*-target range. Four choices, each with its reason:
+
+1. **Year-1 EPS is a split normal built directly on the analysts' EPS range.**
+   Per path, with `z` the shared shock clipped to ±2:
+   `EPS₁ = forwardEps × (1 + g)`, `g = z × |epsLowRel|/2` for `z < 0`,
+   `z × epsHighRel/2` for `z > 0`, where `epsLowRel = epsLow/mean − 1`,
+   `epsHighRel = epsHigh/mean − 1` (the analyst low sits at z = −2, the mean at
+   z = 0, the high at z = +2). *Why:* it uses the real distribution of the
+   estimate instead of converting price targets to EPS through the company's
+   own P/E, and it keeps the skew (the consensus mean is usually nearer the
+   low). **No `epsVolatility` is added on top** — the analysts' spread *is* the
+   year-1 uncertainty, and stacking the company's historical volatility as well
+   would count the same "this company is hard to forecast" signal twice.
+   Needs ≥ 3 analysts (a 1–2-analyst range reflects sample size, not
+   agreement); otherwise it falls back to the price-target version, then the
+   peer-typical spread.
+1b. **Year 0 — the current, still unreported fiscal year — is the first simulation
+   window.** It is drawn per path from its own analyst range
+   (`epsLow0y/epsHigh0y/epsAnalysts0y`, same split-normal construction), and
+   (a) **year 1 is chained on it**: the drawn year-0 EPS is carried in full into
+   year 1 (× the consensus `forwardEps / currentYearEps` growth) plus only the
+   *extra* year-1 spread beyond year 0's, and year-1 offsets are floored at year
+   0's; (b) **year 0 is a window of `mu_eps`**: the discounted average now spans
+   years 0–8 (year 0 undiscounted and weighted by the share of the fiscal year still
+   to run, `days to fiscalYearEnd0y / 365`, with weight 1.0 as the fallback when the
+   date is missing; `mu_pe` includes t = 0 with the same weight), in the
+   deterministic path and the simulated one. *Why:* the current fiscal year is
+   real, near-certain earnings that arrive first; leaving it out of the stream
+   (it was excluded because the old year-0 value was the artificial `anchorEps`)
+   ignored the best-known EPS, and drawing it only as a base reached about a
+   quarter of year 1. *Effect:* `forecastReturn` median 9.8 % → 7.4 %, `simReturn`
+   median 1.9 % → 0.7 %, Sharpe > 5: 10 → 8.
+2. **Year 2 is never less uncertain than √2 × year 1.** Year 2 uses its own
+   analyst range, but each side's offset is floored at `√2 ×` the year-1 offset.
+   *Why:* the year-2 range is only ~1.6× year 1 at the median and under √2× for
+   43 % of names; uncertainty grows roughly with the square root of the horizon,
+   so year 2 must not look barely riskier than year 1.
+3. **`combinedVol` is left as it was** — `sqrt(epsVolatility² +
+   analystDispersion²)` — and keeps driving years 3+, the forecast-price band,
+   `confidence` and the risk-premium haircut. *Why:* analysts say nothing about
+   those, so nothing is double counted there. We also tried `max(epsVolatility,
+   epsDispersion)` (to avoid summing two correlated measures); it barely
+   changed anything on its own (the analyst EPS dispersion, median ≈ 4.5 %, is
+   almost always smaller than `epsVolatility`) and made Sharpe slightly worse, so
+   it was reverted.
+4. **The terminal P/E is drawn per path.** `price = EPS_path × mu_pe ×
+   peMultiplier`, with `peMultiplier = exp(σ_pe·N(0,1) − σ_pe²/2)` (mean 1) and
+   `σ_pe = sqrt(ln(1 + cv²))`, `cv² = max(σ_price² − σ_eps1², 0)`, `σ_price =
+   priceTargetDispersion/2`, `σ_eps1` = the year-1 EPS sigma. *Why:* with tight
+   analyst EPS ranges and a fixed multiple, price spread equals EPS spread —
+   much narrower than the analysts' own price-target range, which also holds
+   their disagreement about the future multiple — and `simSharpe` exploded.
+   `price = EPS × P/E`, so the variances add: whatever part of the price-target
+   spread the EPS spread doesn't explain is attributed to the multiple. The `−σ²/2`
+   term keeps the *average* multiplier at 1, which answers the old objection to a
+   random multiple (a right-skewed multiple drags the mean of `simPrice` above its
+   median). This **replaces the earlier "the multiple is never randomized"
+   rule**.
+
+*What we tried and rejected:* scaling the EPS range by a fixed factor (≈ 4) to
+match the price-target spread (an arbitrary calibration, no economic meaning);
+multiplying EPS low/high/mean by the current P/E (a constant factor cancels in
+`(high − low)/mean`, so it changes nothing); and using the peer P/E coefficient
+of variation as `σ_pe` (median 0.61 — how different peers' multiples are *today*,
+not how much one stock re-rates in a year; it pushed the median `simReturn` to
+−18 % and the median Sharpe to 0.28).
+
+Effect on `simSharpe` across the simulated universe (1,730 tickers):
+
+| Version | Median simReturn | Median Sharpe | Sharpe > 5 | Highest |
+|---|---|---|---|---|
+| Before the analyst-EPS changes | 0.8 % | 0.64 | 10 | 14.6 |
+| EPS range + year-2 floor, **fixed** P/E | 3.4 % | 0.93 | 65 | 37.3 |
+| + P/E draw from the peer CV (rejected) | −18.1 % | 0.28 | 0 | 2.9 |
+| **+ P/E draw from the price-target residual (current)** | 2.8 % | 0.86 | 13 | 36.6 |
+
+The book-value price floor (`min(0.75 × bookValue, MAX_FLOOR_VS_PRICE_MULTIPLE × price)`) is
+capped at the **current price** (was 1.3×): for stocks trading far below book (HUN, LGIH,
+NAVI) a floor above the price swallowed the whole distribution at +30 %
+(`simReturnVol` ≈ 0, Sharpe in the tens). It now only guards against downside.
+
+The full derivation is also on the app's **Maths** tab (`web/public/maths.json`).
+
 **Caveats** — treat the output as a probabilistic sanity-check range,
 not a price target:
 - Normal is a simplifying assumption. Real EPS distributions are often
   skewed/fat-tailed in ways a symmetric bell curve understates.
-- Earnings-driven only — says nothing about sentiment, macro, rate moves,
-  or multiple re-rating, usually the bigger driver of short-term price action.
-- `industryMedianPE` is a fixed current snapshot, not a forecast of where
-  the multiple is headed.
+- Earnings-driven, plus a random terminal P/E whose spread is inferred from the
+  analysts' price-target range (see above) — says nothing about sentiment, macro
+  or rate moves, usually the bigger driver of short-term price action.
+- `industryMedianPE` is a current snapshot: the simulated paths put a random
+  spread around it but not a *direction* — it is not a forecast of where the
+  multiple is headed.
 
 ## Project layout
 

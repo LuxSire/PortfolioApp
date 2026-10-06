@@ -2103,20 +2103,20 @@ def score_rows(
 #  Rating -- what to do with the score once it's computed                 #
 # ---------------------------------------------------------------------- #
 # Zacks Rank's actual bucket shape (roughly 7.5/12.5/60/12.5/7.5), not
-# equal quintiles -- a top-7.5% "Strong Buy" is a meaningfully selective
+# equal quintiles -- a top-10% "Strong Buy" is a meaningfully selective
 # badge, unlike a generic top-20% one. Thresholds are on percentile
 # position (0 = best score, approaching 1 = worst); symmetric around the
 # middle so Strong Buy and Strong Sell always come out to the same count
 # (up to rounding by however many rows don't divide evenly). Widened from
 # 6% (roughly 6/14/60/14/6) -- explicit instruction, Strong Buy/Strong
-# Sell raised to 7.5%, Buy/Sell's own 0.20/0.80 boundaries left in place
-# (so the Buy/Sell tiers themselves shrink slightly, from 14pp to 12.5pp
-# each, to make room).
+# Sell raised to 7.5%, then to 10% (explicit instruction, 2026-10-04) with
+# Buy/Sell's own 0.20/0.80 boundaries left in place (so the Buy/Sell tiers
+# shrink to 10pp each: 10 / 10 / 60 / 10 / 10).
 RATING_THRESHOLDS = [
-    (0.075, "Strong Buy"),
+    (0.10, "Strong Buy"),
     (0.20, "Buy"),
     (0.80, "Hold"),
-    (0.925, "Sell"),
+    (0.90, "Sell"),
 ]
 RATING_WORST = "Strong Sell"
 # Not a percentile bucket at all -- for the negative/non-positive-forwardPE

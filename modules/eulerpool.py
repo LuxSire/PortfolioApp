@@ -254,6 +254,18 @@ def get_forward_estimates(ticker, today=None):
     function's own docstring). None for any slot a ticker doesn't have at
     least that many future fiscal years of coverage for, or doesn't carry
     that particular metric on its estimates row."""
+    return get_forward_estimates_detail(ticker, today)[0]
+
+
+def get_forward_estimates_detail(ticker, today=None):
+    """(the six-tuple of get_forward_estimates, {"epsHigh0y": ..., "epsLow0y":
+    ..., "epsAnalysts0y": ..., same for 1y/2y}) from ONE get_estimates call.
+    The high/low/analyst-count triple is the DISTRIBUTION of the EPS
+    estimates behind each consensus mean (the analysts' own range), same
+    fiscal-year slots as fwdEps0y/1y/2y. Feeds the simulation's EPS
+    dispersion (epsDispersion = analyst range / d2(N) / |mean|, combined
+    with epsVolatility as max(), not a root-sum-square -- see
+    modules.simulations). None for a slot Eulerpool doesn't carry."""
     today = (today or date.today()).isoformat()
     rows = get_estimates(ticker)
     future = sorted(
@@ -264,10 +276,17 @@ def get_forward_estimates(ticker, today=None):
     def _pick(i, key):
         return future[i].get(key) if len(future) > i else None
 
-    return (
+    six = (
         _pick(0, "epsEstimate"), _pick(1, "epsEstimate"), _pick(2, "epsEstimate"),
         _pick(0, "revenueEstimate"), _pick(1, "revenueEstimate"), _pick(2, "revenueEstimate"),
     )
+    ranges = {}
+    for i in range(3):
+        ranges[f"epsHigh{i}y"] = _pick(i, "epsHigh")
+        ranges[f"epsLow{i}y"] = _pick(i, "epsLow")
+        ranges[f"epsAnalysts{i}y"] = _pick(i, "epsAnalysts")
+        ranges[f"fiscalYearEnd{i}y"] = _pick(i, "period")  # 'YYYY-MM-DD' fiscal year end of that slot
+    return six, ranges
 
 
 def get_forward_eps(ticker, today=None):
@@ -631,7 +650,9 @@ FORWARD_EPS_FILE = os.path.join("data", "eulerpool", "forward_eps.json")
 def fetch_forward_eps(tickers, out_file=FORWARD_EPS_FILE, max_workers=4):
     """Fetch get_forward_estimates for every ticker in `tickers`, OVERWRITE
     out_file with {ticker: {"fwdEps0y": ..., "fwdEps1y": ..., "fwdEps2y":
-    ..., "fwdRevenue0y": ..., "fwdRevenue1y": ..., "fwdRevenue2y": ...}}
+    ..., "fwdRevenue0y": ..., "fwdRevenue1y": ..., "fwdRevenue2y": ...,
+    plus epsHigh/epsLow/epsAnalysts for 0y/1y/2y -- the EPS estimate range --
+    and fiscalYearEnd0y/1y/2y, the fiscal-year-end date of each slot}}
     -- same same-day-snapshot, full-overwrite (no merge, no staleness
     cooldown) shape as fetch_fair_values, for the same reason:
     get_forward_estimates reads get_estimates fresh each call, so there's
@@ -653,16 +674,17 @@ def fetch_forward_eps(tickers, out_file=FORWARD_EPS_FILE, max_workers=4):
     errors = []
     count = 0
     with ThreadPoolExecutor(max_workers=max_workers) as ex:
-        futures = {ex.submit(get_forward_estimates, t): t for t in tickers}
+        futures = {ex.submit(get_forward_estimates_detail, t): t for t in tickers}
         for fut in as_completed(futures):
             ticker = futures[fut]
             count += 1
             try:
-                fwd_eps0y, fwd_eps1y, fwd_eps2y, fwd_rev0y, fwd_rev1y, fwd_rev2y = fut.result()
+                (fwd_eps0y, fwd_eps1y, fwd_eps2y, fwd_rev0y, fwd_rev1y, fwd_rev2y), eps_ranges = fut.result()
                 if any(v is not None for v in (fwd_eps0y, fwd_eps1y, fwd_eps2y, fwd_rev0y, fwd_rev1y, fwd_rev2y)):
                     results[ticker] = {
                         "fwdEps0y": fwd_eps0y, "fwdEps1y": fwd_eps1y, "fwdEps2y": fwd_eps2y,
                         "fwdRevenue0y": fwd_rev0y, "fwdRevenue1y": fwd_rev1y, "fwdRevenue2y": fwd_rev2y,
+                        **eps_ranges,
                     }
             except Exception as e:
                 errors.append((ticker, str(e)))

@@ -7,7 +7,6 @@ import type { HistoryByTicker, LivePricesByTicker } from '../interfaces/IScreene
 
 // ─── constants ────────────────────────────────────────────────────────────────
 const MARKET_VOL = 0.20          // same value used in portfolio_optimizer.py
-const RISK_FREE_ANNUAL = 0.035   // same 3.5 %/yr used in portfolio_optimizer.py
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 // The last close strictly before today, comparing BOTH bar series -- same
@@ -369,7 +368,7 @@ export default function TargetView() {
             </div>
             <div
               className="stat"
-              title={`Annualised Sharpe: (portfolioReturn − ${(RISK_FREE_ANNUAL * 100).toFixed(1)}% risk-free) / portfolioVol`}
+              title="Annualised Sharpe: portfolioReturn / portfolioVol (no risk-free rate: the book holds a treasury allocation)"
             >
               <span className={`n num ${signClass(sharpe)}`}>{fmtRatio(sharpe)}</span>
               <span className="l">Sharpe</span>
@@ -390,7 +389,7 @@ export default function TargetView() {
             </div>
             <div
               className="stat"
-              title={`Long leg annualised Sharpe: (return − ${(RISK_FREE_ANNUAL * 100).toFixed(1)}% risk-free) / vol ${fmtVol(longLeg?.vol ?? null)}`}
+              title={`Long leg annualised Sharpe: return / vol ${fmtVol(longLeg?.vol ?? null)} (no risk-free rate)`}
             >
               <span className={`n num ${signClass(longLeg?.sharpe ?? null)}`}>{fmtRatio(longLeg?.sharpe ?? null)}</span>
               <span className="l">Long Sharpe</span>
@@ -404,7 +403,7 @@ export default function TargetView() {
             </div>
             <div
               className="stat"
-              title={`Short leg annualised Sharpe: (return − ${(RISK_FREE_ANNUAL * 100).toFixed(1)}% risk-free) / vol ${fmtVol(shortLeg?.vol ?? null)}`}
+              title={`Short leg annualised Sharpe: return / vol ${fmtVol(shortLeg?.vol ?? null)} (no risk-free rate)`}
             >
               <span className={`n num ${signClass(shortLeg?.sharpe ?? null)}`}>{fmtRatio(shortLeg?.sharpe ?? null)}</span>
               <span className="l">Short Sharpe</span>

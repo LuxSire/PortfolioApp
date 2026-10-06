@@ -76,6 +76,10 @@ download_eulerpool(): fetch all five of Eulerpool's own per-ticker datasets
                     part of `python main.py all` (explicit instruction --
                     the cooldown is what makes that safe to do on every
                     `all` run).
+download_eulerpool_eps(): ONLY Eulerpool's forward EPS mean + low/high/analyst
+                    count (forward_eps.json) -- no grades/fair value/
+                    short-volume, no cooldown. Run via `python main.py
+                    eulerpooleps`.
 download_ib_prices(): refresh IB Gateway's own 3-month daily bars (see
                     refresh_ib_daily_history/download_ib_daily_history) for
                     the WHOLE active universe (same as `all`'s own scope,
@@ -284,7 +288,7 @@ root):
                      Sorted best (lowest score) first. Also carries a
                      `rating` column: a forced-distribution Strong Buy/Buy/
                      Hold/Sell/Strong Sell label from this file's own score
-                     percentile (top/bottom 7.5% = Strong Buy/Strong Sell,
+                     percentile (top/bottom 10% = Strong Buy/Strong Sell,
                      next 12.5% each = Buy/Sell, middle 60% = Hold — same
                      shape as Zacks Rank's bucketing, unlike Wall Street's
                      own analyst consensus, which skews heavily toward
@@ -575,7 +579,7 @@ FIELDNAMES = [
     "fwdEps0y", "fwdEps1y", "estimateGrowth1y", "estimateAnalysts", "eulerRevGrowth0y", "eulerRevGrowth1y", "eulerFwdEps2y", "eulerRevGrowth2y",
     "targetMeanPrice", "targetHighPrice", "targetLowPrice", "targetUpside", "recommendationKey",
     "recommendationMean", "numberOfAnalystOpinions", "momentum", "meanReversion", "entryTiming", "earningsMsi", "epsRevision0y",
-    "epsRevision1y", "epsVolatility", "heldPercentInsiders", "earningsTimestampStart", "yearReturn", "lastDownload",
+    "epsRevision1y", "epsVolatility", "epsDispersion", "fiscalYearEnd0y", "epsLowRel0y", "epsHighRel0y", "epsAnalysts0y", "epsLowRel1y", "epsHighRel1y", "epsAnalysts1y", "epsLowRel2y", "epsHighRel2y", "epsAnalysts2y", "heldPercentInsiders", "earningsTimestampStart", "yearReturn", "lastDownload",
     # Trailing average reported-vs-estimate EPS surprise % over the last
     # EARNINGS_SURPRISE_LOOKBACK_QUARTERS actually-reported quarters (see
     # derive.earnings_surprise_from_statements) -- a DIFFERENT signal from
@@ -598,7 +602,7 @@ FIELDNAMES = [
     "dailyMove",
     "dailyMoveZ",
     # 10-day Trend Score (derive.reconcile_trend) -- an ENTRY FILTER only,
-    # not scored: no new long at <= 35, no new short at >= 65.
+    # not scored: no new long at <= 30, no new short at >= 70.
     "trend",
 ]
 # FINRA biweekly short-interest figures (finra.SHORT_INTEREST_FILE +
@@ -2164,7 +2168,7 @@ def download_13f():
     fetch_13f_holdings(ticker_names)
 
 
-EULERPOOL_ALL_MAX_AGE_DAYS = 1
+EULERPOOL_ALL_MAX_AGE_DAYS = 2
 
 
 def download_eulerpool():
@@ -2243,6 +2247,20 @@ def download_eulerpool():
     fetch_forward_eps(tickers, out_file=FORWARD_EPS_FILE)
     fetch_short_volume(tickers, out_file=SHORT_VOLUME_FILE)
     fetch_eps_estimates(tickers, out_file=EPS_ESTIMATES_FILE, revenue_out_file=REVENUE_ESTIMATES_FILE)
+
+
+def download_eulerpool_eps():
+    """ONLY Eulerpool's forward EPS consensus + its low/high/analyst-count
+    range (modules.eulerpool.fetch_forward_eps -> FORWARD_EPS_FILE) for the
+    whole scored universe -- none of the other four datasets (analyst grades,
+    fair value/upside, short-volume, past EPS estimates), and no cooldown
+    (its own narrow step; one get_estimates call per ticker). Run via
+    `python main.py eulerpooleps`."""
+    tickers = load_all_tickers(SORTED_SCREEN_CSV)
+    if not tickers:
+        print(f"No existing {SORTED_SCREEN_CSV} yet; run `python main.py all` first")
+        return
+    fetch_forward_eps(tickers, out_file=FORWARD_EPS_FILE)
 
 
 # Deliberately its OWN standalone step, NOT folded into download_eulerpool's
@@ -2502,7 +2520,7 @@ if __name__ == "__main__":
         # `all overwrite` bypasses IB_REFRESH_STATE_FILE's 3h cooldown --
         # see download_all's own overwrite param. The only command that can.
         download_all(overwrite=(len(sys.argv) > 2 and sys.argv[2] == "overwrite"))
-        # Eulerpool downloads (explicit instruction) -- own blanket 1-day
+        # Eulerpool downloads (explicit instruction) -- own blanket 2-day
         # cooldown inside download_eulerpool itself (EULERPOOL_ALL_MAX_AGE_
         # DAYS), so this is safe to call on every `all` run: it no-ops
         # immediately unless Eulerpool data is actually stale. `all
@@ -2566,9 +2584,11 @@ if __name__ == "__main__":
         download_target_portfolio()
     elif mode == "backtest":
         download_backtest()
+    elif mode == "eulerpooleps":
+        download_eulerpool_eps()
     else:
         sys.exit(
             f"Unknown mode {mode!r}, expected 'all', 'download', 'recalc' ('rescore'), 'prices', 'form4', "
-            "'xbrl', '13f', 'eulerpool', 'shortinterest', 'ibprices', 'ibhprices', 'yfprices', 'themes', "
+            "'xbrl', '13f', 'eulerpool', 'eulerpooleps', 'shortinterest', 'ibprices', 'ibhprices', 'yfprices', 'themes', "
             "'recommendations', 'chat', 'symbol', 'simulations', 'target', or 'backtest'"
         )

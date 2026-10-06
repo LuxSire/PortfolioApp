@@ -437,7 +437,7 @@ multiple (a higher demanded risk premium), so SimPrice does not just fan
 further from centre as combinedVol rises -- it also gets marked down.
 combinedVol (epsVolatility RSS analystDispersion) is the same uncertainty
 currency forecastPrice's `confidence` and simSharpe already use. Only the
-EXCESS over BASELINE (0.35) is charged -- combinedVol is ~0.32 for nearly
+EXCESS over BASELINE (0.60) is charged -- combinedVol was ~0.32 for nearly
 every name (epsVolatility floored at 0.20, analystDispersion ~0.25) and
 that normal level is already in the industry multiple, so charging it
 would just be a flat tax. K = 0.5 -> a name at combinedVol 1.0 loses ~33%
@@ -456,7 +456,7 @@ number by a smaller volatility makes it MORE negative, so a badly
 underperforming, low-vol name would rank ABOVE a modestly
 underperforming, higher-vol one -- exactly backwards):
 
-  excess_return = simReturn - SIM_RF          (SIM_RF = 0.035, matches portfolio_optimizer.py's own RF)
+  excess_return = simReturn - SIM_RF          (SIM_RF = 0: no risk-free rate, treasuries are held in the book)
   simSharpe     = excess_return / vol            if excess_return >= 0
                 = excess_return * vol             if excess_return <  0
 
@@ -533,6 +533,7 @@ CAVEATS -- read before trusting a number out of this
 """
 
 import math
+from datetime import date
 import numpy as np
 
 from modules.scoring import clamp_eps_revision, to_float
@@ -784,10 +785,12 @@ TARGET_BLEND_WEIGHT_PER_CONSENSUS = 0.10
 # its own beta (also explicit instruction) -- see simulate_ticker's own
 # comment for the effective_discount_rate formula.
 DISCOUNT_RATE = 0.05
-# Risk-free rate for simSharpe (see the simulated-path block) -- same
-# assumption modules/portfolio_optimizer.py's own RF already uses, kept
-# in sync by hand (no shared constants module across the two).
-SIM_RF = 0.035
+# Risk-free rate for simSharpe: ZERO (explicit instruction) -- the book holds a
+# treasury / cash-equivalent allocation, which removes the need to pick a
+# risk-free rate, so Sharpe/Sortino are plain return / risk. Kept as a
+# constant (0.0) so the formula's shape is unchanged; modules/portfolio_optimizer.py's
+# RF and the web pages' risk-free constants are 0 too.
+SIM_RF = 0.0
 # Floor/cap on the beta used to scale DISCOUNT_RATE -- a raw beta at or
 # below BETA_FLOOR would flip or collapse the effective discount rate into
 # something meaningless rather than "lower risk than the market," and an
@@ -803,6 +806,9 @@ BETA_CAP = 3.0
 # simulate_ticker's own comment on the simulated-path block for the full
 # design.
 #
+# [SUPERSEDED -- see the terminal P/E draw in simulate_ticker (pe_multiplier,
+# mean-preserving lognormal, sigma from the price-target spread not explained
+# by the EPS spread); kept below as the history of why the old rule existed.]
 # The multiple itself is NOT randomized -- explicit correction. Every
 # simulated path prices at the SAME fixed industry_pe the deterministic
 # case uses; only the EPS side (ownGrowthRate, reversion speed) is random.
@@ -841,6 +847,9 @@ BETA_CAP = 3.0
 # path doesn't just grow more slowly from a permanently inflated base, it
 # actually reverts, because nothing shock-derived survives past year N.
 SHOCK_CLIP_SD = 2.0
+# Year-2 EPS uncertainty floor vs year 1 (horizon scaling of uncertainty: sqrt(2)).
+YEAR2_UNCERTAINTY_MULT = math.sqrt(2.0)
+
 # GROWTH_NOISE_FLOOR: ownGrowthRate noise is
 # peer_pe_cv * max(abs(rate), GROWTH_NOISE_FLOOR) -- a floor, not a bare
 # peer_pe_cv * abs(rate), so a ticker whose CURRENT point-estimate growth
@@ -899,16 +908,20 @@ REVERSION_EXPONENT_MAX = 1.5
 # combinedVol = sqrt(epsVolatility**2 + analystDispersion**2) is the same
 # uncertainty currency `confidence` and simSharpe already use. Only
 # uncertainty ABOVE the baseline is penalised -- epsVolatility is floored
-# at 0.20 and analystDispersion runs ~0.25, so combinedVol is ~0.32 for
+# at 0.20 and analystDispersion runs ~0.25, so combinedVol was ~0.32 for
 # essentially every name and that "normal" level is already priced into the
 # industry multiple itself; without the baseline the haircut is a near-
-# uniform ~10-15% tax instead of a differentiator. BASELINE 0.35 -> a
-# typical name gets no haircut; K = 0.5 -> a name at combinedVol 1.0 loses
-# ~33% of its multiple; the floor caps the worst case at a 40% haircut.
+# uniform ~10-15% tax instead of a differentiator. RECALIBRATED (explicit
+# instruction, 2026-10-04): the real distribution is higher (median 0.52,
+# middle half 0.37-0.70), so a 0.35 baseline taxed 78% of names (median
+# haircut 8.6%); first moved to 0.52 (= the median), then to 0.60 (explicit
+# instruction: the resulting median simReturn was still too low) -> only the
+# upper ~35% of names pay; K = 0.5 -> a name at combinedVol 1.0 loses ~20% of
+# its multiple; the floor caps the worst case at a 40% haircut.
 # Applied to SimPrice / SimReturn / simPriceDistribution ONLY -- forecastPrice
 # keeps its own confidence shrink, and simSharpe stays on the un-haircut
 # mean/vol so the premium isn't double-counted against the Sharpe denominator.
-RISK_PREMIUM_COMBVOL_BASELINE = 0.35
+RISK_PREMIUM_COMBVOL_BASELINE = 0.6
 RISK_PREMIUM_K = 0.5
 RISK_PREMIUM_PE_FLOOR = 0.6
 
@@ -950,7 +963,7 @@ BOOK_VALUE_FLOOR_MULTIPLE = 0.75
 # floor's actual job is catching a pathological near-zero simulated price
 # for an otherwise normally-priced stock, not manufacturing a guaranteed
 # 100%+ return for any name already trading far below book.
-MAX_FLOOR_VS_PRICE_MULTIPLE = 1.3
+MAX_FLOOR_VS_PRICE_MULTIPLE = 1.0
 
 
 METRIC_KEYS = (
@@ -2135,7 +2148,24 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
     # eps_path[0] in the reported array, still the terminal-pricing/
     # discounting-baseline value everywhere else in this function -- only
     # mu_eps's own average drops it.
-    mu_eps = sum(discounted_eps_path[1:]) / sum(discount_weights[1:])
+    # Year 0 = the CURRENT fiscal year's consensus EPS (a real number, unlike the
+    # anchorEps construct this average used to drop) is the FIRST window of the
+    # stream, undiscounted; years 1+ follow.
+    year0_eps = current_year_eps if (current_year_eps is not None and current_year_eps > 0) else None
+    # Year 0's weight = its undiscounted weight x the SHARE of the fiscal year still to
+    # run (days to Eulerpool's fiscal-year end / 365, in [0, 1]); 1.0 as the fallback
+    # when no fiscal-year-end date is on file (the plain first-window weight).
+    year0_share = 1.0
+    _fy_end = row.get("fiscalYearEnd0y")
+    if _fy_end:
+        try:
+            year0_share = max(0.0, min(1.0, (date.fromisoformat(str(_fy_end)[:10]) - date.today()).days / 365.0))
+        except ValueError:
+            year0_share = 1.0
+    _w0 = discount_weights[0] * year0_share if year0_eps is not None else 0.0
+    mu_eps = (sum(discounted_eps_path[1:]) + (year0_eps * _w0 if year0_eps is not None else 0.0)) / (
+        sum(discount_weights[1:]) + _w0
+    )
 
     # A revenue-multiple floor (peer-group trailingPS x a grown revenue
     # projection) was tried here and REVERTED -- explicit instruction. It
@@ -2189,11 +2219,11 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
     )
     if own_pe_for_blend is not None:
         multiple_sum = 0.0
-        for t in range(1, EPS_PROJECTION_YEARS):
+        for t in range(0 if year0_eps is not None else 1, EPS_PROJECTION_YEARS):
             w_pe = math.sqrt((n_steps - t) / n_steps) if t < n_steps else 0.0
             multiple_t = w_pe * own_pe_for_blend + (1.0 - w_pe) * convergence_multiple
-            multiple_sum += multiple_t * discount_weights[t]
-        mu_pe = multiple_sum / sum(discount_weights[1:])
+            multiple_sum += multiple_t * (_w0 if t == 0 else discount_weights[t])
+        mu_pe = multiple_sum / (sum(discount_weights[1:]) + _w0)
     else:
         mu_pe = convergence_multiple
 
@@ -2379,6 +2409,30 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
         # (or, in the final branch, absent).
         eps_growth_sigma = eps_vol / SHOCK_CLIP_SD
 
+        # Year 0 = the CURRENT fiscal year (not yet reported): the FIRST window of the
+        # simulated EPS stream, drawn per path from the Eulerpool year-0 range (split
+        # normal, shared shock z, analyst extremes at -/+SHOCK_CLIP_SD). Year 1 is built
+        # ON TOP of this draw (chain, below) and year 0 itself is a window of mu_eps_sim.
+        # real_base_sim rebuilds the real base like the deterministic one (blended with
+        # the realized trailing EPS when that is consistent).
+        real_base_sim = real_base
+        eps0_sim = None
+        eps0_low_rel = to_float(row.get("epsLowRel0y"))
+        eps0_high_rel = to_float(row.get("epsHighRel0y"))
+        if current_year_eps is not None and current_year_eps > 0:
+            if eps0_low_rel is not None and eps0_high_rel is not None:
+                g0 = np.clip(np.where(z < 0, z * abs(eps0_low_rel) / SHOCK_CLIP_SD, z * abs(eps0_high_rel) / SHOCK_CLIP_SD),
+                             GROWTH_FLOOR, GROWTH_CAP)
+                eps0_sim = current_year_eps * (1.0 + g0)
+            else:
+                eps0_sim = np.full(n, current_year_eps)
+            if real_base is not None and eps0_low_rel is not None and eps0_high_rel is not None:
+                real_base_sim = (
+                    REAL_BASE_BLEND_WEIGHT * eps0_sim + (1.0 - REAL_BASE_BLEND_WEIGHT) * trailing_eps
+                    if trailing_eps_consistent else eps0_sim
+                )
+
+
         # Per-path direct-estimate draw for year 1 -- centered and scaled
         # entirely on forwardEps, NOT anchorEps. The OLD version
         # multiplied by anchor_eps (direct_eps_1_sim = anchor_eps*(1+
@@ -2420,7 +2474,25 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
         # only drops to zero spread (a single fixed forwardEps, no
         # per-path variation) when even the broad sector has no analyst
         # coverage to borrow a typical spread from.
-        if (
+        # Eulerpool's own next-FY EPS low/high/count (derive.reconcile_forward_eps:
+        # relative offsets from Eulerpool's mean) -- preferred over the price-target
+        # range converted through ownPE: a split normal built DIRECTLY on EPS, with
+        # the analysts' extremes at -/+SHOCK_CLIP_SD, and NO eps_growth_sigma /
+        # epsVolatility term on top (the analyst distribution is the year-1
+        # uncertainty; stacking historical volatility would count it twice).
+        eps1_low_rel = to_float(row.get("epsLowRel1y"))
+        eps1_high_rel = to_float(row.get("epsHighRel1y"))
+        _e0l, _e0h = to_float(row.get("epsLowRel0y")), to_float(row.get("epsHighRel0y"))
+        if eps1_low_rel is not None and eps1_high_rel is not None and _e0l is not None and _e0h is not None:
+            # uncertainty never shrinks with the horizon: year 1 >= year 0 on each side
+            eps1_low_rel = -max(abs(eps1_low_rel), abs(_e0l))
+            eps1_high_rel = max(abs(eps1_high_rel), abs(_e0h))
+        eps_range_year1 = eps1_low_rel is not None and eps1_high_rel is not None and fwd_eps is not None and fwd_eps > 0
+        if eps_range_year1:
+            sigma_low = abs(eps1_low_rel) / SHOCK_CLIP_SD
+            sigma_high = abs(eps1_high_rel) / SHOCK_CLIP_SD
+            g_fwd_draws = np.clip(np.where(z < 0, z * sigma_low, z * sigma_high), GROWTH_FLOOR, GROWTH_CAP)
+        elif (
             target_low_price is not None and target_high_price is not None
             and not thin_coverage and own_pe_consistent and fwd_eps is not None and fwd_eps > 0
         ):
@@ -2479,6 +2551,16 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
         # itself.
         if fwd_eps is not None and fwd_eps > 0:
             direct_eps_1_sim = fwd_eps * (1.0 + g_fwd_draws)
+            if (eps_range_year1 and eps0_low_rel is not None and eps0_high_rel is not None
+                    and current_year_eps is not None and current_year_eps > 0):
+                # Year 1 as a CHAIN on year 0: the drawn year-0 EPS is carried in full
+                # (x forwardEps/currentYearEps, the consensus year-0 -> year-1 growth),
+                # plus only the EXTRA year-1 spread beyond year 0's (the analysts' year-1
+                # range already contains the year-0 uncertainty, see the floor above).
+                inc_low = max(abs(eps1_low_rel) - abs(eps0_low_rel), 0.0) / SHOCK_CLIP_SD
+                inc_high = max(abs(eps1_high_rel) - abs(eps0_high_rel), 0.0) / SHOCK_CLIP_SD
+                g_inc = np.clip(np.where(z < 0, z * inc_low, z * inc_high), GROWTH_FLOOR, GROWTH_CAP)
+                direct_eps_1_sim = eps0_sim * (fwd_eps / current_year_eps) * (1.0 + g_inc)
         elif revenue_based_eps is not None:
             direct_eps_1_sim = revenue_based_eps * (1.0 + g_fwd_draws)
         else:
@@ -2489,7 +2571,7 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
         # too.
         own_growth_draws_y1 = w1 * own_growth_draws_clamped + (1.0 - w1) * convergence_growth_rate
         if real_base is not None:
-            own_growth_level_1_sim = real_base * (1.0 + own_growth_draws_y1)
+            own_growth_level_1_sim = real_base_sim * (1.0 + own_growth_draws_y1)
             eps_1_sim = (
                 REAL_BASE_BLEND_WEIGHT * own_growth_level_1_sim
                 + (1.0 - REAL_BASE_BLEND_WEIGHT) * direct_eps_1_sim
@@ -2510,7 +2592,26 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
         # 2-year data) at the shock's center.
         if direct_eps_2 is not None:
             g_fwd2_center = (direct_eps_2 / fwd_eps - 1.0) if abs(fwd_eps) > 1e-9 else 0.0
-            g_fwd2_draws = np.clip(g_fwd2_center + z * eps_growth_sigma, GROWTH_FLOOR, GROWTH_CAP)
+            eps2_low_rel = to_float(row.get("epsLowRel2y"))
+            eps2_high_rel = to_float(row.get("epsHighRel2y"))
+            if eps2_low_rel is not None and eps2_high_rel is not None and fwd_eps > 0 and direct_eps_2 > 0:
+                # Year-2 analyst EPS range (>= 3 analysts): split normal, extremes at
+                # -/+SHOCK_CLIP_SD, in growth-of-forwardEps units around direct_eps_2.
+                # Year 2 must be MORE uncertain than year 1: uncertainty grows with
+                # the horizon (sqrt(t) scaling), so each side's relative offset is
+                # floored at YEAR2_UNCERTAINTY_MULT x the year-1 offset (the
+                # year-2 analyst range alone is only ~1.6x year 1 at the median
+                # and under sqrt(2) for 43% of names).
+                scale = direct_eps_2 / fwd_eps
+                low2, high2 = abs(eps2_low_rel), abs(eps2_high_rel)
+                if eps_range_year1:
+                    low2 = max(low2, YEAR2_UNCERTAINTY_MULT * abs(eps1_low_rel))
+                    high2 = max(high2, YEAR2_UNCERTAINTY_MULT * abs(eps1_high_rel))
+                sig2_low = low2 * scale / SHOCK_CLIP_SD
+                sig2_high = high2 * scale / SHOCK_CLIP_SD
+                g_fwd2_draws = np.clip(g_fwd2_center + np.where(z < 0, z * sig2_low, z * sig2_high), GROWTH_FLOOR, GROWTH_CAP)
+            else:
+                g_fwd2_draws = np.clip(g_fwd2_center + z * eps_growth_sigma, GROWTH_FLOOR, GROWTH_CAP)
             direct_eps_2_sim = fwd_eps * (1.0 + g_fwd2_draws)
         else:
             direct_eps_2_sim = None
@@ -2551,6 +2652,9 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
         # the real-base years 1-2 computed above.
         discounted_sum_sim = eps_1_sim * discount_weights[1] + eps_2_sim * discount_weights[2]
         weight_sum_sim = discount_weights[1] + discount_weights[2]
+        if eps0_sim is not None:  # year 0 = the first window of the stream (undiscounted)
+            discounted_sum_sim = discounted_sum_sim + eps0_sim * discount_weights[0] * year0_share
+            weight_sum_sim += discount_weights[0] * year0_share
 
         # Years 3+: same concave own->industry growth-rate reversion as
         # before, now compounding from eps_2_sim (real per-path levels)
@@ -2621,7 +2725,27 @@ def simulate_ticker(ticker, data, n=N_SIMULATIONS, rng=None, peer_pools=None):
         # industry_pe used to be: the multiple itself still isn't
         # randomized, only now it converges by year instead of snapping to
         # industryPe immediately.
-        sim_prices = mu_eps_sim_floored * mu_pe
+        # Terminal P/E DRAW (explicit instruction, reversing the old fixed-multiple
+        # rule): each path prices at mu_pe x a MEAN-preserving lognormal multiplier
+        # with the peer P/E coefficient of variation, drawn independently of the EPS
+        # shock z. Without it price spread == EPS spread, which collapsed to almost
+        # nothing once year-1/2 EPS came from tight analyst ranges (simSharpe
+        # exploded). E[multiplier] = 1, so the centre of simPrice is unchanged.
+        # sigma of the multiple = the part of the analysts' PRICE-target spread that
+        # the year-1 EPS spread does not explain (price = EPS x P/E, so the
+        # variances add in log terms): sigma_pe^2 = sigma_price^2 - sigma_eps1^2,
+        # floored at 0. Both sigmas read the analysts' extremes at -/+SHOCK_CLIP_SD.
+        # The peer P/E CV (median 0.61) is NOT used here: it measures how much
+        # peers' multiples differ today, far wider than a year of re-rating.
+        sigma_price = (analyst_dispersion / SHOCK_CLIP_SD) if analyst_dispersion is not None else 0.0
+        if eps_range_year1:
+            sigma_eps1 = (abs(eps1_low_rel) + abs(eps1_high_rel)) / 2.0 / SHOCK_CLIP_SD
+        else:
+            sigma_eps1 = eps_vol / SHOCK_CLIP_SD
+        cv_pe = math.sqrt(max(sigma_price ** 2 - sigma_eps1 ** 2, 0.0))
+        sigma_pe = math.sqrt(math.log(1.0 + cv_pe ** 2))
+        pe_multiplier = np.exp(sigma_pe * rng.standard_normal(n) - 0.5 * sigma_pe ** 2)
+        sim_prices = mu_eps_sim_floored * mu_pe * pe_multiplier
         if book_value_floor is not None:
             sim_prices = np.maximum(sim_prices, book_value_floor)
         # Winsorize at the 5th/95th percentiles before taking ANY moment of

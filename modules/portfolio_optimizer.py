@@ -19,7 +19,9 @@ ALGORITHM
 ---------
 1. PRE-FILTER
    Longs  : Strong Buy  AND simReturn > 0
-   Shorts : Strong Sell AND simReturn < 0
+   Shorts : Strong Sell OR Sell AND simReturn < 0  (Sell added so the short pool is
+            deep enough to satisfy the net sector/industry limits, step 4b; the
+            rating-strength signal below still ranks Strong Sell first)
    (simReturn = modules/simulations.py's risk-premium-haircut simulated-
    path price-vs-current return -- the same signal scoring.forecast_return_
    rank and RecommendationsView's own long/short gate use. Replaced
@@ -63,6 +65,16 @@ ALGORITHM
    the same sector, crowded out by SECTOR_CORR) is kept as that position's
    "alternates" for the frontend.
 
+4b. NET SECTOR / INDUSTRY LIMITS (same limits as the trading robot's new entries)
+   The two legs are optimised independently, so afterwards no broad sector group
+   may exceed +/-SECTOR_NET_LIMIT (10 %) and no industry +/-INDUSTRY_NET_LIMIT (5 %)
+   in NET weight (long legs positive, short legs negative, each leg 100 % gross).
+   _enforce_net_limits repeatedly applies the swap -- one held name out, the best
+   unselected candidate of the same side in -- that cuts the total excess most
+   (smallest composite-score loss on ties) until both limits hold or no swap helps;
+   anything left is reported in stats.netLimits.violations (thin pools: the short
+   pool is often only ~30-35 names). Swapped-in names carry netLimitSwap = true.
+
 5. PORTFOLIO STATS
    Equal-weight 1/50 per position within each leg (each leg 100% gross,
    200% gross total, dollar-neutral). Combined portfolio stats use the
@@ -75,7 +87,9 @@ ALGORITHM
 CONSTANTS
 ---------
   MARKET_VOL   = 0.20   S&P 500 annualised vol proxy
-  RF           = 0.035  risk-free rate (same as PortfolioView)
+  RF           = 0.0    no risk-free rate (explicit instruction: the book holds a
+                        treasury / cash-equivalent allocation, so Sharpe/Sortino are
+                        plain return / risk); kept as a constant so the formulas keep their shape
   SECTOR_CORR  = 0.65   same-sector correlation floor
   CANDIDATE_POOL = 160  pre-screen pool size per side
   POSITIONS    = 50     final positions selected per side
@@ -102,11 +116,19 @@ from modules.sector_groups import get_sector_group
 
 # ── constants ────────────────────────────────────────────────────────────────
 MARKET_VOL = 0.20
-RF = 0.035
+RF = 0.0  # no risk-free rate -- see the module docstring
 BETA_FLOOR = 0.75   # clamp low-beta stocks: prevents artificial Sharpe inflation
 BETA_CAP   = 2.0    # clamp high-beta stocks: prevents extreme vol estimates
 # vol(i) = clamp(|beta_i|, BETA_FLOOR, BETA_CAP) × MARKET_VOL  → range [15%, 40%]
 SECTOR_CORR = 0.65     # same-sector correlation floor (anti-concentration)
+# Net concentration limits -- the SAME limits the trading robot applies to new entries
+# (ib_server.py ENTRY_SECTOR_NET_LIMIT / ENTRY_INDUSTRY_NET_LIMIT, backtest.py): the net
+# weight (long legs positive, short legs negative, each leg 100% gross) of one broad
+# sector group may not exceed +/-10 % and of one industry +/-5 %.
+SECTOR_NET_LIMIT = 0.10
+INDUSTRY_NET_LIMIT = 0.05
+_NET_EPS = 1e-9
+_MAX_REPAIR_STEPS = 400
 CANDIDATE_POOL = 160   # top N pre-screened per side before the greedy pass
 POSITIONS = 30         # final portfolio size per side
 IDIO_VOL = 0.25        # idiosyncratic vol added to diagonal in CAPM fallback
@@ -125,8 +147,8 @@ _HIST_YF_FILE = os.path.join("data", "yfinance", "price_history.json")
 # RecommendationsView.tsx and ib_server.py by hand.
 DAILY_MOVE_GATE_SD = 1.0
 SHORT_GROWTH_CEILING = 0.10
-TREND_NO_BUY = 35
-TREND_NO_SELL = 65
+TREND_NO_BUY = 25   # strict: no long at trend < 25
+TREND_NO_SELL = 75  # strict: no short at trend > 75
 MEAN_REVERSION_OVERBOUGHT = 80
 MEAN_REVERSION_OVERSOLD = 20
 
@@ -155,12 +177,12 @@ def _earnings_blocks_entry(earnings_ts):
 # composite score below (a squeeze-risk/contrarian signal, penalizing a
 # crowded short's rank rather than excluding it outright).
 
-# Strong Buy/Strong Sell only, matching RecommendationsView.tsx's own
-# Long/Short idea lists. Rating strength (signal c below) is now a
-# constant 1.0 for every candidate as a result -- harmless, since an
-# identical value for everyone changes no comparison between candidates.
+# Longs: Strong Buy only. Shorts: Strong Sell AND Sell (explicit instruction): the
+# Strong Sell pool alone was only ~34 names for 30 slots, too thin to satisfy the net
+# sector/industry limits, so Sell is let in too. Rating strength (signal c below)
+# scores Strong Sell 1.0 and Sell 0.5, so Strong Sells still rank ahead of Sells.
 LONG_RATINGS = {"Strong Buy"}
-SHORT_RATINGS = {"Strong Sell"}
+SHORT_RATINGS = {"Strong Sell", "Sell"}
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -585,6 +607,80 @@ def _local_search_max_sharpe(cov, position_returns, n_select):
     return selected_list, current_sharpe, alternates
 
 
+# ── net sector / industry limits ──────────────────────────────────────────────
+
+def _net_by_group(longs, shorts):
+    """({industry: net weight}, {sector group: net weight}) -- each leg 100% gross
+    equal-weight (+1/n per long, -1/m per short), the SAME definition the trading
+    robot uses. `sector` on a candidate is the industry name; get_sector_group maps
+    it to the broad sector."""
+    ind, sec = {}, {}
+    for leg, sgn in ((longs, 1.0), (shorts, -1.0)):
+        if not leg:
+            continue
+        w = sgn / len(leg)
+        for c in leg:
+            name = c.get("sector") or ""
+            ind[name] = ind.get(name, 0.0) + w
+            grp = get_sector_group(name)
+            sec[grp] = sec.get(grp, 0.0) + w
+    return ind, sec
+
+
+def _net_excess(longs, shorts):
+    """Total amount by which any industry / sector group's |net weight| exceeds its
+    limit (0 when the portfolio respects both limits)."""
+    ind, sec = _net_by_group(longs, shorts)
+    return (
+        sum(max(0.0, abs(v) - INDUSTRY_NET_LIMIT - _NET_EPS) for v in ind.values())
+        + sum(max(0.0, abs(v) - SECTOR_NET_LIMIT - _NET_EPS) for v in sec.values())
+    )
+
+
+def _enforce_net_limits(longs, shorts, long_pool, short_pool):
+    """Repairs the two independently optimised legs so that no industry exceeds
+    +/-INDUSTRY_NET_LIMIT and no sector group +/-SECTOR_NET_LIMIT in net weight.
+    Repeatedly applies the single swap -- drop one held name, bring in the best
+    unselected candidate of the SAME side from that side's pool -- that reduces the
+    total excess most, breaking ties by the smallest loss of composite score. A
+    swapped-in name has no alternates (it was not chosen by the Sharpe search).
+    Returns (longs, shorts, remaining violations as [{level, name, net}]); the
+    violations list is non-empty only when the pools are too thin to fix them."""
+    sel = {"Long": list(longs), "Short": list(shorts)}
+    bench = {
+        "Long": [c for c in long_pool if c not in longs],
+        "Short": [c for c in short_pool if c not in shorts],
+    }
+    swaps = 0
+    for _ in range(_MAX_REPAIR_STEPS):
+        cur = _net_excess(sel["Long"], sel["Short"])
+        if cur <= _NET_EPS:
+            break
+        best = None
+        for side in ("Long", "Short"):
+            for out in sel[side]:
+                rest = [c for c in sel[side] if c is not out]
+                for inn in bench[side]:
+                    trial = rest + [inn]
+                    e = _net_excess(trial, sel["Short"]) if side == "Long" else _net_excess(sel["Long"], trial)
+                    if e < cur - _NET_EPS:
+                        key = (round(cur - e, 9), -max(0.0, out.get("compositeScore", 0) - inn.get("compositeScore", 0)))
+                        if best is None or key > best[0]:
+                            best = (key, side, out, inn)
+        if best is None:
+            break
+        _, side, out, inn = best
+        sel[side] = [c for c in sel[side] if c is not out] + [inn]
+        bench[side] = [c for c in bench[side] if c is not inn] + [out]
+        inn["alternates"] = []
+        inn["netLimitSwap"] = True  # brought in to respect the net sector/industry limits
+        swaps += 1
+    ind, sec = _net_by_group(sel["Long"], sel["Short"])
+    violations = [{"level": "industry", "name": k, "net": round(v, 4)} for k, v in ind.items() if abs(v) > INDUSTRY_NET_LIMIT + _NET_EPS]
+    violations += [{"level": "sector", "name": k, "net": round(v, 4)} for k, v in sec.items() if abs(v) > SECTOR_NET_LIMIT + _NET_EPS]
+    return sel["Long"], sel["Short"], violations, swaps
+
+
 # ── main entry point ──────────────────────────────────────────────────────────
 
 def build_target_portfolio(rec_file, sim_file, exclude_groups=None):
@@ -703,15 +799,15 @@ def build_target_portfolio(rec_file, sim_file, exclude_groups=None):
             if mz is not None and (mz > DAILY_MOVE_GATE_SD if side == "Long" else mz < -DAILY_MOVE_GATE_SD):
                 continue
             # Never short high revenue growth -- explicit instruction: trailing
-            # OR expected (Eulerpool) revenue growth above SHORT_GROWTH_CEILING
+            # AND expected (Eulerpool) revenue growth BOTH above SHORT_GROWTH_CEILING
             # excludes a Short, same rule as modules/backtest.py's
             # _growth_blocks_short.
             # Trend entry filter -- same rule as RecommendationsView.tsx's
             # trendBlocks: don't buy weak stocks, don't sell strong ones.
             tr = c.get("trend")
-            if tr is not None and (tr <= TREND_NO_BUY if side == "Long" else tr >= TREND_NO_SELL):
+            if tr is not None and (tr < TREND_NO_BUY if side == "Long" else tr > TREND_NO_SELL):
                 continue
-            if side == "Short" and any(g is not None and g > SHORT_GROWTH_CEILING
+            if side == "Short" and all(g is not None and g > SHORT_GROWTH_CEILING
                                        for g in (c.get("revenueGrowth"), c.get("eulerRevGrowth1y"))):
                 continue
             mr = c.get("mr")
@@ -726,6 +822,7 @@ def build_target_portfolio(rec_file, sim_file, exclude_groups=None):
 
     results = {}
     candidate_pools = {}
+    full_pools = {}
     for side in ("Long", "Short"):
         pool = _build_pool(side)
         if not pool:
@@ -752,6 +849,7 @@ def build_target_portfolio(rec_file, sim_file, exclude_groups=None):
             for c in pool
         ]
         pool = pool[:CANDIDATE_POOL]
+        full_pools[side] = pool
 
         # Build covariance and run the local-search optimiser
         cov = _build_cov(pool, hist_returns)
@@ -782,6 +880,10 @@ def build_target_portfolio(rec_file, sim_file, exclude_groups=None):
 
     longs = results.get("Long", [])
     shorts = results.get("Short", [])
+    # Net sector / industry limits (same as the trading robot's new-entry limits)
+    longs, shorts, limit_violations, limit_swaps = _enforce_net_limits(
+        longs, shorts, full_pools.get("Long", []), full_pools.get("Short", [])
+    )
 
     # Per-leg statistics -- each leg on its own, 1/POSITIONS equal weight (100%
     # gross), so the long book and the short book can be compared
@@ -810,6 +912,7 @@ def build_target_portfolio(rec_file, sim_file, exclude_groups=None):
     stats = {
         "portfolioReturn": None, "portfolioVol": None, "sharpe": None, "sortino": None,
         "long": _leg_stats(longs, 1.0), "short": _leg_stats(shorts, -1.0),
+        "netLimits": {"sector": SECTOR_NET_LIMIT, "industry": INDUSTRY_NET_LIMIT, "swaps": limit_swaps, "violations": limit_violations},
     }
     if all_pos:
         n = len(all_pos)

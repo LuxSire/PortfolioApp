@@ -1445,7 +1445,7 @@ async def open_orders_loop():
 # Weekdays 16:00-22:00 Europe/Rome, every TAKE_PROFIT_CHECK_SECONDS: for each
 # HELD position (cash equivalents excluded) whose live price is >=
 # TAKE_PROFIT_TRIGGER_SD sd in its favour vs. the previous close, AND has
-# moved no more than TAKE_PROFIT_MAX_STEP_SD sd since the previous check,
+# moved no more than TAKE_PROFIT_MAX_STEP_SD sd over the last hour (checked every TAKE_PROFIT_CHECK_SECONDS),
 # place a closing LIMIT for the whole position at previous close x
 # (1 +/- TAKE_PROFIT_LIMIT_SD sd): SELL for a long, BUY for a short. DAY,
 # regular hours only, transmitted. One order per ticker per day, none while
@@ -1456,18 +1456,32 @@ from types import SimpleNamespace  # noqa: E402
 from zoneinfo import ZoneInfo  # noqa: E402
 
 from modules.backtest import TAKE_PROFIT_LIMIT_SD, TAKE_PROFIT_TRIGGER_SD  # noqa: E402
+from modules.sector_groups import get_sector_group  # noqa: E402
 from modules.derive import DAILY_MOVE_MIN_DAYS, DAILY_MOVE_SD_DAYS  # noqa: E402
 
 AUTO_TAKE_PROFIT_ENABLED = os.getenv("AUTO_TAKE_PROFIT", "1") != "0"
 AUTO_TAKE_PROFIT_DRY_RUN = os.getenv("AUTO_TAKE_PROFIT_DRY_RUN", "0") == "1"
 TAKE_PROFIT_WINDOW = ((16, 0), (22, 0))   # Europe/Rome local time, weekdays
 TAKE_PROFIT_CHECK_SECONDS = 600           # every 10 minutes
-TAKE_PROFIT_MAX_STEP_SD = 0.5             # max move since the previous check
+TAKE_PROFIT_MAX_STEP_SD = 0.5             # max move over the stability lookback
+TAKE_PROFIT_STABILITY_SECONDS = 3600      # stability lookback: 1 hour (was 10 minutes), same as the backtest
 TAKE_PROFIT_STATE_FILE = os.path.join(IB_DIR, "take_profit_orders.json")
 TAKE_PROFIT_LOG_FILE = os.path.join(IB_DIR, "take_profit_orders.log")
 _TP_ROME = ZoneInfo("Europe/Rome")
 _tp_bases = {"date": None, "base": {}}    # {ticker: (prev_close, sd)} for today
-_tp_prev_price = {}                       # {ticker: price at the previous check}
+_tp_prev_price = {}                       # {ticker: [(epoch, price)]} recent samples, ~2h kept
+
+
+def _tp_price_ago(hist, ticker, last):
+    """Records `last` and returns the price TAKE_PROFIT_STABILITY_SECONDS ago
+    (the newest sample at least that old), or None while there is no such
+    sample yet -- the caller then waits, e.g. the first hour of the session."""
+    now = time.time()
+    samples = [x for x in hist.get(ticker, []) if now - x[0] <= 2 * TAKE_PROFIT_STABILITY_SECONDS]
+    ref = next((p for t, p in reversed(samples) if now - t >= TAKE_PROFIT_STABILITY_SECONDS), None)
+    samples.append((now, last))
+    hist[ticker] = samples
+    return ref
 
 
 def _tp_read_json(path):
@@ -1488,6 +1502,10 @@ def _tp_write_json(path, data):
 def _tp_log(entry):
     line = json.dumps(entry)
     print(f"take-profit: {line}")
+    verb = "Would place (dry run)" if entry.get("dryRun") else ("Placed" if entry.get("placed") else "FAILED to place")
+    label = "CLOSING TRADE: " if entry.get("tradeType") == "closing trade" else ""
+    _tp_event("order", f"{label}{verb} {entry.get('action')} {entry.get('quantity')} {entry.get('ticker')} LMT "
+                       f"{entry.get('limit')}", order=entry)
     with open(TAKE_PROFIT_LOG_FILE, "a") as f:
         f.write(line + "\n")
 
@@ -1516,20 +1534,390 @@ def _tp_day_bases(today_iso):
     return base
 
 
+# ---- Closing trades for positions that are no longer Strong Buy / Strong Sell ----
+# Explicit instruction (2026-10-04): a HELD long whose rating is no longer Strong
+# Buy, or a HELD short whose rating is no longer Strong Sell, AND whose day is
+# positive for the portfolio (a long above the previous close, a short below it),
+# gets a closing LIMIT for the whole position CLOSING_TRADE_OFFSET_SD x sd (the
+# 3-month daily sd, same as the take-profit rule) away from the offer (long:
+# SELL at ask x (1 + 0.1 sd), i.e. 0.1 sd above the offer) / the bid (short: BUY
+# at bid x (1 - 0.1 sd), 0.1 sd below the bid). Called a "closing trade" in the
+# robot feed. Same window, 10-minute loop, regular hours only, one order per
+# ticker per day (shared with take-profit via the day's state file), none while
+# a closing order for it is already working. Needs a live ask/bid from today.
+# Kill switch: AUTO_CLOSING_TRADES=0 in .env; it also obeys AUTO_TAKE_PROFIT=0
+# and AUTO_TAKE_PROFIT_DRY_RUN=1 (log only, nothing sent).
+CLOSING_TRADE_OFFSET_SD = 0.1
+AUTO_CLOSING_TRADES_ENABLED = os.getenv("AUTO_CLOSING_TRADES", "1") != "0"
+_tp_ratings = {"mtime": None, "ratings": {}}
+
+
+def _tp_all_ratings():
+    """{ticker: rating} for EVERY row of sorted_screen.csv (all five ratings,
+    unlike _tp_screen_rows which keeps Strong Buy / Strong Sell only), reloaded
+    when the file changes."""
+    try:
+        mtime = os.path.getmtime(SORTED_SCREEN_CSV)
+    except OSError:
+        return _tp_ratings["ratings"]
+    if mtime != _tp_ratings["mtime"]:
+        with open(SORTED_SCREEN_CSV, newline="") as f:
+            ratings = {r["ticker"]: r.get("rating") for r in csv.DictReader(f) if r.get("ticker")}
+        _tp_ratings.update(mtime=mtime, ratings=ratings)
+    return _tp_ratings["ratings"]
+
+
+# ---- Entry signals: LOG ONLY, never sent ---------------------------------
+# Explicit instruction (2026-10-03): in the same 10-minute loop, scan every
+# Strong Buy / Strong Sell that is NOT blocked (same gates as the
+# Recommendations tab: _passes_long_gates/_passes_short_gates incl. trend,
+# earnings, low-vol, growth, plus the sim-return gate; the daily-move gate is
+# replaced by the live move test below) -- but ONLY while the portfolio beta is
+# inside +/-ENTRY_BETA_BAND (Positions page definition: sum(value x beta) / sum
+# |value|, missing beta = 1). A Strong Buy qualifies when it is <= -TRIGGER sd
+# vs. the previous close, a Strong Sell when it is >= +TRIGGER sd, and it
+# moved <= TAKE_PROFIT_MAX_STEP_SD in the last hour (TAKE_PROFIT_STABILITY_SECONDS). The order that
+# WOULD be entered is logged at previous close -/+ LIMIT sd (Buy / Sell
+# short); if the price is already beyond that level it rests on the passive
+# quote instead (bid for a Buy, ask for a Sell). Size: see ENTRY_TARGET_PCT /
+# ENTRY_MAX_PRICE_PCT below. ENTRY_SENDS_ORDERS is a constant False and
+# nothing in this block calls place_order -- these are never transmitted,
+# whatever AUTO_TAKE_PROFIT_DRY_RUN says. Held tickers are skipped (no adding
+# to an open position); one signal per ticker per day.
+ENTRY_SENDS_ORDERS = False
+ENTRY_BETA_BAND = 0.2
+# Exposure rules (explicit instruction, 2026-10-03), on top of the beta rule:
+# beta -> a BUY needs portfolio beta < +ENTRY_BETA_BAND and a SELL needs beta >
+# -ENTRY_BETA_BAND (so inside the band both are allowed, above it only sells,
+# below -band only buys); a BUY is not entered into a sector whose NET weight
+# (signed position value / NetLiquidation, cash equivalents excluded) is above
+# +ENTRY_SECTOR_NET_LIMIT, nor an industry above +ENTRY_INDUSTRY_NET_LIMIT; a
+# SELL is not entered when that sector/industry net weight is below the same
+# limits negated. Sector = modules.sector_groups.get_sector_group(industry),
+# industry = sorted_screen.csv's `sector` column. Existing positions only (the
+# log-only signals never change the account).
+ENTRY_SECTOR_NET_LIMIT = 0.10
+ENTRY_INDUSTRY_NET_LIMIT = 0.05
+# Size (explicit instruction, 2026-10-03): the integer number of shares whose
+# value (shares x limit price) is as close as possible to ENTRY_TARGET_PCT of
+# NetLiquidation; no order at all when the price itself is above
+# ENTRY_MAX_PRICE_PCT of NetLiquidation (logged once per ticker per day).
+ENTRY_TARGET_PCT = 0.02
+ENTRY_MAX_PRICE_PCT = 0.03
+ENTRY_STATE_FILE = os.path.join(IB_DIR, "take_profit_entry_signals.json")
+ENTRY_LOG_FILE = os.path.join(IB_DIR, "take_profit_entry_signals.log")
+_tp_screen = {"mtime": None, "rows": {}}
+_tp_entry_prev = {}              # {ticker: price at the previous check} (candidates only)
+_tp_entry_gate = {"state": None}  # last (buys allowed, sells allowed), to log only changes
+
+
+def _tp_screen_rows():
+    """{ticker: sorted_screen.csv row} for Strong Buy / Strong Sell, reloaded
+    when the file changes."""
+    try:
+        mtime = os.path.getmtime(SORTED_SCREEN_CSV)
+    except OSError:
+        return _tp_screen["rows"]
+    if mtime != _tp_screen["mtime"]:
+        with open(SORTED_SCREEN_CSV, newline="") as f:
+            rows = {r["ticker"]: r for r in csv.DictReader(f)
+                    if r.get("ticker") and r.get("rating") in ("Strong Buy", "Strong Sell")}
+        _tp_screen.update(mtime=mtime, rows=rows)
+    return _tp_screen["rows"]
+
+
+def _tp_portfolio_beta(held, ticks, screen_betas):
+    """sum(value x beta) / sum(|value|) over held positions (same definition as
+    PositionsView.tsx's portfolioBetaExposure); None with no positions."""
+    num = gross = 0.0
+    for t, shares in held.items():
+        price = _safe_float((ticks.get(t) or {}).get("last")) or _safe_float(positions_by_ticker.get(t, {}).get("avgCost"))
+        if not price:
+            continue
+        value = shares * price
+        beta = screen_betas.get(t)
+        num += value * (1.0 if beta is None else beta)
+        gross += abs(value)
+    return num / gross if gross else None
+
+
+def _tp_entry_log(entry):
+    line = json.dumps(entry)
+    print(f"take-profit entry signal (NOT SENT): {line}")
+    try:
+        with open(ENTRY_LOG_FILE, "a") as f:
+            f.write(line + "\n")
+    except OSError:
+        pass
+    _tp_event("entry", f"{entry['action']} {entry['quantity']} {entry['ticker']} LMT {entry['limit']}", order=entry)
+
+
+def _tp_entry_scan(now, today, bases, held, cash=frozenset(), busy=frozenset()):
+    if ENTRY_SENDS_ORDERS:  # fail-closed: flipping this to True disables the scan; it never sends
+        return
+    held = {t: sh for t, sh in held.items() if t not in cash}  # cash equivalents aren't directional exposure
+    rows = _tp_screen_rows()
+    if not rows:
+        return
+    with lock:
+        ticks = {t: dict(last_price_by_ticker.get(t) or {}) for t in set(rows) | set(held)}
+        net_liq = _safe_float(account_status.get("NetLiquidation"))
+    screen_betas, held_industry = {}, {}
+    try:  # held tickers are usually not Strong Buy/Sell, so read the whole screen file
+        with open(SORTED_SCREEN_CSV, newline="") as f:
+            for r in csv.DictReader(f):
+                if r.get("ticker") in held:
+                    screen_betas[r["ticker"]] = _to_float(r.get("beta"))
+                    held_industry[r["ticker"]] = r.get("sector") or ""
+    except OSError:
+        pass
+    if not net_liq or net_liq <= 0:
+        return  # can't size an order without NetLiquidation
+    beta = _tp_portfolio_beta(held, ticks, screen_betas)
+    buy_ok = beta is None or beta < ENTRY_BETA_BAND
+    sell_ok = beta is None or beta > -ENTRY_BETA_BAND
+    if (buy_ok, sell_ok) != _tp_entry_gate["state"]:
+        _tp_event("beta", (f"Portfolio beta {beta:+.2f}: " if beta is not None else "No positions: ")
+                  + f"buys {'ON' if buy_ok else 'OFF'}, sells {'ON' if sell_ok else 'OFF'}")
+        _tp_entry_gate["state"] = (buy_ok, sell_ok)
+    # net weights of the held book by sector group and by industry (signed value / NetLiquidation)
+    sector_net, industry_net = {}, {}
+    for t, shares in held.items():
+        price = _safe_float((ticks.get(t) or {}).get("last")) or _safe_float(positions_by_ticker.get(t, {}).get("avgCost"))
+        if not price:
+            continue
+        w = shares * price / net_liq
+        ind = held_industry.get(t, "")
+        industry_net[ind] = industry_net.get(ind, 0.0) + w
+        sg = get_sector_group(ind)
+        sector_net[sg] = sector_net.get(sg, 0.0) + w
+    state = _tp_read_json(ENTRY_STATE_FILE)
+    done = state.get(today, {})
+    for ticker, row in sorted(rows.items()):
+        tick = ticks.get(ticker) or {}
+        last = _safe_float(tick.get("last"))
+        if not last or not str(tick.get("timestamp") or "").startswith(today) or ticker not in bases:
+            continue
+        prev_check = _tp_price_ago(_tp_entry_prev, ticker, last)  # always track, so the stability check is ready when the gate opens
+        if prev_check is None or ticker in done or ticker in held or ticker in busy:
+            continue  # (busy = IB already has an order for the symbol)
+        is_long = row["rating"] == "Strong Buy"
+        if (is_long and not buy_ok) or (not is_long and not sell_ok):
+            continue
+        industry = row.get("sector") or ""
+        sg = get_sector_group(industry)
+        sec_w, ind_w = sector_net.get(sg, 0.0), industry_net.get(industry, 0.0)
+        if is_long and (sec_w > ENTRY_SECTOR_NET_LIMIT or ind_w > ENTRY_INDUSTRY_NET_LIMIT):
+            continue
+        if not is_long and (sec_w < -ENTRY_SECTOR_NET_LIMIT or ind_w < -ENTRY_INDUSTRY_NET_LIMIT):
+            continue
+        gate_row = dict(row, dailyMoveZ=None)  # the live move below replaces the file-based daily-move gate
+        sim = _to_float(row.get("simReturn"))
+        if is_long and (not _passes_long_gates(gate_row) or (sim is not None and sim < 0)):
+            continue
+        if not is_long and (not _passes_short_gates(gate_row) or (sim is not None and sim > 0)):
+            continue
+        prev_close, sd = bases[ticker]
+        move_sd = (last / prev_close - 1) / sd
+        if (is_long and move_sd > -TAKE_PROFIT_TRIGGER_SD) or (not is_long and move_sd < TAKE_PROFIT_TRIGGER_SD):
+            continue
+        step_sd = abs(last / prev_check - 1) / sd
+        if step_sd > TAKE_PROFIT_MAX_STEP_SD:
+            continue
+        side = 1 if is_long else -1
+        raw_limit = prev_close * (1 - side * TAKE_PROFIT_LIMIT_SD * sd)
+        limit_basis = f"{TAKE_PROFIT_LIMIT_SD}sd"
+        if side * (last - raw_limit) <= 0:
+            quote = _safe_float(tick.get("bid" if is_long else "ask"))
+            raw_limit = quote if quote and quote > 0 else last
+            limit_basis = "bid" if is_long else "ask"
+        limit = round(raw_limit, 2) if raw_limit >= 1 else round(raw_limit, 4)
+        if limit <= 0:
+            continue
+        if limit > net_liq * ENTRY_MAX_PRICE_PCT:
+            done[ticker] = {"time": now.isoformat(timespec="seconds"), "skipped": "price above max"}
+            _tp_write_json(ENTRY_STATE_FILE, {today: done})
+            _tp_event("entry_skip", f"{ticker}: price {limit} is above {ENTRY_MAX_PRICE_PCT:.0%} of net liquidation "
+                                    f"({net_liq * ENTRY_MAX_PRICE_PCT:,.0f}) -- no order")
+            continue
+        # integer shares with shares x price closest to ENTRY_TARGET_PCT of NetLiquidation
+        target = net_liq * ENTRY_TARGET_PCT
+        qty = max(1, int(target / limit + 0.5))
+        entry = {"time": now.isoformat(timespec="seconds"), "ticker": ticker, "action": "BUY" if is_long else "SELL",
+                 "rating": row["rating"], "quantity": qty, "limit": limit, "limitBasis": limit_basis,
+                 "value": round(qty * limit, 2), "valuePctOfNetLiq": round(qty * limit / net_liq, 4),
+                 "prevClose": prev_close, "sd": round(sd, 6), "last": last, "moveSd": round(move_sd, 2),
+                 "stepSd": round(step_sd, 2), "portfolioBeta": None if beta is None else round(beta, 3),
+                 "sector": sg, "sectorNet": round(sec_w, 4), "industry": industry, "industryNet": round(ind_w, 4), "sent": False}
+        _tp_entry_log(entry)
+        done[ticker] = entry
+        _tp_write_json(ENTRY_STATE_FILE, {today: done})
+
+
+def _tp_watch(trade):
+    """Logs what IB does with an order this loop placed -- each status change
+    (Submitted, Filled, Cancelled, ...) and each execution (shares @ price) --
+    into the Trading robot feed. ib_insync fires these on the shared IB event
+    loop. Only orders placed in THIS process are watched: after a restart,
+    an order from before it is no longer followed (it still shows in the
+    Trades tab's working orders)."""
+    sym = trade.contract.symbol
+    o = trade.order
+    desc = f"{o.action} {int(o.totalQuantity)} {sym}"
+
+    def on_status(t):
+        try:
+            st = t.orderStatus
+            msg = f"{desc}: {st.status}"
+            if st.status == "Filled":
+                msg += f" ({int(st.filled)} @ avg {st.avgFillPrice})"
+            elif st.filled:
+                msg += f" ({int(st.filled)} filled, {int(st.remaining)} remaining)"
+            _tp_event("fill" if st.status == "Filled" else "ib", msg, ticker=sym, status=st.status)
+        except Exception as exc:
+            print(f"take-profit: status callback failed: {exc!r}")
+
+    def on_fill(t, fill):
+        try:
+            ex = fill.execution
+            _tp_event("fill", f"{desc}: executed {int(ex.shares)} @ {ex.price}", ticker=sym, shares=ex.shares, price=ex.price)
+        except Exception as exc:
+            print(f"take-profit: fill callback failed: {exc!r}")
+
+    trade.statusEvent += on_status
+    trade.fillEvent += on_fill
+
+
+# One-order-per-symbol rule (explicit instruction, 2026-10-04): the robot enters a
+# trade ONLY if IB shows no working order at all for that symbol -- whatever its
+# action, whoever placed it (reqAllOpenOrders also returns orders from other
+# clients/TWS). The open-order list is re-fetched from IB at the start of every
+# check, and the check is skipped entirely (fail closed) if that fetch fails.
+_FINAL_ORDER_STATUSES = ("Filled", "Cancelled", "ApiCancelled", "Inactive")
+_tp_busy_logged = {"date": None, "tickers": set()}
+
+
+async def _tp_refresh_open_orders_strict():
+    """Like refresh_open_orders, but an IB failure RAISES instead of silently
+    becoming an empty list (IBApp.get_open_orders_async swallows errors and
+    returns [], which would make every symbol look free). Used right before the
+    robot decides to place anything."""
+    global open_orders
+    if not app.ib.isConnected():
+        raise ConnectionError("IB Gateway is not connected")
+    trades = await app.ib.reqAllOpenOrdersAsync()
+    with lock:
+        open_orders = [_serialize_open_trade(t) for t in trades]
+    broadcast()
+
+
+# Symbols the robot never places orders on (IBKR = the broker's own stock).
+TP_EXCLUDED_SYMBOLS = frozenset({"IBKR"})
+
+
+def _tp_busy_symbols():
+    """Symbols the robot must not place another order for: those with a working
+    order in IB (from open_orders) plus those already traded (any fill) today."""
+    with lock:
+        return ({o["ticker"] for o in open_orders if o.get("status") not in _FINAL_ORDER_STATUSES}
+                | set(trades_by_ticker) | TP_EXCLUDED_SYMBOLS)
+
+
+def _tp_note_busy(ticker, today, what):
+    """Logs, once per ticker per day, that an order was NOT placed because IB
+    already has an order for, or already traded, the symbol."""
+    if _tp_busy_logged["date"] != today:
+        _tp_busy_logged.update(date=today, tickers=set())
+    if ticker in _tp_busy_logged["tickers"]:
+        return
+    _tp_busy_logged["tickers"].add(ticker)
+    if ticker in TP_EXCLUDED_SYMBOLS:
+        msg = f"{ticker}: excluded symbol -- not placing the {what}"
+    else:
+        msg = f"{ticker}: IB already has an order for / already traded this symbol today -- not placing the {what}"
+    print(f"take-profit: {msg}")
+    _tp_event("skip", msg)
+
+
+async def _tp_closing_trades(now, today, bases, held, ticks, busy, done_today, cash):
+    """Closing trades for held positions that are no longer Strong Buy (long) /
+    Strong Sell (short) and are up on the day -- see the CLOSING_TRADE_OFFSET_SD
+    block comment. Returns how many orders were entered in this pass."""
+    ratings = _tp_all_ratings()
+    entered = 0
+    for ticker, shares in sorted(held.items()):
+        if ticker in cash or ticker not in bases or ticker in done_today:
+            continue
+        rating = ratings.get(ticker)
+        if rating is None:
+            continue  # not in the screen: can't tell whether it is still strong
+        side = 1 if shares > 0 else -1
+        if rating == ("Strong Buy" if side > 0 else "Strong Sell"):
+            continue  # still a strong idea on its own side: keep
+        tick = ticks.get(ticker) or {}
+        last = _safe_float(tick.get("last"))
+        if not last or not str(tick.get("timestamp") or "").startswith(today):
+            continue
+        prev_close, sd = bases[ticker]
+        day_move = side * (last / prev_close - 1)
+        if day_move <= 0:
+            continue  # not positive for the portfolio today
+        action = "SELL" if side > 0 else "BUY"
+        if ticker in busy:
+            _tp_note_busy(ticker, today, "closing trade")
+            continue
+        quote = _safe_float(tick.get("ask" if side > 0 else "bid"))
+        if not quote or quote <= 0:
+            continue  # no live offer / bid to anchor on
+        raw_limit = quote * (1 + side * CLOSING_TRADE_OFFSET_SD * sd)
+        limit = round(raw_limit, 2) if raw_limit >= 1 else round(raw_limit, 4)
+        qty = abs(int(round(shares)))
+        trade = None
+        if AUTO_TAKE_PROFIT_ENABLED and not AUTO_TAKE_PROFIT_DRY_RUN:
+            trade = app.place_order(SimpleNamespace(symbol=ticker), action, qty, "LMT", limit,
+                                    transmit=True, outside_rth=False)
+        entry = {"time": now.isoformat(timespec="seconds"), "tradeType": "closing trade", "ticker": ticker,
+                 "action": action, "quantity": qty, "limit": limit,
+                 "limitBasis": f"{'offer' if side > 0 else 'bid'} {quote} {'+' if side > 0 else '-'} {CLOSING_TRADE_OFFSET_SD}sd",
+                 "rating": rating, "prevClose": prev_close, "sd": round(sd, 6), "last": last,
+                 "dayMovePct": round(day_move * 100, 2),
+                 "dryRun": AUTO_TAKE_PROFIT_DRY_RUN or not AUTO_TAKE_PROFIT_ENABLED, "placed": trade is not None,
+                 "orderId": getattr(getattr(trade, "order", None), "orderId", None)}
+        _tp_log(entry)
+        done_today[ticker] = entry
+        busy.add(ticker)
+        entered += 1
+        _tp_write_json(TAKE_PROFIT_STATE_FILE, {today: done_today})
+        if trade is not None:
+            _tp_watch(trade)
+            await refresh_open_orders()
+    return entered
+
+
 async def _tp_check(cash):
+    global trades_by_ticker
     now = datetime.now(_TP_ROME)
     if not _tp_window_open(now):
         _tp_prev_price.clear()  # stability check restarts each session
-        return
+        return {"entered": 0, "today": 0}
     today = now.date().isoformat()
+    try:  # fresh view of IB's working orders before deciding anything (fail closed)
+        await _tp_refresh_open_orders_strict()
+        trades = await app.get_today_executions_async()  # today's fills: one trade per asset per day
+        with lock:
+            trades_by_ticker = trades
+    except Exception as exc:
+        print(f"take-profit: could not refresh IB open orders -- skipping this check: {exc!r}")
+        _tp_event("error", f"Could not read IB's open orders ({exc!r}) -- no order placed this check")
+        return {"entered": 0, "today": 0}
     bases = _tp_day_bases(today)
     state = _tp_read_json(TAKE_PROFIT_STATE_FILE)
     done_today = state.get(today, {})
+    entered_now = 0  # orders entered during THIS check
     with lock:
         held = {t: p["shares"] for t, p in positions_by_ticker.items() if p.get("shares")}
         ticks = {t: dict(last_price_by_ticker.get(t) or {}) for t in held}
-        working = {(o["ticker"], o["action"]) for o in open_orders
-                   if o.get("status") not in ("Filled", "Cancelled", "ApiCancelled", "Inactive")}
+    busy = _tp_busy_symbols()  # symbols with any working order in IB
     for ticker, shares in sorted(held.items()):
         if ticker in cash or ticker not in bases:
             continue
@@ -1537,10 +1925,9 @@ async def _tp_check(cash):
         last = _safe_float(tick.get("last"))
         if not last or not str(tick.get("timestamp") or "").startswith(today):
             continue  # no live price from today
-        prev_check = _tp_prev_price.get(ticker)
-        _tp_prev_price[ticker] = last
+        prev_check = _tp_price_ago(_tp_prev_price, ticker, last)
         if ticker in done_today or prev_check is None:
-            continue  # already handled today / need a price from 10 min ago
+            continue  # already handled today / need a price from 1 hour ago
         prev_close, sd = bases[ticker]
         side = 1 if shares > 0 else -1
         move_sd = side * (last / prev_close - 1) / sd
@@ -1548,17 +1935,20 @@ async def _tp_check(cash):
             continue
         step_sd = abs(last / prev_check - 1) / sd
         if step_sd > TAKE_PROFIT_MAX_STEP_SD:
-            print(f"take-profit: {ticker} +{move_sd:.2f}sd but moved {step_sd:.2f}sd in 10 min -- waiting")
+            print(f"take-profit: {ticker} +{move_sd:.2f}sd but moved {step_sd:.2f}sd in 1 hour -- waiting")
+            _tp_event("skip", f"{ticker} is +{move_sd:.2f}σ but moved {step_sd:.2f}σ in the last hour "
+                              f"(max {TAKE_PROFIT_MAX_STEP_SD}σ) -- waiting")
             continue
         action = "SELL" if side > 0 else "BUY"
-        if (ticker, action) in working:
+        if ticker in busy:
+            _tp_note_busy(ticker, today, "take-profit order")
             continue
         qty = abs(int(round(shares)))
         raw_limit = prev_close * (1 + side * TAKE_PROFIT_LIMIT_SD * sd)
         
         limit_basis = f"{TAKE_PROFIT_LIMIT_SD}sd"
         if side * (last - raw_limit) > 0:
-            # Already beyond the 1.75 sd level: don't undercut the market --
+            # Already beyond the 1.6 sd level: don't undercut the market --
             # rest the closing order on the current offer (long) / bid (short).
             quote = _safe_float(tick.get("ask" if side > 0 else "bid"))
             raw_limit = quote if quote and quote > 0 else last
@@ -1576,25 +1966,146 @@ async def _tp_check(cash):
 
         _tp_log(entry)
         done_today[ticker] = entry
+        busy.add(ticker)
+        entered_now += 1
         _tp_write_json(TAKE_PROFIT_STATE_FILE, {today: done_today})
         if trade is not None:
+            _tp_watch(trade)
             await refresh_open_orders()
+    if AUTO_CLOSING_TRADES_ENABLED:
+        try:
+            entered_now += await _tp_closing_trades(now, today, bases, held, ticks, busy, done_today, cash)
+        except Exception as exc:  # never disturb the rest of the loop
+            print(f"take-profit: closing-trade pass failed: {exc!r}")
+            _tp_event("error", f"Closing-trade pass failed: {exc!r}")
+    try:
+        _tp_entry_scan(now, today, bases, held, cash, busy)
+    except Exception as exc:  # log-only feature: never disturb the take-profit loop
+        print(f"take-profit: entry scan failed: {exc!r}")
+        _tp_event("error", f"Entry scan failed: {exc!r}")
+    return {"entered": entered_now, "today": len(done_today)}
+
+
+# Activity feed for the Positions page's "Take-profit robot" panel
+# (GET /api/take-profit/log) -- explicit instruction: show when the loop runs
+# and when it places an order. Logging only: kept in memory (last
+# TAKE_PROFIT_ACTIVITY_MAX events) and appended to TAKE_PROFIT_ACTIVITY_FILE
+# so it survives a restart. "Outside the trading window" is only logged when
+# the window opens/closes, not on every idle 10-minute tick.
+TAKE_PROFIT_ACTIVITY_FILE = os.path.join(IB_DIR, "take_profit_activity.log")
+# Full, never-trimmed history of everything the robot does about ORDERS --
+# orders sent (or dry-run), entry signals (NOT sent), IB status changes and
+# fills, one text line each -- explicit instruction (the panel itself only
+# shows the 3 newest events). Append-only.
+ORDERS_SENT_LOG_FILE = os.path.join(IB_DIR, "orders_sent_log.log")
+_ORDER_LOG_KINDS = {"order": "ORDER", "entry": "ENTRY (not sent)", "entry_skip": "ENTRY skipped",
+                    "ib": "IB", "fill": "FILLED"}
+TAKE_PROFIT_ACTIVITY_MAX = 500
+_tp_activity = deque(maxlen=TAKE_PROFIT_ACTIVITY_MAX)
+_tp_status = {"state": "not started", "lastCheck": None, "nextCheck": None, "windowOpen": None}
+
+
+def _tp_event(kind, message, **extra):
+    entry = {"time": datetime.now(_TP_ROME).isoformat(timespec="seconds"), "kind": kind, "message": message, **extra}
+    with lock:
+        _tp_activity.append(entry)
+    try:
+        with open(TAKE_PROFIT_ACTIVITY_FILE, "a") as f:
+            f.write(json.dumps(entry) + "\n")
+        if kind in _ORDER_LOG_KINDS:
+            with open(ORDERS_SENT_LOG_FILE, "a") as f:
+                f.write(f"{entry['time'].replace('T', ' ')} | {_ORDER_LOG_KINDS[kind]:<16} | {message}\n")
+    except OSError:
+        pass
+
+
+def _tp_load_activity():
+    try:
+        with open(TAKE_PROFIT_ACTIVITY_FILE) as f:
+            lines = f.readlines()[-TAKE_PROFIT_ACTIVITY_MAX:]
+    except OSError:
+        return
+    with lock:
+        for line in lines:
+            try:
+                _tp_activity.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+
+
+TAKE_PROFIT_FULL_LOG_MAX = 5000  # lines served by ?full=1 (the Trades tab's complete log)
+
+
+def take_profit_log_snapshot(full=False):
+    """JSON-ready payload for GET /api/take-profit/log (newest event first).
+    full=True (?full=1) serves the whole on-disk activity log (last
+    TAKE_PROFIT_FULL_LOG_MAX events, across restarts) instead of the in-memory
+    last TAKE_PROFIT_ACTIVITY_MAX -- used by the Trades tab's full-log window."""
+    with lock:
+        events = list(_tp_activity)[::-1]
+        status = dict(_tp_status)
+    if full:
+        events = []
+        try:
+            with open(TAKE_PROFIT_ACTIVITY_FILE) as f:
+                lines = f.readlines()[-TAKE_PROFIT_FULL_LOG_MAX:]
+        except OSError:
+            lines = []
+        for line in reversed(lines):
+            try:
+                events.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+    return {
+        "status": status,
+        "config": {
+            "enabled": AUTO_TAKE_PROFIT_ENABLED,
+            "dryRun": AUTO_TAKE_PROFIT_DRY_RUN,
+            "window": f"{TAKE_PROFIT_WINDOW[0][0]:02d}:{TAKE_PROFIT_WINDOW[0][1]:02d}-"
+                      f"{TAKE_PROFIT_WINDOW[1][0]:02d}:{TAKE_PROFIT_WINDOW[1][1]:02d} Europe/Rome, weekdays",
+            "intervalMinutes": TAKE_PROFIT_CHECK_SECONDS // 60,
+            "triggerSd": TAKE_PROFIT_TRIGGER_SD,
+            "limitSd": TAKE_PROFIT_LIMIT_SD,
+            "maxStepSd": TAKE_PROFIT_MAX_STEP_SD,
+        },
+        "events": events,
+    }
 
 
 async def take_profit_loop():
     """Background task on the shared IB connection (see run_ib_client)."""
+    _tp_load_activity()
     if not AUTO_TAKE_PROFIT_ENABLED:
         print("take-profit: disabled (AUTO_TAKE_PROFIT=0)")
+        _tp_status["state"] = "disabled"
+        _tp_event("status", "Disabled (AUTO_TAKE_PROFIT=0) -- no checks, no orders")
         return
     cash = set(_tp_read_json(CASH_FILE).get("tickers", []))
     print(f"take-profit: armed{' (DRY RUN, no orders sent)' if AUTO_TAKE_PROFIT_DRY_RUN else ''} -- "
-          f"trigger {TAKE_PROFIT_TRIGGER_SD}sd, limit {TAKE_PROFIT_LIMIT_SD}sd, max 10-min move "
+          f"trigger {TAKE_PROFIT_TRIGGER_SD}sd, limit {TAKE_PROFIT_LIMIT_SD}sd, max 1-hour move "
           f"{TAKE_PROFIT_MAX_STEP_SD}sd, every {TAKE_PROFIT_CHECK_SECONDS // 60} min, 16:00-22:00 Europe/Rome")
+    _tp_status["state"] = "dry run" if AUTO_TAKE_PROFIT_DRY_RUN else "armed"
+    _tp_event("status", f"Started ({_tp_status['state']}) -- trigger {TAKE_PROFIT_TRIGGER_SD}σ, limit "
+                        f"{TAKE_PROFIT_LIMIT_SD}σ, max 1-hour move {TAKE_PROFIT_MAX_STEP_SD}σ, every "
+                        f"{TAKE_PROFIT_CHECK_SECONDS // 60} min")
     while True:
+        now = datetime.now(_TP_ROME)
+        window_open = _tp_window_open(now)
+        with lock:
+            n_held = sum(1 for p in positions_by_ticker.values() if p.get("shares"))
+        if window_open != _tp_status["windowOpen"]:
+            _tp_event("window", "Trading window OPEN (16:00-22:00 Europe/Rome) -- checking positions"
+                      if window_open else "Trading window CLOSED -- idle until the next weekday 16:00 Europe/Rome")
         try:
-            await _tp_check(cash)
+            result = await _tp_check(cash)
+            if window_open:
+                _tp_event("check", f"Checked {n_held} held position(s) · {result['entered']} order(s) entered "
+                                   f"({result['today']} today)", positions=n_held, **result)
         except Exception as exc:  # never let this kill the shared event loop
             print(f"take-profit: check failed: {exc!r}")
+            _tp_event("error", f"Check failed: {exc!r}")
+        _tp_status.update(windowOpen=window_open, lastCheck=now.isoformat(timespec="seconds"),
+                          nextCheck=(now + timedelta(seconds=TAKE_PROFIT_CHECK_SECONDS)).isoformat(timespec="seconds"))
         await asyncio.sleep(TAKE_PROFIT_CHECK_SECONDS)
 
 
@@ -3035,7 +3546,7 @@ def _to_float(v):
 # a valuation-based short thesis got run over by, not crowding or
 # earnings surprises. Must match RecommendationsView.tsx's own
 # SHORT_GROWTH_CEILING/growthBlocksShortEntry -- same 10% threshold,
-# same OR-across-trailing-and-forward-growth shape.
+# same AND-across-trailing-and-forward-growth shape.
 #
 # meanReversionOkForLong/meanReversionOkForShort (the _REC_MEAN_REVERSION_*
 # checks below) were removed here too, catching this file up with the
@@ -3092,17 +3603,17 @@ _REC_DAILY_MOVE_GATE_SD = 1.0
 
 
 # Trend entry filter -- must match RecommendationsView.tsx's trendBlocks /
-# modules/backtest.py's _trend_blocks: no new long at trend <= 35, no new
-# short at trend >= 65 (derive.reconcile_trend; filter only, not scored).
-_REC_TREND_NO_BUY = 35
-_REC_TREND_NO_SELL = 65
+# modules/backtest.py's _trend_blocks: no new long at trend < 25, no new
+# short at trend > 75 (derive.reconcile_trend; filter only, not scored).
+_REC_TREND_NO_BUY = 25
+_REC_TREND_NO_SELL = 75
 
 
 def _rec_trend_blocks(row, side):
     t = _to_float(row.get("trend"))
     if t is None:
         return False
-    return t <= _REC_TREND_NO_BUY if side == "long" else t >= _REC_TREND_NO_SELL
+    return t < _REC_TREND_NO_BUY if side == "long" else t > _REC_TREND_NO_SELL
 
 
 def _rec_daily_move_blocks(row, side):
@@ -3149,9 +3660,8 @@ def _passes_short_gates(row):
     """Mirrors RecommendationsView.tsx's Short pool gates -- daily move,
     earnings, lowVolBlocksEntry, and the page's shortGrowthBlocksEntry: BOTH
     trailing and expected revenue growth above 10% blocks the short here
-    too (only ONE above 10% still shows on the page, flagged "never short";
-    the stricter either-one rule is enforced in modules/backtest.py and
-    modules/portfolio_optimizer.py). meanReversionOkForShort, the old crowded-short INFORMATIONAL
+    too (only ONE above 10% still shows on the page as a warning; the
+    backtest and modules/portfolio_optimizer.py use the same both-above rule). meanReversionOkForShort, the old crowded-short INFORMATIONAL
     threshold, the later short-interest hard cap, and the EPS-trend gate
     are all removed (see _passes_long_gates' own comment and the
     mean-reversion/short-interest removal notes above). No momentum gate
@@ -3615,6 +4125,8 @@ class Handler(BaseHTTPRequestHandler):
             self._handle_pid()
         elif parsed.path == "/api/admin/run-status":
             self._handle_run_status()
+        elif parsed.path == "/api/take-profit/log":
+            self._send_json(take_profit_log_snapshot(full="full" in parse_qs(parsed.query)))
         else:
             self.send_response(404)
             self.end_headers()

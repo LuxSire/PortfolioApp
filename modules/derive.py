@@ -763,6 +763,33 @@ def eps_volatility_merged(entry, stmts, euler_eps=None):
     return eps_volatility([v for _, v in sorted(merged_by_quarter.items())])
 
 
+# Expected range of N normal draws in units of sigma (the d2 control-chart
+# constants): an analyst EPS range (high - low) = d2(N) * sigma, so
+# sigma = range / d2(N).
+_RANGE_D2 = {2: 1.128, 3: 1.693, 4: 2.059, 5: 2.326, 6: 2.534, 7: 2.704, 8: 2.847, 9: 2.970, 10: 3.078,
+             12: 3.258, 15: 3.472, 20: 3.735, 25: 3.931, 30: 4.086}
+EPS_DISPERSION_MIN_ANALYSTS = 3
+
+
+def eps_dispersion_from_range(high, low, mean, n):
+    """Relative sigma of the analysts' EPS estimates, (high - low) / d2(N) /
+    |mean|, or None when the range is unusable (missing, non-positive mean,
+    high < low, fewer than EPS_DISPERSION_MIN_ANALYSTS analysts -- a 1-2 analyst
+    range reflects sample size, not agreement)."""
+    high, low, mean, n = to_float(high), to_float(low), to_float(mean), to_float(n)
+    if None in (high, low, mean, n) or mean <= 0 or high < low or n < EPS_DISPERSION_MIN_ANALYSTS:
+        return None
+    ks = sorted(_RANGE_D2)
+    n = int(n)
+    if n >= ks[-1]:
+        d2 = _RANGE_D2[ks[-1]] + 0.1 * (n - ks[-1]) ** 0.5  # slow growth above the table
+    else:  # linear interpolation between the tabulated N
+        lo = max(k for k in ks if k <= n)
+        hi = min(k for k in ks if k >= n)
+        d2 = _RANGE_D2[lo] if hi == lo else _RANGE_D2[lo] + (n - lo) * (_RANGE_D2[hi] - _RANGE_D2[lo]) / (hi - lo)
+    return round((high - low) / d2 / mean, 6)
+
+
 def reconcile_forward_eps(data, eulerpool_forward_eps, eulerpool_revenue_actuals=None, xbrl_facts=None):
     """Mutates `data` in place: blends this project's yfinance-sourced
     fwdEps0y/fwdEps1y (set earlier at statement_metrics time, from
@@ -893,6 +920,28 @@ def reconcile_forward_eps(data, eulerpool_forward_eps, eulerpool_revenue_actuals
         # a bad forwardEps used to before THAT field got this exact fix.
         if row.get("fwdEps0y") is not None:
             row["epsCurrentYear"] = row["fwdEps0y"]
+
+        # Dispersion of the analysts' own EPS estimates for the NEXT fiscal year
+        # (the same year as forwardEps = fwdEps1y), off Eulerpool's own mean --
+        # consumed by modules.simulations as max(epsVolatility, epsDispersion).
+        row["epsDispersion"] = eps_dispersion_from_range(
+            eu.get("epsHigh1y"), eu.get("epsLow1y"), eu.get("fwdEps1y"), eu.get("epsAnalysts1y"))
+
+        # The analysts' EPS low/high as RELATIVE offsets from Eulerpool's own
+        # consensus mean of the same year (low/mean - 1 <= 0 <= high/mean - 1),
+        # for the current FY (0y), the next FY (1y) and the one after (2y) -- modules.simulations
+        # builds its per-path split-normal year-1/2 EPS draw from them. None
+        # unless >= EPS_DISPERSION_MIN_ANALYSTS analysts and a positive mean.
+        for yr in ("0y", "1y", "2y"):
+            mean, lo, hi, cnt = (to_float(eu.get(k)) for k in (f"fwdEps{yr}", f"epsLow{yr}", f"epsHigh{yr}", f"epsAnalysts{yr}"))
+            ok = None not in (mean, lo, hi, cnt) and mean > 0 and hi >= lo and cnt >= EPS_DISPERSION_MIN_ANALYSTS
+            row[f"epsLowRel{yr}"] = round(min(0.0, lo / mean - 1.0), 6) if ok else None
+            row[f"epsHighRel{yr}"] = round(max(0.0, hi / mean - 1.0), 6) if ok else None
+            row[f"epsAnalysts{yr}"] = int(cnt) if ok else None
+
+        # Fiscal-year end of the CURRENT fiscal year (Eulerpool's own period for the
+        # 0y slot) -- modules.simulations weights year 0 by the share still to run.
+        row["fiscalYearEnd0y"] = eu.get("fiscalYearEnd0y") or None
 
         eps2y = to_float(eu.get("fwdEps2y"))
         row["eulerFwdEps2y"] = round(eps2y, 6) if eps2y is not None else None
@@ -1632,8 +1681,10 @@ def reconcile_daily_move(data, daily_history):
 # -0.14%), although 2-year tests found the score itself has ~0 forecasting
 # power stock by stock -- so treat it as a filter that has worked in the
 # backtest, to be re-checked as weeks accumulate.
-TREND_NO_BUY = 35
-TREND_NO_SELL = 65
+# 30/70 since 2026-10-03 (was 35/65); 25/75 with STRICT comparisons since 2026-10-04
+# (user request): no new long at trend < 25, no new short at trend > 75.
+TREND_NO_BUY = 25
+TREND_NO_SELL = 75
 TREND_FORMATION_DAYS = 10
 TREND_REVERSAL_DAYS = 5
 # Weights on the z-scored legs before percentile-ranking to 0-100 -- r10
