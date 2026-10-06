@@ -6,6 +6,7 @@ import FilterDropdown from '../components/FilterDropdown'
 import SectorFilter from '../components/SectorFilter'
 import { fmtNum, fmtPrice } from '../screenerFactors'
 import { IB_STREAM_URL } from '../ibStream'
+import { portfolioRowClass, useTargetPortfolioTickers } from '../targetPortfolio'
 import type { PositionsByTicker } from '../interfaces/IPositionsView'
 import type { LivePricesByTicker, RawSimResult, SimRow } from '../interfaces/ISimulationsView'
 
@@ -143,6 +144,7 @@ export default function SimulationsView() {
   const [sortDir, setSortDir] = useState(-1)
   const [page, setPage] = useState(0)
   const [positions, setPositions] = useState<PositionsByTicker>({})
+  const targetTickers = useTargetPortfolioTickers()
   const [nonZeroOnly, setNonZeroOnly] = useState(false)
   const [openNoteRow, setOpenNoteRow] = useState<SimRow | null>(null)
   // ib_server.py's live/snapshot IB Gateway feed -- see LiveTick's own
@@ -282,6 +284,16 @@ export default function SimulationsView() {
   // see modules/simulations.py's MIN_INDUSTRY_PEERS.
   const sectorFallbackCount = useMemo(() => (rows ? rows.filter((r) => r.peLevel === 'sector').length : 0), [rows])
 
+  // Median Sim Return across every simulated ticker (the haircut-adjusted
+  // simulations.json value, not the live-price recompute) -- a quick read on
+  // whether the model's calibration (risk-premium baseline etc.) is sane.
+  const medianSimReturn = useMemo(() => {
+    const vals = (rows ?? []).map((r) => r.simReturn).filter((v): v is number => v !== null && Number.isFinite(v)).sort((a, b) => a - b)
+    if (vals.length === 0) return null
+    const mid = Math.floor(vals.length / 2)
+    return vals.length % 2 ? vals[mid] : (vals[mid - 1] + vals[mid]) / 2
+  }, [rows])
+
   function handleSort(key: string) {
     if (sortKey === key) {
       setSortDir((d) => -d)
@@ -318,6 +330,10 @@ export default function SimulationsView() {
           <div className="stat">
             <span className="n num">{sectorFallbackCount}</span>
             <span className="l">sector-fallback peer group</span>
+          </div>
+          <div className="stat">
+            <span className={`n num ${signClass(medianSimReturn)}`}>{fmtPct(medianSimReturn)}</span>
+            <span className="l">median sim return</span>
           </div>
         </div>
       </header>
@@ -437,7 +453,9 @@ export default function SimulationsView() {
                 return (
                   <tr
                     key={r.t}
-                    className={r.notes ? 'has-notes' : ''}
+                    className={[r.notes ? 'has-notes' : '', portfolioRowClass((positions[r.t]?.shares ?? 0) !== 0, targetTickers.has(r.t))]
+                      .filter(Boolean)
+                      .join(' ')}
                     onClick={r.notes ? () => setOpenNoteRow(r) : undefined}
                     title={r.notes ? 'Click for simulation notes' : undefined}
                   >

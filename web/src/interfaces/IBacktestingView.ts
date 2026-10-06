@@ -13,21 +13,21 @@ export const GROUPS = [
 export type GroupKey = (typeof GROUPS)[number]
 
 export const GROUP_LABEL: Record<GroupKey, string> = {
-  // (7.5%) is scoring.RATING_THRESHOLDS' own cut, called out now that the
+  // (10%) is scoring.RATING_THRESHOLDS' own cut, called out now that the
   // (5%)/(2.5%) cuts below sit next to it in the same table. Was 6% --
   // widened, same proportional change scoring.RATING_THRESHOLDS itself
   // made (see that constant's own comment).
-  long_strong_buy: 'Long · Strong Buy (7.5%)',
+  long_strong_buy: 'Long · Strong Buy (10%)',
   long_buy: 'Long · Buy',
   long_blocked: 'Long blocked',
-  short_strong_sell: 'Short · Strong Sell (7.5%)',
+  short_strong_sell: 'Short · Strong Sell (10%)',
   short_sell: 'Short · Sell',
   short_blocked: 'Short blocked',
   hold: 'Hold', // no gates -- the unrated middle, held long as a baseline
 }
 
 // Two nested, non-partitioning reference stats per side (2.5% ⊂ 5% ⊂ the
-// 7.5% rating cut) -- every candidate is still classified into exactly
+// 10% rating cut) -- every candidate is still classified into exactly
 // one of the seven GROUPS above, these are strict subsets of
 // long_strong_buy/short_strong_sell reported separately. Optional: an
 // older archived week may have no `score` column to derive a percentile
@@ -50,7 +50,7 @@ export const RESTRICTED_GROUP_LABEL: Record<RestrictedGroupKey, string> = {
 // Mirrors modules/backtest.py's RESTRICTED_PCT_4/_2 -- used by
 // BacktestingView.tsx's Candidates table to show the TIGHTEST cut a
 // long_strong_buy/short_strong_sell ticker's own `pct` actually clears,
-// instead of always the plain 7.5% group label.
+// instead of always the plain 10% group label.
 export const RESTRICTED_PCT_4 = 0.05
 export const RESTRICTED_PCT_2 = 0.025
 
@@ -104,7 +104,7 @@ export type GateReason = 'sim_return' | 'daily_move' | 'trend' | 'growth' | 'ear
 export const GATE_REASON_LABEL: Record<GateReason, string> = {
   sim_return: 'Simulation return (wrong direction)',
   daily_move: 'Daily move beyond ±1σ (3-month)',
-  trend: 'Trend filter (no long ≤35, no short ≥65)',
+  trend: 'Trend filter (no long ≤30, no short ≥70)',
   growth: 'Revenue growth too strong to short (>10%)',
   earnings: 'Earnings within the week',
   low_vol: 'Volatility too low (<5% annualized, likely acquisition-capped)',
@@ -121,7 +121,7 @@ export interface BacktestTicker {
   // couldn't be reconstructed (see modules/backtest.py's own `pct`
   // comments). Used by BacktestingView.tsx's Candidates table to show
   // the tightest RESTRICTED_PCT_4/_2 cut a long_strong_buy/
-  // short_strong_sell ticker actually clears, instead of always (7.5%).
+  // short_strong_sell ticker actually clears, instead of always (10%).
   pct: number | null
 }
 
@@ -135,7 +135,7 @@ export interface BacktestModel {
   groups: Record<GroupKey, GroupStats> & Partial<Record<RestrictedGroupKey, GroupStats>>
   // Gated Strong Buy long leg + gated Strong Sell short leg, summed
   // (dollar-neutral, each leg equal-weight 100% gross). portfolioRestricted4/
-  // 2 are the same combination using the (5%)/(2.5%) legs instead of (7.5%).
+  // 2 are the same combination using the (5%)/(2.5%) legs instead of (10%).
   portfolio: { return: number | null; count: number }
   portfolioRestricted4: { return: number | null; count: number }
   portfolioRestricted2: { return: number | null; count: number }
@@ -146,7 +146,17 @@ export interface BacktestModel {
   // counts here don't sum back to groups.long_blocked/short_blocked's own
   // count. A side/reason with zero hits that week is omitted, not zero.
   blockedBreakdown: Partial<Record<'long' | 'short', Partial<Record<GateReason, GroupStats>>>>
+  // Day-by-day returns of the week's holding period (modules/backtest.py's
+  // _daily_series): `dates` are the trading days after entry, each series
+  // key holds one value per date (null when that portfolio is empty) and
+  // adds up to that portfolio's weekly return.
+  daily?: BacktestDaily | null
   tickers: BacktestTicker[]
+}
+
+export interface BacktestDaily {
+  dates: string[]
+  series: Record<string, number[] | null>
 }
 
 export interface BacktestWeek extends BacktestModel {

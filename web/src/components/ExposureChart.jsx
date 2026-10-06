@@ -38,6 +38,10 @@ function ExposureLegend() {
         <span className="chart-legend-swatch" style={{ '--swatch-color': 'var(--viz-short)' }} />
         Short
       </span>
+      <span className="chart-legend-item">
+        <span className="chart-legend-swatch" style={{ '--swatch-color': 'var(--viz-cash)' }} />
+        Cash &amp; equiv.
+      </span>
     </span>
   )
 }
@@ -70,6 +74,11 @@ function ExposureTooltip({ active, payload }) {
           <span className="chart-tooltip-row-label">Gross</span>
           <span className="chart-tooltip-row-value">{fmtPct(point.stockGrossPct)}</span>
         </span>
+        <span className="chart-tooltip-row">
+          <span className="chart-tooltip-key" style={{ '--key-color': 'var(--viz-cash)' }} />
+          <span className="chart-tooltip-row-label">Cash &amp; equiv.</span>
+          <span className="chart-tooltip-row-value">{fmtPct(point.cashPct)}</span>
+        </span>
       </span>
     </div>
   )
@@ -91,24 +100,35 @@ function ExposureTooltip({ active, payload }) {
 // distinct stackIds automatically) rather than stacking all three
 // together, since Net isn't a component OF Gross -- it's Long minus
 // |Short|, a different figure entirely.
+// Cash and cash-equivalent holdings (IB01/SGOV/SHV...) are NOT exposure --
+// explicit instruction: they are taken OUT of Long (the Flex Query's stockLong
+// includes them as stock positions) and shown, together with the account's
+// cash, as their own "Cash & equiv." bar. So Long/Net/Gross here are the
+// directional book only.
 // rows: PortfolioView.jsx's own portfolio_performance.json rows
-// ({date, nav, stockNet, stockLong, stockShort, stockGross, ...},
-// ascending by date).
+// ({date, nav, cash, stockNet, stockLong, stockShort, stockGross, ...},
+// ascending by date), plus `cashEquivalents` (market value of the
+// cash-equivalent positions that day, see cashEquivalentHistory.ts).
 export default function ExposureChart({ rows }) {
   const data = rows.map((r) => {
     const nav = r.nav
     const pct = (v) => (v === null || v === undefined || !nav ? null : (v / nav) * 100)
+    const cashEq = r.cashEquivalents ?? 0
+    const hasStock = r.stockLong !== null && r.stockLong !== undefined
+    const long = hasStock ? Math.max(0, r.stockLong - cashEq) : null
+    const short = r.stockShort === null || r.stockShort === undefined ? null : r.stockShort
     return {
       ...r,
-      stockNetPct: pct(r.stockNet),
-      stockLongPct: pct(r.stockLong),
-      stockShortPct: pct(r.stockShort),
-      stockShortAbsPct: r.stockShort === null || r.stockShort === undefined || !nav ? null : Math.abs(r.stockShort / nav) * 100,
-      stockGrossPct: pct(r.stockGross),
+      stockNetPct: long !== null && short !== null ? pct(long + short) : pct(r.stockNet),
+      stockLongPct: pct(long),
+      stockShortPct: pct(short),
+      stockShortAbsPct: short === null || !nav ? null : Math.abs(short / nav) * 100,
+      stockGrossPct: long !== null && short !== null ? pct(long + Math.abs(short)) : pct(r.stockGross),
+      cashPct: r.cash === null || r.cash === undefined ? null : pct(r.cash + cashEq),
     }
   })
 
-  const values = data.flatMap((r) => [r.stockNetPct, r.stockGrossPct]).filter((v) => v !== null && v !== undefined)
+  const values = data.flatMap((r) => [r.stockNetPct, r.stockGrossPct, r.cashPct]).filter((v) => v !== null && v !== undefined)
   const maxVal = Math.max(0, ...values)
   const minVal = Math.min(0, ...values)
   const domainPad = (maxVal - minVal || 1) * 0.1
@@ -177,6 +197,7 @@ export default function ExposureChart({ rows }) {
               maxBarSize={24}
               isAnimationActive={false}
             />
+            <Bar dataKey="cashPct" name="Cash & equiv." fill="var(--viz-cash)" radius={[4, 4, 0, 0]} maxBarSize={24} isAnimationActive={false} />
           </BarChart>
         </ResponsiveContainer>
       </div>

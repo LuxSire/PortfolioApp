@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
+import MathsVariablesTable from '../components/MathsVariablesTable'
 
 // The Maths tab -- a static walkthrough of modules/simulations.py's own
 // EPS-driven Monte Carlo methodology, explaining exactly what produces
@@ -17,18 +18,25 @@ import { useEffect, useState } from 'react'
 // block is one of:
 //   {type: "paragraph", text}  -- inline `code` and **bold** supported
 //   {type: "list", items}      -- same inline formatting per item
-//   {type: "formula", code}    -- rendered verbatim in a <pre>, no inline
-//                                  parsing (it's already code)
+//   {type: "formula", code}    -- rendered verbatim in a <pre>; only the colour
+//                                  tokens below are parsed
+//   {type: "table", headers, rows} -- cells support the same inline formatting
+//
+// Colour code (explicit instruction), usable in paragraphs, list items, table
+// cells and formulas:  {{raw:text}} yellow = raw downloaded data,
+// {{calc:text}} orange = calculated variable, {{out:text}} green = final output.
 // Can drift out of sync with modules/simulations.py's own formulas if
 // that module changes without this file being updated too -- see that
 // module directly for the authoritative version if anything here looks
 // stale.
 
 interface Block {
-  type: 'paragraph' | 'list' | 'formula'
+  type: 'paragraph' | 'list' | 'formula' | 'table'
   text?: string
   items?: string[]
   code?: string
+  headers?: string[]
+  rows?: string[][]
 }
 
 interface Section {
@@ -42,16 +50,25 @@ interface MathsDoc {
   sections: Section[]
 }
 
-// Splits `text` on `code` spans and **bold** spans, rendering each as the
-// matching element and everything else as plain text -- the only two
-// inline styles this content needs (see the schema comment above).
-function renderInline(text: string) {
-  const parts = text.split(/(`[^`]+`|\*\*[^*]+\*\*)/g).filter((p) => p !== '')
+// Splits `text` on colour tokens, `code` spans and **bold** spans, rendering each
+// as the matching element and everything else as plain text. Colour tokens may
+// wrap code/bold (rendered recursively).
+const TOKEN_RE = /(\{\{(?:raw|calc|out):[\s\S]*?\}\}|`[^`]+`|\*\*[^*]+\*\*)/g
+function renderInline(text: string, withInline = true): ReactNode[] {
+  const parts = text.split(TOKEN_RE).filter((p) => p !== '')
   return parts.map((part, i) => {
-    if (part.startsWith('`') && part.endsWith('`')) {
+    const color = part.match(/^\{\{(raw|calc|out):([\s\S]*)\}\}$/)
+    if (color) {
+      return (
+        <span key={i} className={`maths-${color[1]}`}>
+          {renderInline(color[2], withInline)}
+        </span>
+      )
+    }
+    if (withInline && part.startsWith('`') && part.endsWith('`')) {
       return <code key={i}>{part.slice(1, -1)}</code>
     }
-    if (part.startsWith('**') && part.endsWith('**')) {
+    if (withInline && part.startsWith('**') && part.endsWith('**')) {
       return <strong key={i}>{part.slice(2, -2)}</strong>
     }
     return <span key={i}>{part}</span>
@@ -60,7 +77,31 @@ function renderInline(text: string) {
 
 function BlockView({ block }: { block: Block }) {
   if (block.type === 'formula') {
-    return <pre>{block.code}</pre>
+    return <pre>{renderInline(block.code || '', false)}</pre>
+  }
+  if (block.type === 'table') {
+    return (
+      <div className="maths-table-scroll">
+        <table>
+          <thead>
+            <tr>
+              {(block.headers || []).map((h, i) => (
+                <th key={i}>{renderInline(h)}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {(block.rows || []).map((row, i) => (
+              <tr key={i}>
+                {row.map((cell, j) => (
+                  <td key={j}>{renderInline(cell)}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )
   }
   if (block.type === 'list') {
     return (
@@ -77,6 +118,7 @@ function BlockView({ block }: { block: Block }) {
 export default function MathsView() {
   const [doc, setDoc] = useState<MathsDoc | null>(null)
   const [error, setError] = useState(false)
+  const [tab, setTab] = useState<'formulas' | 'variables'>('formulas')
 
   useEffect(() => {
     fetch('/maths.json')
@@ -94,10 +136,37 @@ export default function MathsView() {
         </div>
       </header>
 
-      {error && <div className="asset-card">Couldn't load maths.json.</div>}
-      {!error && !doc && <div className="asset-card">Loading…</div>}
+      <div className="recommendation-tabs">
+        <button
+          type="button"
+          className={`recommendation-tab-btn${tab === 'formulas' ? ' active' : ''}`}
+          onClick={() => setTab('formulas')}
+        >
+          Formulas
+        </button>
+        <button
+          type="button"
+          className={`recommendation-tab-btn${tab === 'variables' ? ' active' : ''}`}
+          onClick={() => setTab('variables')}
+        >
+          Data variables
+        </button>
+      </div>
 
-      {doc?.sections.map((section, i) => (
+      {tab === 'formulas' && (
+        <div className="maths-legend">
+          <span>Colour code:</span>
+          <span className="maths-raw">yellow = raw downloaded data</span>
+          <span className="maths-calc">orange = calculated variable</span>
+          <span className="maths-out">green = final output</span>
+        </div>
+      )}
+
+      {tab === 'variables' && <MathsVariablesTable />}
+      {tab === 'formulas' && error && <div className="asset-card">Couldn't load maths.json.</div>}
+      {tab === 'formulas' && !error && !doc && <div className="asset-card">Loading…</div>}
+
+      {tab === 'formulas' && doc?.sections.map((section, i) => (
         <div className="asset-card" key={i}>
           <h2>{section.heading}</h2>
           {section.blocks.map((block, j) => (

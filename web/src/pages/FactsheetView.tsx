@@ -4,6 +4,7 @@ import type { PortfolioDayRow, PortfolioPerformanceData } from '../interfaces/IP
 import type { PositionsByTicker, PricesByTicker } from '../interfaces/IPositionsView'
 import NavChart from '../components/NavChart'
 import ExposureChart from '../components/ExposureChart'
+import { useCashEquivalentValues } from '../cashEquivalentHistory'
 import MonthlyReturnsTable from '../components/MonthlyReturnsTable'
 import { parseCSV } from '../csv'
 import { getSectorGroup, sectorGroupLabel } from '../sectorGroups'
@@ -65,12 +66,13 @@ function StatRow({ label, value, valueClass, title }: { label: string; value: st
   )
 }
 
-// Both ratios below use a 3.5%/yr risk-free rate and 252 trading days/year
+// Both ratios below use NO risk-free rate (explicit instruction: the book holds
+// a treasury / cash-equivalent allocation) and 252 trading days/year
 // to annualize -- same convention PortfolioView.tsx's own Sharpe/Sortino
 // use, duplicated here rather than imported (this project's convention
 // for a small computation needed by more than one component).
 const TRADING_DAYS_PER_YEAR = 252
-const RISK_FREE_RATE_ANNUAL = 0.035
+const RISK_FREE_RATE_ANNUAL = 0
 const RISK_FREE_RATE_DAILY = RISK_FREE_RATE_ANNUAL / TRADING_DAYS_PER_YEAR
 
 // A4 (210mm x 297mm) minus styles.scss's own @page margin (12mm on every
@@ -198,7 +200,19 @@ export default function FactsheetView() {
     return () => source.close()
   }, [])
 
-  const rows: PortfolioDayRow[] | null = data?.kind === 'daily' ? (data.rows ?? null) : null
+  const allRows: PortfolioDayRow[] | null = data?.kind === 'daily' ? (data.rows ?? null) : null
+  // Explicit instruction: the factsheet starts on the Monday the new capital
+  // came in (28 Sep 2026, a $30,047.50 deposit), not at the account's first
+  // day -- a display-only trim of the stored history, which stays untouched
+  // in portfolio_performance.json. The last NAV BEFORE that day is kept only
+  // as the base for the first day's return (P&L over the prior day's NAV), so
+  // the deposit itself is never counted as performance.
+  const FACTSHEET_START_DATE = '2026-09-28'
+  const rows: PortfolioDayRow[] | null = allRows ? allRows.filter((r) => r.date >= FACTSHEET_START_DATE) : null
+  // cash-equivalent holdings per day, taken out of Long and shown with cash in the Exposure chart
+  const cashEqByDate = useCashEquivalentValues((allRows ?? []).map((r) => r.date))
+  const baselineNav: number | null =
+    [...(allRows ?? [])].reverse().find((r) => r.date < FACTSHEET_START_DATE && r.nav !== null)?.nav ?? null
 
   // Single pass over the date-ascending rows: the daily-return series (same
   // money-weighted Total P&L / prior-day NAV definition every stat on this
@@ -207,11 +221,12 @@ export default function FactsheetView() {
   // PortfolioView.tsx computes separately, combined into one loop since
   // this page needs both at once.
   const dailyReturns: number[] = []
+  const indexByDate: Record<string, number> = {} // time-weighted index (100 = start), for the NAV chart
   let compounded = 1
   let peakCompounded = 1
   let worstDrawdown = 0
   if (rows) {
-    let prevNav: number | null = null
+    let prevNav: number | null = baselineNav
     for (const r of rows) {
       const totalPnl = r.realized !== null && r.unrealized !== null ? r.realized + r.unrealized : null
       const dailyReturn = totalPnl !== null && prevNav ? totalPnl / prevNav : null
@@ -220,6 +235,7 @@ export default function FactsheetView() {
 
       dailyReturns.push(dailyReturn)
       compounded *= 1 + dailyReturn
+      indexByDate[r.date] = compounded * 100
       if (compounded > peakCompounded) peakCompounded = compounded
       const drawdown = (peakCompounded - compounded) / peakCompounded
       if (drawdown > worstDrawdown) worstDrawdown = drawdown
@@ -347,7 +363,7 @@ export default function FactsheetView() {
         {rows && rows.length > 0 && (
           <div className="factsheet-hero-row">
             <div className="factsheet-chart-col">
-              <NavChart rows={rows} />
+              <NavChart rows={rows} indexByDate={indexByDate} />
             </div>
             <div className="factsheet-stats-col">
               <div className="asset-card">
@@ -425,9 +441,9 @@ export default function FactsheetView() {
           </div>
         )}
 
-        {rows && rows.length > 0 && <MonthlyReturnsTable rows={rows} />}
+        {rows && rows.length > 0 && <MonthlyReturnsTable rows={rows} baselineNav={baselineNav} />}
 
-        {rows && rows.length > 0 && <ExposureChart rows={rows} />}
+        {rows && rows.length > 0 && <ExposureChart rows={rows.map((r) => ({ ...r, cashEquivalents: cashEqByDate[r.date] ?? 0 }))} />}
 
         <div className="asset-two-col-row">
           <div className="asset-card">

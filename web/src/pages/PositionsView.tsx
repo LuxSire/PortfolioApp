@@ -10,6 +10,7 @@ import { avgInsiderScore, avgNewsSentiment, fmtNum, fmtPct as fmtPctFactor, rank
 import { assetPnlClass, rangeClass } from '../colorRules'
 import { FACTOR_COLUMNS, computeFactorAverages } from '../components/factorTable'
 import FactorCells from '../components/FactorCells'
+import TakeProfitLog from '../components/TakeProfitLog'
 import type {
   Account,
   ClosedPositionRow,
@@ -28,11 +29,11 @@ import type {
   WeightedSideFactor,
 } from '../interfaces/IPositionsView'
 
-// Same 3.5%/yr risk-free rate modules/portfolio_optimizer.py's own RF
-// constant uses, for the Expected Portfolio Performance container's
-// Sharpe ratio below -- same rate, same formula, applied to the actual
-// held book instead of the optimizer-selected target portfolio.
-const RF = 0.035
+// No risk-free rate (explicit instruction: the book holds a treasury /
+// cash-equivalent allocation) -- same 0 modules/portfolio_optimizer.py's own RF
+// uses, for the Expected Portfolio Performance container's Sharpe ratio
+// below, applied to the actual held book.
+const RF = 0
 
 // Same curated tags + order as IBApp.ACCOUNT_STATUS_TAGS; PnL fields get
 // the good/bad sign coloring the rest of the app uses.
@@ -1154,39 +1155,43 @@ export default function PositionsView() {
         </div>
       </header>
 
-      {rows.length > 0 && (
-        <header className="masthead">
-          <div className="title-block">
-            <h2>Expected Portfolio Performance</h2>
-          </div>
-          <div className="stat-row">
-            <div
-              className="stat"
-              title={
-                coveredValue > 0
-                  ? `Σ(forecastReturn × |value|) / NetLiquidation — simulate_ticker's own forecastReturn (see modules/simulations.py), sign-flipped for shorts, weighted against the WHOLE account rather than just invested capital (idle cash and uncovered positions implicitly contribute 0) — priced from ${fmtMoney(coveredValue)} of ${fmtMoney(grossValue)} gross exposure with simulation coverage`
-                  : 'None of the currently held positions have simulation coverage'
-              }
-            >
-              <span className={`n num${expectedReturn === null ? '' : expectedReturn >= 0 ? ' good' : ' bad'}`}>
-                {fmtPct(expectedReturn)}
-              </span>
-              <span className="l">Expected Return</span>
+      {/* Expected Portfolio Performance on the left, the Trading robot panel on the right, same row. */}
+      <div className="positions-perf-row">
+        {rows.length > 0 && (
+          <header className="masthead">
+            <div className="title-block">
+              <h2>Expected Portfolio Performance</h2>
             </div>
-            <div className="stat" title="Portfolio Vol., annualised (× √252) for comparability with an annual expected return">
-              <span className="n num">{fmtVol(annualizedVolPct)}</span>
-              <span className="l">Volatility</span>
+            <div className="stat-row">
+              <div
+                className="stat"
+                title={
+                  coveredValue > 0
+                    ? `Σ(forecastReturn × |value|) / NetLiquidation — simulate_ticker's own forecastReturn (see modules/simulations.py), sign-flipped for shorts, weighted against the WHOLE account rather than just invested capital (idle cash and uncovered positions implicitly contribute 0) — priced from ${fmtMoney(coveredValue)} of ${fmtMoney(grossValue)} gross exposure with simulation coverage`
+                    : 'None of the currently held positions have simulation coverage'
+                }
+              >
+                <span className={`n num${expectedReturn === null ? '' : expectedReturn >= 0 ? ' good' : ' bad'}`}>
+                  {fmtPct(expectedReturn)}
+                </span>
+                <span className="l">Expected Return</span>
+              </div>
+              <div className="stat" title="Portfolio Vol., annualised (× √252) for comparability with an annual expected return">
+                <span className="n num">{fmtVol(annualizedVolPct)}</span>
+                <span className="l">Volatility</span>
+              </div>
+              <div
+                className="stat"
+                title={`Expected Return / Volatility — no risk-free rate (the book holds a treasury allocation), same formula modules/portfolio_optimizer.py uses for the Target Portfolio's own Sharpe`}
+              >
+                <span className={`n num${sharpe === null ? '' : sharpe >= 0 ? ' good' : ' bad'}`}>{fmtRatio(sharpe)}</span>
+                <span className="l">Sharpe</span>
+              </div>
             </div>
-            <div
-              className="stat"
-              title={`(Expected Return − ${(RF * 100).toFixed(1)}% risk-free) / Volatility — same formula and risk-free rate modules/portfolio_optimizer.py uses for the Target Portfolio's own Sharpe`}
-            >
-              <span className={`n num${sharpe === null ? '' : sharpe >= 0 ? ' good' : ' bad'}`}>{fmtRatio(sharpe)}</span>
-              <span className="l">Sharpe</span>
-            </div>
-          </div>
-        </header>
-      )}
+          </header>
+        )}
+        <TakeProfitLog />
+      </div>
 
       <div className="tab-bar">
         {(

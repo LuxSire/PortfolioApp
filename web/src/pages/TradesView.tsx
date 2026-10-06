@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { IB_STREAM_URL } from '../ibStream'
+import TakeProfitFullLog from '../components/TakeProfitFullLog'
 import { parseCSV } from '../csv'
 import type { HistoricalTrade, OpenOrder, TickerInfoByTicker, TradeRow, TradesByTicker } from '../interfaces/ITradesView'
 
@@ -265,6 +266,8 @@ export default function TradesView() {
           </div>
         </div>
       )}
+
+      <TakeProfitFullLog />
 
       <div className="asset-card">
         <div className="trades-history-header">

@@ -12,6 +12,7 @@ import {
   type RestrictedGroupKey,
 } from '../interfaces/IBacktestingView'
 import { getSectorGroup } from '../sectorGroups'
+import BacktestDailyTable from '../components/BacktestDailyTable'
 
 function fmtPct(v: number | null | undefined): string {
   if (v === null || v === undefined) return '—'
@@ -110,7 +111,7 @@ function riskStats(returns: (number | null | undefined)[]) {
   )
 }
 // Candidates table: a long_strong_buy/short_strong_sell ticker shows the
-// TIGHTEST restricted cut its own pct actually clears (2.5% ⊂ 5% ⊂ 7.5%)
+// TIGHTEST restricted cut its own pct actually clears (2.5% ⊂ 5% ⊂ 10%)
 // instead of always the plain group label -- explicit instruction. Every
 // other group is unaffected (long_buy/*_blocked/hold have no restricted
 // tier to check).
@@ -167,6 +168,8 @@ export default function BacktestingView() {
   const [error, setError] = useState(false)
   const [groupFilter, setGroupFilter] = useState<GroupKey | 'all'>('all')
   const [weekPage, setWeekPage] = useState(0)
+  // Weekly (the original tables) / Daily (day-by-day portfolio returns).
+  const [view, setView] = useState<'weekly' | 'daily'>('weekly')
 
   useEffect(() => {
     fetch('/backtest.json')
@@ -427,6 +430,27 @@ export default function BacktestingView() {
       </header>
 
       {!error && data && weeks.length > 0 && (
+        <div className="recommendation-tabs">
+          <button
+            type="button"
+            className={`recommendation-tab-btn${view === 'weekly' ? ' active' : ''}`}
+            onClick={() => setView('weekly')}
+          >
+            Weekly
+          </button>
+          <button
+            type="button"
+            className={`recommendation-tab-btn${view === 'daily' ? ' active' : ''}`}
+            onClick={() => setView('daily')}
+          >
+            Daily
+          </button>
+        </div>
+      )}
+
+      {view === 'daily' && !error && data && weeks.length > 0 && <BacktestDailyTable weeks={weeks} />}
+
+      {view === 'weekly' && !error && data && weeks.length > 0 && (
         <div className="week-pagination">
           <button type="button" className="tab-btn" disabled={weekPage >= totalWeekPages - 1} onClick={() => setWeekPage((p) => p + 1)}>
             ← Older
@@ -455,7 +479,7 @@ export default function BacktestingView() {
         </div>
       )}
 
-      {!error && data && weeks.length > 0 && (
+      {view === 'weekly' && !error && data && weeks.length > 0 && (
         <>
           <section className="target-section">
             <h2 className="section-heading">Recommendation groups — forward 5-trading-day P&amp;L (equal weight)</h2>
@@ -490,7 +514,7 @@ export default function BacktestingView() {
                     [
                       ['Portfolio (Strong Buy + Strong Sell) (2.5%)', (w: (typeof weeks)[number]) => w.currentModel.portfolioRestricted2],
                       ['Portfolio (Strong Buy + Strong Sell) (5%)', (w: (typeof weeks)[number]) => w.currentModel.portfolioRestricted4],
-                      ['Portfolio (Strong Buy + Strong Sell) (7.5%)', (w: (typeof weeks)[number]) => w.currentModel.portfolio],
+                      ['Portfolio (Strong Buy + Strong Sell) (10%)', (w: (typeof weeks)[number]) => w.currentModel.portfolio],
                     ] as const
                   ).map(([label, accessor]) => (
                     <tr key={label}>

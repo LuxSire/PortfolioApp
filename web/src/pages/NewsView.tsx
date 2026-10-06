@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Search } from 'lucide-react'
+import { parseCSV } from '../csv'
 import { IB_NEWS_ARTICLE_URL, IB_NEWS_URL, IB_STREAM_URL } from '../ibStream'
 import { SENTIMENT_LABEL, fmtNewsTime, importanceStars, importanceTitle, sentimentClass } from '../news'
 import type { Article, ArticlesByTicker, FlatArticle, PositionsByTicker } from '../interfaces/INewsView'
@@ -137,6 +138,20 @@ export default function NewsView() {
   // entirely. Independent of and composes with the other filters the
   // same AND-of-filters way, same as extremesOnly above.
   const [highImportanceOnly, setHighImportanceOnly] = useState(false)
+  // ticker -> industry (sorted_screen.csv's `sector` column, the granular
+  // industry name) for the industry-level table on the right. Best-effort:
+  // a missing file just leaves those headlines under "Unknown".
+  const [industryByTicker, setIndustryByTicker] = useState<Record<string, string>>({})
+  useEffect(() => {
+    fetch('/sorted_screen.csv')
+      .then((r) => (r.ok ? r.text() : Promise.reject()))
+      .then((text) => {
+        const map: Record<string, string> = {}
+        for (const row of parseCSV(text)) if (row.ticker && row.sector) map[row.ticker] = row.sector
+        setIndustryByTicker(map)
+      })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     const source = new EventSource(IB_STREAM_URL)
@@ -182,6 +197,38 @@ export default function NewsView() {
     if (highImportanceOnly) result = result.filter((a) => a.importance === 3)
     return result
   }, [byTicker, showNeutral, extremesOnly, highImportanceOnly])
+
+  // Industry-level view (right-hand table) -- explicit instruction: the same
+  // headlines grouped by industry, NEUTRAL ones always excluded (whatever
+  // "Show neutral news" says for the list), scored by SENTIMENT, not stars:
+  // S Bearish -2, Bearish -1, Bullish +1, S Bullish +2; an industry's score is
+  // the sum divided by its number of headlines (its average), ranked highest
+  // first, over the LAST 7 DAYS of news only. The ticker / positions-only /
+  // extremes / ★★★ filters above apply to both tables.
+  const industryRows = useMemo(() => {
+    if (!byTicker) return []
+    // Last 7 days only (explicit instruction) -- by article time (UTC, same
+    // 'Z'-suffix handling as fmtNewsTime); the list on the left keeps the full
+    // cached month.
+    const cutoff = Date.now() - 7 * 24 * 3600 * 1000
+    let base = byTicker.filter((a) => a.sentiment !== 3 && new Date(a.time.endsWith('Z') ? a.time : a.time + 'Z').getTime() >= cutoff)
+    if (extremesOnly) base = base.filter((a) => a.sentiment === 1 || a.sentiment === 5)
+    if (highImportanceOnly) base = base.filter((a) => a.importance === 3)
+    const POINTS: Record<number, number> = { 1: -2, 2: -1, 4: 1, 5: 2 }
+    const groups = new Map<string, { news: number; points: number; bull: number; bear: number }>()
+    for (const a of base) {
+      const industry = industryByTicker[a.ticker] || 'Unknown'
+      const g = groups.get(industry) ?? { news: 0, points: 0, bull: 0, bear: 0 }
+      g.news += 1
+      g.points += POINTS[a.sentiment ?? 3] ?? 0
+      if ((a.sentiment ?? 3) > 3) g.bull += 1
+      else if ((a.sentiment ?? 3) < 3) g.bear += 1
+      groups.set(industry, g)
+    }
+    return [...groups.entries()]
+      .map(([industry, g]) => ({ industry, ...g, avgScore: g.points / g.news }))
+      .sort((a, b) => b.avgScore - a.avgScore || b.news - a.news || a.industry.localeCompare(b.industry))
+  }, [byTicker, industryByTicker, extremesOnly, highImportanceOnly])
 
   // Resets to page 0 whenever the ticker filter or showNeutral/extremesOnly
   // changes — the result set just changed size out from under whatever
@@ -268,7 +315,10 @@ export default function NewsView() {
         </div>
       )}
 
-      {!error && filtered && filtered.length > 0 && (
+      {!error && rows && rows.length > 0 && (
+        <div className="news-two-col">
+        <div className="news-main">
+      {filtered && filtered.length > 0 && (
         <>
           <div className="table-wrap">
             <table>
@@ -303,6 +353,51 @@ export default function NewsView() {
             </div>
           )}
         </>
+      )}
+        </div>
+        <div className="news-industry asset-card">
+          <h2 title="Headlines from the last 7 days grouped by industry, neutral ones excluded. Each headline scores S Bearish −2, Bearish −1, Bullish +1, S Bullish +2; Avg = total score ÷ number of headlines. Sorted by Avg, highest (most bullish) first.">
+            News by industry
+          </h2>
+          <p className="news-industry-note">Last 7 days · neutral news excluded · S Bearish −2, Bearish −1, Bullish +1, S Bullish +2 · ranked by average score</p>
+          <div className="news-industry-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th className="col-left">#</th>
+                  <th className="col-left">Industry</th>
+                  <th title="Headlines (non-neutral)">News</th>
+                  <th title="Bullish / Bearish headlines">Bull / Bear</th>
+                  <th title="Sum of the headline scores (−2 / −1 / +1 / +2)">Score</th>
+                  <th title="Score ÷ number of headlines">Avg</th>
+                </tr>
+              </thead>
+              <tbody>
+                {industryRows.length === 0 && (
+                  <tr className="empty-row">
+                    <td colSpan={6}>No non-neutral news for the current filters.</td>
+                  </tr>
+                )}
+                {industryRows.map((g, i) => (
+                  <tr key={g.industry}>
+                    <td className="col-left">{i + 1}</td>
+                    <td className="col-left">{g.industry}</td>
+                    <td className="num">{g.news}</td>
+                    <td className="num">
+                      <span className="good">{g.bull}</span> / <span className="bad">{g.bear}</span>
+                    </td>
+                    <td className={`num ${g.points > 0 ? 'good' : g.points < 0 ? 'bad' : ''}`}>{g.points > 0 ? '+' : ''}{g.points}</td>
+                    <td className={`num news-industry-avg ${g.avgScore > 0 ? 'good' : g.avgScore < 0 ? 'bad' : ''}`}>
+                      {g.avgScore > 0 ? '+' : ''}
+                      {g.avgScore.toFixed(2)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        </div>
       )}
     </div>
   )

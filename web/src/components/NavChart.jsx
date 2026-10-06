@@ -87,10 +87,24 @@ function dateTicks(rows) {
 // the app, just plotting account NAV instead of a single stock's price.
 // rows: PortfolioView.jsx's own portfolio_performance.json rows
 // ({date, nav, ...}, ascending by date).
-export default function NavChart({ rows }) {
+//
+// indexByDate (optional, {date: index}): a TIME-WEIGHTED index (100 x the
+// compounded daily returns, deposits/withdrawals excluded, the first day's own
+// performance included) -- passed by the Portfolio and Factsheet pages, whose
+// window starts on the day new capital came in, where a plain NAV ratio would
+// both start from the post-deposit NAV and so miss that first day's
+// performance. Without it the index is the NAV ratio to the first row.
+export default function NavChart({ rows, indexByDate }) {
   const first = rows[0]
   const last = rows[rows.length - 1]
-  const changePct = first.nav ? last.nav / first.nav - 1 : null
+  const lastIdx = indexByDate ? indexByDate[last.date] : undefined
+  const changePct = indexByDate
+    ? lastIdx !== undefined
+      ? lastIdx / 100 - 1
+      : null
+    : first.nav
+      ? last.nav / first.nav - 1
+      : null
 
   // Rebased to 100 on the first day -- an index, not a dollar level, so
   // the plotted line/axis read as "growth from a common start point"
@@ -98,9 +112,14 @@ export default function NavChart({ rows }) {
   // header stat above and the tooltip's secondary line).
   const indexedRows = rows.map((r) => ({
     ...r,
-    navIndex: r.nav !== null && first.nav ? (r.nav / first.nav) * 100 : null,
+    navIndex: indexByDate
+      ? (indexByDate[r.date] ?? null)
+      : r.nav !== null && first.nav
+        ? (r.nav / first.nav) * 100
+        : null,
   }))
   const indexVals = indexedRows.map((r) => r.navIndex).filter((v) => v !== null)
+  if (indexByDate) indexVals.push(100) // the starting level is part of the picture
   const lo = Math.min(...indexVals)
   const hi = Math.max(...indexVals)
   const domainPad = (hi - lo || 1) * 0.12

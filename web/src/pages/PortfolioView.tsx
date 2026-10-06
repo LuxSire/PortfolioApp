@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { PortfolioDayRow, PortfolioPerformanceData } from '../interfaces/IPortfolioView'
 import ExposureChart from '../components/ExposureChart'
+import { useCashEquivalentValues } from '../cashEquivalentHistory'
 import MonthlyReturnsTable from '../components/MonthlyReturnsTable'
 import NavChart from '../components/NavChart'
 
@@ -64,20 +65,14 @@ function fmtDate(iso: string | null | undefined): string {
   return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
-// Monday of the current week as YYYY-MM-DD (local time) -- on a weekend,
-// the Monday of the week just ended.
-function startOfCurrentWeek(): string {
-  const d = new Date()
-  d.setDate(d.getDate() - ((d.getDay() + 6) % 7))
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
 // The extracts of the IBKR Flex Query configured in ib_server.py's
 // fetch_account_performance — real, IB-computed daily cash/NAV/realized/
 // unrealized (see Results.csv for the exported reference shape), not
 // derived from the screener's own price data. IBKR concatenates one full
 // copy of its configured report sections per calendar day for a multi-day
 // query, joined here by date into a single row per day.
+const PORTFOLIO_START_DATE = '2026-09-28'
+
 export default function PortfolioView() {
   const [data, setData] = useState<PortfolioPerformanceData | null>(null)
   const [error, setError] = useState(false)
@@ -91,17 +86,20 @@ export default function PortfolioView() {
 
   const allRows: PortfolioDayRow[] | null = data?.kind === 'daily' ? (data.rows ?? null) : null
   // Explicit instruction: EVERYTHING on this page (stats, charts, monthly
-  // and daily tables) covers only the current week, Monday onward -- a
+  // and daily tables) starts on a FIXED date -- Monday 28 Sep 2026, the day
+  // the new capital came in (same start as the Factsheet) -- a
   // display-only trim applied client-side, not by rewriting
   // portfolio_performance.json, so the stored history is never at risk.
   // The last NAV before Monday is kept only as the base for Monday's own
   // return (P&L over the prior day's NAV, same rule as everywhere else),
   // so a deposit/withdrawal on Monday isn't counted as performance.
-  const periodStart = startOfCurrentWeek()
+  const periodStart = PORTFOLIO_START_DATE
   const rows: PortfolioDayRow[] | null = allRows ? allRows.filter((r) => r.date >= periodStart) : null
   const baselineNav: number | null =
     [...(allRows ?? [])].reverse().find((r) => r.date < periodStart && r.nav !== null)?.nav ?? null
   const chartRows = rows
+  // cash-equivalent holdings per day, taken out of Long and shown with cash in the Exposure chart
+  const cashEqByDate = useCashEquivalentValues((allRows ?? []).map((r) => r.date))
   // Running total of realized+unrealized through each day, keyed by date,
   // plus each day's own return (that day's Total P&L over the PRIOR day's
   // NAV — the base capital that P&L was actually earned on) — rows is
@@ -165,13 +163,14 @@ export default function PortfolioView() {
   const totalDepositsWithdrawals = sumField('depositsWithdrawals')
 
   // Both ratios use the same daily-return series as the new % column
-  // above, and the same 3.5%/yr risk-free rate as the "excess return" in
+  // above, and NO risk-free rate (explicit instruction: the book holds a
+  // treasury / cash-equivalent allocation) in
   // their numerator — Sharpe divides that by total volatility, Sortino
   // by downside volatility only (upside swings aren't "risk"). 252
   // trading days/year for annualizing, same convention IBApp's own
   // momentum score uses.
   const TRADING_DAYS_PER_YEAR = 252
-  const RISK_FREE_RATE_ANNUAL = 0.035
+  const RISK_FREE_RATE_ANNUAL = 0
   const RISK_FREE_RATE_DAILY = RISK_FREE_RATE_ANNUAL / TRADING_DAYS_PER_YEAR
   let sharpe: number | null = null
   let sortino: number | null = null
@@ -268,7 +267,7 @@ export default function PortfolioView() {
             </div>
             <div
               className="stat"
-              title="Annualized Sharpe ratio: mean daily (Total P&L / prior-day NAV) return, minus a 3.5%/yr risk-free rate, over its own volatility (std dev) — × √252 trading days/year."
+              title="Annualized Sharpe ratio: mean daily (Total P&L / prior-day NAV) return, with no risk-free rate subtracted (the book holds a treasury allocation), over its own volatility (std dev) — × √252 trading days/year."
             >
               <span className={`n num${sharpe === null ? '' : sharpe >= 0 ? ' good' : ' bad'}`}>
                 {fmtRatio(sharpe)}
@@ -277,7 +276,7 @@ export default function PortfolioView() {
             </div>
             <div
               className="stat"
-              title="Annualized Sortino ratio: same excess return as Sharpe, but over downside volatility only (upside swings aren't risk) — 3.5%/yr risk-free rate, × √252 trading days/year."
+              title="Annualized Sortino ratio: same return as Sharpe, but over downside volatility only (upside swings aren't risk) — no risk-free rate, × √252 trading days/year."
             >
               <span className={`n num${sortino === null ? '' : sortino >= 0 ? ' good' : ' bad'}`}>
                 {fmtRatio(sortino)}
@@ -300,8 +299,11 @@ export default function PortfolioView() {
       {error && <p className="status-row">Couldn't load portfolio_performance.json — run: python ib_server.py performance</p>}
       {!error && !data && <p className="status-row">Loading…</p>}
 
-      {chartRows && chartRows.length > 0 && <NavChart rows={chartRows} />}
-      {chartRows && chartRows.length > 0 && <ExposureChart rows={chartRows} />}
+      {chartRows && chartRows.length > 0 && <NavChart
+          rows={chartRows}
+          indexByDate={Object.fromEntries(chartRows.map((r) => [r.date, (1 + (cumulativeReturnByDate[r.date] ?? 0)) * 100]))}
+        />}
+      {chartRows && chartRows.length > 0 && <ExposureChart rows={chartRows.map((r) => ({ ...r, cashEquivalents: cashEqByDate[r.date] ?? 0 }))} />}
       {rows && rows.length > 0 && <MonthlyReturnsTable rows={rows} baselineNav={baselineNav} />}
 
       {rows && (
@@ -311,12 +313,13 @@ export default function PortfolioView() {
               <tr>
                 <th className="col-left">Date</th>
                 <th>Cash</th>
+                <th title="Market value of the cash-equivalent holdings (IB01, SGOV, SHV, ...), rebuilt from the fills -- kept out of Long, Net and Gross">Cash equiv.</th>
                 <th>NAV</th>
-                <th title="Stock Long / NAV">Stock Long %</th>
+                <th title="(Stock Long − cash equivalents) / NAV">Stock Long %</th>
                 <th title="Stock Short / NAV">Stock Short %</th>
-                <th>Net $</th>
+                <th title="Long (ex cash equivalents) + Short">Net $</th>
                 <th title="Net / NAV">Net %</th>
-                <th>Gross $</th>
+                <th title="Long (ex cash equivalents) + |Short|">Gross $</th>
                 <th title="Gross / NAV">Gross %</th>
                 <th>Flows</th>
                 <th>Commissions</th>
@@ -333,7 +336,7 @@ export default function PortfolioView() {
             <tbody>
               {rows.length === 0 && (
                 <tr className="status-row">
-                  <td colSpan={19}>No daily rows in the query response.</td>
+                  <td colSpan={20}>No daily rows in the query response.</td>
                 </tr>
               )}
               {[...rows].reverse().map((r) => {
@@ -341,17 +344,24 @@ export default function PortfolioView() {
                 const cumulativePnl = cumulativePnlByDate[r.date]
                 const dailyReturn = dailyReturnByDate[r.date]
                 const cumulativeReturn = cumulativeReturnByDate[r.date]
+                // Cash-equivalent holdings are not exposure -- explicit instruction: taken out of Long
+                // (the Flex Query's stockLong includes them), hence also out of Net and Gross.
+                const cashEq = cashEqByDate[r.date] ?? 0
+                const longAdj = r.stockLong === null ? null : Math.max(0, r.stockLong - cashEq)
+                const netAdj = longAdj !== null && r.stockShort !== null ? longAdj + r.stockShort : r.stockNet
+                const grossAdj = longAdj !== null && r.stockShort !== null ? longAdj + Math.abs(r.stockShort) : r.stockGross
                 return (
                   <tr key={r.date}>
                     <td className="col-left">{fmtDate(r.date)}</td>
                     <td className="num">{fmtLevel(r.cash)}</td>
+                    <td className="num">{fmtLevel(cashEq)}</td>
                     <td className="num">{fmtLevel(r.nav)}</td>
-                    <td className="num">{fmtExposurePct(r.stockLong, r.nav)}</td>
+                    <td className="num">{fmtExposurePct(longAdj, r.nav)}</td>
                     <td className="num">{fmtExposurePct(r.stockShort, r.nav)}</td>
-                    <td className="num">{fmtMoneyPlain(r.stockNet)}</td>
-                    <td className="num">{fmtExposurePct(r.stockNet, r.nav)}</td>
-                    <td className="num">{fmtMoneyPlain(r.stockGross)}</td>
-                    <td className="num">{fmtExposurePct(r.stockGross, r.nav)}</td>
+                    <td className="num">{fmtMoneyPlain(netAdj)}</td>
+                    <td className="num">{fmtExposurePct(netAdj, r.nav)}</td>
+                    <td className="num">{fmtMoneyPlain(grossAdj)}</td>
+                    <td className="num">{fmtExposurePct(grossAdj, r.nav)}</td>
                     <td className="num">{fmtMoneyPlain(r.depositsWithdrawals)}</td>
                     <td className="num">{fmtMoneyPlain(r.commissions)}</td>
                     <td className="num">{fmtMoneyPlain(r.dividends)}</td>

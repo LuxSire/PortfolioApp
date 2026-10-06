@@ -468,22 +468,22 @@ function momentumSignal(value: number, side: 'Long' | 'Short'): Signal {
 // Trend Score (modules/derive.py's reconcile_trend, field `trend`, 0-100,
 // 100 = strongest supported uptrend) is back ONLY as a blocker, not scored:
 // "do not buy weak stocks, do not sell strong stocks" -- no new long at
-// trend <= TREND_NO_BUY, no new short at trend >= TREND_NO_SELL. Same rule
+// trend < TREND_NO_BUY (25), no new short at trend > TREND_NO_SELL (75). Same rule
 // in modules/backtest.py, ib_server.py and portfolio_optimizer.py. Missing
 // trend never blocks.
-const TREND_NO_BUY = 35
-const TREND_NO_SELL = 65
+const TREND_NO_BUY = 25
+const TREND_NO_SELL = 75
 
 function trendBlocks(trend: number | null | undefined, side: 'Long' | 'Short'): boolean {
   if (typeof trend !== 'number' || !Number.isFinite(trend)) return false
-  return side === 'Long' ? trend <= TREND_NO_BUY : trend >= TREND_NO_SELL
+  return side === 'Long' ? trend < TREND_NO_BUY : trend > TREND_NO_SELL
 }
 
 function trendZone(trend: number): string {
   if (trend >= 80) return 'strong uptrend'
-  if (trend >= TREND_NO_SELL) return 'uptrend'
+  if (trend > TREND_NO_SELL) return 'uptrend'
   if (trend <= 20) return 'strong downtrend'
-  if (trend <= TREND_NO_BUY) return 'downtrend'
+  if (trend < TREND_NO_BUY) return 'downtrend'
   return 'neutral'
 }
 
@@ -491,7 +491,7 @@ function trendLine(c: Candidate, side: 'Long' | 'Short'): RationaleLine | null {
   const t = c.trend
   if (typeof t !== 'number' || !Number.isFinite(t)) return null
   const blocks = trendBlocks(t, side)
-  const favours = side === 'Long' ? t >= TREND_NO_SELL : t <= TREND_NO_BUY
+  const favours = side === 'Long' ? t > TREND_NO_SELL : t < TREND_NO_BUY
   return {
     text: `Trend ${t.toFixed(0)} (${trendZone(t)}${blocks ? ` — no ${side === 'Long' ? 'buy' : 'short'}` : ''})`,
     signal: blocks ? 'bad' : favours ? 'good' : null,
@@ -1069,6 +1069,12 @@ function PriceStat({
   // yfinance skipped an entire Monday for every ticker checked), which
   // silently turns "today vs. yesterday" into "today vs. several days
   // ago" without anything on the card saying so.
+  // Today's (live) or last session's move in sd of its 3-month daily moves, shown
+  // small in parentheses right after the % change -- explicit instruction, it
+  // replaced the separate daily-move line at the bottom of the card. Red when
+  // it blocks this side's entry (> +1σ for a Long, < -1σ for a Short).
+  const move = dailyMoveOf(dailyHistory3mo[c.ticker], live, c.dailyMove, c.dailyMoveZ)
+  const moveBlocks = side ? dailyMoveBlocks(move, side) : false
   const previousCloseDate = previousCloseInfo(dailyHistory3mo[c.ticker], monthlyHistory[c.ticker])?.date ?? null
   const previousCloseFresh = previousCloseDate !== null && previousCloseDate >= mostRecentCompletedTradingDay()
   return (
@@ -1081,6 +1087,16 @@ function PriceStat({
             title={`${fmtPrice(live.last ?? null)} ${fmtMinutesAgo(live.timestamp)} vs. yesterday's close ${fmtPrice(referencePrice)}`}
           >
             {fmtPct(changeRatio)}
+          </span>
+        )}
+        {move && (
+          <span
+            className={`move-sigma${moveBlocks ? ' perf-neg' : ''}`}
+            title={`${move.live ? 'Today' : 'Last session'} ${fmtPct(move.move)} = ${fmtSigma(move.z)} of this stock's daily moves over the last 3 months${
+              moveBlocks && side ? ` — beyond ${side === 'Long' ? '+' : '-'}1σ, no new ${side === 'Long' ? 'long' : 'short'}` : ''
+            }`}
+          >
+            ({fmtSigma(move.z)})
           </span>
         )}
         <Flag
@@ -1128,8 +1144,6 @@ function RecommendationCard({
 }) {
   const lines = rationaleLines(c, side)
   const factors = useScoringFactors()
-  const moveLine = dailyMoveLine(dailyMoveOf(dailyHistory3mo[c.ticker], live, c.dailyMove, c.dailyMoveZ), side)
-  if (moveLine) lines.push(moveLine)
   const earningsLine = earningsReviewLine(c, held, now)
   if (earningsLine) lines.push(earningsLine)
   const earningsMomLine = earningsMomentumLine(c, side, dailyHistory3mo[c.ticker], monthlyHistory[c.ticker], now)
@@ -1216,8 +1230,6 @@ function CloseCard({
 }) {
   const lines = rationaleLines(c, c.closeSide)
   const factors = useScoringFactors()
-  const moveLine = dailyMoveLine(dailyMoveOf(dailyHistory3mo[c.ticker], live, c.dailyMove, c.dailyMoveZ), c.closeSide)
-  if (moveLine) lines.push(moveLine)
   // Same target-portfolio dark-green treatment RecommendationCard applies --
   // see recommendation-card-target-portfolio's own CSS comment for why it's
   // a standalone class that outranks the plain -held brown (and, tied on
@@ -1315,8 +1327,6 @@ function RejectedCard({
 }) {
   const lines = rationaleLines(c, side)
   const factors = useScoringFactors()
-  const moveLine = dailyMoveLine(dailyMoveOf(dailyHistory3mo[c.ticker], live, c.dailyMove, c.dailyMoveZ), side)
-  if (moveLine) lines.push(moveLine)
   const earningsLine = earningsReviewLine(c, held, now)
   if (earningsLine) lines.push(earningsLine)
   const earningsMomLine = earningsMomentumLine(c, side, dailyHistory3mo[c.ticker], monthlyHistory[c.ticker], now)
@@ -1439,11 +1449,9 @@ function RecommendationSection<T>({
 //
 // Within each side, a non-held candidate that hedges an existing position
 // on the OPPOSITE side (same industry or sector -- see the longs/shorts memos'
-// own buildOppositeMatcher/HEDGE_BONUS usage) gets a bounded score nudge so
-// it can leapfrog similarly-ranked ideas with no such overlap, without
-// out-ranking a clearly stronger idea just for the overlap -- explicit
-// instruction: the portfolio's existing exposure should inform which NEW
-// trade gets suggested, not just the idea's own standalone rank.
+// own buildOppositeMatcher usage) is FLAGGED with a rationale line on its card but
+// no longer re-ranked: the old HEDGE_BONUS score nudge was removed (explicit
+// instruction) so the cards follow pure score (= percentile) order.
 //
 // The third group, To close, is a direct read of the live portfolio rather
 // than a ranked idea list -- see buildCloseReasons for the full set of
@@ -1537,11 +1545,11 @@ const MAX_SHORT_INTEREST = 0.2
 // thesis as crowding rises, rather than an all-or-nothing exclusion at
 // one threshold.
 
-// Never short high revenue growth -- explicit instruction: trailing OR
-// expected (Eulerpool) revenue growth above SHORT_GROWTH_CEILING must never
-// be shorted. ENFORCED in modules/backtest.py and portfolio_optimizer.py
-// (target portfolio). On THIS page (explicit instruction): a Strong Sell
-// with BOTH trailing and expected growth above the ceiling (the thumb-down
+// Never short high revenue growth -- explicit instruction: trailing AND
+// expected (Eulerpool) revenue growth BOTH above SHORT_GROWTH_CEILING must
+// never be shorted. Same rule in modules/backtest.py and portfolio_optimizer.py
+// (target portfolio). On THIS page: a Strong Sell
+// with BOTH above the ceiling (the thumb-down
 // case) is BLOCKED -- moved to Short blocked (shortGrowthBlocksEntry);
 // one with only ONE of the two above it stays in the Short tab, flagged by
 // the red shortGrowthWarningLine, so it can be checked by eye.
@@ -1558,7 +1566,7 @@ function shortGrowthWarningLine(c: Candidate, side: 'Long' | 'Short'): Rationale
   const over = [trailing, expected].filter((g): g is number => g !== null && g > SHORT_GROWTH_CEILING)
   if (over.length === 0) return null
   return {
-    text: `Revenue growth above ${fmtPct(SHORT_GROWTH_CEILING)} (${fmtPct(trailing)} trailing, ${fmtPct(expected)} expected) — never short: excluded from the backtest and the target portfolio.`,
+    text: `Revenue growth above ${fmtPct(SHORT_GROWTH_CEILING)} on one measure (${fmtPct(trailing)} trailing, ${fmtPct(expected)} expected) — a warning only: it is shorted unless both are above.`,
     signal: 'bad',
   }
 }
@@ -1650,22 +1658,6 @@ function fmtSigma(z: number): string {
   return `${z >= 0 ? '+' : ''}${z.toFixed(1)}σ`
 }
 
-// Card line, every card: today's (or last session's) move and its size in
-// sd -- red thumb when it blocks this side, green when the move is a big
-// one in the trade's favour for tomorrow (a big down day for a Long, a big
-// up day for a Short).
-function dailyMoveLine(m: DailyMove | null, side: 'Long' | 'Short'): RationaleLine | null {
-  if (!m) return null
-  const blocks = dailyMoveBlocks(m, side)
-  const favours = dailyMoveBlocks(m, side === 'Long' ? 'Short' : 'Long')
-  return {
-    text: `${m.live ? 'Today' : 'Last session'} ${fmtPct(m.move)} (${fmtSigma(m.z)} vs its 3-month daily moves)${
-      blocks ? ` — beyond ${side === 'Long' ? '+' : '-'}1σ, no new ${side === 'Long' ? 'long' : 'short'}` : ''
-    }`,
-    signal: blocks ? 'bad' : favours ? 'good' : null,
-  }
-}
-
 // Sim-return gate on the idea lists themselves (separate from the To close
 // fundamentals check above, which flags a HELD position after the fact) --
 // explicit instruction: never recommend a long whose simulation says the
@@ -1701,9 +1693,8 @@ function simReturnOkForShort(simReturn: number | null | undefined): boolean {
 // consistently positive -- i.e. a bad short -- across every week/model
 // measured), the same shape of finding that got crowded_short removed.
 // epsTrendValue/epsTrendLine below stay as informational context on the
-// card, and buildCloseReasons' own epsTrend check still flags an already-
-// open position whose estimate trend has reversed -- only the "block a
-// NEW idea" use is gone.
+// card, and buildCloseReasons no longer flags an EPS-estimate reversal on held
+// positions (replaced by the Trend blocker) -- only informational now.
 
 // To close only (not an opening gate) -- explicit instruction, "review"
 // tier: a held position reporting earnings within EARNINGS_BLOCK_DAYS
@@ -1849,14 +1840,6 @@ function earningsMomentumLine(
   }
 }
 
-// Minimum |epsTrendValue| to raise a close-reason "reconsider" flag below
-// -- explicit instruction: a trend of, say, +1% is noise-level estimate
-// drift, not a genuine fundamentals-rolling-over signal worth surfacing
-// as a review item. epsTrendLine (the informational card line, always
-// shown regardless of magnitude) is untouched -- this only gates the
-// close-reason review flag.
-const EPS_TREND_RECONSIDER_THRESHOLD = 0.03
-
 // Fundamentals rolling over, independent of rating/momentum/score: a long
 // whose analyst EPS estimates have been cut over the last 30 days
 // (epsRevision0y/1y -- see IBApp._eps_revision/scoring.eps_trend_rank) or
@@ -1943,19 +1926,17 @@ function buildCloseReasons({ shares, c, now }: { shares: number; c: Candidate; n
   // meanReversion is retired entirely now, folded into the Trend Score
   // itself as a gated trend_health term (see modules/derive.py).
 
-  const epsTrend = epsTrendValue(c)
-  if (epsTrend !== null && Math.abs(epsTrend) >= EPS_TREND_RECONSIDER_THRESHOLD) {
-    if (isLong && epsTrend < 0) {
-      reasons.push({
-        type: 'eps-trend',
-        text: `EPS est cut (trend ${fmtPct(epsTrend)}) — reconsider.`,
-      })
-    } else if (!isLong && epsTrend > 0) {
-      reasons.push({
-        type: 'eps-trend',
-        text: `EPS est raised (trend ${fmtPct(epsTrend)}) — reconsider.`,
-      })
-    }
+  // The EPS-estimate-trend review flag ("EPS est raised/cut (trend ...) --
+  // reconsider") was REMOVED here (explicit instruction): replaced by the SAME
+  // Trend blocker the Long/Short idea lists show for a blocked candidate, now also
+  // on held positions -- a long in the weakest Trend zone, a short in the
+  // strongest. (The informational EPS trend line on the card is unchanged.)
+  if (trendBlocks(c?.trend, isLong ? 'Long' : 'Short')) {
+    reasons.push(
+      isLong
+        ? { type: 'trend', text: `Trend is ${(c.trend as number).toFixed(0)}, in the weakest ${TREND_NO_BUY}% (< ${TREND_NO_BUY}) — don't buy weak stocks.` }
+        : { type: 'trend', text: `Trend is ${(c.trend as number).toFixed(0)}, in the strongest ${100 - TREND_NO_SELL}% (> ${TREND_NO_SELL}) — don't sell strong stocks.` },
+    )
   }
 
   if (isLong && c?.revenueGrowth !== null && c?.revenueGrowth !== undefined && c.revenueGrowth < 0) {
@@ -2041,7 +2022,7 @@ function buildRejectionReasons({
     if (trendBlocks(c.trend, 'Long')) {
       reasons.push({
         type: 'trend',
-        text: `Trend is ${(c.trend as number).toFixed(0)}, in the weak third (≤ ${TREND_NO_BUY}) — don't buy weak stocks.`,
+        text: `Trend is ${(c.trend as number).toFixed(0)}, in the weakest ${TREND_NO_BUY}% (< ${TREND_NO_BUY}) — don't buy weak stocks.`,
       })
     }
     if (dailyMove && dailyMoveBlocks(dailyMove, 'Long')) {
@@ -2077,7 +2058,7 @@ function buildRejectionReasons({
     if (trendBlocks(c.trend, 'Short')) {
       reasons.push({
         type: 'trend',
-        text: `Trend is ${(c.trend as number).toFixed(0)}, in the strong third (≥ ${TREND_NO_SELL}) — don't sell strong stocks.`,
+        text: `Trend is ${(c.trend as number).toFixed(0)}, in the strongest ${100 - TREND_NO_SELL}% (> ${TREND_NO_SELL}) — don't sell strong stocks.`,
       })
     }
     if (dailyMove && dailyMoveBlocks(dailyMove, 'Short')) {
@@ -2134,7 +2115,7 @@ const LONG_RULES = [
   { label: 'Rating', note: 'Strong Buy.' },
   {
     label: 'Trend',
-    note: `Blocked when the 10-day Trend Score is ≤ ${TREND_NO_BUY} (weakest third of the universe) — don't buy weak stocks. A filter only, not part of the score. Unknown Trend not excluded.`,
+    note: `Blocked when the 10-day Trend Score is < ${TREND_NO_BUY} (weakest ${TREND_NO_BUY}% of the universe) — don't buy weak stocks. A filter only, not part of the score. Unknown Trend not excluded.`,
   },
   {
     label: 'Daily move',
@@ -2166,11 +2147,11 @@ const SHORT_RULES = [
   { label: 'Rating', note: 'Strong Sell.' },
   {
     label: 'Trend',
-    note: `Blocked when the 10-day Trend Score is ≥ ${TREND_NO_SELL} (strongest third of the universe) — don't sell strong stocks. A filter only, not part of the score. Unknown Trend not excluded.`,
+    note: `Blocked when the 10-day Trend Score is > ${TREND_NO_SELL} (strongest ${100 - TREND_NO_SELL}% of the universe) — don't sell strong stocks. A filter only, not part of the score. Unknown Trend not excluded.`,
   },
   {
     label: 'Revenue growth',
-    note: `Blocked when BOTH trailing and expected (Eulerpool) revenue growth are above ${fmtPct(SHORT_GROWTH_CEILING)}. If only one of the two is above it, the name stays here with a red "never short" line — the backtest and target portfolio exclude it either way.`,
+    note: `Blocked when BOTH trailing and expected (Eulerpool) revenue growth are above ${fmtPct(SHORT_GROWTH_CEILING)}. If only one of the two is above it, the name stays here with a red warning line and is still included in the backtest and target portfolio.`,
   },
   {
     label: 'Daily move',
@@ -2214,8 +2195,8 @@ const CLOSE_RULES = [
     note: `Still rated Buy/Sell, but the composite score is within ${SCORE_BOUNDARY_MARGIN} points of the Hold boundary — conviction fading before the rating itself flips.`,
   },
   {
-    label: 'EPS trend reversal',
-    note: 'Long: consensus EPS estimates cut. Short: consensus EPS estimates raised.',
+    label: 'Trend blocker',
+    note: `Held long with a Trend Score < ${TREND_NO_BUY} (weakest ${TREND_NO_BUY}%), or held short with a Trend Score > ${TREND_NO_SELL} (strongest ${100 - TREND_NO_SELL}%) — the same blocker shown on blocked Long/Short ideas.`,
   },
   {
     label: 'Revenue growth negative',
@@ -2584,23 +2565,11 @@ export default function RecommendationsView() {
   )
 
   // A non-held candidate that hedges an existing OPPOSITE-side position
-  // (same industry or sector -- see buildOppositeMatcher) is nudged ahead of
-  // an otherwise similarly-ranked idea with no such overlap, per explicit
-  // instruction: "an opposite position inside a theme or sector of a
-  // current position is preferable". A bounded score adjustment (HEDGE_BONUS
-  // -- 5 percentile points of the 0..1 composite score, same units
-  // scorePercentile already displays), not a hard tier: a match can leapfrog
-  // ideas within roughly that margin, but can't out-rank a genuinely much
-  // better idea just for overlapping a sector. An earlier version tried a
-  // hard "all matches beat all non-matches" tier and it was too strong in
-  // practice -- on this portfolio's real data it filled the whole Long list
-  // with sector-matched names scoring 0.41-0.49, pushing out non-matched
-  // ideas scoring 0.27-0.37 (a clearly worse trade-off than what "preferable"
-  // should mean). Held candidates are excluded from the matcher's own input
-  // (checking a position against itself is meaningless) and never get the
-  // hedge rationale line (it's not "a new trade" if you already hold it) or
-  // the bonus.
-  const HEDGE_BONUS = 0.05
+  // (same industry or sector -- see buildOppositeMatcher) used to get a
+  // HEDGE_BONUS (0.05) score nudge that pulled it up the list. REMOVED
+  // (explicit instruction): the Long/Short cards are now in pure score
+  // (= percentile) order. The hedge rationale line on the card is unchanged, so
+  // an idea that offsets a held position is still flagged, just not re-ranked.
 
   const longs: RankedCandidate[] = useMemo(() => {
     if (!data) return []
@@ -2622,7 +2591,7 @@ export default function RecommendationsView() {
         const held = heldLongTickers.has(c.ticker)
         const match = held ? null : matcher(c)
         const concMatch = held ? null : concentrationMatcher(c)
-        const sortScore = (c.score ?? 1) - (match ? HEDGE_BONUS : 0)
+        const sortScore = c.score ?? 1
         const targetPool = tickerTargetPool[c.ticker]
         return {
           ...c,
@@ -2679,7 +2648,7 @@ export default function RecommendationsView() {
         const held = heldShortTickers.has(c.ticker)
         const match = held ? null : matcher(c)
         const concMatch = held ? null : concentrationMatcher(c)
-        const sortScore = (c.score ?? 0) + (match ? HEDGE_BONUS : 0)
+        const sortScore = c.score ?? 0
         const targetPool = tickerTargetPool[c.ticker]
         return {
           ...c,
@@ -2794,7 +2763,7 @@ export default function RecommendationsView() {
       // Rating contradictions rank highest (most decisive single signal),
       // then unsupportive momentum, then a score close enough to the Hold
       // boundary to likely cross soon, then however many pure risk/
-      // fundamentals flags (eps-trend/revenue-growth/crowded-short) apply
+      // fundamentals/risk flags (trend/revenue-growth/crowded-short) apply
       // -- so a position tripping several flags at once still outranks one
       // tripping only a single, milder one.
       const severity =
@@ -2944,9 +2913,9 @@ export default function RecommendationsView() {
   // Uncapped, same as Long/Short (this is an audit of every top-rated
   // candidate that got blocked, not a ranked idea list), and independent
   // of longs/shorts above other than sharing the same gate functions -- see
-  // buildRejectionReasons. Alphabetical by ticker (explicit instruction --
-  // this is a lookup list, not a ranked one, so sorting by severity the
-  // way closes does would just make a specific ticker harder to find).
+  // buildRejectionReasons. The combined list is alphabetical by ticker; the two
+  // per-side lists derived from it below (Blocked Long / Blocked Short) are in
+  // percentile order (explicit instruction), same as the Long/Short idea lists.
   // Split into two so each can sit right after its own side's idea list
   // (Strong Buy after Long, Strong Sell after Short) rather than one
   // combined section -- explicit instruction.
@@ -2982,8 +2951,18 @@ export default function RecommendationsView() {
     }
     return rows.sort((a, b) => a.ticker.localeCompare(b.ticker))
   }, [data, tickerScreener, tickerForecast, tickerSimPerf, tickerTargetSide, tickerTargetPool, now, moveByTicker])
-  const rejectedStrongBuy = useMemo(() => rejectedStrong.filter((c) => c.rating === 'Strong Buy'), [rejectedStrong])
-  const rejectedStrongSell = useMemo(() => rejectedStrong.filter((c) => c.rating === 'Strong Sell'), [rejectedStrong])
+  // Blocked Long / Blocked Short are in score (= percentile) order, like the Long and
+  // Short idea lists (explicit instruction; they used to be alphabetical): Strong Buy
+  // best percentile first (score ascending), Strong Sell worst percentile first (score
+  // descending). No hedge or other adjustment, same pure order as longs/shorts.
+  const rejectedStrongBuy = useMemo(
+    () => rejectedStrong.filter((c) => c.rating === 'Strong Buy').sort((a, b) => (a.score ?? 1) - (b.score ?? 1)),
+    [rejectedStrong]
+  )
+  const rejectedStrongSell = useMemo(
+    () => rejectedStrong.filter((c) => c.rating === 'Strong Sell').sort((a, b) => (b.score ?? 0) - (a.score ?? 0)),
+    [rejectedStrong]
+  )
 
   // An industry-level roll-up of the same per-factor thumbs every single-
   // stock card already shows -- explicit instruction: sum thumbs-up/down

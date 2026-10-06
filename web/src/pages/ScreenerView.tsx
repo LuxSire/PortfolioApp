@@ -8,6 +8,7 @@ import { getSectorGroup } from '../sectorGroups'
 import { IB_STREAM_URL } from '../ibStream'
 import FilterDropdown from '../components/FilterDropdown'
 import SectorFilter from '../components/SectorFilter'
+import { portfolioRowClass, useTargetPortfolioTickers } from '../targetPortfolio'
 import {
   COLUMNS,
   avgInsiderScore,
@@ -432,7 +433,7 @@ function ScoreFormula() {
           </ul>
           <div className="score-formula-footer">
             The <strong>Rating</strong> column buckets this score's percentile into a
-            forced Strong Buy/Buy/Hold/Sell/Strong Sell distribution (top/bottom 7.5% =
+            forced Strong Buy/Buy/Hold/Sell/Strong Sell distribution (top/bottom 10% =
             Strong Buy/Strong Sell, next 12.5% each = Buy/Sell, middle 60% = Hold) — same
             shape as Zacks Rank, independent of the Rec column's analyst consensus.
           </div>
@@ -453,6 +454,7 @@ export default function ScreenerView() {
   const [sortDir, setSortDir] = useState(1)
   const [livePrices, setLivePrices] = useState<LivePricesByTicker>({})
   const [positions, setPositions] = useState<PositionsByTicker>({})
+  const targetTickers = useTargetPortfolioTickers()
   const [nonZeroOnly, setNonZeroOnly] = useState(false)
   const [page, setPage] = useState(0)
   const tableRef = useRef<HTMLTableElement>(null)
@@ -1252,7 +1254,7 @@ export default function ScreenerView() {
               const posval = possize !== null && posPrice !== null ? possize * posPrice : null
               const scorePct = r.sc === null ? 0 : ((r.sc - scoreMin) / scoreSpan) * 100
               return (
-                <tr key={r.t}>
+                <tr key={r.t} className={portfolioRowClass((possize ?? 0) !== 0, targetTickers.has(r.t)) || undefined}>
                   <td className="col-left col-ticker num">
                     <a
                       href={`#/asset/${encodeURIComponent(r.t)}`}

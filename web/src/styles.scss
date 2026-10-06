@@ -26,6 +26,11 @@
   --viz-net: #2a78d6;
   --viz-long: #1baf7a;
   --viz-short: #eb6834;
+  --viz-cash: #8d97a8; /* cash & cash equivalents: neutral grey, not exposure */
+  /* Maths page colour code: raw downloaded data / calculated variable / final output */
+  --maths-raw: #a8820a;
+  --maths-calc: #cf6a12;
+  --maths-out: #1f8a5b;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -48,6 +53,10 @@
     --viz-net: #3987e5;
     --viz-long: #199e70;
     --viz-short: #d95926;
+    --viz-cash: #7b8596;
+    --maths-raw: #f2c94c;
+    --maths-calc: #ff9f43;
+    --maths-out: #3ecf8e;
   }
 }
 
@@ -252,6 +261,158 @@ body {
 .export-tab-btn:hover {
   color: var(--accent);
   border-color: var(--accent);
+}
+
+.move-sigma {
+  font-size: 10px;
+  font-weight: 500;
+  margin-left: 4px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* Positions page: Expected Portfolio Performance (left) and the Trading robot
+   panel (right) on ONE row -- explicit instruction, not stacked. Wraps under
+   each other only on a narrow window. */
+.positions-perf-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 20px;
+}
+
+.positions-perf-row > header.masthead {
+  /* title on top, Expected Return / Volatility / Sharpe stacked-row below it,
+     so this block stays narrow and the Trading robot window can be wider */
+  flex: 0 1 auto;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  min-width: 0;
+}
+
+.positions-perf-row > .take-profit-log {
+  flex: 0 1 520px; /* 400px + 30% */
+  min-width: 0;
+  margin: 0 0 0 auto; /* pushed to the right edge of the row */
+}
+
+.news-two-col {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 20px;
+}
+
+.news-two-col > .news-main {
+  flex: 1 1 560px;
+  min-width: 0;
+}
+
+.news-two-col > .news-industry {
+  flex: 0 1 420px;
+  min-width: 0;
+  margin: 0;
+}
+
+.news-industry-note {
+  margin: 2px 0 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.news-industry-scroll {
+  max-height: 70vh;
+  overflow-y: auto;
+  border-top: 1px solid var(--line);
+}
+
+.news-industry-scroll table {
+  width: 100%;
+  min-width: 0;
+  font-size: 12px;
+}
+
+.news-industry-scroll thead th {
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+}
+
+.news-industry-avg {
+  font-weight: 700;
+}
+
+.backtest-daily-scroll {
+  max-height: 75vh;
+  overflow: auto;
+  border-top: 1px solid var(--line);
+}
+
+.backtest-daily-scroll table {
+  width: 100%;
+  min-width: 0;
+  font-size: 12px;
+}
+
+.backtest-daily-scroll thead th {
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  white-space: nowrap;
+}
+
+.backtest-daily-total td {
+  font-weight: 700;
+  background: color-mix(in srgb, var(--muted) 10%, transparent);
+}
+
+/* TakeProfitLog.tsx -- Positions page panel with the take-profit loop's log. */
+.take-profit-log-summary {
+  margin: 4px 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.take-profit-log-filter {
+  display: inline-block;
+  margin: 6px 0 8px;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.take-profit-log-scroll {
+  border-top: 1px solid var(--line);
+}
+
+.take-profit-log-scroll table {
+  width: 100%;
+  min-width: 0;
+  font-size: 12px;
+}
+
+.trading-robot-full-log-scroll {
+  max-height: 520px;
+  overflow-y: auto;
+  border-top: 1px solid var(--line);
+}
+
+.trading-robot-full-log-scroll table {
+  width: 100%;
+  min-width: 0;
+  font-size: 12px;
+}
+
+.trading-robot-full-log-scroll thead th {
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+}
+
+.take-profit-log-order td {
+  font-weight: 600;
+  background: color-mix(in srgb, var(--good) 8%, transparent);
 }
 
 /* BacktestingView.tsx's week pager -- one control for every table on the
@@ -2101,6 +2262,20 @@ tr.row-held {
 }
 
 
+/* Table row variant of the target-portfolio green -- Screener and Simulations
+   rows for a stock in target_portfolio.json that you do NOT hold (a held row
+   keeps tr.row-held's brown above). Same dark green and ink tokens as
+   .recommendation-card.recommendation-card-target-portfolio. */
+tr.row-target {
+  background: #0f3d24;
+  color: #e3f3e8;
+  td { color: #e3f3e8; }
+  .good  { color: #4cbd86; }
+  .bad   { color: #e2685c; }
+  .perf-pos { color: #4cbd86; }
+  .perf-neg { color: #e2685c; }
+}
+
 /* RejectedCard (Strong Buy/Strong Sell — blocked) — explicit instruction:
    navy blue regardless of theme, not this app's dark-mode surface tokens
    (which read as near-black) or plain light grey (read as too close to
@@ -3320,3 +3495,50 @@ tr.has-notes {
     transform-origin: top left;
   }
 }
+
+
+/* Maths > Data variables tab (MathsVariablesTable.tsx) */
+.maths-vars-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 10px 0 14px;
+}
+
+.maths-vars-filters input[type='search'] {
+  min-width: 240px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.maths-vars-scroll {
+  max-height: 70vh;
+  overflow: auto;
+}
+
+.maths-vars-uses {
+  margin: 0;
+  padding-left: 16px;
+}
+
+/* Maths page colour code (see MathsView.tsx renderInline): {{raw:..}} yellow = raw
+   downloaded data, {{calc:..}} orange = calculated variable, {{out:..}} green = final output */
+.maths-raw { color: var(--maths-raw); font-weight: 600; }
+.maths-calc { color: var(--maths-calc); font-weight: 600; }
+.maths-out { color: var(--maths-out); font-weight: 600; }
+
+.maths-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  margin: 0 0 16px;
+  font-size: 13px;
+}
+
+.maths-table-scroll { overflow-x: auto; }
+.maths-table-scroll table { font-size: 13px; }
+.maths-table-scroll td, .maths-table-scroll th { vertical-align: top; text-align: left; }

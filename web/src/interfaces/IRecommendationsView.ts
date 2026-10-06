@@ -168,7 +168,7 @@ export interface Candidate {
   dailyMove?: number | null
   dailyMoveZ?: number | null
   // 10-day Trend Score (modules/derive.py's reconcile_trend), 0-100 -- an
-  // entry FILTER only (no long <= 35, no short >= 65), not scored.
+  // entry FILTER only (no long <= 30, no short >= 70), not scored.
   trend?: number | null
 }
 
