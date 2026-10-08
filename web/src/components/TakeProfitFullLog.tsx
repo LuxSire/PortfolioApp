@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
 import { IB_TAKE_PROFIT_FULL_LOG_URL } from '../ibStream'
 
+// A sell (order, entry signal, IB status or fill) is shown in red, a buy in green.
+function isSell(e: { message: string; order?: { action?: string } }): boolean {
+  return e.order?.action ? e.order.action === 'SELL' : /\bSELL\b/.test(e.message)
+}
+
 // Trades page: the COMPLETE log of the trading robot (ib_server.py's
 // take_profit_loop) -- every check, window change, skipped name, order, entry
 // signal (log only, never sent), IB status change and fill, newest first, in a
@@ -12,6 +17,7 @@ interface Event {
   time: string
   kind: string
   message: string
+  order?: { action?: string }
 }
 
 const LABEL: Record<string, string> = {
@@ -22,6 +28,7 @@ const LABEL: Record<string, string> = {
   order: 'ORDER',
   entry: 'ENTRY (not sent)',
   entry_skip: 'ENTRY skipped',
+  consider: 'ENTRY considered',
   beta: 'beta',
   ib: 'IB',
   fill: 'FILLED',
@@ -31,7 +38,7 @@ const LABEL: Record<string, string> = {
 const FILTERS: { key: string; label: string; kinds: string[] | null }[] = [
   { key: 'all', label: 'Everything', kinds: null },
   { key: 'orders', label: 'Orders, entries & fills', kinds: ['order', 'entry', 'entry_skip', 'ib', 'fill'] },
-  { key: 'entries', label: 'Entry signals only', kinds: ['entry', 'entry_skip'] },
+  { key: 'entries', label: 'Entry signals only', kinds: ['entry', 'entry_skip', 'consider'] },
   { key: 'problems', label: 'Errors & waiting', kinds: ['error', 'skip'] },
 ]
 
@@ -109,9 +116,9 @@ export default function TakeProfitFullLog() {
                   </tr>
                 )}
                 {shown.map((e, i) => (
-                  <tr key={`${e.time}-${i}`} className={['order', 'fill', 'entry'].includes(e.kind) ? 'take-profit-log-order' : ''}>
+                  <tr key={`${e.time}-${i}`} className={['order', 'fill', 'entry'].includes(e.kind) ? (isSell(e) ? 'take-profit-log-order take-profit-log-sell' : 'take-profit-log-order') : ''}>
                     <td className="col-left">{fmtTime(e.time)}</td>
-                    <td className={`col-left ${['order', 'fill', 'entry'].includes(e.kind) ? 'good' : e.kind === 'error' ? 'bad' : ''}`}>
+                    <td className={`col-left ${e.kind === 'error' ? 'bad' : ['order', 'fill', 'entry', 'ib'].includes(e.kind) ? (isSell(e) ? 'bad' : 'good') : ''}`}>
                       {LABEL[e.kind] ?? e.kind}
                     </td>
                     <td className="col-left">{e.message}</td>

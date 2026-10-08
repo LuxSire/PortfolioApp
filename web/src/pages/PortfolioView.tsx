@@ -4,6 +4,7 @@ import ExposureChart from '../components/ExposureChart'
 import { useCashEquivalentValues } from '../cashEquivalentHistory'
 import MonthlyReturnsTable from '../components/MonthlyReturnsTable'
 import NavChart from '../components/NavChart'
+import { dayTotalPnl } from '../portfolioPnl'
 
 function fmtMoney(v: number | null | undefined): string {
   if (v === null || v === undefined) return '—'
@@ -131,11 +132,11 @@ export default function PortfolioView() {
     let worstDrawdown = 0
     let prevNav: number | null = baselineNav
     for (const r of rows) {
-      const dayTotalPnl = r.realized !== null && r.unrealized !== null ? r.realized + r.unrealized : null
-      if (dayTotalPnl !== null) running += dayTotalPnl
+      const dayPnl = dayTotalPnl(r)
+      if (dayPnl !== null) running += dayPnl
       cumulativePnlByDate[r.date] = running
 
-      const dailyReturn = dayTotalPnl !== null && prevNav ? dayTotalPnl / prevNav : null
+      const dailyReturn = dayPnl !== null && prevNav ? dayPnl / prevNav : null
       dailyReturnByDate[r.date] = dailyReturn
       if (dailyReturn !== null) {
         dailyReturns.push(dailyReturn)
@@ -156,10 +157,15 @@ export default function PortfolioView() {
     rows ? rows.reduce((s, r) => s + ((r[field] as number | null) ?? 0), 0) : null
   const totalRealized = sumField('realized')
   const totalUnrealized = sumField('unrealized')
-  const totalPnl = rows && totalRealized !== null && totalUnrealized !== null ? totalRealized + totalUnrealized : null
   const totalCommissions = sumField('commissions')
   const totalDividends = sumField('dividends')
+  const totalWithholdingTax = sumField('withholdingTax')
   const totalInterest = sumField('interest')
+  // realized + unrealized + commissions + dividends + interest + withholding tax
+  const totalPnl =
+    rows && totalRealized !== null && totalUnrealized !== null
+      ? totalRealized + totalUnrealized + (totalCommissions ?? 0) + (totalDividends ?? 0) + (totalInterest ?? 0) + (totalWithholdingTax ?? 0)
+      : null
   const totalDepositsWithdrawals = sumField('depositsWithdrawals')
 
   // Both ratios use the same daily-return series as the new % column
@@ -238,6 +244,10 @@ export default function PortfolioView() {
             <div className="stat">
               <span className={`n num${(totalDividends ?? 0) >= 0 ? ' good' : ' bad'}`}>{fmtMoney(totalDividends)}</span>
               <span className="l">Dividends</span>
+            </div>
+            <div className="stat" title="Tax withheld on dividends and interest (negative). Shown only if the IBKR Flex query includes Withholding Tax in its Change in NAV section.">
+              <span className={`n num${(totalWithholdingTax ?? 0) >= 0 ? '' : ' bad'}`}>{fmtMoney(totalWithholdingTax)}</span>
+              <span className="l">WT</span>
             </div>
             <div className="stat">
               <span className={`n num${(totalInterest ?? 0) >= 0 ? ' good' : ' bad'}`}>{fmtMoney(totalInterest)}</span>
@@ -324,6 +334,7 @@ export default function PortfolioView() {
                 <th>Flows</th>
                 <th>Commissions</th>
                 <th>Dividends</th>
+                <th title="Withholding tax">WT</th>
                 <th>Interest</th>
                 <th>Realized</th>
                 <th>Unrealized</th>
@@ -336,11 +347,11 @@ export default function PortfolioView() {
             <tbody>
               {rows.length === 0 && (
                 <tr className="status-row">
-                  <td colSpan={20}>No daily rows in the query response.</td>
+                  <td colSpan={21}>No daily rows in the query response.</td>
                 </tr>
               )}
               {[...rows].reverse().map((r) => {
-                const totalPnl = r.realized !== null && r.unrealized !== null ? r.realized + r.unrealized : null
+                const totalPnl = dayTotalPnl(r)
                 const cumulativePnl = cumulativePnlByDate[r.date]
                 const dailyReturn = dailyReturnByDate[r.date]
                 const cumulativeReturn = cumulativeReturnByDate[r.date]
@@ -365,6 +376,7 @@ export default function PortfolioView() {
                     <td className="num">{fmtMoneyPlain(r.depositsWithdrawals)}</td>
                     <td className="num">{fmtMoneyPlain(r.commissions)}</td>
                     <td className="num">{fmtMoneyPlain(r.dividends)}</td>
+                    <td className="num">{fmtMoneyPlain(r.withholdingTax ?? null)}</td>
                     <td className="num">{fmtMoneyPlain(r.interest)}</td>
                     <td className={`num ${r.realized === null ? '' : r.realized >= 0 ? 'good' : 'bad'}`}>
                       {fmtMoneyPlain(r.realized)}

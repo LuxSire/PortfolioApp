@@ -61,15 +61,17 @@ export default function ThemesView() {
   const [tickerInfo, setTickerInfo] = useState<TickerInfoByTicker>({})
   const [positions, setPositions] = useState<PositionsByTicker>({})
   const [livePrices, setLivePrices] = useState<LivePricesByTicker>({})
+  const [netLiq, setNetLiq] = useState<number | null>(null)
   const [expandedThemes, setExpandedThemes] = useState<Set<string>>(new Set())
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     const source = new EventSource(IB_STREAM_URL)
     source.onmessage = (e) => {
-      const { prices, positions: pos } = JSON.parse(e.data)
+      const { prices, positions: pos, account } = JSON.parse(e.data)
       setLivePrices(prices)
       setPositions(pos)
+      setNetLiq(account?.NetLiquidation ?? null)
     }
     source.onerror = () => {} // EventSource auto-reconnects; nothing to do here.
     return () => source.close()
@@ -161,6 +163,25 @@ export default function ThemesView() {
   // not just approximately so).
   const themesNetTotal = useMemo(() => themeRows.reduce((s, t) => s + t.netValue, 0), [themeRows])
 
+  // Defensive vs Growth -- same definition as modules/styles.py (used by the trading
+  // robot, the backtest and the target-portfolio optimizer): a ticker's style is the
+  // style of its FIRST styled theme; tilt = net growth - net defensive, here as a share
+  // of Net Liquidation, limit +/-STYLE_TILT_LIMIT.
+  const STYLE_TILT_LIMIT = 0.2
+  const styleSummary = useMemo(() => {
+    const themeStyle = new Map((taxonomy ?? []).filter((t) => t.style).map((t) => [t.key, t.style as string]))
+    const net = { growth: 0, defensive: 0 } as Record<string, number>
+    const names = { growth: [] as string[], defensive: [] as string[] } as Record<string, string[]>
+    for (const r of rows) {
+      const style = r.themeKeys.map((k) => themeStyle.get(k)).find(Boolean)
+      if (!style || r.value === null) continue
+      net[style] += r.value
+      names[style].push(r.ticker)
+    }
+    const tilt = netLiq ? (net.growth - net.defensive) / netLiq : null
+    return { net, names, tilt }
+  }, [taxonomy, rows, netLiq])
+
   function toggleTheme(key: string) {
     setExpandedThemes((prev) => {
       const next = new Set(prev)
@@ -191,6 +212,37 @@ export default function ThemesView() {
           </div>
         </div>
       </header>
+
+      {taxonomy && (
+        <div className="asset-two-col-row">
+          {(['growth', 'defensive'] as const).map((style) => (
+            <div className="asset-card" key={style}>
+              <h2 title={style === 'growth' ? 'Long growth pushes the tilt up, short growth down' : 'Long defensive pushes the tilt down, short defensive up'}>
+                {style === 'growth' ? 'Growth' : 'Defensive'} themes{' '}
+                <span className={`num ${styleSummary.net[style] >= 0 ? 'good' : 'bad'}`}>{fmtMoney(styleSummary.net[style])}</span>
+                {netLiq ? <span className="stat-subvalue"> {fmtPct(styleSummary.net[style] / netLiq)} of NL</span> : null}
+              </h2>
+              <p className="theme-style-list">
+                {taxonomy.filter((t) => t.style === style).map((t) => t.label).join(' · ')}
+              </p>
+              <p className="theme-style-list" title="Held positions counted in this style (first styled theme)">
+                Held: {styleSummary.names[style].length ? styleSummary.names[style].join(', ') : '—'}
+              </p>
+            </div>
+          ))}
+          <div className="asset-card">
+            <h2 title="Net growth − net defensive, as a share of Net Liquidation. The trading robot, backtest and target portfolio keep it within the limit.">Defensive vs Growth tilt</h2>
+            <div className="stat-row">
+              <div className="stat">
+                <span className={`n num${styleSummary.tilt !== null && Math.abs(styleSummary.tilt) > STYLE_TILT_LIMIT ? ' bad' : ''}`}>
+                  {fmtPct(styleSummary.tilt)}
+                </span>
+                <span className="l">tilt (limit ±{(STYLE_TILT_LIMIT * 100).toFixed(0)}%)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {error && <div className="asset-card">Couldn't load theme data: {error}</div>}
       {!error && !taxonomy && <div className="asset-card">Loading…</div>}

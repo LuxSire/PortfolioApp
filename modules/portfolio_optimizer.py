@@ -627,13 +627,28 @@ def _net_by_group(longs, shorts):
     return ind, sec
 
 
+_STYLES = None
+
+
+def _style_tilt(longs, shorts):
+    """Defensive vs Growth tilt of the two equal-weight legs (modules/styles.py)."""
+    global _STYLES
+    from modules.styles import leg_tilt, load_ticker_styles
+    if _STYLES is None:
+        _STYLES = load_ticker_styles()
+    return leg_tilt([c.get("ticker") for c in longs], [c.get("ticker") for c in shorts], _STYLES)
+
+
 def _net_excess(longs, shorts):
     """Total amount by which any industry / sector group's |net weight| exceeds its
-    limit (0 when the portfolio respects both limits)."""
+    limit, plus the Defensive vs Growth tilt beyond STYLE_TILT_LIMIT (0 when the
+    portfolio respects every limit)."""
+    from modules.styles import STYLE_TILT_LIMIT
     ind, sec = _net_by_group(longs, shorts)
     return (
         sum(max(0.0, abs(v) - INDUSTRY_NET_LIMIT - _NET_EPS) for v in ind.values())
         + sum(max(0.0, abs(v) - SECTOR_NET_LIMIT - _NET_EPS) for v in sec.values())
+        + max(0.0, abs(_style_tilt(longs, shorts)) - STYLE_TILT_LIMIT - _NET_EPS)
     )
 
 
@@ -678,6 +693,10 @@ def _enforce_net_limits(longs, shorts, long_pool, short_pool):
     ind, sec = _net_by_group(sel["Long"], sel["Short"])
     violations = [{"level": "industry", "name": k, "net": round(v, 4)} for k, v in ind.items() if abs(v) > INDUSTRY_NET_LIMIT + _NET_EPS]
     violations += [{"level": "sector", "name": k, "net": round(v, 4)} for k, v in sec.items() if abs(v) > SECTOR_NET_LIMIT + _NET_EPS]
+    from modules.styles import STYLE_TILT_LIMIT
+    tilt = _style_tilt(sel["Long"], sel["Short"])
+    if abs(tilt) > STYLE_TILT_LIMIT + _NET_EPS:
+        violations.append({"level": "style", "name": "growth - defensive", "net": round(tilt, 4)})
     return sel["Long"], sel["Short"], violations, swaps
 
 

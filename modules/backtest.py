@@ -417,7 +417,7 @@ def _group_stats(members):
     }
 
 
-_GATE_REASONS = ("sim_return", "daily_move", "trend", "growth", "earnings", "low_vol")
+_GATE_REASONS = ("sim_return", "daily_move", "trend", "growth", "earnings", "low_vol", "sector_limit", "theme_limit", "style_limit")
 
 # Two stricter, nested cuts of Strong Buy/Strong Sell (2.5% ⊂ 5% ⊂ the
 # rating's own 10% -- scoring.RATING_THRESHOLDS) -- reported as extra
@@ -431,6 +431,85 @@ _GATE_REASONS = ("sim_return", "daily_move", "trend", "growth", "earnings", "low
 # frontend's own GroupKey/RestrictedGroupKey types too.
 RESTRICTED_PCT_4 = 0.05
 RESTRICTED_PCT_2 = 0.025
+
+
+# Net sector / industry limits on the weekly portfolio itself -- same limits as the
+# live optimizer (portfolio_optimizer.py step 4b) and the robot's entries: each leg
+# is 100% equal-weight (1/n), and the NET weight (longs minus shorts) of one industry
+# may not exceed +/-LIMIT_INDUSTRY (5%) nor of one sector group +/-LIMIT_SECTOR (10%)
+# on the side that is over. While a limit is breached, the WEAKEST-ranked member of
+# the over-weight leg inside the worst bucket is moved to long_blocked/short_blocked
+# with reason "sector_limit" (weights re-derived after each removal, since a leg
+# shrinking raises every remaining weight). Run on both the actual and the
+# current-model records; the entry overlay never re-admits such a name.
+NET_LIMIT_INDUSTRY = 0.05
+NET_LIMIT_SECTOR = 0.10
+# Theme limit (explicit instruction): the same rule per theme of data/ticker_themes.json,
+# net +/-NET_LIMIT_THEME. A ticker with several themes counts fully in each; an untagged
+# ticker counts in none. Today's tags are used for every archived week (themes describe
+# the business, so they don't drift week to week). Names dropped here get reason
+# "theme_limit".
+NET_LIMIT_THEME = 0.05
+_TICKER_THEMES_FILE = os.path.join("data", "ticker_themes.json")
+
+
+def _load_ticker_themes():
+    try:
+        with open(_TICKER_THEMES_FILE) as f:
+            return json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def _apply_net_limits(records, themes=None):
+    from modules.sector_groups import get_sector_group
+    from modules.styles import STYLE_TILT_LIMIT, leg_tilt, load_ticker_styles
+
+    themes = _load_ticker_themes() if themes is None else themes
+    styles = load_ticker_styles()
+    limits = {"ind": NET_LIMIT_INDUSTRY, "sec": NET_LIMIT_SECTOR, "theme": NET_LIMIT_THEME}
+
+    def buckets(r):
+        ind = r.get("sector") or ""
+        return [("ind", ind), ("sec", get_sector_group(ind))] + [("theme", t) for t in themes.get(r["ticker"], [])]
+
+    for _ in range(len(records) + 1):
+        longs = [r for r in records if r["group"] == "long_strong_buy"]
+        shorts = [r for r in records if r["group"] == "short_strong_sell"]
+        if not longs and not shorts:
+            return
+        net = {}
+        for leg, sgn in ((longs, 1.0), (shorts, -1.0)):
+            for r in leg:
+                for b in buckets(r):
+                    net[b] = net.get(b, 0.0) + sgn / len(leg)
+        worst = None  # (excess, leg, bucket)
+        for b, v in net.items():
+            excess = abs(v) - limits[b[0]] - 1e-9
+            if excess > 0 and (worst is None or excess > worst[0]):
+                worst = (excess, longs if v > 0 else shorts, b)
+        # Defensive vs Growth tilt (modules/styles.py): net growth - net defensive.
+        t = leg_tilt([r["ticker"] for r in longs], [r["ticker"] for r in shorts], styles)
+        excess = abs(t) - STYLE_TILT_LIMIT - 1e-9
+        if excess > 0 and (worst is None or excess > worst[0]):
+            push_long, push_short = ("growth", "defensive") if t > 0 else ("defensive", "growth")
+            lg = [r for r in longs if styles.get(r["ticker"]) == push_long]
+            sh = [r for r in shorts if styles.get(r["ticker"]) == push_short]
+            # drop from whichever leg contributes more to the tilt
+            if lg and (not sh or len(lg) / len(longs) >= len(sh) / len(shorts)):
+                worst = (excess, longs, ("style", push_long), lg)
+            elif sh:
+                worst = (excess, shorts, ("style", push_short), sh)
+        if worst is None:
+            return
+        leg, bucket = worst[1], worst[2]
+        members = worst[3] if bucket[0] == "style" else [r for r in leg if bucket in buckets(r)]
+        # weakest = furthest from the strong end of the ranking (long: highest pct, short: lowest pct)
+        is_long = leg is longs
+        victim = max(members, key=lambda r: (r["pct"] if r.get("pct") is not None else 1.0)) if is_long else \
+            min(members, key=lambda r: (r["pct"] if r.get("pct") is not None else 0.0))
+        victim["group"] = "long_blocked" if is_long else "short_blocked"
+        victim["blockedBy"] = [{"theme": "theme_limit", "style": "style_limit"}.get(bucket[0], "sector_limit")]
 
 
 def _percentile_ranks(pairs):
@@ -874,7 +953,7 @@ def _position_pnl(path, sigma, sign, bars=None, intraday=None):
 # position). Sized ENTRY_SIZE_PCT of NAV, added on top of the portfolio.
 # NOT modelled: the 3%-of-NAV price cap, integer share rounding, take-profit
 # on the entered position, bid/ask spreads.
-ENTRY_BETA_BAND = 0.2
+ENTRY_BETA_BAND = 0.25  # mirrors ib_server.py
 ENTRY_SECTOR_NET_LIMIT = 0.10
 ENTRY_INDUSTRY_NET_LIMIT = 0.05
 ENTRY_SIZE_PCT = 0.02
@@ -911,11 +990,17 @@ def _entry_rule_overlay(current_records, rows_by_ticker, paths, ohlc, sigmas, in
     beta = (sum(beta_of(r["ticker"]) for r in longs) / len(longs) - sum(beta_of(r["ticker"]) for r in shorts) / len(shorts)) / 2
     buy_ok = beta < ENTRY_BETA_BAND
     sell_ok = beta > -ENTRY_BETA_BAND
-    sector_net, industry_net = {}, {}
+    from modules.styles import STYLE_TILT_LIMIT, leg_tilt, load_ticker_styles, style_sign
+    styles = load_ticker_styles()
+    style_tilt = leg_tilt([r["ticker"] for r in longs], [r["ticker"] for r in shorts], styles)
+    themes = _load_ticker_themes()
+    sector_net, industry_net, theme_net = {}, {}, {}
     for leg, sgn in ((longs, 1.0), (shorts, -1.0)):
         for r in leg:
             ind = rows_by_ticker.get(r["ticker"], {}).get("sector") or ""
             w = sgn / len(leg)
+            for th in themes.get(r["ticker"], []):
+                theme_net[th] = theme_net.get(th, 0.0) + w
             industry_net[ind] = industry_net.get(ind, 0.0) + w
             sg = get_sector_group(ind)
             sector_net[sg] = sector_net.get(sg, 0.0) + w
@@ -944,6 +1029,12 @@ def _entry_rule_overlay(current_records, rows_by_ticker, paths, ohlc, sigmas, in
         if is_long and (sec_w > ENTRY_SECTOR_NET_LIMIT or ind_w > ENTRY_INDUSTRY_NET_LIMIT):
             continue
         if not is_long and (sec_w < -ENTRY_SECTOR_NET_LIMIT or ind_w < -ENTRY_INDUSTRY_NET_LIMIT):
+            continue
+        th_w = [theme_net.get(th, 0.0) for th in themes.get(r["ticker"], [])]
+        if (is_long and any(w > NET_LIMIT_THEME for w in th_w)) or (not is_long and any(w < -NET_LIMIT_THEME for w in th_w)):
+            continue
+        push = style_sign(styles.get(r["ticker"])) * (1 if is_long else -1)  # how this entry moves the tilt
+        if push * style_tilt > STYLE_TILT_LIMIT:
             continue
         side = 1 if is_long else -1
         for i in range(first_day, len(path)):
@@ -1095,8 +1186,10 @@ def _build_week(week_iso, csv_path, closes, daily_history=None, hourly_history=N
         [(r["ticker"], _f(r.get("score"))) for r in rows if r.get("ticker") and _f(r.get("score")) is not None]
     )
     actual_records = _records_for(lambda row: row.get("rating"), lambda row: actual_pct.get(row.get("ticker")))
+    _apply_net_limits(actual_records)
     rescored, current_pct = _rescore_current_model(rows)
     current_records = _records_for(lambda row: rescored.get(row.get("ticker")), lambda row: current_pct.get(row.get("ticker")))
+    _apply_net_limits(current_records)
 
     result = {
         "week": week_iso,

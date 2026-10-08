@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 import IbFreshnessBadge from './components/IbFreshnessBadge'
+import AccountBar from './components/AccountBar'
 import ExportTabButton from './components/ExportTabButton'
 import ScreenerView from './pages/ScreenerView'
 import PositionsView from './pages/PositionsView'
@@ -58,6 +59,8 @@ export default function App() {
         <IbFreshnessBadge />
         <ExportTabButton tabKey={tab} tabLabel={tabLabel} contentRef={contentRef} />
       </div>
+
+      <AccountBar />
 
       <div className="tab-content" ref={contentRef}>
       {tab === 'screener' && <ScreenerView />}

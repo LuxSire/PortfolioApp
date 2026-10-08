@@ -1,4 +1,5 @@
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ReferenceDot, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { dayTotalPnl } from '../portfolioPnl'
 
 // Cash/NAV are magnitudes, not a day's change — no +/- sign clutter. Same
 // convention PortfolioView.jsx's own fmtLevel uses for the daily table —
@@ -138,7 +139,7 @@ export default function NavChart({ rows, indexByDate }) {
   // Bar/Cell below just skip a null point rather than drawing a bar at 0.
   const pnlData = rows.map((r) => ({
     date: r.date,
-    dayTotalPnl: r.realized !== null && r.unrealized !== null ? r.realized + r.unrealized : null,
+    dayTotalPnl: dayTotalPnl(r),
   }))
   const pnlValues = pnlData.map((r) => r.dayTotalPnl).filter((v) => v !== null)
   const totalPnl = pnlValues.length ? pnlValues.reduce((a, b) => a + b, 0) : null

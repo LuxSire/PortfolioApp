@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { dayTotalPnl } from '../portfolioPnl'
 
 const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
@@ -12,7 +13,7 @@ function fmtPct(v) {
 // daily performance rows PortfolioView fetches from
 // portfolio_performance.json (not a pre-computed return series) and does
 // the daily-to-monthly transform itself: each day's return is that day's
-// Total P&L (realized + unrealized) over the PRIOR day's NAV — the same
+// Total P&L (realized + unrealized + commissions + dividends + interest) over the PRIOR day's NAV — the same
 // money-weighted definition PortfolioView's own Total P&L % column and
 // Sharpe/Sortino stats use, so a deposit/withdrawal doesn't get misread
 // as performance — and a month's return is the geometric compounding of
@@ -37,7 +38,7 @@ export default function MonthlyReturnsTable({ rows, baselineNav = null }) {
     }
 
     for (const r of rows) {
-      const totalPnl = r.realized !== null && r.unrealized !== null ? r.realized + r.unrealized : null
+      const totalPnl = dayTotalPnl(r)
       // prevNav only advances on a day with a real NAV, same rule the
       // backend's own _apply_unrealized_from_nav uses, so a gap in the
       // data doesn't corrupt the next real day's return.

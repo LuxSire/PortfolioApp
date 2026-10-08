@@ -99,7 +99,7 @@ export interface GroupStats {
 // blocked on BOTH sides (unlike every other reason here, which is
 // side-specific), catching names frozen at/near an acquisition price
 // (see modules/derive.py's reconcile_price_volatility).
-export type GateReason = 'sim_return' | 'daily_move' | 'trend' | 'growth' | 'earnings' | 'low_vol'
+export type GateReason = 'sim_return' | 'daily_move' | 'trend' | 'growth' | 'earnings' | 'low_vol' | 'sector_limit' | 'theme_limit' | 'style_limit'
 
 export const GATE_REASON_LABEL: Record<GateReason, string> = {
   sim_return: 'Simulation return (wrong direction)',
@@ -108,6 +108,9 @@ export const GATE_REASON_LABEL: Record<GateReason, string> = {
   growth: 'Revenue growth too strong to short (>10%)',
   earnings: 'Earnings within the week',
   low_vol: 'Volatility too low (<5% annualized, likely acquisition-capped)',
+  sector_limit: 'Net industry >5% / sector >10% limit (weakest-ranked name dropped)',
+  theme_limit: 'Net theme >5% limit (weakest-ranked name dropped)',
+  style_limit: 'Defensive vs Growth tilt beyond ±20% (weakest-ranked name dropped)',
 }
 
 export interface BacktestTicker {

@@ -281,6 +281,15 @@ body {
   gap: 20px;
 }
 
+.positions-perf-left {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.positions-perf-left > header.masthead,
 .positions-perf-row > header.masthead {
   /* title on top, Expected Return / Volatility / Sharpe stacked-row below it,
      so this block stays narrow and the Trading robot window can be wider */
@@ -413,6 +422,10 @@ body {
 .take-profit-log-order td {
   font-weight: 600;
   background: color-mix(in srgb, var(--good) 8%, transparent);
+}
+
+.take-profit-log-sell td {
+  background: color-mix(in srgb, var(--bad) 8%, transparent);
 }
 
 /* BacktestingView.tsx's week pager -- one control for every table on the
@@ -3542,3 +3555,11 @@ tr.has-notes {
 .maths-table-scroll { overflow-x: auto; }
 .maths-table-scroll table { font-size: 13px; }
 .maths-table-scroll td, .maths-table-scroll th { vertical-align: top; text-align: left; }
+
+/* ThemesView.tsx's Defensive vs Growth cards */
+.theme-style-list {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+}

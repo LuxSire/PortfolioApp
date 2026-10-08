@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react'
 import { IB_TAKE_PROFIT_LOG_URL } from '../ibStream'
 
+// A sell (order, entry signal, IB status or fill) is shown in red, a buy in green.
+function isSell(e: { message: string; order?: { action?: string } }): boolean {
+  return e.order?.action ? e.order.action === 'SELL' : /\bSELL\b/.test(e.message)
+}
+
 // Positions page "Trading robot" panel -- explicit instruction: show the log of the
 // background take-profit loop (ib_server.py's take_profit_loop), i.e. WHEN IT
 // RUNS and WHEN IT PLACES AN ORDER. Polls GET /api/take-profit/log every
@@ -10,8 +15,9 @@ import { IB_TAKE_PROFIT_LOG_URL } from '../ibStream'
 
 interface TakeProfitEvent {
   time: string
-  kind: 'status' | 'window' | 'check' | 'skip' | 'order' | 'entry' | 'entry_skip' | 'beta' | 'ib' | 'fill' | 'error'
+  kind: 'status' | 'window' | 'check' | 'skip' | 'order' | 'entry' | 'entry_skip' | 'consider' | 'beta' | 'ib' | 'fill' | 'error'
   message: string
+  order?: { action?: string }
 }
 
 interface TakeProfitLogData {
@@ -50,6 +56,7 @@ const KIND_LABEL: Record<TakeProfitEvent['kind'], string> = {
   order: 'ORDER',
   entry: 'ENTRY (not sent)',
   entry_skip: 'ENTRY skipped',
+  consider: 'ENTRY considered',
   beta: 'beta',
   ib: 'IB',
   fill: 'FILLED',
@@ -114,9 +121,9 @@ export default function TakeProfitLog() {
                   </tr>
                 )}
                 {events.map((e, i) => (
-                  <tr key={`${e.time}-${i}`} className={e.kind === 'order' || e.kind === 'fill' || e.kind === 'entry' ? 'take-profit-log-order' : ''}>
+                  <tr key={`${e.time}-${i}`} className={['order', 'fill', 'entry'].includes(e.kind) ? (isSell(e) ? 'take-profit-log-order take-profit-log-sell' : 'take-profit-log-order') : ''}>
                     <td className="col-left">{fmtTime(e.time)}</td>
-                    <td className={`col-left ${e.kind === 'order' || e.kind === 'fill' ? 'good' : e.kind === 'error' ? 'bad' : ''}`}>
+                    <td className={`col-left ${e.kind === 'error' ? 'bad' : ['order', 'fill', 'entry', 'ib'].includes(e.kind) ? (isSell(e) ? 'bad' : 'good') : ''}`}>
                       {KIND_LABEL[e.kind] ?? e.kind}
                     </td>
                     <td className="col-left">{e.message}</td>

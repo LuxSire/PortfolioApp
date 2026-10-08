@@ -15,6 +15,7 @@ export interface PortfolioDayRow {
   depositsWithdrawals: number | null
   commissions: number | null
   dividends: number | null
+  withholdingTax?: number | null
   interest: number | null
   realized: number | null
   unrealized: number | null

@@ -5,6 +5,8 @@ export interface Theme {
   key: string
   label: string
   description: string
+  // Defensive vs Growth style (modules/styles.py); absent = neutral.
+  style?: 'defensive' | 'growth'
 }
 
 // data/ticker_themes.json -- ticker -> [theme keys], hand-curated (see
