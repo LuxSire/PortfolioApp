@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { PortfolioDayRow, PortfolioPerformanceData } from '../interfaces/IPortfolioView'
 import ExposureChart from '../components/ExposureChart'
 import { useCashEquivalentValues } from '../cashEquivalentHistory'
@@ -72,7 +72,21 @@ function fmtDate(iso: string | null | undefined): string {
 // derived from the screener's own price data. IBKR concatenates one full
 // copy of its configured report sections per calendar day for a multi-day
 // query, joined here by date into a single row per day.
-const PORTFOLIO_START_DATE = '2026-09-28'
+// Backtest tabs (explicit instruction): the backtest's three Strong Buy + Strong Sell
+// portfolios -- the 10% rating cut and the nested 5% / 2.5% cuts.
+const BACKTEST_TABS = [
+  { key: 'portfolio', label: 'Backtest · Portfolio 10%', name: 'Portfolio (Strong Buy + Strong Sell)' },
+  { key: 'portfolioRestricted4', label: 'Backtest · Portfolio 5%', name: 'Portfolio (Strong Buy + Strong Sell) (5%)' },
+  { key: 'portfolioRestricted2', label: 'Backtest · Portfolio 2.5%', name: 'Portfolio (Strong Buy + Strong Sell) (2.5%)' },
+] as const
+type BacktestSeriesKey = (typeof BACKTEST_TABS)[number]['key']
+type BacktestJson = { weeks?: { week: string; currentModel?: { daily?: { dates: string[]; series: Record<string, (number | null)[]> } } }[] }
+const BACKTEST_NOTIONAL_NAV = 100 // = the chart's 100 base, so the backtest NAV column IS the index
+const PORTFOLIO_START_DATE = '2026-09-24' // explicit instruction: the whole page starts Thursday 24 Sep
+// Explicit instruction: the NAV chart includes Friday 25 Sep 2026's own return: it is
+// anchored at 100 on the close before it (Thursday 24 Sep) and compounds the daily
+// returns (Total P&L / prior-day NAV) from Friday onward -- a time-weighted index,
+// never IB's NAV ratio.
 
 export default function PortfolioView() {
   const [data, setData] = useState<PortfolioPerformanceData | null>(null)
@@ -85,20 +99,93 @@ export default function PortfolioView() {
       .catch(() => setError(true))
   }, [])
 
-  const allRows: PortfolioDayRow[] | null = data?.kind === 'daily' ? (data.rows ?? null) : null
+  // Explicit instruction: a second tab shows the SAME page for the backtest's
+  // "Portfolio (Strong Buy + Strong Sell) (2.5%)" daily returns (backtest.json,
+  // currentModel.daily.series.portfolioRestricted2), stitched across the weekly
+  // windows (a later week wins on an overlapping date) and turned into a notional
+  // account: NAV starts at BACKTEST_NOTIONAL_NAV and each day's P&L is NAV x return,
+  // so every stat/chart/table below works unchanged (no cash, flows or fees).
+  const [source, setSource] = useState<'live' | BacktestSeriesKey>('live')
+  const isBacktest = source !== 'live'
+  const [backtestJson, setBacktestJson] = useState<BacktestJson | null>(null)
+  const [backtestError, setBacktestError] = useState(false)
+  useEffect(() => {
+    if (!isBacktest || backtestJson) return
+    fetch('/backtest.json')
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then(setBacktestJson)
+      .catch(() => setBacktestError(true))
+  }, [isBacktest, backtestJson])
+  const backtestRows: PortfolioDayRow[] | null = useMemo(() => {
+    if (!isBacktest) return null
+    if (backtestError) return []
+    if (!backtestJson) return null
+    const byDate: Record<string, number> = {}
+    for (const w of [...(backtestJson.weeks ?? [])].sort((a, b) => a.week.localeCompare(b.week))) {
+      const d = w.currentModel?.daily
+      const series = d?.series?.[source]
+      if (!d || !series) continue
+      d.dates.forEach((date, i) => {
+        const v = series[i]
+        if (v !== null && v !== undefined) byDate[date] = v
+      })
+    }
+    const dates = Object.keys(byDate).sort()
+    const out: PortfolioDayRow[] = []
+    if (dates.length) {
+      const blank = { cash: null, stockLong: null, stockShort: null, stockNet: null, stockGross: null }
+      const first = new Date(dates[0] + 'T12:00:00')
+      first.setDate(first.getDate() - 1)
+      let nav = BACKTEST_NOTIONAL_NAV
+      out.push({ date: first.toISOString().slice(0, 10), ...blank, nav, depositsWithdrawals: 0, commissions: 0, dividends: 0, interest: 0, realized: null, unrealized: null })
+      for (const date of dates) {
+        const pnl = nav * byDate[date]
+        nav += pnl
+        out.push({ date, ...blank, nav, depositsWithdrawals: 0, commissions: 0, dividends: 0, interest: 0, realized: pnl, unrealized: 0 })
+      }
+    }
+    return out
+  }, [isBacktest, source, backtestJson, backtestError])
+  const backtestTab = BACKTEST_TABS.find((t) => t.key === source)
+
+  const liveRows: PortfolioDayRow[] | null = data?.kind === 'daily' ? (data.rows ?? null) : null
+  const allRows: PortfolioDayRow[] | null = source === 'live' ? liveRows : backtestRows
   // Explicit instruction: EVERYTHING on this page (stats, charts, monthly
-  // and daily tables) starts on a FIXED date -- Monday 28 Sep 2026, the day
-  // the new capital came in (same start as the Factsheet) -- a
+  // and daily tables) starts on a FIXED date -- Thursday 24 Sep 2026 (moved back
+  // from Monday 28 Sep, the day the new capital came in, by explicit instruction) -- a
   // display-only trim applied client-side, not by rewriting
   // portfolio_performance.json, so the stored history is never at risk.
   // The last NAV before Monday is kept only as the base for Monday's own
   // return (P&L over the prior day's NAV, same rule as everywhere else),
   // so a deposit/withdrawal on Monday isn't counted as performance.
-  const periodStart = PORTFOLIO_START_DATE
+  // Backtest tab (explicit instruction): starts on the backtest's own first day
+  // (backtestRows[0] is the synthetic 100 anchor the day before it).
+  const periodStart = isBacktest ? (backtestRows?.[1]?.date ?? PORTFOLIO_START_DATE) : PORTFOLIO_START_DATE
   const rows: PortfolioDayRow[] | null = allRows ? allRows.filter((r) => r.date >= periodStart) : null
   const baselineNav: number | null =
     [...(allRows ?? [])].reverse().find((r) => r.date < periodStart && r.nav !== null)?.nav ?? null
   const chartRows = rows
+  // NAV chart: the anchor day (100, its own P&L not counted -- that day is before the
+  // track record) followed by every day of the track record.
+  const preRows = (allRows ?? []).filter((r) => r.date < periodStart)
+  const extraDays = preRows.filter((r) => r.date >= periodStart) // none: the chart starts with the page
+  const anchorRow = [...preRows].reverse().find((r) => r.date < periodStart && r.nav !== null) // the close before the start: the 100 base
+  const navChartRows: PortfolioDayRow[] | null = rows
+    ? [...(anchorRow ? [{ ...anchorRow, realized: null, unrealized: null }] : []), ...extraDays, ...rows]
+    : null
+  // Index level of each pre-track-record chart day, and the factor carried into the track record.
+  const preIndex: Record<string, number> = {}
+  let preFactor = 1
+  {
+    let prev = anchorRow?.nav ?? null
+    if (anchorRow) preIndex[anchorRow.date] = 100
+    for (const r of extraDays) {
+      const pnl = dayTotalPnl(r)
+      if (pnl !== null && prev) preFactor *= 1 + pnl / prev
+      preIndex[r.date] = preFactor * 100
+      if (r.nav !== null) prev = r.nav
+    }
+  }
   // cash-equivalent holdings per day, taken out of Long and shown with cash in the Exposure chart
   const cashEqByDate = useCashEquivalentValues((allRows ?? []).map((r) => r.date))
   // Running total of realized+unrealized through each day, keyed by date,
@@ -176,7 +263,9 @@ export default function PortfolioView() {
   // trading days/year for annualizing, same convention IBApp's own
   // momentum score uses.
   const TRADING_DAYS_PER_YEAR = 252
-  const RISK_FREE_RATE_ANNUAL = 0
+  // Explicit instruction: the LIVE portfolio's Sharpe/Sortino subtract a 3.5% annual
+  // risk-free rate; the backtest tabs keep 0.
+  const RISK_FREE_RATE_ANNUAL = isBacktest ? 0 : 0.035
   const RISK_FREE_RATE_DAILY = RISK_FREE_RATE_ANNUAL / TRADING_DAYS_PER_YEAR
   let sharpe: number | null = null
   let sortino: number | null = null
@@ -221,44 +310,75 @@ export default function PortfolioView() {
 
   return (
     <div className="positions-page portfolio-page">
+      <div className="tab-bar">
+        {(
+          [
+            { key: 'live', label: 'Live (IB)' },
+            ...BACKTEST_TABS,
+          ] as const
+        ).map((t) => (
+          <button key={t.key} type="button" className={`tab-btn${source === t.key ? ' active' : ''}`} onClick={() => setSource(t.key)}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+      {isBacktest && (
+        <p className="status-row" title={`backtest.json -> currentModel.daily.series.${source}, stitched across the weekly windows`}>
+          Backtest of {backtestTab?.name} -- daily returns, NAV rebased to 100 (the chart's index), from the backtest's first day; no cash, flows, fees or exposure data.
+        </p>
+      )}
       <header className="masthead">
         <div className="title-block">
           <h1>Portfolio</h1>
         </div>
         {rows && rows.length > 0 && (
           <div className="stat-row">
-            <div className="stat">
-              <span className={`n num${(totalPnl ?? 0) >= 0 ? ' good' : ' bad'}`}>{fmtMoney(totalPnl)}</span>
-              <span className="l">Total P&amp;L</span>
-            </div>
-            <div className="stat">
-              <span className={`n num${(totalRealized ?? 0) >= 0 ? ' good' : ' bad'}`}>{fmtMoney(totalRealized)}</span>
-              <span className="l">Realized</span>
-            </div>
-            <div className="stat">
-              <span className={`n num${(totalCommissions ?? 0) >= 0 ? ' good' : ' bad'}`}>
-                {fmtMoney(totalCommissions)}
-              </span>
-              <span className="l">Commissions</span>
-            </div>
-            <div className="stat">
-              <span className={`n num${(totalDividends ?? 0) >= 0 ? ' good' : ' bad'}`}>{fmtMoney(totalDividends)}</span>
-              <span className="l">Dividends</span>
-            </div>
-            <div className="stat" title="Tax withheld on dividends and interest (negative). Shown only if the IBKR Flex query includes Withholding Tax in its Change in NAV section.">
-              <span className={`n num${(totalWithholdingTax ?? 0) >= 0 ? '' : ' bad'}`}>{fmtMoney(totalWithholdingTax)}</span>
-              <span className="l">WT</span>
-            </div>
-            <div className="stat">
-              <span className={`n num${(totalInterest ?? 0) >= 0 ? ' good' : ' bad'}`}>{fmtMoney(totalInterest)}</span>
-              <span className="l">Interest</span>
-            </div>
-            <div className="stat">
-              <span className={`n num${(totalDepositsWithdrawals ?? 0) >= 0 ? ' good' : ' bad'}`}>
-                {fmtMoney(totalDepositsWithdrawals)}
-              </span>
-              <span className="l">Flows</span>
-            </div>
+            {source === 'live' && (
+              <div className="stat">
+                <span className={`n num${(totalPnl ?? 0) >= 0 ? ' good' : ' bad'}`}>{fmtMoney(totalPnl)}</span>
+                <span className="l">Total P&amp;L</span>
+              </div>
+            )}
+            {source === 'live' && (
+              <div className="stat">
+                <span className={`n num${(totalRealized ?? 0) >= 0 ? ' good' : ' bad'}`}>{fmtMoney(totalRealized)}</span>
+                <span className="l">Realized</span>
+              </div>
+            )}
+            {source === 'live' && (
+              <div className="stat">
+                <span className={`n num${(totalCommissions ?? 0) >= 0 ? ' good' : ' bad'}`}>
+                  {fmtMoney(totalCommissions)}
+                </span>
+                <span className="l">Commissions</span>
+              </div>
+            )}
+            {source === 'live' && (
+              <div className="stat">
+                <span className={`n num${(totalDividends ?? 0) >= 0 ? ' good' : ' bad'}`}>{fmtMoney(totalDividends)}</span>
+                <span className="l">Dividends</span>
+              </div>
+            )}
+            {source === 'live' && (
+              <div className="stat" title="Tax withheld on dividends and interest (negative). Shown only if the IBKR Flex query includes Withholding Tax in its Change in NAV section.">
+                <span className={`n num${(totalWithholdingTax ?? 0) >= 0 ? '' : ' bad'}`}>{fmtMoney(totalWithholdingTax)}</span>
+                <span className="l">WT</span>
+              </div>
+            )}
+            {source === 'live' && (
+              <div className="stat">
+                <span className={`n num${(totalInterest ?? 0) >= 0 ? ' good' : ' bad'}`}>{fmtMoney(totalInterest)}</span>
+                <span className="l">Interest</span>
+              </div>
+            )}
+            {source === 'live' && (
+              <div className="stat">
+                <span className={`n num${(totalDepositsWithdrawals ?? 0) >= 0 ? ' good' : ' bad'}`}>
+                  {fmtMoney(totalDepositsWithdrawals)}
+                </span>
+                <span className="l">Flows</span>
+              </div>
+            )}
             <div
               className="stat"
               title="Annualized performance: mean daily (Total P&L / prior-day NAV) return × 252 trading days/year — the raw return this track record annualizes to, before any risk adjustment."
@@ -277,7 +397,7 @@ export default function PortfolioView() {
             </div>
             <div
               className="stat"
-              title="Annualized Sharpe ratio: mean daily (Total P&L / prior-day NAV) return, with no risk-free rate subtracted (the book holds a treasury allocation), over its own volatility (std dev) — × √252 trading days/year."
+              title={`Annualized Sharpe ratio: mean daily (Total P&L / prior-day NAV) return minus the risk-free rate (${isBacktest ? 'none on backtest tabs' : '3.5%/yr on the live portfolio'}), over its own volatility (std dev) — × √252 trading days/year.`}
             >
               <span className={`n num${sharpe === null ? '' : sharpe >= 0 ? ' good' : ' bad'}`}>
                 {fmtRatio(sharpe)}
@@ -286,7 +406,7 @@ export default function PortfolioView() {
             </div>
             <div
               className="stat"
-              title="Annualized Sortino ratio: same return as Sharpe, but over downside volatility only (upside swings aren't risk) — no risk-free rate, × √252 trading days/year."
+              title={`Annualized Sortino ratio: same return as Sharpe, but over downside volatility only (upside swings aren't risk) — risk-free rate ${isBacktest ? '0 on backtest tabs' : '3.5%/yr on the live portfolio'}, × √252 trading days/year.`}
             >
               <span className={`n num${sortino === null ? '' : sortino >= 0 ? ' good' : ' bad'}`}>
                 {fmtRatio(sortino)}
@@ -306,14 +426,21 @@ export default function PortfolioView() {
         )}
       </header>
 
-      {error && <p className="status-row">Couldn't load portfolio_performance.json — run: python ib_server.py performance</p>}
-      {!error && !data && <p className="status-row">Loading…</p>}
+      {isBacktest && !backtestRows && <p className="status-row">Loading backtest…</p>}
+      {isBacktest && backtestRows && backtestRows.length === 0 && <p className="status-row">No backtest daily data -- run: python main.py recalc</p>}
+      {source === 'live' && error && <p className="status-row">Couldn't load portfolio_performance.json — run: python ib_server.py performance</p>}
+      {source === 'live' && !error && !data && <p className="status-row">Loading…</p>}
 
-      {chartRows && chartRows.length > 0 && <NavChart
-          rows={chartRows}
-          indexByDate={Object.fromEntries(chartRows.map((r) => [r.date, (1 + (cumulativeReturnByDate[r.date] ?? 0)) * 100]))}
+      {navChartRows && navChartRows.length > 0 && <NavChart
+          rows={navChartRows}
+          indexByDate={Object.fromEntries(
+            navChartRows.map((r) => [
+              r.date,
+              r.date < periodStart ? (preIndex[r.date] ?? 100) : preFactor * (1 + (cumulativeReturnByDate[r.date] ?? 0)) * 100,
+            ]),
+          )}
         />}
-      {chartRows && chartRows.length > 0 && <ExposureChart rows={chartRows.map((r) => ({ ...r, cashEquivalents: cashEqByDate[r.date] ?? 0 }))} />}
+      {source === 'live' && chartRows && chartRows.length > 0 && <ExposureChart rows={chartRows.map((r) => ({ ...r, cashEquivalents: cashEqByDate[r.date] ?? 0 }))} />}
       {rows && rows.length > 0 && <MonthlyReturnsTable rows={rows} baselineNav={baselineNav} />}
 
       {rows && (
@@ -322,22 +449,22 @@ export default function PortfolioView() {
             <thead>
               <tr>
                 <th className="col-left">Date</th>
-                <th>Cash</th>
-                <th title="Market value of the cash-equivalent holdings (IB01, SGOV, SHV, ...), rebuilt from the fills -- kept out of Long, Net and Gross">Cash equiv.</th>
-                <th>NAV</th>
-                <th title="(Stock Long − cash equivalents) / NAV">Stock Long %</th>
-                <th title="Stock Short / NAV">Stock Short %</th>
-                <th title="Long (ex cash equivalents) + Short">Net $</th>
-                <th title="Net / NAV">Net %</th>
-                <th title="Long (ex cash equivalents) + |Short|">Gross $</th>
-                <th title="Gross / NAV">Gross %</th>
-                <th>Flows</th>
-                <th>Commissions</th>
-                <th>Dividends</th>
-                <th title="Withholding tax">WT</th>
-                <th>Interest</th>
-                <th>Realized</th>
-                <th>Unrealized</th>
+                {source === 'live' && <th>Cash</th>}
+                {source === 'live' && <th title="Market value of the cash-equivalent holdings (IB01, SGOV, SHV, ...), rebuilt from the fills -- kept out of Long, Net and Gross">Cash equiv.</th>}
+                <th title={isBacktest ? 'Compounded index, 100 = the day before the first backtest day (same as the chart)' : undefined}>NAV</th>
+                {source === 'live' && <th title="(Stock Long − cash equivalents) / NAV">Stock Long %</th>}
+                {source === 'live' && <th title="Stock Short / NAV">Stock Short %</th>}
+                {source === 'live' && <th title="Long (ex cash equivalents) + Short">Net $</th>}
+                {source === 'live' && <th title="Net / NAV">Net %</th>}
+                {source === 'live' && <th title="Long (ex cash equivalents) + |Short|">Gross $</th>}
+                {source === 'live' && <th title="Gross / NAV">Gross %</th>}
+                {source === 'live' && <th>Flows</th>}
+                {source === 'live' && <th>Commissions</th>}
+                {source === 'live' && <th>Dividends</th>}
+                {source === 'live' && <th title="Withholding tax">WT</th>}
+                {source === 'live' && <th>Interest</th>}
+                {source === 'live' && <th>Realized</th>}
+                {source === 'live' && <th>Unrealized</th>}
                 <th>Total P&amp;L</th>
                 <th title="Total P&L / prior-day NAV">Total P&amp;L %</th>
                 <th>Cumulative P&amp;L</th>
@@ -347,7 +474,7 @@ export default function PortfolioView() {
             <tbody>
               {rows.length === 0 && (
                 <tr className="status-row">
-                  <td colSpan={21}>No daily rows in the query response.</td>
+                  <td colSpan={source === 'live' ? 21 : 6}>No daily rows in the query response.</td>
                 </tr>
               )}
               {[...rows].reverse().map((r) => {
@@ -364,33 +491,37 @@ export default function PortfolioView() {
                 return (
                   <tr key={r.date}>
                     <td className="col-left">{fmtDate(r.date)}</td>
-                    <td className="num">{fmtLevel(r.cash)}</td>
-                    <td className="num">{fmtLevel(cashEq)}</td>
-                    <td className="num">{fmtLevel(r.nav)}</td>
-                    <td className="num">{fmtExposurePct(longAdj, r.nav)}</td>
-                    <td className="num">{fmtExposurePct(r.stockShort, r.nav)}</td>
-                    <td className="num">{fmtMoneyPlain(netAdj)}</td>
-                    <td className="num">{fmtExposurePct(netAdj, r.nav)}</td>
-                    <td className="num">{fmtMoneyPlain(grossAdj)}</td>
-                    <td className="num">{fmtExposurePct(grossAdj, r.nav)}</td>
-                    <td className="num">{fmtMoneyPlain(r.depositsWithdrawals)}</td>
-                    <td className="num">{fmtMoneyPlain(r.commissions)}</td>
-                    <td className="num">{fmtMoneyPlain(r.dividends)}</td>
-                    <td className="num">{fmtMoneyPlain(r.withholdingTax ?? null)}</td>
-                    <td className="num">{fmtMoneyPlain(r.interest)}</td>
-                    <td className={`num ${r.realized === null ? '' : r.realized >= 0 ? 'good' : 'bad'}`}>
-                      {fmtMoneyPlain(r.realized)}
-                    </td>
-                    <td className={`num ${r.unrealized === null ? '' : r.unrealized >= 0 ? 'good' : 'bad'}`}>
-                      {fmtMoneyPlain(r.unrealized)}
-                    </td>
+                    {source === 'live' && <td className="num">{fmtLevel(r.cash)}</td>}
+                    {source === 'live' && <td className="num">{fmtLevel(cashEq)}</td>}
+                    <td className="num">{isBacktest ? (r.nav?.toFixed(2) ?? '—') : fmtLevel(r.nav)}</td>
+                    {source === 'live' && <td className="num">{fmtExposurePct(longAdj, r.nav)}</td>}
+                    {source === 'live' && <td className="num">{fmtExposurePct(r.stockShort, r.nav)}</td>}
+                    {source === 'live' && <td className="num">{fmtMoneyPlain(netAdj)}</td>}
+                    {source === 'live' && <td className="num">{fmtExposurePct(netAdj, r.nav)}</td>}
+                    {source === 'live' && <td className="num">{fmtMoneyPlain(grossAdj)}</td>}
+                    {source === 'live' && <td className="num">{fmtExposurePct(grossAdj, r.nav)}</td>}
+                    {source === 'live' && <td className="num">{fmtMoneyPlain(r.depositsWithdrawals)}</td>}
+                    {source === 'live' && <td className="num">{fmtMoneyPlain(r.commissions)}</td>}
+                    {source === 'live' && <td className="num">{fmtMoneyPlain(r.dividends)}</td>}
+                    {source === 'live' && <td className="num">{fmtMoneyPlain(r.withholdingTax ?? null)}</td>}
+                    {source === 'live' && <td className="num">{fmtMoneyPlain(r.interest)}</td>}
+                    {source === 'live' && (
+                      <td className={`num ${r.realized === null ? '' : r.realized >= 0 ? 'good' : 'bad'}`}>
+                        {fmtMoneyPlain(r.realized)}
+                      </td>
+                    )}
+                    {source === 'live' && (
+                      <td className={`num ${r.unrealized === null ? '' : r.unrealized >= 0 ? 'good' : 'bad'}`}>
+                        {fmtMoneyPlain(r.unrealized)}
+                      </td>
+                    )}
                     <td className={`num ${totalPnl === null ? '' : totalPnl >= 0 ? 'good' : 'bad'}`}>
-                      {fmtMoneyPlain(totalPnl)}
+                      {isBacktest ? (totalPnl?.toFixed(2) ?? '—') : fmtMoneyPlain(totalPnl)}
                     </td>
                     <td className={`num ${dailyReturn === null || dailyReturn === undefined ? '' : dailyReturn >= 0 ? 'good' : 'bad'}`}>
                       {fmtPct(dailyReturn)}
                     </td>
-                    <td className={`num ${cumulativePnl >= 0 ? 'good' : 'bad'}`}>{fmtMoneyPlain(cumulativePnl)}</td>
+                    <td className={`num ${cumulativePnl >= 0 ? 'good' : 'bad'}`}>{isBacktest ? cumulativePnl?.toFixed(2) : fmtMoneyPlain(cumulativePnl)}</td>
                     <td className={`num ${cumulativeReturn === null || cumulativeReturn === undefined ? '' : cumulativeReturn >= 0 ? 'good' : 'bad'}`}>
                       {fmtPct(cumulativeReturn)}
                     </td>

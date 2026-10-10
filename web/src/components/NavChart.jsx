@@ -40,7 +40,7 @@ function NavTooltip({ active, payload }) {
   if (!active || !payload || !payload.length) return null
   const point = payload[0].payload
   return (
-    <div className="chart-tooltip">
+    <div className="chart-tooltip chart-tooltip-follow-cursor">
       <span className="chart-tooltip-value">{fmtIndex(point.navIndex)}</span>
       <span className="chart-tooltip-date">
         {fmtLevel(point.nav)} · {fmtAxisDate(point.date)}
@@ -58,7 +58,7 @@ function PnlTooltip({ active, payload }) {
   const point = payload[0].payload
   if (point.dayTotalPnl === null || point.dayTotalPnl === undefined) return null
   return (
-    <div className="chart-tooltip">
+    <div className="chart-tooltip chart-tooltip-follow-cursor">
       <span className={`chart-tooltip-value ${point.dayTotalPnl >= 0 ? 'good' : 'bad'}`}>
         {fmtPnl(point.dayTotalPnl)}
       </span>
@@ -157,7 +157,6 @@ export default function NavChart({ rows, indexByDate }) {
     <>
       <div className="asset-card">
         <h2>
-          Net Asset Value
           <span className="chart-last-price">{fmtLevel(last.nav)}</span>
           {changePct !== null && (
             <span className={`chart-change ${changePct >= 0 ? 'good' : 'bad'}`}>
@@ -180,7 +179,7 @@ export default function NavChart({ rows, indexByDate }) {
               />
               <YAxis
                 domain={[yMin, yMax]}
-                ticks={[lo, hi]}
+                ticks={[...new Set([lo, hi, ...(indexByDate ? [100] : [])])].sort((a, b) => a - b)}
                 tickFormatter={fmtIndex}
                 orientation="right"
                 width={64}
@@ -188,7 +187,8 @@ export default function NavChart({ rows, indexByDate }) {
                 tickLine={false}
                 tick={CHART_TICK_STYLE}
               />
-              <Tooltip content={<NavTooltip />} cursor={{ stroke: 'var(--muted)', strokeOpacity: 0.5 }} />
+              {indexByDate && <ReferenceLine y={100} stroke="var(--muted)" strokeDasharray="3 3" strokeOpacity={0.7} />}
+              <Tooltip offset={12} content={<NavTooltip />} cursor={{ stroke: 'var(--muted)', strokeOpacity: 0.5 }} />
               <Area
                 type="monotone"
                 dataKey="navIndex"
@@ -238,7 +238,7 @@ export default function NavChart({ rows, indexByDate }) {
                 tick={CHART_TICK_STYLE}
               />
               <ReferenceLine y={0} stroke="var(--line)" />
-              <Tooltip content={<PnlTooltip />} cursor={{ fill: 'var(--surface-2)' }} />
+              <Tooltip offset={12} content={<PnlTooltip />} cursor={{ fill: 'var(--surface-2)' }} />
               <Bar dataKey="dayTotalPnl" isAnimationActive={false} radius={[2, 2, 2, 2]} maxBarSize={16}>
                 {pnlData.map((d) => (
                   <Cell key={d.date} fill={d.dayTotalPnl === null ? 'transparent' : d.dayTotalPnl >= 0 ? 'var(--good)' : 'var(--bad)'} />

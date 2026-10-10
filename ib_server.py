@@ -239,6 +239,8 @@ from urllib.parse import parse_qs, urlparse
 from dateutil.parser import isoparse
 
 from modules.IBApp import IBApp
+from ib_insync import ContFuture, Future
+from modules.styles import STYLE_TILT_LIMIT, load_ticker_styles, style_sign
 from main import (
     IB_REFRESH_COOLDOWN_SECONDS,
     OUTPUT_CSV,
@@ -746,6 +748,13 @@ HEARTBEAT_SECONDS = 15
 
 app = IBApp()
 last_price_by_ticker = {}
+# Front-month equity-index futures shown on the Positions page (explicit instruction):
+# {"ES": {...}, "NQ": {...}} -- kept out of last_price_by_ticker on purpose, since
+# "ES" is also Eversource's stock ticker. Filled by on_pending_tickers (secType FUT)
+# from the subscriptions index_futures_loop maintains.
+INDEX_FUTURES = (("ES", "CME", "S&P 500 e-mini"), ("NQ", "CME", "Nasdaq-100 e-mini"))
+index_futures = {}
+_index_future_contracts = {}  # {root: subscribed Future}
 positions_by_ticker = {}
 account_status = {}
 # {ticker: {"qty": signed net shares traded today, "value": sum(signedQty *
@@ -816,6 +825,7 @@ def broadcast():
             "trades": trades_by_ticker,
             "pnl": pnl_by_ticker,
             "openOrders": open_orders,
+            "futures": index_futures,
         })
     with subscribers_lock:
         for q in subscribers:
@@ -839,6 +849,9 @@ def on_pending_tickers(tickers):
     now = datetime.now().isoformat(timespec="seconds")
     with lock:
         for t in tickers:
+            if getattr(t.contract, "secType", "") == "FUT":
+                _on_index_future_tick(t, now)
+                continue
             price = _extract_price(t)
             if price is not None:
                 last_price_by_ticker[t.contract.symbol] = {
@@ -848,6 +861,54 @@ def on_pending_tickers(tickers):
                     "timestamp": now,
                 }
     broadcast()
+
+
+def _on_index_future_tick(t, now):
+    """Caller holds `lock`. Level = last (bid/ask/close fallback); change is vs the
+    previous session's close/settle IB reports as ticker.close."""
+    c = t.contract
+    root = c.symbol
+    if root not in dict((r, None) for r, _, _ in INDEX_FUTURES):
+        return
+    price = _extract_price(t)
+    prev = _clean(t.close)
+    entry = index_futures.setdefault(root, {})
+    label = next(lbl for r, _, lbl in INDEX_FUTURES if r == root)
+    entry.update(label=label, contract=c.localSymbol or root, expiry=c.lastTradeDateOrContractMonth, timestamp=now)
+    if price is not None:
+        entry["last"] = price
+    if prev and prev > 0:
+        entry["prevClose"] = prev
+    if entry.get("last") and entry.get("prevClose"):
+        entry["change"] = entry["last"] - entry["prevClose"]
+        entry["changePct"] = entry["last"] / entry["prevClose"] - 1
+
+
+async def index_futures_loop():
+    """Subscribes to the front-month contract of each INDEX_FUTURES root and
+    re-checks the front month every hour, so a quarterly roll moves the
+    subscription to the new contract on its own."""
+    while True:
+        for root, exchange, _ in INDEX_FUTURES:
+            try:
+                cont = ContFuture(root, exchange)
+                qualified = await app.ib.qualifyContractsAsync(cont)
+                if not qualified or not cont.conId:
+                    print(f"Index futures: could not resolve the front month of {root}")
+                    continue
+                current = _index_future_contracts.get(root)
+                if current is not None and current.conId == cont.conId:
+                    continue
+                fut = Future(conId=cont.conId, exchange=exchange)
+                await app.ib.qualifyContractsAsync(fut)
+                if current is not None:
+                    app.ib.cancelMktData(current)
+                app.ib.reqMktData(fut, "", False, False)
+                _index_future_contracts[root] = fut
+                print(f"Index futures: streaming {root} front month {fut.localSymbol} (conId={fut.conId})")
+            except Exception as exc:
+                print(f"Index futures: {root} subscription failed: {exc!r}")
+        await asyncio.sleep(3600)
 
 
 def _safe_float(v):
@@ -1585,7 +1646,9 @@ def _tp_all_ratings():
 # whatever AUTO_TAKE_PROFIT_DRY_RUN says. Held tickers are skipped (no adding
 # to an open position); one signal per ticker per day.
 ENTRY_SENDS_ORDERS = False
-ENTRY_BETA_BAND = 0.2
+ENTRY_BETA_BAND = 0.25
+# Explicit instruction: a signal the beta rule would block is still logged (betaBlocked=True,
+# shown as "beta-blocked" in the activity feed) so it can be reviewed; every other gate still applies.
 # Exposure rules (explicit instruction, 2026-10-03), on top of the beta rule:
 # beta -> a BUY needs portfolio beta < +ENTRY_BETA_BAND and a SELL needs beta >
 # -ENTRY_BETA_BAND (so inside the band both are allowed, above it only sells,
@@ -1598,6 +1661,11 @@ ENTRY_BETA_BAND = 0.2
 # log-only signals never change the account).
 ENTRY_SECTOR_NET_LIMIT = 0.10
 ENTRY_INDUSTRY_NET_LIMIT = 0.05
+# Theme limit (explicit instruction): same rule per theme of data/ticker_themes.json --
+# no BUY into a theme whose net weight is above +ENTRY_THEME_NET_LIMIT, no SELL into one
+# below -ENTRY_THEME_NET_LIMIT. Multi-theme tickers count fully in each theme; untagged
+# tickers in none. Mirrors modules/backtest.py NET_LIMIT_THEME.
+ENTRY_THEME_NET_LIMIT = 0.05
 # Size (explicit instruction, 2026-10-03): the integer number of shares whose
 # value (shares x limit price) is as close as possible to ENTRY_TARGET_PCT of
 # NetLiquidation; no order at all when the price itself is above
@@ -1607,7 +1675,25 @@ ENTRY_MAX_PRICE_PCT = 0.03
 ENTRY_STATE_FILE = os.path.join(IB_DIR, "take_profit_entry_signals.json")
 ENTRY_LOG_FILE = os.path.join(IB_DIR, "take_profit_entry_signals.log")
 _tp_screen = {"mtime": None, "rows": {}}
-_tp_entry_prev = {}              # {ticker: price at the previous check} (candidates only)
+_tp_entry_prev = {}              # {ticker: [(epoch, price)]} recent samples (candidates only)
+# Both sample dicts are saved after every check and reloaded at startup, so a server
+# restart doesn't blank the 1-hour stability reference (samples older than ~2h are
+# dropped by _tp_price_ago anyway, so a stale file is harmless).
+TP_PRICE_SAMPLES_FILE = os.path.join(IB_DIR, "tp_price_samples.json")
+
+
+def _tp_save_price_samples():
+    _tp_write_json(TP_PRICE_SAMPLES_FILE, {"held": _tp_prev_price, "entry": _tp_entry_prev})
+
+
+def _tp_load_price_samples():
+    data = _tp_read_json(TP_PRICE_SAMPLES_FILE)
+    for key, target in (("held", _tp_prev_price), ("entry", _tp_entry_prev)):
+        for ticker, samples in (data.get(key) or {}).items():
+            target[ticker] = [tuple(x) for x in samples if isinstance(x, (list, tuple)) and len(x) == 2]
+
+
+_tp_load_price_samples()
 _tp_entry_gate = {"state": None}  # last (buys allowed, sells allowed), to log only changes
 
 
@@ -1626,9 +1712,10 @@ def _tp_screen_rows():
     return _tp_screen["rows"]
 
 
-def _tp_portfolio_beta(held, ticks, screen_betas):
-    """sum(value x beta) / sum(|value|) over held positions (same definition as
-    PositionsView.tsx's portfolioBetaExposure); None with no positions."""
+def _tp_portfolio_beta(held, ticks, screen_betas, net_liq):
+    """sum(value x beta) / NetLiquidation over held non-cash positions -- explicit
+    instruction: beta relative to the WHOLE account, not to the invested gross
+    (same as the Positions page's Portfolio Beta); None with no positions."""
     num = gross = 0.0
     for t, shares in held.items():
         price = _safe_float((ticks.get(t) or {}).get("last")) or _safe_float(positions_by_ticker.get(t, {}).get("avgCost"))
@@ -1638,7 +1725,7 @@ def _tp_portfolio_beta(held, ticks, screen_betas):
         beta = screen_betas.get(t)
         num += value * (1.0 if beta is None else beta)
         gross += abs(value)
-    return num / gross if gross else None
+    return num / net_liq if gross and net_liq else None
 
 
 def _tp_entry_log(entry):
@@ -1649,7 +1736,24 @@ def _tp_entry_log(entry):
             f.write(line + "\n")
     except OSError:
         pass
-    _tp_event("entry", f"{entry['action']} {entry['quantity']} {entry['ticker']} LMT {entry['limit']}", order=entry)
+    note = " (beta-blocked)" if entry.get("betaBlocked") else ""
+    _tp_event("entry", f"{entry['action']} {entry['quantity']} {entry['ticker']} LMT {entry['limit']}{note}", order=entry)
+
+
+_tp_entry_noted = {"date": None, "seen": {}}
+
+
+def _tp_entry_note(today, ticker, message):
+    """Logs a considered-but-skipped entry candidate, only when its message changes
+    (rounded σ figures change slowly, so this stays a handful of lines per name)."""
+    if _tp_entry_noted["date"] != today:
+        _tp_entry_noted.update(date=today, seen={})
+    key = re.sub(r"[-+]?\d+\.\d+", "#", message)  # ignore the numbers when deduplicating
+    if _tp_entry_noted["seen"].get(ticker) == key:
+        return
+    _tp_entry_noted["seen"][ticker] = key
+    print(f"take-profit entry considered: {message}")
+    _tp_event("consider", message)
 
 
 def _tp_entry_scan(now, today, bases, held, cash=frozenset(), busy=frozenset()):
@@ -1673,7 +1777,7 @@ def _tp_entry_scan(now, today, bases, held, cash=frozenset(), busy=frozenset()):
         pass
     if not net_liq or net_liq <= 0:
         return  # can't size an order without NetLiquidation
-    beta = _tp_portfolio_beta(held, ticks, screen_betas)
+    beta = _tp_portfolio_beta(held, ticks, screen_betas, net_liq)
     buy_ok = beta is None or beta < ENTRY_BETA_BAND
     sell_ok = beta is None or beta > -ENTRY_BETA_BAND
     if (buy_ok, sell_ok) != _tp_entry_gate["state"]:
@@ -1681,7 +1785,14 @@ def _tp_entry_scan(now, today, bases, held, cash=frozenset(), busy=frozenset()):
                   + f"buys {'ON' if buy_ok else 'OFF'}, sells {'ON' if sell_ok else 'OFF'}")
         _tp_entry_gate["state"] = (buy_ok, sell_ok)
     # net weights of the held book by sector group and by industry (signed value / NetLiquidation)
-    sector_net, industry_net = {}, {}
+    try:
+        with open(TICKER_THEMES_FILE) as f:
+            ticker_themes = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        ticker_themes = {}
+    sector_net, industry_net, theme_net = {}, {}, {}
+    ticker_styles = load_ticker_styles()
+    style_tilt = 0.0  # net growth - net defensive, as a share of NetLiquidation (modules/styles.py)
     for t, shares in held.items():
         price = _safe_float((ticks.get(t) or {}).get("last")) or _safe_float(positions_by_ticker.get(t, {}).get("avgCost"))
         if not price:
@@ -1691,6 +1802,9 @@ def _tp_entry_scan(now, today, bases, held, cash=frozenset(), busy=frozenset()):
         industry_net[ind] = industry_net.get(ind, 0.0) + w
         sg = get_sector_group(ind)
         sector_net[sg] = sector_net.get(sg, 0.0) + w
+        for th in ticker_themes.get(t, []):
+            theme_net[th] = theme_net.get(th, 0.0) + w
+        style_tilt += w * style_sign(ticker_styles.get(t))
     state = _tp_read_json(ENTRY_STATE_FILE)
     done = state.get(today, {})
     for ticker, row in sorted(rows.items()):
@@ -1699,30 +1813,46 @@ def _tp_entry_scan(now, today, bases, held, cash=frozenset(), busy=frozenset()):
         if not last or not str(tick.get("timestamp") or "").startswith(today) or ticker not in bases:
             continue
         prev_check = _tp_price_ago(_tp_entry_prev, ticker, last)  # always track, so the stability check is ready when the gate opens
-        if prev_check is None or ticker in done or ticker in held or ticker in busy:
+        if ticker in done or ticker in held or ticker in busy:
             continue  # (busy = IB already has an order for the symbol)
         is_long = row["rating"] == "Strong Buy"
-        if (is_long and not buy_ok) or (not is_long and not sell_ok):
-            continue
-        industry = row.get("sector") or ""
-        sg = get_sector_group(industry)
-        sec_w, ind_w = sector_net.get(sg, 0.0), industry_net.get(industry, 0.0)
-        if is_long and (sec_w > ENTRY_SECTOR_NET_LIMIT or ind_w > ENTRY_INDUSTRY_NET_LIMIT):
-            continue
-        if not is_long and (sec_w < -ENTRY_SECTOR_NET_LIMIT or ind_w < -ENTRY_INDUSTRY_NET_LIMIT):
-            continue
-        gate_row = dict(row, dailyMoveZ=None)  # the live move below replaces the file-based daily-move gate
-        sim = _to_float(row.get("simReturn"))
-        if is_long and (not _passes_long_gates(gate_row) or (sim is not None and sim < 0)):
-            continue
-        if not is_long and (not _passes_short_gates(gate_row) or (sim is not None and sim > 0)):
-            continue
         prev_close, sd = bases[ticker]
         move_sd = (last / prev_close - 1) / sd
         if (is_long and move_sd > -TAKE_PROFIT_TRIGGER_SD) or (not is_long and move_sd < TAKE_PROFIT_TRIGGER_SD):
-            continue
-        step_sd = abs(last / prev_check - 1) / sd
-        if step_sd > TAKE_PROFIT_MAX_STEP_SD:
+            continue  # not past the trigger: nothing to consider
+        # Past the trigger: from here every skip is logged (once per reason per ticker
+        # per day) -- explicit instruction, so the feed shows what is being considered.
+        beta_blocked = (is_long and not buy_ok) or (not is_long and not sell_ok)
+        industry = row.get("sector") or ""
+        sg = get_sector_group(industry)
+        sec_w, ind_w = sector_net.get(sg, 0.0), industry_net.get(industry, 0.0)
+        cand_themes = ticker_themes.get(ticker, [])
+        gate_row = dict(row, dailyMoveZ=None)  # the live move replaces the file-based daily-move gate
+        sim = _to_float(row.get("simReturn"))
+        sgn = 1 if is_long else -1
+        reason = None
+        if sgn * sec_w > ENTRY_SECTOR_NET_LIMIT:
+            reason = f"sector {sg} net {sec_w:+.1%} beyond ±{ENTRY_SECTOR_NET_LIMIT:.0%}"
+        elif sgn * ind_w > ENTRY_INDUSTRY_NET_LIMIT:
+            reason = f"industry {industry} net {ind_w:+.1%} beyond ±{ENTRY_INDUSTRY_NET_LIMIT:.0%}"
+        elif any(sgn * theme_net.get(th, 0.0) > ENTRY_THEME_NET_LIMIT for th in cand_themes):
+            th = next(th for th in cand_themes if sgn * theme_net.get(th, 0.0) > ENTRY_THEME_NET_LIMIT)
+            reason = f"theme {th} net {theme_net[th]:+.1%} beyond ±{ENTRY_THEME_NET_LIMIT:.0%}"
+        elif sgn * style_sign(ticker_styles.get(ticker)) * style_tilt > STYLE_TILT_LIMIT:
+            reason = (f"{ticker_styles.get(ticker)} style: Defensive vs Growth tilt {style_tilt:+.1%} "
+                      f"beyond ±{STYLE_TILT_LIMIT:.0%} (growth - defensive)")
+        elif not (_passes_long_gates(gate_row) if is_long else _passes_short_gates(gate_row)):
+            reason = "blocked by a Recommendations gate (trend / earnings / growth / low vol)"
+        elif sim is not None and sgn * sim < 0:
+            reason = f"simulation return {sim:+.1%} points the other way"
+        elif prev_check is None:
+            reason = "waiting: no price from 1 hour ago yet (first hour of the session or since the robot started)"
+        else:
+            step_sd = abs(last / prev_check - 1) / sd
+            if step_sd > TAKE_PROFIT_MAX_STEP_SD:
+                reason = f"waiting: not stable, moved {step_sd:.2f}σ in the last hour (max {TAKE_PROFIT_MAX_STEP_SD}σ)"
+        if reason:
+            _tp_entry_note(today, ticker, f"{ticker} ({row['rating']}) {move_sd:+.2f}σ vs prev close -- {reason}")
             continue
         side = 1 if is_long else -1
         raw_limit = prev_close * (1 - side * TAKE_PROFIT_LIMIT_SD * sd)
@@ -1748,7 +1878,7 @@ def _tp_entry_scan(now, today, bases, held, cash=frozenset(), busy=frozenset()):
                  "value": round(qty * limit, 2), "valuePctOfNetLiq": round(qty * limit / net_liq, 4),
                  "prevClose": prev_close, "sd": round(sd, 6), "last": last, "moveSd": round(move_sd, 2),
                  "stepSd": round(step_sd, 2), "portfolioBeta": None if beta is None else round(beta, 3),
-                 "sector": sg, "sectorNet": round(sec_w, 4), "industry": industry, "industryNet": round(ind_w, 4), "sent": False}
+                 "sector": sg, "sectorNet": round(sec_w, 4), "industry": industry, "industryNet": round(ind_w, 4), "betaBlocked": beta_blocked, "sent": False}
         _tp_entry_log(entry)
         done[ticker] = entry
         _tp_write_json(ENTRY_STATE_FILE, {today: done})
@@ -1899,6 +2029,7 @@ async def _tp_check(cash):
     now = datetime.now(_TP_ROME)
     if not _tp_window_open(now):
         _tp_prev_price.clear()  # stability check restarts each session
+        _tp_entry_prev.clear()
         return {"entered": 0, "today": 0}
     today = now.date().isoformat()
     try:  # fresh view of IB's working orders before deciding anything (fail closed)
@@ -1983,6 +2114,7 @@ async def _tp_check(cash):
     except Exception as exc:  # log-only feature: never disturb the take-profit loop
         print(f"take-profit: entry scan failed: {exc!r}")
         _tp_event("error", f"Entry scan failed: {exc!r}")
+    _tp_save_price_samples()
     return {"entered": entered_now, "today": len(done_today)}
 
 
@@ -2836,6 +2968,7 @@ def _blank_day(d):
         "date": d, "cash": None, "nav": None, "mtm": None, "realized": None, "unrealized": None,
         "stockLong": None, "stockShort": None, "stockNet": None, "stockGross": None,
         "depositsWithdrawals": None, "commissions": None, "dividends": None, "interest": None,
+        "withholdingTax": None,
     }
 
 
@@ -2881,6 +3014,7 @@ def _apply_unrealized_from_nav(rows):
                 - row["commissions"]
                 - row["dividends"]
                 - row["interest"]
+                - (row.get("withholdingTax") or 0)  # absent when the Flex query doesn't include it
             )
         else:
             row["unrealized"] = None
@@ -3039,6 +3173,11 @@ def _parse_portfolio_xml(text):
             by_date[d]["commissions"] = float(change_in_nav.get("commissions") or 0)
             by_date[d]["dividends"] = float(change_in_nav.get("dividends") or 0)
             by_date[d]["interest"] = float(change_in_nav.get("interest") or 0)
+            # Withholding tax on dividends/interest (negative). Only present when the
+            # Flex query's Change in NAV section has "Withholding Tax" selected; without
+            # it the tax silently lands inside the NAV-derived `unrealized`.
+            if change_in_nav.get("withholdingTax") is not None:
+                by_date[d]["withholdingTax"] = float(change_in_nav.get("withholdingTax") or 0)
 
         fifo_rows = list(stmt.iter("FIFOPerformanceSummaryUnderlying"))
         if fifo_rows:
@@ -3060,6 +3199,8 @@ def _parse_portfolio_xml(text):
                 by_date.setdefault(d, _blank_day(d))
                 by_date[d]["commissions"] = float(aggregate.get("commissions") or 0)
                 by_date[d]["dividends"] = float(aggregate.get("dividends") or 0)
+                if aggregate.get("withholdingTax") is not None:
+                    by_date[d]["withholdingTax"] = float(aggregate.get("withholdingTax") or 0)
                 by_date[d]["depositsWithdrawals"] = float(aggregate.get("deposits") or 0) + float(
                     aggregate.get("withdrawals") or 0
                 )
@@ -4772,6 +4913,7 @@ def run_ib_client(tickers, no_news=False):
     asyncio.ensure_future(trades_loop())
     asyncio.ensure_future(open_orders_loop())
     asyncio.ensure_future(take_profit_loop())
+    asyncio.ensure_future(index_futures_loop())
     asyncio.ensure_future(performance_loop())
     # Seeds news_by_ticker from news.json either way, so GET /api/news
     # still serves the existing rolling window even when no_news skips

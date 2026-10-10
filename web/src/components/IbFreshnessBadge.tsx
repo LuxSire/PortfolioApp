@@ -75,13 +75,24 @@ interface DatasetCheck {
   staleLabels: string[]
 }
 
+// Eulerpool is refreshed every 2 days by design (main.py's EULERPOOL_ALL_MAX_AGE_DAYS,
+// an API-usage cooldown), so those files are only stale when older than that.
+const EULERPOOL_MAX_AGE_DAYS = 2
+
+function daysBefore(isoDate: string, days: number): string {
+  const d = new Date(isoDate + 'T12:00:00')
+  d.setDate(d.getDate() - days)
+  return d.toISOString().slice(0, 10)
+}
+
 function checkDatasets(files: DatasetFile[], expected: string): DatasetCheck {
   const staleLabels: string[] = []
   for (const id of DAILY_PIPELINE_DATASET_IDS) {
     const f = files.find((x) => x.id === id)
     if (!f) continue
     const mdate = f.exists && f.mtime ? f.mtime.slice(0, 10) : null
-    if (!mdate || mdate < expected) staleLabels.push(f.label)
+    const cutoff = id.startsWith('eulerpool_') ? daysBefore(expected, EULERPOOL_MAX_AGE_DAYS - 1) : expected
+    if (!mdate || mdate < cutoff) staleLabels.push(f.label)
   }
   return { staleLabels }
 }
@@ -224,8 +235,13 @@ export default function IbFreshnessBadge() {
     )
   }
   const worstCount = Math.max(state.daily.staleCount, state.hourly.staleCount)
+  // "IB prices" is only called stale when it is beyond the tolerance -- a couple of
+  // lagging tickers (e.g. a halted name) don't count, same rule as the fresh/stale flag.
+  const pricesStale = [state.daily, state.hourly].some(
+    (c) => c.total > 0 && c.staleCount / c.total >= STALE_TOLERANCE_FRACTION,
+  )
   const label = state.datasets.staleLabels.length
-    ? worstCount
+    ? pricesStale
       ? `IB prices + ${state.datasets.staleLabels.length} dataset(s) stale`
       : `${state.datasets.staleLabels.length} dataset(s) stale`
     : `IB prices stale (${worstCount})`

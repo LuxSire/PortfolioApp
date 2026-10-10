@@ -802,7 +802,7 @@ HOLDING_TRADING_DAYS = 5
 # (known at entry, no lookahead). On the 6 archived weeks: filled on ~16%
 # of Strong Buy/Strong Sell positions (+0.87% each vs holding), portfolio
 # +1.05% (hold) / +1.21% (old exit-at-close-on-a-1.5sd-day) -> +1.29%/wk.
-TAKE_PROFIT_TRIGGER_SD = 1.5
+TAKE_PROFIT_TRIGGER_SD = 1.4
 TAKE_PROFIT_LIMIT_SD = 1.6
 
 

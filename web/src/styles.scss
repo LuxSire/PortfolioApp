@@ -3563,3 +3563,120 @@ tr.has-notes {
   color: var(--muted);
   line-height: 1.5;
 }
+
+
+/* ExportTabButton.tsx's JSON / PDF popup */
+.export-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(20, 23, 28, 0.35);
+}
+
+.export-modal {
+  width: min(420px, 100%);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  padding: 18px;
+}
+
+.export-modal h3 {
+  margin: 0 0 12px;
+  font-size: 15px;
+  color: var(--ink);
+}
+
+.export-modal-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.export-modal-options button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 12px;
+  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.export-modal-options button:hover {
+  border-color: var(--accent);
+}
+
+.export-modal-options button span {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.export-modal-cancel {
+  margin-top: 12px;
+  border: none;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+/* Generic "Export -> PDF" (ExportTabButton.tsx printTabAsPdf): only while the
+   html element carries .print-app. The tab keeps its on-screen width and is
+   zoomed to the A4-landscape page width (zoom, unlike transform, reflows the
+   page height too, so pagination still works across several pages). */
+@media print {
+  html.print-app .app > .tab-bar,
+  html.print-app .ib-freshness-badge,
+  html.print-app .export-tab-btn {
+    display: none !important;
+  }
+
+  html.print-app .app > .tab-content {
+    width: var(--print-app-width);
+    zoom: var(--print-app-zoom);
+  }
+
+  html.print-app .table-wrap {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+
+  html.print-app tr,
+  html.print-app .stat {
+    break-inside: avoid;
+  }
+}
+
+/* Factsheet print: the app-wide AccountBar (App.jsx) is not part of the factsheet
+   and would push its one-page layout onto a second sheet. */
+@media print {
+  .app:has(.factsheet-print-frame) > .account-bar {
+    display: none !important;
+  }
+}
+
+/* Factsheet print: white paper (no app-grey band beside the scaled page) and the
+   scaled page centred horizontally on the sheet. */
+@media print {
+  html:has(.factsheet-print-frame),
+  body:has(.factsheet-print-frame),
+  .app:has(.factsheet-print-frame) {
+    background: #ffffff !important;
+  }
+
+  .factsheet-print-frame {
+    width: var(--print-scaled-width);
+    margin-left: auto;
+    margin-right: auto;
+  }
+}

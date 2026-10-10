@@ -431,6 +431,7 @@ from modules.eulerpool import (
 )
 from modules.social_sentiment import SENTIMENT_FILE, fetch_social_sentiment
 from modules.theme_classifier import classify_themes
+from modules.acquisitions import deactivate_acquisition_targets
 
 # Every JSON file a downloader (this module, ib_server.py,
 # social_sentiment.py) produces lives here -- keeps the project root from
@@ -1643,6 +1644,8 @@ def download(tickers=None):
     fetches stay their own separate commands."""
     app = IBApp()
     explicit = bool(tickers)
+    if not explicit:
+        deactivate_acquisition_targets()  # takeover targets leave the universe (see modules/acquisitions.py)
     universe = sorted({t.strip().upper() for t in tickers}) if explicit else load_tickers(SYMBOLS_FILE)
     print(f"download: {len(universe)} tickers")
 
@@ -1709,6 +1712,7 @@ def recalc(fresh_momentum=False, force_prices=False):
     force_prices=True. The default (fresh_momentum=False) reads only
     cached bars, so `recalc` on its own makes ZERO network calls."""
     app = IBApp()
+    deactivate_acquisition_targets()  # takeover targets leave the universe (see modules/acquisitions.py)
     data = build_screen_rows()
     print(f"recalc: built {len(data)} screen rows from raw dumps")
     apply_sector_overrides(data, load_sectors(SYMBOLS_FILE))
@@ -2236,9 +2240,12 @@ def download_eulerpool():
         return
     force = len(sys.argv) > 2 and sys.argv[2] == "overwrite"
     if not force and os.path.exists(GRADES_FILE):
-        age_days = (time.time() - os.path.getmtime(GRADES_FILE)) / 86400
+        # Calendar days, not exact hours: a run at the same morning time two days
+        # later must refresh even if the previous fetch finished a few minutes
+        # later in the morning (exact hours made it skip, so it ran every 3 days).
+        age_days = (datetime.now().date() - datetime.fromtimestamp(os.path.getmtime(GRADES_FILE)).date()).days
         if age_days < EULERPOOL_ALL_MAX_AGE_DAYS:
-            print(f"Eulerpool data already refreshed {age_days:.1f}d ago "
+            print(f"Eulerpool data already refreshed {age_days}d ago "
                   f"(< {EULERPOOL_ALL_MAX_AGE_DAYS}d) -- skipping all Eulerpool "
                   f"downloads. Pass 'overwrite' to force.")
             return
