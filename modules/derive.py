@@ -978,6 +978,77 @@ def reconcile_forward_eps(data, eulerpool_forward_eps, eulerpool_revenue_actuals
                 row["eulerRevGrowth0y"] = row["eulerRevGrowth1y"]
 
 
+# --------------------------------------------------------------------------- #
+#  REIT earnings basis: FFO per share instead of GAAP EPS                       #
+# --------------------------------------------------------------------------- #
+# Explicit instruction. Equity REITs run large non-cash real-estate depreciation
+# through GAAP net income (the reason the industry reports FFO/AFFO, not EPS), so
+# their EPS-based multiples are meaningless (RLJ: forward P/E 4,480). For them the
+# whole earnings basis is switched to approximate FFO per share (net income + D&A,
+# modules.eulerpool._ffo_history), so every downstream factor -- forward/trailing
+# P/E, sector-relative P/E, PEG, earnings growth, EPS volatility and the simulation
+# (which anchors on forwardEps and the industry multiple) -- reads P/FFO and FFO
+# growth instead, with REIT peers compared on that same basis. Mortgage REITs
+# (interest income, no depreciation) and Real Estate services/development keep EPS.
+REIT_EPS_KEYS = ("epsCurrentYear", "fwdEps0y", "fwdEps1y", "eulerFwdEps2y")
+
+
+def is_equity_reit(sector):
+    return bool(sector) and sector.startswith("REIT - ") and sector != "REIT - Mortgage"
+
+
+def reconcile_reit_ffo(data, ffo_history, only_existing=False):
+    """Mutates `data` in place for every equity REIT with FFO history (see above):
+      forwardEps / epsCurrentYear / fwdEps0y/1y/2y  += latest-FY D&A per share
+          (forward FFO/share = the blended forward EPS plus depreciation per share)
+      forwardPE   = price / forwardEps (when positive)
+      trailingEps = latest FY FFO/share, trailingPE = price / it
+      earningsGrowth = FFO/share growth, latest FY vs the one before (clamped)
+      epsVolatility  = eps_volatility of the FFO/share series
+      earningsBasis  = "FFO", ffoPerShare = the trailing figure
+    Must run after reconcile_forward_eps and before reconcile_peg_ratio.
+
+    only_existing=True (the backtest, on an archived weekly snapshot): only overwrite
+    columns that snapshot already has, so a REIT doesn't gain a factor (e.g. earningsGrowth,
+    absent from older snapshots) that every other stock lacks."""
+    def put(row, key, value):
+        if not only_existing or key in row:
+            row[key] = value
+
+    for ticker, row in data.items():
+        if not is_equity_reit(row.get("sector")):
+            continue
+        hist = (ffo_history or {}).get(ticker)
+        if not hist:
+            continue
+        last = hist[-1]
+        shares = to_float(last.get("shares"))
+        da = to_float(last.get("amortization"))
+        ttm = to_float(last.get("ffoPerShare"))
+        price = to_float(row.get("price"))
+        if not shares or da is None or ttm is None:
+            continue
+        da_ps = da / shares
+        for key in ("forwardEps",) + REIT_EPS_KEYS:
+            v = to_float(row.get(key))
+            if v is not None:
+                put(row, key, round(v + da_ps, 4))
+        fwd = to_float(row.get("forwardEps"))
+        if price and fwd and fwd > 0:
+            put(row, "forwardPE", round(price / fwd, 2))
+        put(row, "trailingEps", round(ttm, 4))
+        put(row, "trailingPE", round(price / ttm, 2) if price and ttm > 0 else "")
+        if len(hist) >= 2:
+            prev = to_float(hist[-2].get("ffoPerShare"))
+            if prev:
+                put(row, "earningsGrowth", round(clamp_eps_revision((ttm - prev) / abs(prev)), 6))
+        vol = eps_volatility([h.get("ffoPerShare") for h in hist])
+        if vol is not None:
+            put(row, "epsVolatility", round(vol, 6))
+        row["earningsBasis"] = "FFO"
+        row["ffoPerShare"] = round(ttm, 4)
+
+
 def reconcile_peg_ratio(data):
     """Mutates `data` in place: overwrites pegRatio with a self-computed
     (price/forwardEps) / (earningsGrowth*100), using this project's OWN

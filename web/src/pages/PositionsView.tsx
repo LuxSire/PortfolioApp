@@ -5,6 +5,7 @@ import { earningsUrgencyClass } from '../earnings'
 import { getSectorGroup, sectorGroupLabel } from '../sectorGroups'
 import { getSectorIcon } from '../sectorIcons'
 import { IB_STREAM_URL } from '../ibStream'
+import { daysToNextEarnings, expectedReturnOverDays } from '../repricing'
 import { useCashEquivalents } from '../nonEquityHoldings'
 import { avgInsiderScore, avgNewsSentiment, fmtNum, fmtPct as fmtPctFactor, rankTo100, ratingClass, toNum } from '../screenerFactors'
 import { assetPnlClass, rangeClass } from '../colorRules'
@@ -34,19 +35,6 @@ import type {
 // uses, for the Expected Portfolio Performance container's Sharpe ratio
 // below, applied to the actual held book.
 const RF = 0
-
-// Same curated tags + order as IBApp.ACCOUNT_STATUS_TAGS; PnL fields get
-// the good/bad sign coloring the rest of the app uses.
-const ACCOUNT_FIELDS: { tag: string; label: string; signed?: boolean }[] = [
-  { tag: 'NetLiquidation', label: 'Net Liquidation' },
-  { tag: 'TotalCashValue', label: 'Total Cash' },
-  { tag: 'AvailableFunds', label: 'Available Funds' },
-  { tag: 'ExcessLiquidity', label: 'Excess Liquidity' },
-  { tag: 'BuyingPower', label: 'Buying Power' },
-  { tag: 'UnrealizedPnL', label: 'Unrealized P&L', signed: true },
-  { tag: 'RealizedPnL', label: 'Realized P&L', signed: true },
-  { tag: 'DailyPnL', label: 'Daily P&L', signed: true },
-]
 
 // This table's own leading columns, followed by the shared factor-columns
 // tail (see FactorCells.jsx's FACTOR_COLUMNS — Avg PE through Score,
@@ -228,6 +216,20 @@ function normalizedDateKey(dateStr: string): string {
   return typeof dateStr === 'string' ? dateStr.slice(0, 10) : dateStr
 }
 
+// Linear-interpolated percentile of a numeric array (sorted ascending in
+// place by the caller is NOT assumed -- this sorts its own copy). `p` in
+// [0, 1]. Same method `numpy.percentile`'s default ('linear') uses, so a
+// small historical sample still gives a stable, not-just-nearest-rank
+// estimate of the tail.
+function percentile(values: number[], p: number): number {
+  const sorted = [...values].sort((a, b) => a - b)
+  const idx = p * (sorted.length - 1)
+  const lo = Math.floor(idx)
+  const hi = Math.ceil(idx)
+  if (lo === hi) return sorted[lo]
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo)
+}
+
 // Simulates "if I'd held today's exact position sizes for the last ~3
 // months" by pricing today's share counts against each ticker's historical
 // daily closes — not an average of each position's individual volatility,
@@ -270,7 +272,7 @@ function portfolioVolatilityDecomposition(
   monthlyHistory: HistoryByTicker
 ): PortfolioVolResult {
   const total = rows.filter((r) => r.shares).length
-  const empty: PortfolioVolResult = { volDollar: null, cvolByTicker: new Map(), covered: 0, total }
+  const empty: PortfolioVolResult = { volDollar: null, cvolByTicker: new Map(), covered: 0, total, var95Dollar: null }
 
   const priced: { ticker: string; shares: number; byDate: Map<string, number> }[] = []
   for (const r of rows) {
@@ -325,7 +327,16 @@ function portfolioVolatilityDecomposition(
     }
   }
 
-  return { volDollar, cvolByTicker, covered, total }
+  // Historical VaR 95% (1-day): the 5th percentile of the portfolio's own simulated
+  // daily $ P&L series (dPortfolio) -- the empirical loss size exceeded on only
+  // ~5% of the historical days this book's current positions would have seen, not
+  // volDollar × 1.645 (the normal-distribution shortcut, which misses the fat
+  // tails/skew real position returns actually have). Reported as a positive dollar
+  // loss (the 5th percentile of $ CHANGE is itself negative on a book with any
+  // real volatility).
+  const var95Dollar = -percentile(dPortfolio, 0.05)
+
+  return { volDollar, cvolByTicker, covered, total, var95Dollar }
 }
 
 // Portfolio beta exposure: each held position's value * beta, summed,
@@ -478,6 +489,10 @@ export default function PositionsView() {
   // IBKR's own computed P&L "makes more sense" than deriving it
   // client-side from price ticks).
   const [pnl, setPnl] = useState<PnlByTicker>({})
+  // Front-month index futures from ib_server (ES = S&P 500 e-mini, NQ = Nasdaq-100 e-mini).
+  const [futures, setFutures] = useState<
+    Record<string, { label?: string; contract?: string; last?: number; prevClose?: number; change?: number; changePct?: number }>
+  >({})
   // Daily-close series for volatility. price_history_daily_3mo.json is IB
   // Gateway's own history and always covers every held ticker (see
   // ib_server.py's fetch_candlestick_history — held positions are
@@ -646,12 +661,13 @@ export default function PositionsView() {
   useEffect(() => {
     const source = new EventSource(IB_STREAM_URL)
     source.onmessage = (e) => {
-      const { prices: p, positions: pos, account: acc, trades: tr, pnl: pn } = JSON.parse(e.data)
+      const { prices: p, positions: pos, account: acc, trades: tr, pnl: pn, futures: fu } = JSON.parse(e.data)
       setPrices(p)
       setAccount(acc || {})
       setPositions(pos)
       setTrades(tr || {})
       setPnl(pn || {})
+      setFutures(fu || {})
     }
     source.onerror = () => {} // EventSource auto-reconnects; nothing to do here.
     return () => source.close()
@@ -802,6 +818,36 @@ export default function PositionsView() {
       const dayPnl = sideRows.reduce((s, r) => s + (r.dayPnl ?? 0), 0)
       return { side, sectorGroups, total, dayPnl, rowCount: sideRows.length }
     })
+  }, [bookRows])
+
+  // Positions table (explicit instruction): NO Long/Short column -- just sector groups, the
+  // largest gross exposure (Σ|value|) first, down to the smallest. Inside a sector: longs
+  // first, then shorts, each side by position exposure (|value|) largest first; a short
+  // shows as a negative value.
+  // `net` is the signed sum (long minus short), `gross` the ranking figure.
+  const sectorRanking = useMemo(() => {
+    const bySector = new Map<string | null, PositionRow[]>()
+    for (const r of bookRows) {
+      if (!bySector.has(r.sector)) bySector.set(r.sector, [])
+      ;(bySector.get(r.sector) as PositionRow[]).push(r)
+    }
+    return [...bySector.entries()]
+      .map(([sector, sectorRows]) => {
+        // Inside a sector: longs first, then shorts; each side by exposure (|value|), largest first.
+        sectorRows.sort((a, b) => {
+          const sideA = (a.shares ?? 0) >= 0 ? 0 : 1
+          const sideB = (b.shares ?? 0) >= 0 ? 0 : 1
+          return sideA - sideB || Math.abs(b.value ?? 0) - Math.abs(a.value ?? 0)
+        })
+        return {
+          sector,
+          rows: sectorRows,
+          net: sectorRows.reduce((t, r) => t + (r.value ?? 0), 0),
+          gross: sectorRows.reduce((t, r) => t + Math.abs(r.value ?? 0), 0),
+          dayPnl: sectorRows.reduce((t, r) => t + (r.dayPnl ?? 0), 0),
+        }
+      })
+      .sort((a, b) => b.gross - a.gross)
   }, [bookRows])
 
   // Value-weighted average of every screener factor (see FactorCells.jsx's
@@ -993,6 +1039,8 @@ export default function PositionsView() {
   // itself is a DAILY figure (stdev of day-to-day $ change / NetLiquidation,
   // see portfolioVolatilityDecomposition's own comment), not annualised.
   const annualizedVolPct = volOfNetLiqPct !== null ? volOfNetLiqPct * Math.sqrt(252) : null
+  // Same %-of-NetLiquidation framing as volOfNetLiqPct above, for VaR 95%'s own subvalue.
+  const var95OfNetLiqPct = netLiq && portfolioVol.var95Dollar !== null ? portfolioVol.var95Dollar / netLiq : null
 
   // Expected Portfolio Performance -- the SAME expected-return/Sharpe
   // framing modules/portfolio_optimizer.py computes for the (static,
@@ -1018,25 +1066,43 @@ export default function PositionsView() {
   // optional factor across this app already follows; uncovered/uninvested
   // dollars implicitly contribute 0 to the sum, same as idle cash itself
   // would.
-  const { expectedReturn, coveredValue } = useMemo(() => {
+  // Timing (explicit instruction, see repricing.ts): the simulated gap is repriced over 6
+  // quarterly earnings dates, the first (the stock's next one) carrying 1/3 of it, so the
+  // figure used here is the part realized within the next 12 months; rawGapReturn is
+  // the same book at the full, undated gap.
+  const { expectedReturn, rawGapReturn, coveredValue } = useMemo(() => {
     let weightedReturn = 0
+    let weightedGap = 0
     let covered = 0
     for (const r of bookRows) {
       if (!r.shares || !r.value) continue
       const fr = tickerForecast[r.ticker]
       if (fr === null || fr === undefined) continue
-      const signedReturn = r.shares >= 0 ? fr : -fr
+      const year = expectedReturnOverDays(fr, daysToNextEarnings(r.ern))
+      const sign = r.shares >= 0 ? 1 : -1
       const weight = Math.abs(r.value)
-      weightedReturn += signedReturn * weight
+      weightedReturn += sign * year * weight
+      weightedGap += sign * fr * weight
       covered += weight
     }
-    return { expectedReturn: netLiq ? weightedReturn / netLiq : null, coveredValue: covered }
+    return {
+      expectedReturn: netLiq ? weightedReturn / netLiq : null,
+      rawGapReturn: netLiq ? weightedGap / netLiq : null,
+      coveredValue: covered,
+    }
   }, [bookRows, tickerForecast, netLiq])
 
   const sharpe =
     expectedReturn !== null && annualizedVolPct ? (expectedReturn - RF) / annualizedVolPct : null
 
   const portfolioBeta = useMemo(() => portfolioBetaExposure(bookRows), [bookRows])
+  // Explicit instruction: the headline beta is relative to the WHOLE account --
+  // Σ(value × beta) / NetLiquidation (cash and cash equivalents count as beta 0),
+  // the same figure the trading robot's ±beta band uses.
+  const accountBeta =
+    portfolioBeta.dollarPer1PctMove !== null && account.NetLiquidation
+      ? (portfolioBeta.dollarPer1PctMove * 100) / account.NetLiquidation
+      : null
 
   // Same tab-bar convention as AssetView.tsx: page-level headers (Account,
   // masthead, Expected Portfolio Performance) always visible above the tab
@@ -1062,24 +1128,6 @@ export default function PositionsView() {
 
   return (
     <div className="positions-page positions-view">
-      {Object.keys(account).length > 0 && (
-        <div className="asset-card">
-          <h2>Account</h2>
-          <div className="asset-stat-grid">
-            {ACCOUNT_FIELDS.filter((f) => account[f.tag] !== undefined).map((f) => {
-              const v = account[f.tag]
-              const valueClass = f.signed ? (v >= 0 ? 'good' : 'bad') : undefined
-              return (
-                <div className="asset-stat" key={f.tag}>
-                  <span className={`n num${valueClass ? ` ${valueClass}` : ''}`}>{fmtMoney(v)}</span>
-                  <span className="l">{f.label}</span>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
       <header className="masthead">
         <div className="title-block">
           <h1>Positions</h1>
@@ -1104,6 +1152,22 @@ export default function PositionsView() {
               {fmtMoney(totalDayPnl || null)}
             </span>
             <span className="l">Daily P&amp;L</span>
+          </div>
+          <div
+            className="stat"
+            title="Today's P&L on the cash / T-bill equivalents (IB01, SGOV, ... — see data/cash.json), which Daily P&L above leaves out."
+          >
+            <span className={`n num${cashFactorRow.dayPnl === 0 ? '' : cashFactorRow.dayPnl >= 0 ? ' good' : ' bad'}`}>
+              {fmtMoney(cashFactorRow.dayPnl || null)}
+            </span>
+            <span className="l">Cash P&amp;L</span>
+          </div>
+          <div className="stat" title="Daily P&L + Cash P&L">
+            <span className={`n num${totalDayPnl + cashFactorRow.dayPnl === 0 ? '' : totalDayPnl + cashFactorRow.dayPnl >= 0 ? ' good' : ' bad'}`}>
+              {fmtMoney(totalDayPnl + cashFactorRow.dayPnl || null)}
+              {netLiq ? <span className="stat-subvalue">{fmtPct((totalDayPnl + cashFactorRow.dayPnl) / netLiq)}</span> : null}
+            </span>
+            <span className="l">Total P&amp;L</span>
           </div>
           <div
             className="stat"
@@ -1135,12 +1199,26 @@ export default function PositionsView() {
           <div
             className="stat"
             title={
+              portfolioVol.covered < portfolioVol.total
+                ? `Historical VaR (not a normal-distribution approximation): the 5th percentile of the portfolio's own simulated daily $ P&L — today's exact position sizes applied to each day's actual historical close (same simulation as Portfolio Vol., linearly interpolated) — priced from ${portfolioVol.covered} of ${portfolioVol.total} positions — the rest have no historical price series available`
+                : `Historical VaR (not a normal-distribution approximation): the 5th percentile of the portfolio's own simulated daily $ P&L — today's exact position sizes applied to each day's actual historical close (same simulation as Portfolio Vol., linearly interpolated) — priced from all ${portfolioVol.covered} positions`
+            }
+          >
+            <span className={`n num${portfolioVol.var95Dollar === null ? '' : ' bad'}`}>
+              {fmtMoney(portfolioVol.var95Dollar)}
+              {var95OfNetLiqPct !== null && <span className="stat-subvalue">{fmtVol(var95OfNetLiqPct)}</span>}
+            </span>
+            <span className="l">VaR 95% (1d)</span>
+          </div>
+          <div
+            className="stat"
+            title={
               portfolioBeta.beta !== null
-                ? `Σ(value × beta) / Σ|value| across all ${portfolioBeta.total} priced positions — a short position's beta subtracts from net market exposure rather than adding to it. ${portfolioBeta.covered} of ${portfolioBeta.total} have an actual beta from yfinance; the rest (e.g. a very recent IPO/spinoff) assume 1.`
+                ? `Σ(value × beta) / Net Liquidation (cash counts as beta 0), across all ${portfolioBeta.total} priced positions; per invested gross it would be ${fmtRatio(portfolioBeta.beta)} — a short position's beta subtracts from net market exposure rather than adding to it. ${portfolioBeta.covered} of ${portfolioBeta.total} have an actual beta from yfinance; the rest (e.g. a very recent IPO/spinoff) assume 1.`
                 : 'None of the currently held positions are priced to compute this from'
             }
           >
-            <span className="n num">{fmtRatio(portfolioBeta.beta)}</span>
+            <span className="n num">{fmtRatio(accountBeta)}</span>
             <span className="l">Portfolio Beta</span>
           </div>
           <div
@@ -1157,6 +1235,7 @@ export default function PositionsView() {
 
       {/* Expected Portfolio Performance on the left, the Trading robot panel on the right, same row. */}
       <div className="positions-perf-row">
+        <div className="positions-perf-left">
         {rows.length > 0 && (
           <header className="masthead">
             <div className="title-block">
@@ -1167,12 +1246,13 @@ export default function PositionsView() {
                 className="stat"
                 title={
                   coveredValue > 0
-                    ? `Σ(forecastReturn × |value|) / NetLiquidation — simulate_ticker's own forecastReturn (see modules/simulations.py), sign-flipped for shorts, weighted against the WHOLE account rather than just invested capital (idle cash and uncovered positions implicitly contribute 0) — priced from ${fmtMoney(coveredValue)} of ${fmtMoney(grossValue)} gross exposure with simulation coverage`
+                    ? `Part of the simulated gap realized within the next 12 months: 6 quarterly earnings dates, the first (each stock's next) carrying 1/3 of it, the other five 2/15 each. Σ(that × |value|) / NetLiquidation, sign-flipped for shorts; the undated gap would be ${fmtPct(rawGapReturn)} — weighted against the WHOLE account rather than just invested capital (idle cash and uncovered positions implicitly contribute 0) — priced from ${fmtMoney(coveredValue)} of ${fmtMoney(grossValue)} gross exposure with simulation coverage`
                     : 'None of the currently held positions have simulation coverage'
                 }
               >
                 <span className={`n num${expectedReturn === null ? '' : expectedReturn >= 0 ? ' good' : ' bad'}`}>
                   {fmtPct(expectedReturn)}
+                  {rawGapReturn !== null && <span className="stat-subvalue">gap {fmtPct(rawGapReturn)}</span>}
                 </span>
                 <span className="l">Expected Return</span>
               </div>
@@ -1190,6 +1270,35 @@ export default function PositionsView() {
             </div>
           </header>
         )}
+        {Object.keys(futures).length > 0 && (
+          <header className="masthead">
+            <div className="title-block">
+              <h2 title="Front-month equity-index futures from IB (delayed if the account has no live CME data); change vs the previous session's close">Index Futures</h2>
+            </div>
+            <div className="stat-row">
+              {(
+                [
+                  ['ES', 'SP1'],
+                  ['NQ', 'NQ1'],
+                ] as const
+              ).map(([root, name]) => {
+                const f = futures[root]
+                if (!f) return null
+                const pct = f.changePct ?? null
+                return (
+                  <div className="stat" key={root} title={`${f.label ?? root} -- ${f.contract ?? ''}${f.prevClose ? `, prev close ${f.prevClose.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : ''}`}>
+                    <span className={`n num${pct === null ? '' : pct >= 0 ? ' good' : ' bad'}`}>
+                      {f.last !== undefined ? f.last.toLocaleString(undefined, { maximumFractionDigits: 2 }) : '—'}
+                      {pct !== null && <span className="stat-subvalue">{fmtPct(pct)}</span>}
+                    </span>
+                    <span className="l">{name}</span>
+                  </div>
+                )
+              })}
+            </div>
+          </header>
+        )}
+        </div>
         <TakeProfitLog />
       </div>
 
@@ -1374,8 +1483,7 @@ export default function PositionsView() {
         <table>
           <thead>
             <tr>
-              <th className="col-left">Position</th>
-              <th className="col-left">Sector</th>
+              <th className="col-left" title="Sector groups, largest gross exposure first. The figure is the sector's net value (long minus short), with its day P&L below.">Sector</th>
               <th className="col-left col-name">Asset / Security</th>
               <th className="col-rec" title="This screener's own forced-distribution rating, from its score percentile — not an analyst consensus.">
                 Rating
@@ -1411,13 +1519,14 @@ export default function PositionsView() {
           <tbody>
             {bookRows.length === 0 && (
               <tr className="status-row">
-                <td colSpan={20}>
+                <td colSpan={19}>
                   No open positions — or ib_server.py isn't running / hasn't reported positions yet.
                 </td>
               </tr>
             )}
-            {sideGroups.map((sideGroup) =>
-              sideGroup.sectorGroups.map((group, groupIndex) => {
+            {sectorRanking.map((group) =>
+              {
+
                 const GroupIcon = getSectorIcon(group.sector)
                 return group.rows.map((r, i) => {
                   const pnlClass = perfClass(r.pnlPct, r.shares)
@@ -1441,25 +1550,15 @@ export default function PositionsView() {
                   const namePnlClass = assetPnlClass(r.dayPnl, netLiq)
                   return (
                     <tr key={r.ticker}>
-                      {groupIndex === 0 && i === 0 && (
-                        <td
-                          className={`col-left side-group-cell${sideGroup.side === 'Short' ? ' side-group-cell-short' : ''}`}
-                          rowSpan={sideGroup.rowCount}
-                        >
-                          <span className="side-group-label">{sideGroup.side}</span>
-                          <span className="side-group-total num">{fmtMoney(sideGroup.total)}</span>
-                          <span className={`side-group-pnl num ${sideGroup.dayPnl >= 0 ? 'good' : 'bad'}`}>
-                            {fmtMoney(sideGroup.dayPnl)}
-                          </span>
-                        </td>
-                      )}
                       {i === 0 && (
-                        <td className="col-left sector-group-cell" rowSpan={group.rows.length}>
+                        <td className="col-left sector-group-cell" rowSpan={group.rows.length} title={`Gross exposure ${fmtMoney(group.gross)} · net ${fmtMoney(group.net)}`}>
                           <span className="sector-group-label">
                             <GroupIcon />
                             {sectorGroupLabel(group.sector)}
                           </span>
-                          <span className="sector-group-total num">{fmtMoney(group.total)}</span>
+                          <span className="sector-group-gross num">gross {fmtMoney(group.gross)}</span>
+                          <span className="sector-group-total num">{fmtMoney(group.net)}</span>
+
                           <span className={`sector-group-pnl num ${group.dayPnl >= 0 ? 'good' : 'bad'}`}>
                             {fmtMoney(group.dayPnl)}
                           </span>
@@ -1506,7 +1605,7 @@ export default function PositionsView() {
                     </tr>
                   )
                 })
-              })
+              }
             )}
           </tbody>
         </table>

@@ -75,6 +75,8 @@ export interface Candidate {
   // than trusting forwardPE to already reflect the blend.
   forwardPE?: number | null
   forwardEps?: number | null
+  // "FFO" when forwardEps/forwardPE are on an FFO-per-share basis (equity REITs)
+  earningsBasis?: string | null
   epsRevision0y?: number | null
   epsRevision1y?: number | null
   meanReversion?: number | null
@@ -149,6 +151,18 @@ export interface Candidate {
   // own tickerTargetSide state/effect). null/undefined for a ticker the
   // optimizer didn't select on either side.
   targetPortfolioSide?: 'Long' | 'Short' | null
+  // The dark-green decisive treatment (recommendation-card-target-portfolio)
+  // no longer keys off targetPortfolioSide above -- explicit instruction:
+  // it should instead mirror modules/backtest.py's RESTRICTED_PCT_2 "2.5%
+  // portfolio" -- a Strong Buy/Strong Sell candidate that both clears the
+  // same opening gates as the Long/Short idea lists AND sits in the best/
+  // worst 2.5% of the scored universe. Computed once per candidate where
+  // those gates are already evaluated (RecommendationsView's longs/shorts/
+  // heldMerged/rejectedStrong builders, via in25RestrictedPortfolio) and
+  // carried on the object like targetPortfolioSide, rather than
+  // recomputed inside the card components, which don't have the
+  // screener/dailyMove/simReturn context the gates need.
+  in25Portfolio?: boolean | null
   // data/output/target_portfolio.json also carries the full optimizer
   // pre-screen pools, so cards can show where a ticker ranked before the
   // final Sharpe/covariance pass selected the target portfolio.

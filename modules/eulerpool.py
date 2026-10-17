@@ -877,3 +877,63 @@ def fetch_transcripts(tickers, out_file=TRANSCRIPTS_FILE, max_workers=4):
     if errors:
         print("  failed:", ", ".join(t for t, _ in errors[:20]), "..." if len(errors) > 20 else "")
     return existing
+
+
+REIT_FFO_FILE = os.path.join("data", "eulerpool", "reit_ffo.json")
+
+
+def _ffo_history(ticker):
+    """Approximate annual FFO per share for one equity REIT, newest last --
+    [{period, netIncome, amortization, shares, ffo, ffoPerShare}, ...] --
+    from Eulerpool's cash-flow statement (netIncomeStartingLine + amortization,
+    i.e. net income + depreciation & amortization) and annual income statement
+    (diluted shares). Eulerpool has no reported FFO/AFFO for US REITs, so this is
+    the NAREIT definition minus its two adjustments we can't see (gains on
+    property sales, impairments): FFO ~ net income + D&A. Actual periods only
+    (the income statement's forward estimate rows end in 'e')."""
+    shares = {}
+    for r in get_income_statement(ticker) or []:
+        per = r.get("period") or ""
+        if per.endswith("e"):
+            continue
+        if r.get("shares"):
+            shares[per] = float(r["shares"])
+    out = []
+    for r in get_cashflow_statement(ticker) or []:
+        per = r.get("period") or ""
+        ni, da = r.get("netIncomeStartingLine"), r.get("amortization")
+        if per.endswith("e") or ni is None or da is None or per not in shares:
+            continue
+        ffo = float(ni) + float(da)
+        out.append({"period": per, "netIncome": ni, "amortization": da, "shares": shares[per],
+                    "ffo": ffo, "ffoPerShare": ffo / shares[per]})
+    out.sort(key=lambda x: x["period"])
+    return out[-6:]
+
+
+def fetch_reit_ffo(tickers, out_file=REIT_FFO_FILE, max_workers=4):
+    """{ticker: [annual FFO-per-share rows]} for the given EQUITY REITs (see
+    _ffo_history for how FFO is approximated), overwriting out_file. Two API
+    calls per ticker; failures are logged and skipped, like the other fetchers."""
+    results, errors, count = {}, [], 0
+    with ThreadPoolExecutor(max_workers=max_workers) as ex:
+        futures = {ex.submit(_ffo_history, t): t for t in tickers}
+        for fut in as_completed(futures):
+            ticker = futures[fut]
+            count += 1
+            try:
+                rows = fut.result()
+                if rows:
+                    results[ticker] = rows
+                else:
+                    errors.append((ticker, "no cash-flow/income data"))
+            except Exception as e:
+                errors.append((ticker, str(e)))
+            _progress_log("fetch_reit_ffo", count, len(tickers))
+    os.makedirs(os.path.dirname(out_file), exist_ok=True)
+    with open(out_file, "w") as f:
+        json.dump(results, f)
+    print(f"fetch_reit_ffo: wrote {out_file} ({len(tickers)} requested, {len(results)} with data, {len(errors)} failed)")
+    if errors:
+        print("  failed:", ", ".join(f"{t}" for t, _ in errors[:30]))
+    return results

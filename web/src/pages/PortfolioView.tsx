@@ -4,6 +4,7 @@ import ExposureChart from '../components/ExposureChart'
 import { useCashEquivalentValues } from '../cashEquivalentHistory'
 import MonthlyReturnsTable from '../components/MonthlyReturnsTable'
 import NavChart from '../components/NavChart'
+import PortfolioCompare from '../components/PortfolioCompare'
 import { dayTotalPnl } from '../portfolioPnl'
 
 function fmtMoney(v: number | null | undefined): string {
@@ -105,17 +106,18 @@ export default function PortfolioView() {
   // windows (a later week wins on an overlapping date) and turned into a notional
   // account: NAV starts at BACKTEST_NOTIONAL_NAV and each day's P&L is NAV x return,
   // so every stat/chart/table below works unchanged (no cash, flows or fees).
-  const [source, setSource] = useState<'live' | BacktestSeriesKey>('live')
-  const isBacktest = source !== 'live'
+  const [source, setSource] = useState<'live' | 'compare' | BacktestSeriesKey>('live')
+  const isBacktest = source !== 'live' && source !== 'compare'
+  const isCompare = source === 'compare'
   const [backtestJson, setBacktestJson] = useState<BacktestJson | null>(null)
   const [backtestError, setBacktestError] = useState(false)
   useEffect(() => {
-    if (!isBacktest || backtestJson) return
+    if ((!isBacktest && !isCompare) || backtestJson) return
     fetch('/backtest.json')
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then(setBacktestJson)
       .catch(() => setBacktestError(true))
-  }, [isBacktest, backtestJson])
+  }, [isBacktest, isCompare, backtestJson])
   const backtestRows: PortfolioDayRow[] | null = useMemo(() => {
     if (!isBacktest) return null
     if (backtestError) return []
@@ -308,13 +310,13 @@ export default function PortfolioView() {
     sortino = downsideDev ? (meanExcess / downsideDev) * Math.sqrt(TRADING_DAYS_PER_YEAR) : null
   }
 
-  return (
-    <div className="positions-page portfolio-page">
+  const tabBar = (
       <div className="tab-bar">
         {(
           [
             { key: 'live', label: 'Live (IB)' },
             ...BACKTEST_TABS,
+            { key: 'compare', label: 'Compare' },
           ] as const
         ).map((t) => (
           <button key={t.key} type="button" className={`tab-btn${source === t.key ? ' active' : ''}`} onClick={() => setSource(t.key)}>
@@ -322,6 +324,25 @@ export default function PortfolioView() {
           </button>
         ))}
       </div>
+  )
+
+  if (isCompare) {
+    return (
+      <div className="positions-page portfolio-page">
+        {tabBar}
+        <header className="masthead">
+          <div className="title-block">
+            <h1>Portfolio</h1>
+          </div>
+        </header>
+        <PortfolioCompare liveRows={liveRows} backtestJson={backtestJson} />
+      </div>
+    )
+  }
+
+  return (
+    <div className="positions-page portfolio-page">
+      {tabBar}
       {isBacktest && (
         <p className="status-row" title={`backtest.json -> currentModel.daily.series.${source}, stitched across the weekly windows`}>
           Backtest of {backtestTab?.name} -- daily returns, NAV rebased to 100 (the chart's index), from the backtest's first day; no cash, flows, fees or exposure data.
@@ -432,6 +453,7 @@ export default function PortfolioView() {
       {source === 'live' && !error && !data && <p className="status-row">Loading…</p>}
 
       {navChartRows && navChartRows.length > 0 && <NavChart
+          hideLevel
           rows={navChartRows}
           indexByDate={Object.fromEntries(
             navChartRows.map((r) => [

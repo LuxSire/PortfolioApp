@@ -1628,7 +1628,11 @@ def is_real_estate_sector(sector):
     Estate was 0.830, the worst-skewed factor checked for this sector) --
     a real distortion, but a deliberately different one from the
     missing-data case above, and NOT addressed by REAL_ESTATE_WEIGHTS:
-    explicit call not to build a third, more targeted formula for it."""
+    explicit call not to build a third, more targeted formula for it.
+    UPDATE: addressed at the data layer instead of the weights -- for equity
+    REITs derive.reconcile_reit_ffo now replaces GAAP EPS with approximate FFO
+    per share (net income + D&A) before scoring, so P/E, sector P/E, PEG,
+    earnings growth, EPS volatility and the simulation all read P/FFO / FFO growth."""
     if not sector:
         return False
     if sector in REAL_ESTATE_SECTORS:

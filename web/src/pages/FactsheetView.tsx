@@ -3,8 +3,10 @@ import { Printer } from 'lucide-react'
 import type { PortfolioDayRow, PortfolioPerformanceData } from '../interfaces/IPortfolioView'
 import type { PositionsByTicker, PricesByTicker } from '../interfaces/IPositionsView'
 import NavChart from '../components/NavChart'
+import { dayTotalPnl } from '../portfolioPnl'
 import ExposureChart from '../components/ExposureChart'
 import { useCashEquivalentValues } from '../cashEquivalentHistory'
+import { useCashEquivalents } from '../nonEquityHoldings'
 import MonthlyReturnsTable from '../components/MonthlyReturnsTable'
 import { parseCSV } from '../csv'
 import { getSectorGroup, sectorGroupLabel } from '../sectorGroups'
@@ -66,13 +68,12 @@ function StatRow({ label, value, valueClass, title }: { label: string; value: st
   )
 }
 
-// Both ratios below use NO risk-free rate (explicit instruction: the book holds
-// a treasury / cash-equivalent allocation) and 252 trading days/year
-// to annualize -- same convention PortfolioView.tsx's own Sharpe/Sortino
-// use, duplicated here rather than imported (this project's convention
-// for a small computation needed by more than one component).
+// Both ratios below subtract a 3.5% annual risk-free rate (explicit instruction,
+// same as PortfolioView.tsx's live tab) and use 252 trading days/year to annualize --
+// duplicated here rather than imported (this project's convention for a small
+// computation needed by more than one component).
 const TRADING_DAYS_PER_YEAR = 252
-const RISK_FREE_RATE_ANNUAL = 0
+const RISK_FREE_RATE_ANNUAL = 0.035
 const RISK_FREE_RATE_DAILY = RISK_FREE_RATE_ANNUAL / TRADING_DAYS_PER_YEAR
 
 // A4 (210mm x 297mm) minus styles.scss's own @page margin (12mm on every
@@ -155,6 +156,7 @@ export default function FactsheetView() {
       root.setProperty('--print-natural-width', `${naturalWidth}px`)
       root.setProperty('--print-scale', `${scale}`)
       root.setProperty('--print-scaled-height', `${scaledHeight}px`)
+      root.setProperty('--print-scaled-width', `${naturalWidth * scale}px`)
     }
     window.print()
   }
@@ -207,7 +209,7 @@ export default function FactsheetView() {
   // in portfolio_performance.json. The last NAV BEFORE that day is kept only
   // as the base for the first day's return (P&L over the prior day's NAV), so
   // the deposit itself is never counted as performance.
-  const FACTSHEET_START_DATE = '2026-09-28'
+  const FACTSHEET_START_DATE = '2026-09-24' // explicit instruction: same start as the Portfolio page
   const rows: PortfolioDayRow[] | null = allRows ? allRows.filter((r) => r.date >= FACTSHEET_START_DATE) : null
   // cash-equivalent holdings per day, taken out of Long and shown with cash in the Exposure chart
   const cashEqByDate = useCashEquivalentValues((allRows ?? []).map((r) => r.date))
@@ -228,7 +230,7 @@ export default function FactsheetView() {
   if (rows) {
     let prevNav: number | null = baselineNav
     for (const r of rows) {
-      const totalPnl = r.realized !== null && r.unrealized !== null ? r.realized + r.unrealized : null
+      const totalPnl = dayTotalPnl(r) // realized + unrealized + commissions + dividends + interest + WT, same as Portfolio
       const dailyReturn = totalPnl !== null && prevNav ? totalPnl / prevNav : null
       if (r.nav !== null) prevNav = r.nav
       if (dailyReturn === null) continue
@@ -241,6 +243,10 @@ export default function FactsheetView() {
       if (drawdown > worstDrawdown) worstDrawdown = drawdown
     }
   }
+
+  // NAV chart: anchored at 100 on the last close BEFORE the start (its own P&L not shown).
+  const anchorRow = [...(allRows ?? [])].reverse().find((r) => r.date < FACTSHEET_START_DATE && r.nav !== null)
+  const chartRows: PortfolioDayRow[] = [...(anchorRow ? [{ ...anchorRow, realized: null, unrealized: null }] : []), ...(rows ?? [])]
 
   const n = dailyReturns.length
   const totalReturn = n > 0 ? compounded - 1 : null
@@ -281,7 +287,11 @@ export default function FactsheetView() {
   // closedTodayRows uses. Value falls back to avgCost when there's no live
   // tick yet for a ticker (server just (re)started) rather than dropping
   // the position from both cards below.
+  // Cash / T-bill equivalents (data/cash.json: IB01, SGOV, SHV...) are not stock
+  // positions -- kept out of Top Long Positions and the sector exposure.
+  const cashTickers = useCashEquivalents()
   const heldPositions = Object.entries(positions)
+    .filter(([ticker]) => !cashTickers.has(ticker))
     .map(([ticker, pos]) => {
       const shares = pos.shares ?? null
       if (!shares) return null
@@ -363,7 +373,7 @@ export default function FactsheetView() {
         {rows && rows.length > 0 && (
           <div className="factsheet-hero-row">
             <div className="factsheet-chart-col">
-              <NavChart rows={rows} indexByDate={indexByDate} />
+              <NavChart hideLevel rows={chartRows} indexByDate={{ ...indexByDate, ...(anchorRow ? { [anchorRow.date]: 100 } : {}) }} />
             </div>
             <div className="factsheet-stats-col">
               <div className="asset-card">

@@ -171,15 +171,19 @@ export default function ThemesView() {
   const styleSummary = useMemo(() => {
     const themeStyle = new Map((taxonomy ?? []).filter((t) => t.style).map((t) => [t.key, t.style as string]))
     const net = { growth: 0, defensive: 0 } as Record<string, number>
-    const names = { growth: [] as string[], defensive: [] as string[] } as Record<string, string[]>
+    // Long and short tickers kept separate (explicit instruction) -- a style's single
+    // "Held" line otherwise hides that, e.g., a Defensive tilt can come from being
+    // short defensive names just as much as long them.
+    const longNames = { growth: [] as string[], defensive: [] as string[] } as Record<string, string[]>
+    const shortNames = { growth: [] as string[], defensive: [] as string[] } as Record<string, string[]>
     for (const r of rows) {
       const style = r.themeKeys.map((k) => themeStyle.get(k)).find(Boolean)
       if (!style || r.value === null) continue
       net[style] += r.value
-      names[style].push(r.ticker)
+      ;((r.shares ?? 0) >= 0 ? longNames : shortNames)[style].push(r.ticker)
     }
     const tilt = netLiq ? (net.growth - net.defensive) / netLiq : null
-    return { net, names, tilt }
+    return { net, longNames, shortNames, tilt }
   }, [taxonomy, rows, netLiq])
 
   function toggleTheme(key: string) {
@@ -225,8 +229,11 @@ export default function ThemesView() {
               <p className="theme-style-list">
                 {taxonomy.filter((t) => t.style === style).map((t) => t.label).join(' · ')}
               </p>
-              <p className="theme-style-list" title="Held positions counted in this style (first styled theme)">
-                Held: {styleSummary.names[style].length ? styleSummary.names[style].join(', ') : '—'}
+              <p className="theme-style-list" title="Held LONG positions counted in this style (first styled theme)">
+                Long: {styleSummary.longNames[style].length ? styleSummary.longNames[style].join(', ') : '—'}
+              </p>
+              <p className="theme-style-list" title="Held SHORT positions counted in this style (first styled theme)">
+                Short: {styleSummary.shortNames[style].length ? styleSummary.shortNames[style].join(', ') : '—'}
               </p>
             </div>
           ))}

@@ -36,14 +36,14 @@ function fmtIndex(v) {
 const CHART_FONT = 'ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Menlo, monospace'
 const CHART_TICK_STYLE = { fill: 'var(--muted)', fontSize: 10, fontFamily: CHART_FONT }
 
-function NavTooltip({ active, payload }) {
+function NavTooltip({ active, payload, hideLevel }) {
   if (!active || !payload || !payload.length) return null
   const point = payload[0].payload
   return (
     <div className="chart-tooltip chart-tooltip-follow-cursor">
       <span className="chart-tooltip-value">{fmtIndex(point.navIndex)}</span>
       <span className="chart-tooltip-date">
-        {fmtLevel(point.nav)} · {fmtAxisDate(point.date)}
+        {hideLevel ? '' : `${fmtLevel(point.nav)} · `}{fmtAxisDate(point.date)}
       </span>
     </div>
   )
@@ -95,7 +95,9 @@ function dateTicks(rows) {
 // window starts on the day new capital came in, where a plain NAV ratio would
 // both start from the post-deposit NAV and so miss that first day's
 // performance. Without it the index is the NAV ratio to the first row.
-export default function NavChart({ rows, indexByDate }) {
+// hideLevel: no header numbers at all (dollar NAV and % change) and no dollar NAV in the
+// tooltip -- used by the Factsheet and the Portfolio page.
+export default function NavChart({ rows, indexByDate, hideLevel = false }) {
   const first = rows[0]
   const last = rows[rows.length - 1]
   const lastIdx = indexByDate ? indexByDate[last.date] : undefined
@@ -156,14 +158,16 @@ export default function NavChart({ rows, indexByDate }) {
   return (
     <>
       <div className="asset-card">
-        <h2>
-          <span className="chart-last-price">{fmtLevel(last.nav)}</span>
-          {changePct !== null && (
-            <span className={`chart-change ${changePct >= 0 ? 'good' : 'bad'}`}>
-              {(changePct >= 0 ? '+' : '') + (changePct * 100).toFixed(1)}%
-            </span>
-          )}
-        </h2>
+        {!hideLevel && (
+          <h2>
+            <span className="chart-last-price">{fmtLevel(last.nav)}</span>
+            {changePct !== null && (
+              <span className={`chart-change ${changePct >= 0 ? 'good' : 'bad'}`}>
+                {(changePct >= 0 ? '+' : '') + (changePct * 100).toFixed(1)}%
+              </span>
+            )}
+          </h2>
+        )}
         <div className="chart-wrap">
           <ResponsiveContainer width="100%" height={260}>
             <AreaChart data={indexedRows} margin={{ top: 12, right: 4, bottom: 4, left: 4 }}>
@@ -188,7 +192,7 @@ export default function NavChart({ rows, indexByDate }) {
                 tick={CHART_TICK_STYLE}
               />
               {indexByDate && <ReferenceLine y={100} stroke="var(--muted)" strokeDasharray="3 3" strokeOpacity={0.7} />}
-              <Tooltip offset={12} content={<NavTooltip />} cursor={{ stroke: 'var(--muted)', strokeOpacity: 0.5 }} />
+              <Tooltip offset={12} content={<NavTooltip hideLevel={hideLevel} />} cursor={{ stroke: 'var(--muted)', strokeOpacity: 0.5 }} />
               <Area
                 type="monotone"
                 dataKey="navIndex"

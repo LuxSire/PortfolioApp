@@ -1516,7 +1516,7 @@ async def open_orders_loop():
 from types import SimpleNamespace  # noqa: E402
 from zoneinfo import ZoneInfo  # noqa: E402
 
-from modules.backtest import TAKE_PROFIT_LIMIT_SD, TAKE_PROFIT_TRIGGER_SD  # noqa: E402
+from modules.backtest import RESTRICTED_PCT_4, TAKE_PROFIT_LIMIT_SD, TAKE_PROFIT_TRIGGER_SD  # noqa: E402
 from modules.sector_groups import get_sector_group  # noqa: E402
 from modules.derive import DAILY_MOVE_MIN_DAYS, DAILY_MOVE_SD_DAYS  # noqa: E402
 
@@ -1635,9 +1635,30 @@ def _tp_all_ratings():
 # earnings, low-vol, growth, plus the sim-return gate; the daily-move gate is
 # replaced by the live move test below) -- but ONLY while the portfolio beta is
 # inside +/-ENTRY_BETA_BAND (Positions page definition: sum(value x beta) / sum
-# |value|, missing beta = 1). A Strong Buy qualifies when it is <= -TRIGGER sd
-# vs. the previous close, a Strong Sell when it is >= +TRIGGER sd, and it
-# moved <= TAKE_PROFIT_MAX_STEP_SD in the last hour (TAKE_PROFIT_STABILITY_SECONDS). The order that
+# |value|, missing beta = 1).
+# Candidate universe (explicit instruction, 2026-10-15, widened from 2.5% to
+# 5% same day): restricted to the "5% portfolio" -- the same RESTRICTED_PCT_4
+# cut modules/backtest.py's entryRuleRestricted4 uses (RecommendationsView.tsx's
+# in25RestrictedPortfolio is still the 2.5% cut -- that one wasn't asked to
+# change) -- i.e. a Strong Buy in the best 5% / Strong Sell in the worst 5%
+# of sorted_screen.csv's own score ranking (that file is already written in
+# ascending-score order by main.py's write_sorted_screen_csv, so this is
+# just the row's own file-order index / n, same as recommendations.py's
+# percentile_by_ticker -- no need to re-sort). Replaces the old "any Strong
+# Buy/Strong Sell" universe, which let a borderline (just-crossed-the-10%-
+# cut) name trigger an entry same as a top-of-book one.
+# Trigger (explicit instruction, 2026-10-15): a BAND, not an open-ended
+# threshold -- a Strong Buy qualifies when the live move is between
+# -ENTRY_TRIGGER_SD_MAX and -ENTRY_TRIGGER_SD_MIN sd vs. the previous
+# close, a Strong Sell between +ENTRY_TRIGGER_SD_MIN and
+# +ENTRY_TRIGGER_SD_MAX. Deliberately decoupled from TAKE_PROFIT_TRIGGER_SD
+# (1.4sd, used for take-profit EXITS only, unchanged) -- a move beyond
+# ENTRY_TRIGGER_SD_MAX is no longer a new-entry candidate here (it's
+# treated as already having run too far, not a fresh setup). The old 1-hour
+# stability test (moved <= TAKE_PROFIT_MAX_STEP_SD in the last hour) is
+# REMOVED for entries (explicit instruction, 2026-10-16: not needed once the
+# trigger itself is a tight band -- take-profit EXITS still use it,
+# unchanged). The order that
 # WOULD be entered is logged at previous close -/+ LIMIT sd (Buy / Sell
 # short); if the price is already beyond that level it rests on the passive
 # quote instead (bid for a Buy, ask for a Sell). Size: see ENTRY_TARGET_PCT /
@@ -1654,18 +1675,31 @@ ENTRY_BETA_BAND = 0.25
 # -ENTRY_BETA_BAND (so inside the band both are allowed, above it only sells,
 # below -band only buys); a BUY is not entered into a sector whose NET weight
 # (signed position value / NetLiquidation, cash equivalents excluded) is above
-# +ENTRY_SECTOR_NET_LIMIT, nor an industry above +ENTRY_INDUSTRY_NET_LIMIT; a
-# SELL is not entered when that sector/industry net weight is below the same
-# limits negated. Sector = modules.sector_groups.get_sector_group(industry),
-# industry = sorted_screen.csv's `sector` column. Existing positions only (the
-# log-only signals never change the account).
-ENTRY_SECTOR_NET_LIMIT = 0.10
-ENTRY_INDUSTRY_NET_LIMIT = 0.05
+# +ENTRY_SECTOR_NET_LIMIT, nor an industry above +ENTRY_INDUSTRY_NET_LIMIT_LONG; a
+# SELL is not entered when that sector net weight is below -ENTRY_SECTOR_NET_LIMIT,
+# nor an industry below -ENTRY_INDUSTRY_NET_LIMIT_SHORT. Sector =
+# modules.sector_groups.get_sector_group(industry), industry = sorted_screen.csv's
+# `sector` column. Existing positions only (the log-only signals never change the
+# account).
+ENTRY_SECTOR_NET_LIMIT = 0.05
+# Industry limit is asymmetric (explicit instruction, 2026-10-15): the short side is
+# tighter than the long side -- a cluster of correlated shorts in one industry (the
+# nuclear/uranium cluster -- VST/CEG/CCJ/LEU -- is what prompted this) is capped more
+# strictly than the same concentration on the long side. Mirrors modules/backtest.py
+# ENTRY_INDUSTRY_NET_LIMIT/_SHORT and modules/portfolio_optimizer.py
+# INDUSTRY_NET_LIMIT/_SHORT.
+ENTRY_INDUSTRY_NET_LIMIT_LONG = 0.05
+ENTRY_INDUSTRY_NET_LIMIT_SHORT = 0.03
 # Theme limit (explicit instruction): same rule per theme of data/ticker_themes.json --
 # no BUY into a theme whose net weight is above +ENTRY_THEME_NET_LIMIT, no SELL into one
 # below -ENTRY_THEME_NET_LIMIT. Multi-theme tickers count fully in each theme; untagged
 # tickers in none. Mirrors modules/backtest.py NET_LIMIT_THEME.
 ENTRY_THEME_NET_LIMIT = 0.05
+# Entry trigger band (explicit instruction, 2026-10-15) -- see the block
+# comment above for why this replaced the old open-ended TAKE_PROFIT_TRIGGER_SD
+# threshold for NEW entries specifically (take-profit exits are unaffected).
+ENTRY_TRIGGER_SD_MIN = 0.2
+ENTRY_TRIGGER_SD_MAX = 0.8
 # Size (explicit instruction, 2026-10-03): the integer number of shares whose
 # value (shares x limit price) is as close as possible to ENTRY_TARGET_PCT of
 # NetLiquidation; no order at all when the price itself is above
@@ -1737,6 +1771,8 @@ def _tp_entry_log(entry):
     except OSError:
         pass
     note = " (beta-blocked)" if entry.get("betaBlocked") else ""
+    if entry.get("industryPair"):
+        note += f" (pairs {entry['industryPair']})"
     _tp_event("entry", f"{entry['action']} {entry['quantity']} {entry['ticker']} LMT {entry['limit']}{note}", order=entry)
 
 
@@ -1766,13 +1802,23 @@ def _tp_entry_scan(now, today, bases, held, cash=frozenset(), busy=frozenset()):
     with lock:
         ticks = {t: dict(last_price_by_ticker.get(t) or {}) for t in set(rows) | set(held)}
         net_liq = _safe_float(account_status.get("NetLiquidation"))
-    screen_betas, held_industry = {}, {}
+    screen_betas, held_industry, pct_by_ticker = {}, {}, {}
     try:  # held tickers are usually not Strong Buy/Sell, so read the whole screen file
         with open(SORTED_SCREEN_CSV, newline="") as f:
-            for r in csv.DictReader(f):
-                if r.get("ticker") in held:
-                    screen_betas[r["ticker"]] = _to_float(r.get("beta"))
-                    held_industry[r["ticker"]] = r.get("sector") or ""
+            all_screen_rows = list(csv.DictReader(f))
+        for r in all_screen_rows:
+            if r.get("ticker") in held:
+                screen_betas[r["ticker"]] = _to_float(r.get("beta"))
+                held_industry[r["ticker"]] = r.get("sector") or ""
+        # The "5% portfolio" entry universe (see the block comment above):
+        # sorted_screen.csv is already written in ascending-score file order
+        # (main.py's write_sorted_screen_csv), so a row's own index among the
+        # scored rows IS its percentile -- same approach as
+        # recommendations.py's percentile_by_ticker, no re-sort needed.
+        scored_screen_rows = [r for r in all_screen_rows if r.get("score") and r.get("ticker")]
+        n_scored = len(scored_screen_rows)
+        if n_scored:
+            pct_by_ticker = {r["ticker"]: i / n_scored for i, r in enumerate(scored_screen_rows)}
     except OSError:
         pass
     if not net_liq or net_liq <= 0:
@@ -1816,10 +1862,16 @@ def _tp_entry_scan(now, today, bases, held, cash=frozenset(), busy=frozenset()):
         if ticker in done or ticker in held or ticker in busy:
             continue  # (busy = IB already has an order for the symbol)
         is_long = row["rating"] == "Strong Buy"
+        pct = pct_by_ticker.get(ticker)
+        if pct is None or (is_long and pct >= RESTRICTED_PCT_4) or (not is_long and pct < 1 - RESTRICTED_PCT_4):
+            continue  # outside the top/bottom 5% of the scored universe -- not a candidate at all
         prev_close, sd = bases[ticker]
         move_sd = (last / prev_close - 1) / sd
-        if (is_long and move_sd > -TAKE_PROFIT_TRIGGER_SD) or (not is_long and move_sd < TAKE_PROFIT_TRIGGER_SD):
-            continue  # not past the trigger: nothing to consider
+        if is_long:
+            if not (-ENTRY_TRIGGER_SD_MAX <= move_sd <= -ENTRY_TRIGGER_SD_MIN):
+                continue  # not inside the entry trigger band
+        elif not (ENTRY_TRIGGER_SD_MIN <= move_sd <= ENTRY_TRIGGER_SD_MAX):
+            continue  # not inside the entry trigger band
         # Past the trigger: from here every skip is logged (once per reason per ticker
         # per day) -- explicit instruction, so the feed shows what is being considered.
         beta_blocked = (is_long and not buy_ok) or (not is_long and not sell_ok)
@@ -1833,8 +1885,9 @@ def _tp_entry_scan(now, today, bases, held, cash=frozenset(), busy=frozenset()):
         reason = None
         if sgn * sec_w > ENTRY_SECTOR_NET_LIMIT:
             reason = f"sector {sg} net {sec_w:+.1%} beyond ±{ENTRY_SECTOR_NET_LIMIT:.0%}"
-        elif sgn * ind_w > ENTRY_INDUSTRY_NET_LIMIT:
-            reason = f"industry {industry} net {ind_w:+.1%} beyond ±{ENTRY_INDUSTRY_NET_LIMIT:.0%}"
+        elif (is_long and ind_w > ENTRY_INDUSTRY_NET_LIMIT_LONG) or (not is_long and ind_w < -ENTRY_INDUSTRY_NET_LIMIT_SHORT):
+            ind_limit = ENTRY_INDUSTRY_NET_LIMIT_LONG if is_long else ENTRY_INDUSTRY_NET_LIMIT_SHORT
+            reason = f"industry {industry} net {ind_w:+.1%} beyond {'+' if is_long else '-'}{ind_limit:.0%}"
         elif any(sgn * theme_net.get(th, 0.0) > ENTRY_THEME_NET_LIMIT for th in cand_themes):
             th = next(th for th in cand_themes if sgn * theme_net.get(th, 0.0) > ENTRY_THEME_NET_LIMIT)
             reason = f"theme {th} net {theme_net[th]:+.1%} beyond ±{ENTRY_THEME_NET_LIMIT:.0%}"
@@ -1845,12 +1898,13 @@ def _tp_entry_scan(now, today, bases, held, cash=frozenset(), busy=frozenset()):
             reason = "blocked by a Recommendations gate (trend / earnings / growth / low vol)"
         elif sim is not None and sgn * sim < 0:
             reason = f"simulation return {sim:+.1%} points the other way"
-        elif prev_check is None:
-            reason = "waiting: no price from 1 hour ago yet (first hour of the session or since the robot started)"
-        else:
-            step_sd = abs(last / prev_check - 1) / sd
-            if step_sd > TAKE_PROFIT_MAX_STEP_SD:
-                reason = f"waiting: not stable, moved {step_sd:.2f}σ in the last hour (max {TAKE_PROFIT_MAX_STEP_SD}σ)"
+        # The 1-hour stability test (removed, explicit instruction 2026-10-16: no
+        # longer needed now that ENTRY_TRIGGER_SD_MIN/MAX is itself a tight band --
+        # a move that's already inside 0.2-0.8σ has little room left to be "still
+        # running," which is what the stability test was guarding against when the
+        # trigger was a wide-open >= 1.4σ threshold) still informs stepSd below,
+        # purely informational now -- it no longer blocks or delays an entry.
+        step_sd = round(abs(last / prev_check - 1) / sd, 2) if prev_check is not None else None
         if reason:
             _tp_entry_note(today, ticker, f"{ticker} ({row['rating']}) {move_sd:+.2f}σ vs prev close -- {reason}")
             continue
@@ -1877,8 +1931,116 @@ def _tp_entry_scan(now, today, bases, held, cash=frozenset(), busy=frozenset()):
                  "rating": row["rating"], "quantity": qty, "limit": limit, "limitBasis": limit_basis,
                  "value": round(qty * limit, 2), "valuePctOfNetLiq": round(qty * limit / net_liq, 4),
                  "prevClose": prev_close, "sd": round(sd, 6), "last": last, "moveSd": round(move_sd, 2),
-                 "stepSd": round(step_sd, 2), "portfolioBeta": None if beta is None else round(beta, 3),
+                 "stepSd": step_sd, "portfolioBeta": None if beta is None else round(beta, 3),
                  "sector": sg, "sectorNet": round(sec_w, 4), "industry": industry, "industryNet": round(ind_w, 4), "betaBlocked": beta_blocked, "sent": False}
+        _tp_entry_log(entry)
+        done[ticker] = entry
+        _tp_write_json(ENTRY_STATE_FILE, {today: done})
+    _tp_industry_pair_scan(now, today, bases, held, ticks, busy, done, net_liq, beta, buy_ok, sell_ok,
+                           held_industry, sector_net, industry_net, theme_net, ticker_themes, rows, pct_by_ticker)
+
+
+# ---- Industry-pairing suggestions: LOG ONLY, never sent -------------------
+# Explicit instruction (2026-10-16): a held position whose industry has NO
+# held position on the OPPOSITE side at all (not a daily-move trigger -- a
+# standing, structural industry imbalance) gets the single BEST-ranked
+# (score percentile, same pct_by_ticker as the main scan) Strong Buy/Strong
+# Sell candidate in that SAME industry on the missing side suggested, to
+# pair/close the industry gap rather than chase a fresh high-conviction
+# idea. Deliberately LOOSER than the main scan (explicit instruction): no
+# 5% score cut, no trigger/stability test, none of
+# _passes_long_gates/_passes_short_gates/sim-return -- the pairing's whole
+# point is risk reduction, not conviction. Only two things can still block
+# it: the portfolio beta band (treated as an ACTUAL gate here, unlike the
+# main scan above where betaBlocked is informational only -- there is
+# nothing else directional restricting this suggestion, so beta has to
+# bind for real), and the sector/industry/theme net-limit checks (so the
+# pairing itself can't push a DIFFERENT bucket past its own cap -- the
+# targeted industry's own limit can never block the corrective direction,
+# since by construction there's no position at all yet on that side).
+# One suggestion per industry gap per scan; shares the main scan's `done`
+# dedup (one signal per ticker per day) and its sizing/limit-price
+# convention (ENTRY_TARGET_PCT/_MAX_PRICE_PCT, TAKE_PROFIT_LIMIT_SD offset
+# or bid/ask passive quote). No fallback to the second-best candidate if
+# the best one is blocked -- it's simply reconsidered (and re-logged as
+# "considered") next scan, same as every other skip reason in this file.
+def _tp_industry_pair_scan(now, today, bases, held, ticks, busy, done, net_liq, beta, buy_ok, sell_ok,
+                            held_industry, sector_net, industry_net, theme_net, ticker_themes, rows, pct_by_ticker):
+    held_sides = {}  # {industry: {"long": bool, "short": bool}} from HELD tickers only
+    for t, shares in held.items():
+        ind = held_industry.get(t)
+        if not ind:
+            continue
+        held_sides.setdefault(ind, {"long": False, "short": False})["long" if shares > 0 else "short"] = True
+    for industry, sides in sorted(held_sides.items()):
+        if sides["long"] == sides["short"]:
+            continue  # already paired (or, impossible here, neither) -- no gap
+        is_long = not sides["long"]  # missing side is the one to open
+        rating_wanted = "Strong Buy" if is_long else "Strong Sell"
+        candidates = [r for t, r in rows.items()
+                      if (r.get("sector") or "") == industry and r.get("rating") == rating_wanted
+                      and t not in held and t not in busy]
+        if not candidates:
+            continue
+
+        def _rank(r):
+            p = pct_by_ticker.get(r["ticker"])
+            return p if p is not None else (2.0 if is_long else -1.0)  # unranked sorts last either way
+
+        candidates.sort(key=_rank, reverse=not is_long)
+        ticker = candidates[0]["ticker"]
+        if ticker in done:
+            continue
+        row = candidates[0]
+        tick = ticks.get(ticker) or {}
+        last = _safe_float(tick.get("last"))
+        if not last or not str(tick.get("timestamp") or "").startswith(today) or ticker not in bases:
+            continue
+        beta_blocked = (is_long and not buy_ok) or (not is_long and not sell_ok)
+        sg = get_sector_group(industry)
+        sec_w, ind_w = sector_net.get(sg, 0.0), industry_net.get(industry, 0.0)
+        cand_themes = ticker_themes.get(ticker, [])
+        sgn = 1 if is_long else -1
+        reason = None
+        if sgn * sec_w > ENTRY_SECTOR_NET_LIMIT:
+            reason = f"sector {sg} net {sec_w:+.1%} beyond ±{ENTRY_SECTOR_NET_LIMIT:.0%}"
+        elif (is_long and ind_w > ENTRY_INDUSTRY_NET_LIMIT_LONG) or (not is_long and ind_w < -ENTRY_INDUSTRY_NET_LIMIT_SHORT):
+            ind_limit = ENTRY_INDUSTRY_NET_LIMIT_LONG if is_long else ENTRY_INDUSTRY_NET_LIMIT_SHORT
+            reason = f"industry {industry} net {ind_w:+.1%} beyond {'+' if is_long else '-'}{ind_limit:.0%}"
+        elif any(sgn * theme_net.get(th, 0.0) > ENTRY_THEME_NET_LIMIT for th in cand_themes):
+            th = next(th for th in cand_themes if sgn * theme_net.get(th, 0.0) > ENTRY_THEME_NET_LIMIT)
+            reason = f"theme {th} net {theme_net[th]:+.1%} beyond ±{ENTRY_THEME_NET_LIMIT:.0%}"
+        elif beta_blocked:
+            reason = f"portfolio beta {beta:+.2f} blocks a new {'long' if is_long else 'short'}"
+        if reason:
+            _tp_entry_note(today, ticker, f"{ticker} ({row['rating']}) pairs {industry} -- {reason}")
+            continue
+        prev_close, sd = bases[ticker]
+        side = 1 if is_long else -1
+        raw_limit = prev_close * (1 - side * TAKE_PROFIT_LIMIT_SD * sd)
+        limit_basis = f"{TAKE_PROFIT_LIMIT_SD}sd"
+        if side * (last - raw_limit) <= 0:
+            quote = _safe_float(tick.get("bid" if is_long else "ask"))
+            raw_limit = quote if quote and quote > 0 else last
+            limit_basis = "bid" if is_long else "ask"
+        limit = round(raw_limit, 2) if raw_limit >= 1 else round(raw_limit, 4)
+        if limit <= 0:
+            continue
+        if limit > net_liq * ENTRY_MAX_PRICE_PCT:
+            done[ticker] = {"time": now.isoformat(timespec="seconds"), "skipped": "price above max"}
+            _tp_write_json(ENTRY_STATE_FILE, {today: done})
+            _tp_event("entry_skip", f"{ticker}: price {limit} is above {ENTRY_MAX_PRICE_PCT:.0%} of net liquidation "
+                                    f"({net_liq * ENTRY_MAX_PRICE_PCT:,.0f}) -- no order")
+            continue
+        target = net_liq * ENTRY_TARGET_PCT
+        qty = max(1, int(target / limit + 0.5))
+        entry = {"time": now.isoformat(timespec="seconds"), "ticker": ticker, "action": "BUY" if is_long else "SELL",
+                 "rating": row["rating"], "quantity": qty, "limit": limit, "limitBasis": limit_basis,
+                 "value": round(qty * limit, 2), "valuePctOfNetLiq": round(qty * limit / net_liq, 4),
+                 "prevClose": prev_close, "sd": round(sd, 6), "last": last, "moveSd": None, "stepSd": None,
+                 "portfolioBeta": None if beta is None else round(beta, 3),
+                 "sector": sg, "sectorNet": round(sec_w, 4), "industry": industry, "industryNet": round(ind_w, 4),
+                 "betaBlocked": beta_blocked, "industryPair": industry, "sent": False}
         _tp_entry_log(entry)
         done[ticker] = entry
         _tp_write_json(ENTRY_STATE_FILE, {today: done})

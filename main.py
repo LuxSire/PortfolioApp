@@ -419,6 +419,7 @@ from modules.eulerpool import (
     FAIR_VALUE_FILE,
     FORWARD_EPS_FILE,
     GRADES_FILE,
+    REIT_FFO_FILE,
     REVENUE_ESTIMATES_FILE,
     SHORT_VOLUME_FILE,
     TRANSCRIPTS_FILE,
@@ -426,6 +427,7 @@ from modules.eulerpool import (
     fetch_eps_estimates,
     fetch_fair_values,
     fetch_forward_eps,
+    fetch_reit_ffo,
     fetch_short_volume,
     fetch_transcripts,
 )
@@ -605,6 +607,9 @@ FIELDNAMES = [
     # 10-day Trend Score (derive.reconcile_trend) -- an ENTRY FILTER only,
     # not scored: no new long at <= 30, no new short at >= 70.
     "trend",
+    # Equity REITs only (derive.reconcile_reit_ffo): "FFO" when forwardEps/trailingEps/
+    # earningsGrowth/epsVolatility are on a FFO-per-share basis, and the trailing FFO/share.
+    "earningsBasis", "ffoPerShare",
 ]
 # FINRA biweekly short-interest figures (finra.SHORT_INTEREST_FILE +
 # raw_data.json floatShares, via scoring.load_short_interest_scores) -- the
@@ -1205,7 +1210,42 @@ def _prune_inactive_tickers(bars_dict, keep_extra=()):
     many tickers this actually dropped, so a prune is visible in the
     logs, not silent."""
     keep = set(load_tickers(SYMBOLS_FILE)) | set(keep_extra)
+    dropped = {t: v for t, v in bars_dict.items() if t not in keep and v}
+    if dropped:
+        _archive_inactive_bars(dropped)
     return {t: v for t, v in bars_dict.items() if t in keep}
+
+
+def _inactive_archive_path(history_file):
+    """data/IB/price_history_daily_3mo.json -> .../price_history_daily_3mo_inactive.json"""
+    return history_file[:-5] + "_inactive.json"
+
+
+def _archive_inactive_bars(dropped):
+    """Explicit instruction: deactivating a ticker must not erase its past from the backtest
+    (an acquired or delisted stock that was rated in an earlier week would otherwise vanish
+    from that week, hiding its real gain or loss -- survivorship bias). The bars a prune
+    removes from the live price files are merged BY DATE into <file>_inactive.json instead,
+    which modules.backtest reads alongside the live file. Daily vs hourly is told apart by
+    the bar timestamp (daily bars are stamped at midnight)."""
+    by_file = {}
+    for ticker, bars in dropped.items():
+        hourly = not str(bars[0].get("date", "")).endswith("00:00:00")
+        by_file.setdefault(HOURLY_HISTORY_FILE if hourly else DAILY_3MO_HISTORY_FILE, {})[ticker] = bars
+    for history_file, tickers in by_file.items():
+        path = _inactive_archive_path(history_file)
+        try:
+            with open(path) as f:
+                archive = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
+            archive = {}
+        for ticker, bars in tickers.items():
+            merged = {b["date"]: b for b in archive.get(ticker, [])}
+            merged.update({b["date"]: b for b in bars})
+            archive[ticker] = [merged[d] for d in sorted(merged)]
+        with open(path, "w") as f:
+            json.dump(archive, f)
+        print(f"archived {len(tickers)} inactive ticker(s) to {path}")
 
 
 async def download_ib_daily_history(app, tickers):
@@ -1768,6 +1808,9 @@ def recalc(fresh_momentum=False, force_prices=False):
     derive.reconcile_forward_eps(
         data, _load_json_or_empty(FORWARD_EPS_FILE), _load_json_or_empty(REVENUE_ESTIMATES_FILE), _xbrl
     )
+    # Equity REITs: FFO per share replaces GAAP EPS as the earnings basis
+    # (see derive.reconcile_reit_ffo) -- after forwardEps is final, before PEG.
+    derive.reconcile_reit_ffo(data, _load_json_or_empty(REIT_FFO_FILE))
     # Needs forwardEps (just reconciled above) and earningsGrowth (reconciled
     # earlier by reconcile_earnings_growth) -- must run after both.
     derive.reconcile_peg_ratio(data)
@@ -2254,6 +2297,20 @@ def download_eulerpool():
     fetch_forward_eps(tickers, out_file=FORWARD_EPS_FILE)
     fetch_short_volume(tickers, out_file=SHORT_VOLUME_FILE)
     fetch_eps_estimates(tickers, out_file=EPS_ESTIMATES_FILE, revenue_out_file=REVENUE_ESTIMATES_FILE)
+    # Approximate FFO per share for the equity REITs (net income + D&A) -- explicit
+    # instruction, see derive.reconcile_reit_ffo.
+    reit_tickers = _equity_reit_tickers()
+    if reit_tickers:
+        fetch_reit_ffo(reit_tickers, out_file=REIT_FFO_FILE)
+
+
+def _equity_reit_tickers():
+    """Equity REITs (sorted_screen.csv sector 'REIT - *', not Mortgage)."""
+    try:
+        with open(SORTED_SCREEN_CSV, newline="") as f:
+            return sorted(r["ticker"] for r in csv.DictReader(f) if derive.is_equity_reit(r.get("sector")))
+    except OSError:
+        return []
 
 
 def download_eulerpool_eps():

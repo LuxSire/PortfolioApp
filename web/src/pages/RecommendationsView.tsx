@@ -146,28 +146,31 @@ function percentileLabel(c: Candidate): string | null {
 }
 
 // Bottom row of every card (RecommendationCard/CloseCard/RejectedCard) --
-// GICS sector on the left, percentile badge on the right, explicit
-// instruction to put them on the same line. c.sector is actually the
-// GRANULAR industry (e.g. "Banks - Regional" -- Yahoo's own "industry"
-// field, confusingly named "sector" throughout this app's data -- see
-// scoring.py's own module docstring on that naming); getSectorGroup maps
-// it up to the 11 broad GICS-style sectors (e.g. "Financial Services",
-// shown short as "Financials" via sectorGroupLabel), same mapping the
-// Rating Breakdown table's own sector rows use -- the industry itself
-// stays in .recommendation-card-stats (see RecommendationCard/
-// RejectedCard), unmoved. The screener percentile used to only show up
-// buried as the first line of the rationale bullet list
-// (RecommendationCard/CloseCard only, not RejectedCard at all, which has
-// no rationale list), so it took reading past the header to see where a
-// ticker actually sits in sorted_screen.csv. title carries the same full
-// "Top/Bottom X% of the ranked universe" sentence percentileLabel already
-// writes; the badge itself just shows the bare number, compact enough for
-// a corner. Renders nothing only when BOTH sector and percentile are
-// missing -- either alone is still worth a footer.
+// sector/industry stacked on the LEFT, percentile badge on the right
+// (explicit instruction: the industry used to sit in
+// .recommendation-card-stats next to Price, crowding that line; moved down
+// here instead, stacked directly below the broad sector, bottom left).
+// c.sector is actually the GRANULAR industry (e.g. "Banks -
+// Regional" -- Yahoo's own "industry" field, confusingly named "sector"
+// throughout this app's data -- see scoring.py's own module docstring on
+// that naming); getSectorGroup maps it up to the 11 broad GICS-style sectors
+// (e.g. "Financial Services", shown short as "Financials" via
+// sectorGroupLabel), same mapping the Rating Breakdown table's own sector
+// rows use. The screener percentile used to only show up buried as the
+// first line of the rationale bullet list (RecommendationCard/CloseCard
+// only, not RejectedCard at all, which has no rationale list), so it took
+// reading past the header to see where a ticker actually sits in
+// sorted_screen.csv. title carries the same full "Top/Bottom X% of the
+// ranked universe" sentence percentileLabel already writes; the badge
+// itself just shows the bare number, compact enough for a corner. Renders
+// nothing only when BOTH sector and percentile are missing -- either alone
+// is still worth a footer.
 // inTargetPortfolio (see recommendation-card-target-portfolio's own CSS
-// comment) stacks a "Target portfolio" label directly above the percentile
-// badge on the right -- explicit instruction: bottom right, above the
-// percentile, rather than another header badge alongside "In portfolio."
+// comment) stacks a "2.5% portfolio" label directly above the percentile
+// badge -- explicit instruction: bottom right, above the percentile, rather
+// than another header badge alongside "In portfolio." Label text updated
+// (was "Target portfolio") when the underlying flag switched from
+// target_portfolio.json's optimizer picks to in25RestrictedPortfolio.
 function CardFooter({ c, inTargetPortfolio }: { c: Candidate; inTargetPortfolio?: boolean }) {
   const hasPercentile = c.scorePercentile !== null && c.scorePercentile !== undefined
   if (!hasPercentile && !c.sector && !inTargetPortfolio) return null
@@ -175,9 +178,14 @@ function CardFooter({ c, inTargetPortfolio }: { c: Candidate; inTargetPortfolio?
   const sectorGroup = c.sector ? sectorGroupLabel(getSectorGroup(c.sector)) : null
   return (
     <div className="recommendation-card-footer">
-      <span className="recommendation-sector-label">{sectorGroup || '—'}</span>
+      {(sectorGroup || c.sector) && (
+        <span className="recommendation-sector-industry">
+          <span className="recommendation-sector-label">{sectorGroup || '—'}</span>
+          {c.sector && <span className="recommendation-industry-label">{c.sector}</span>}
+        </span>
+      )}
       <span className="recommendation-footer-right">
-        {inTargetPortfolio && <span className="recommendation-target-portfolio-label">Target portfolio</span>}
+        {inTargetPortfolio && <span className="recommendation-target-portfolio-label">2.5% portfolio</span>}
         {hasPercentile && (
           <span className="recommendation-percentile-badge" title={label ?? undefined}>
             {(c.scorePercentile as number).toFixed(1)}%
@@ -429,7 +437,10 @@ function fwdPeExpLine(c: Candidate): RationaleLine | null {
   if (typeof c.price !== 'number' || typeof c.forwardEps !== 'number') return null
   const impliedFwdPEText =
     c.forwardEps > c.price * IMPLIED_PE_MIN_EPS_FRACTION ? (c.price / c.forwardEps).toFixed(1) : 'N/M'
-  return { text: `Fwd PE ${c.forwardPE.toFixed(1)} (exp ${impliedFwdPEText})`, signal: null }
+  // Equity REITs: forwardEps is forward FFO per share (modules/derive.reconcile_reit_ffo), so the
+  // multiple is P/FFO, not P/E.
+  const label = c.earningsBasis === 'FFO' ? 'Fwd P/FFO' : 'Fwd PE'
+  return { text: `${label} ${c.forwardPE.toFixed(1)} (exp ${impliedFwdPEText})`, signal: null }
 }
 
 // momentum is now the next-day Reversal Score (modules.derive.
@@ -1148,16 +1159,17 @@ function RecommendationCard({
   if (earningsLine) lines.push(earningsLine)
   const earningsMomLine = earningsMomentumLine(c, side, dailyHistory3mo[c.ticker], monthlyHistory[c.ticker], now)
   if (earningsMomLine) lines.push(earningsMomLine)
-  // In the target portfolio on THIS side (see target_portfolio.json's own
-  // longs/shorts -- modules/portfolio_optimizer.py's final selected picks,
-  // not just the pool that feeds the "Optimizer pool" rationale line above)
-  // -- explicit instruction: reuse the same decisive dark green
-  // recommendation-card-goodsign already uses for a held Short-overbought/
-  // Long-oversold "good sign" card. Standalone class (not compounded with
-  // -held like -goodsign is) since a target-portfolio pick need not already
-  // be an open position -- see its own CSS comment for why it still wins
-  // over the plain -held brown when a card happens to be both.
-  const inTargetPortfolio = c.targetPortfolioSide === side
+  // In the "2.5% portfolio" -- modules/backtest.py's RESTRICTED_PCT_2 cut,
+  // see in25RestrictedPortfolio's own comment -- not the optimizer's
+  // target_portfolio.json 30/30 picks this used to key off (explicit
+  // instruction: switched to the same logic the Backtesting page uses).
+  // Reuses the same decisive dark green recommendation-card-goodsign
+  // already uses for a held Short-overbought/Long-oversold "good sign"
+  // card. Standalone class (not compounded with -held like -goodsign is)
+  // since this need not already be an open position -- see its own CSS
+  // comment for why it still wins over the plain -held brown when a card
+  // happens to be both.
+  const inTargetPortfolio = !!c.in25Portfolio
   return (
     <div
       className={`asset-card recommendation-card${held ? ' recommendation-card-held-portfolio' : ''}${inTargetPortfolio ? ' recommendation-card-target-portfolio' : ''}`}
@@ -1183,9 +1195,6 @@ function RecommendationCard({
 
       <div className="recommendation-card-stats">
         <PriceStat c={c} live={live} dailyHistory3mo={dailyHistory3mo} monthlyHistory={monthlyHistory} hideLabel side={side} held={held} />
-        <div className="stat">
-          <span className="n num sector-value">{c.sector || '—'}</span>
-        </div>
       </div>
 
       <ThumbCounts lines={lines} />
@@ -1230,13 +1239,14 @@ function CloseCard({
 }) {
   const lines = rationaleLines(c, c.closeSide)
   const factors = useScoringFactors()
-  // Same target-portfolio dark-green treatment RecommendationCard applies --
-  // see recommendation-card-target-portfolio's own CSS comment for why it's
-  // a standalone class that outranks the plain -held brown (and, tied on
-  // specificity but defined later in source, -goodsign/-badsign too: the
-  // optimizer's own current pick is a stronger, more actionable read than a
+  // Same "2.5% portfolio" dark-green treatment RecommendationCard applies --
+  // see in25RestrictedPortfolio's own comment for the logic and
+  // recommendation-card-target-portfolio's own CSS comment for why it's a
+  // standalone class that outranks the plain -held brown (and, tied on
+  // specificity but defined later in source, -goodsign/-badsign too: a
+  // top-2.5%-and-ungated pick is a stronger, more actionable read than a
   // held position's Trend-extreme condition alone).
-  const inTargetPortfolio = c.targetPortfolioSide === c.closeSide
+  const inTargetPortfolio = !!c.in25Portfolio
   return (
     <div
       className={`asset-card recommendation-card recommendation-card-held${goodSign ? ' recommendation-card-goodsign' : ''}${badSign ? ' recommendation-card-badsign' : ''}${inTargetPortfolio ? ' recommendation-card-target-portfolio' : ''}`}
@@ -1356,9 +1366,6 @@ function RejectedCard({
 
       <div className="recommendation-card-stats">
         <PriceStat c={c} live={live} dailyHistory3mo={dailyHistory3mo} monthlyHistory={monthlyHistory} hideLabel side={side} held={held} />
-        <div className="stat">
-          <span className="n num sector-value">{c.sector || '—'}</span>
-        </div>
       </div>
 
       <ul className="recommendation-close-reasons">
@@ -1676,6 +1683,54 @@ function simReturnOkForLong(simReturn: number | null | undefined): boolean {
 }
 function simReturnOkForShort(simReturn: number | null | undefined): boolean {
   return simReturn === null || simReturn === undefined || simReturn <= 0
+}
+
+// The live mirror of modules/backtest.py's RESTRICTED_PCT_2 (0.025) --
+// "2.5% portfolio" membership: a Strong Buy/Strong Sell candidate that
+// both clears the same opening gates as the Long/Short idea lists
+// (dailyMoveBlocks/trendBlocks/earningsBlocksEntry/lowVolBlocksEntry/
+// simReturnOkFor*, plus the short-only growth gate) AND sits in the best/
+// worst 2.5% of the scored universe (scorePercentile, 0=best..100=worst,
+// same units backtest.py's pct uses *100) -- the live equivalent of
+// backtest.py's long_strong_buy_restricted_2/short_strong_sell_restricted_2
+// groups, neither of which apply the sector/theme/style portfolio-limit
+// overlay either (that overlay only trims the simulated weekly return, not
+// group membership -- see backtest.py's by_group construction). Drives
+// in25Portfolio on the candidate object, which replaced
+// targetPortfolioSide (data/output/target_portfolio.json's 30/30 optimizer
+// picks) as the dark-green "decisive" card treatment -- explicit
+// instruction.
+const RESTRICTED_PCT_2 = 2.5
+function in25RestrictedPortfolio(
+  side: 'Long' | 'Short',
+  rating: string | null | undefined,
+  scorePercentile: number | null | undefined,
+  screener:
+    | {
+        trend?: number | null
+        earningsTimestampStart?: number | null
+        priceVolAnnualized?: number | null
+        revenueGrowth?: number | null
+        eulerRevGrowth1y?: number | null
+      }
+    | undefined,
+  dailyMove: DailyMove | null | undefined,
+  simReturn: number | null | undefined,
+  now: number
+): boolean {
+  if (scorePercentile === null || scorePercentile === undefined) return false
+  if (side === 'Long') {
+    if (rating !== 'Strong Buy' || scorePercentile >= RESTRICTED_PCT_2) return false
+  } else {
+    if (rating !== 'Strong Sell' || scorePercentile < 100 - RESTRICTED_PCT_2) return false
+  }
+  if (dailyMoveBlocks(dailyMove, side)) return false
+  if (trendBlocks(screener?.trend, side)) return false
+  if (earningsBlocksEntry(screener?.earningsTimestampStart, now)) return false
+  if (lowVolBlocksEntry(screener?.priceVolAnnualized)) return false
+  if (side === 'Short' && shortGrowthBlocksEntry({ revenueGrowth: screener?.revenueGrowth, eulerRevGrowth1y: screener?.eulerRevGrowth1y } as Candidate)) return false
+  if (side === 'Long' ? !simReturnOkForLong(simReturn) : !simReturnOkForShort(simReturn)) return false
+  return true
 }
 
 // Short-term mean-reversion gate on the idea lists (mirrors the growth gate
@@ -2451,6 +2506,7 @@ export default function RecommendationsView() {
             heldPercentInsiders: row.heldPercentInsiders ? Number(row.heldPercentInsiders) : null,
             forwardPE: row.forwardPE ? Number(row.forwardPE) : null,
             forwardEps: row.forwardEps ? Number(row.forwardEps) : null,
+            earningsBasis: row.earningsBasis || null,
             shortIntRank: shortIntRanks.get(row.ticker) ?? null,
             analystConsensus: row.analystConsensus ? Number(row.analystConsensus) : null,
             epsRevision0y: row.epsRevision0y ? Number(row.epsRevision0y) : null,
@@ -2609,12 +2665,22 @@ export default function RecommendationsView() {
           heldPercentInsiders: tickerScreener[c.ticker]?.heldPercentInsiders,
           forwardPE: tickerScreener[c.ticker]?.forwardPE,
           forwardEps: tickerScreener[c.ticker]?.forwardEps,
+          earningsBasis: tickerScreener[c.ticker]?.earningsBasis,
           shortIntRank: tickerScreener[c.ticker]?.shortIntRank,
           analystConsensus: tickerScreener[c.ticker]?.analystConsensus,
           forecastReturn: tickerForecast[c.ticker] ?? null,
           simReturn: tickerSimPerf[c.ticker]?.simReturn ?? null,
           simSharpe: tickerSimPerf[c.ticker]?.simSharpe ?? null,
           targetPortfolioSide: tickerTargetSide[c.ticker] ?? null,
+          in25Portfolio: in25RestrictedPortfolio(
+            'Long',
+            c.rating,
+            c.scorePercentile,
+            tickerScreener[c.ticker],
+            moveByTicker[c.ticker],
+            tickerSimPerf[c.ticker]?.simReturn,
+            now
+          ),
           targetPoolSide: targetPool?.side ?? null,
           targetPoolRank: targetPool?.rank ?? null,
           targetPoolSize: targetPool?.size ?? null,
@@ -2666,12 +2732,22 @@ export default function RecommendationsView() {
           heldPercentInsiders: tickerScreener[c.ticker]?.heldPercentInsiders,
           forwardPE: tickerScreener[c.ticker]?.forwardPE,
           forwardEps: tickerScreener[c.ticker]?.forwardEps,
+          earningsBasis: tickerScreener[c.ticker]?.earningsBasis,
           shortIntRank: tickerScreener[c.ticker]?.shortIntRank,
           analystConsensus: tickerScreener[c.ticker]?.analystConsensus,
           forecastReturn: tickerForecast[c.ticker] ?? null,
           simReturn: tickerSimPerf[c.ticker]?.simReturn ?? null,
           simSharpe: tickerSimPerf[c.ticker]?.simSharpe ?? null,
           targetPortfolioSide: tickerTargetSide[c.ticker] ?? null,
+          in25Portfolio: in25RestrictedPortfolio(
+            'Short',
+            c.rating,
+            c.scorePercentile,
+            tickerScreener[c.ticker],
+            moveByTicker[c.ticker],
+            tickerSimPerf[c.ticker]?.simReturn,
+            now
+          ),
           targetPoolSide: targetPool?.side ?? null,
           targetPoolRank: targetPool?.rank ?? null,
           targetPoolSize: targetPool?.size ?? null,
@@ -2732,25 +2808,38 @@ export default function RecommendationsView() {
     const rows: { ticker: string; shares: number; c: Candidate }[] = []
     for (const [ticker, p] of Object.entries(positions)) {
       if (!p?.shares || cashTickers.has(ticker)) continue
+      const side: 'Long' | 'Short' = p.shares > 0 ? 'Long' : 'Short'
+      const merged: Candidate = {
+        ...byTicker.get(ticker),
+        ...tickerScreener[ticker],
+        ticker,
+        forecastReturn: tickerForecast[ticker] ?? null,
+        simReturn: tickerSimPerf[ticker]?.simReturn ?? null,
+        simSharpe: tickerSimPerf[ticker]?.simSharpe ?? null,
+        targetPortfolioSide: tickerTargetSide[ticker] ?? null,
+        targetPoolSide: tickerTargetPool[ticker]?.side ?? null,
+        targetPoolRank: tickerTargetPool[ticker]?.rank ?? null,
+        targetPoolSize: tickerTargetPool[ticker]?.size ?? null,
+      }
       rows.push({
         ticker,
         shares: p.shares,
         c: {
-          ...byTicker.get(ticker),
-          ...tickerScreener[ticker],
-          ticker,
-          forecastReturn: tickerForecast[ticker] ?? null,
-          simReturn: tickerSimPerf[ticker]?.simReturn ?? null,
-          simSharpe: tickerSimPerf[ticker]?.simSharpe ?? null,
-          targetPortfolioSide: tickerTargetSide[ticker] ?? null,
-          targetPoolSide: tickerTargetPool[ticker]?.side ?? null,
-          targetPoolRank: tickerTargetPool[ticker]?.rank ?? null,
-          targetPoolSize: tickerTargetPool[ticker]?.size ?? null,
+          ...merged,
+          in25Portfolio: in25RestrictedPortfolio(
+            side,
+            merged.rating,
+            merged.scorePercentile,
+            merged,
+            moveByTicker[ticker],
+            merged.simReturn,
+            now
+          ),
         },
       })
     }
     return rows
-  }, [positions, tickerScreener, byTicker, tickerForecast, tickerTargetSide, tickerTargetPool, cashTickers])
+  }, [positions, tickerScreener, byTicker, tickerForecast, tickerTargetSide, tickerTargetPool, cashTickers, moveByTicker, now])
 
   const closes: CloseRow[] = useMemo(() => {
     const rows: CloseRow[] = []
@@ -2945,6 +3034,19 @@ export default function RecommendationsView() {
         targetPoolSize: tickerTargetPool[raw.ticker]?.size ?? null,
       }
       if (c.rating !== 'Strong Buy' && c.rating !== 'Strong Sell') continue
+      // Always false here by construction (every row below fails at least
+      // one gate, see reasons.length check) -- computed anyway, via the
+      // same helper longs/shorts/heldMerged use, rather than hardcoded, so
+      // this can't silently drift out of sync with in25RestrictedPortfolio.
+      c.in25Portfolio = in25RestrictedPortfolio(
+        c.rating === 'Strong Buy' ? 'Long' : 'Short',
+        c.rating,
+        c.scorePercentile,
+        tickerScreener[raw.ticker],
+        moveByTicker[raw.ticker],
+        c.simReturn,
+        now
+      )
       const reasons = buildRejectionReasons({ c, tickerScreener, now, dailyMove: moveByTicker[raw.ticker] })
       if (reasons.length === 0) continue
       rows.push({ ...c, reasons })

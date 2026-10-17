@@ -67,8 +67,11 @@ ALGORITHM
 
 4b. NET SECTOR / INDUSTRY LIMITS (same limits as the trading robot's new entries)
    The two legs are optimised independently, so afterwards no broad sector group
-   may exceed +/-SECTOR_NET_LIMIT (10 %) and no industry +/-INDUSTRY_NET_LIMIT (5 %)
-   in NET weight (long legs positive, short legs negative, each leg 100 % gross).
+   may exceed +/-SECTOR_NET_LIMIT (5 %) in NET weight (long legs positive, short legs
+   negative, each leg 100 % gross). Industry is ASYMMETRIC (explicit instruction,
+   2026-10-15): +/-INDUSTRY_NET_LIMIT (5 %) on the long side, +/-INDUSTRY_NET_LIMIT_SHORT
+   (3 %, tighter) on the short side -- a cluster of correlated shorts in one industry
+   is capped more strictly than the same concentration on the long side.
    _enforce_net_limits repeatedly applies the swap -- one held name out, the best
    unselected candidate of the same side in -- that cuts the total excess most
    (smallest composite-score loss on ties) until both limits hold or no swap helps;
@@ -122,11 +125,15 @@ BETA_CAP   = 2.0    # clamp high-beta stocks: prevents extreme vol estimates
 # vol(i) = clamp(|beta_i|, BETA_FLOOR, BETA_CAP) × MARKET_VOL  → range [15%, 40%]
 SECTOR_CORR = 0.65     # same-sector correlation floor (anti-concentration)
 # Net concentration limits -- the SAME limits the trading robot applies to new entries
-# (ib_server.py ENTRY_SECTOR_NET_LIMIT / ENTRY_INDUSTRY_NET_LIMIT, backtest.py): the net
-# weight (long legs positive, short legs negative, each leg 100% gross) of one broad
-# sector group may not exceed +/-10 % and of one industry +/-5 %.
-SECTOR_NET_LIMIT = 0.10
-INDUSTRY_NET_LIMIT = 0.05
+# (ib_server.py ENTRY_SECTOR_NET_LIMIT / ENTRY_INDUSTRY_NET_LIMIT_LONG/_SHORT,
+# backtest.py): the net weight (long legs positive, short legs negative, each leg 100%
+# gross) of one broad sector group may not exceed +/-5%. Industry is ASYMMETRIC
+# (explicit instruction, 2026-10-15): +/-5% on the long side, +/-3% (tighter) on the
+# short side -- a cluster of correlated shorts in one industry is capped more
+# strictly than the same concentration on the long side.
+SECTOR_NET_LIMIT = 0.05
+INDUSTRY_NET_LIMIT = 0.05        # long side
+INDUSTRY_NET_LIMIT_SHORT = 0.03  # short side
 _NET_EPS = 1e-9
 _MAX_REPAIR_STEPS = 400
 CANDIDATE_POOL = 160   # top N pre-screened per side before the greedy pass
@@ -639,23 +646,30 @@ def _style_tilt(longs, shorts):
     return leg_tilt([c.get("ticker") for c in longs], [c.get("ticker") for c in shorts], _STYLES)
 
 
+def _industry_limit(v):
+    """The long-side limit for a net-long industry (v >= 0), the tighter short-side
+    limit for a net-short one -- see INDUSTRY_NET_LIMIT/_SHORT's own comment."""
+    return INDUSTRY_NET_LIMIT if v >= 0 else INDUSTRY_NET_LIMIT_SHORT
+
+
 def _net_excess(longs, shorts):
     """Total amount by which any industry / sector group's |net weight| exceeds its
-    limit, plus the Defensive vs Growth tilt beyond STYLE_TILT_LIMIT (0 when the
-    portfolio respects every limit)."""
+    limit (industry's own limit is asymmetric, see _industry_limit), plus the
+    Defensive vs Growth tilt beyond STYLE_TILT_LIMIT (0 when the portfolio respects
+    every limit)."""
     from modules.styles import STYLE_TILT_LIMIT
     ind, sec = _net_by_group(longs, shorts)
     return (
-        sum(max(0.0, abs(v) - INDUSTRY_NET_LIMIT - _NET_EPS) for v in ind.values())
+        sum(max(0.0, abs(v) - _industry_limit(v) - _NET_EPS) for v in ind.values())
         + sum(max(0.0, abs(v) - SECTOR_NET_LIMIT - _NET_EPS) for v in sec.values())
         + max(0.0, abs(_style_tilt(longs, shorts)) - STYLE_TILT_LIMIT - _NET_EPS)
     )
 
 
 def _enforce_net_limits(longs, shorts, long_pool, short_pool):
-    """Repairs the two independently optimised legs so that no industry exceeds
-    +/-INDUSTRY_NET_LIMIT and no sector group +/-SECTOR_NET_LIMIT in net weight.
-    Repeatedly applies the single swap -- drop one held name, bring in the best
+    """Repairs the two independently optimised legs so that no industry exceeds its
+    (asymmetric -- see _industry_limit) limit and no sector group +/-SECTOR_NET_LIMIT
+    in net weight. Repeatedly applies the single swap -- drop one held name, bring in the best
     unselected candidate of the SAME side from that side's pool -- that reduces the
     total excess most, breaking ties by the smallest loss of composite score. A
     swapped-in name has no alternates (it was not chosen by the Sharpe search).
@@ -691,7 +705,7 @@ def _enforce_net_limits(longs, shorts, long_pool, short_pool):
         inn["netLimitSwap"] = True  # brought in to respect the net sector/industry limits
         swaps += 1
     ind, sec = _net_by_group(sel["Long"], sel["Short"])
-    violations = [{"level": "industry", "name": k, "net": round(v, 4)} for k, v in ind.items() if abs(v) > INDUSTRY_NET_LIMIT + _NET_EPS]
+    violations = [{"level": "industry", "name": k, "net": round(v, 4)} for k, v in ind.items() if abs(v) > _industry_limit(v) + _NET_EPS]
     violations += [{"level": "sector", "name": k, "net": round(v, 4)} for k, v in sec.items() if abs(v) > SECTOR_NET_LIMIT + _NET_EPS]
     from modules.styles import STYLE_TILT_LIMIT
     tilt = _style_tilt(sel["Long"], sel["Short"])
@@ -931,7 +945,13 @@ def build_target_portfolio(rec_file, sim_file, exclude_groups=None):
     stats = {
         "portfolioReturn": None, "portfolioVol": None, "sharpe": None, "sortino": None,
         "long": _leg_stats(longs, 1.0), "short": _leg_stats(shorts, -1.0),
-        "netLimits": {"sector": SECTOR_NET_LIMIT, "industry": INDUSTRY_NET_LIMIT, "swaps": limit_swaps, "violations": limit_violations},
+        "netLimits": {
+            "sector": SECTOR_NET_LIMIT,
+            "industry": INDUSTRY_NET_LIMIT,
+            "industryShort": INDUSTRY_NET_LIMIT_SHORT,
+            "swaps": limit_swaps,
+            "violations": limit_violations,
+        },
     }
     if all_pos:
         n = len(all_pos)

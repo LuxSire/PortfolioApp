@@ -193,6 +193,13 @@ export interface PortfolioVolResult {
   cvolByTicker: Map<string, number>
   covered: number
   total: number
+  // Historical (empirical) 1-day VaR at the 95% confidence level -- the 5th
+  // percentile of the SAME simulated daily dollar P&L series volDollar is the
+  // stdev of (today's position sizes applied to each day's actual historical
+  // close), linearly interpolated, reported as a positive dollar loss. Not a
+  // normal-distribution approximation (volDollar × 1.645) -- see
+  // portfolioVolatilityDecomposition's own comment.
+  var95Dollar: number | null
 }
 
 // portfolioBetaExposure's return shape -- see that function's own comment

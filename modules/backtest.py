@@ -26,9 +26,20 @@ Each candidate's forward return is taken from IB's daily bars
 (5) TRADING days -- not a flat 7 CALENDAR days, which used to drift between
 3 and 5 actual trading days depending on where a weekend or holiday fell:
 
-  entry = last close on/before the screen date   (Fri for a Sat date)
-  exit  = the 5th trading-day close after entry (fewer only if the price
-          cache runs out first)
+  entry = _session_avg_price (first ~2h average) on the FIRST trading day
+          AFTER the screen date -- not that day's own close (explicit
+          instruction, 2026-10-16: the screen date's rating isn't known
+          until that bar closes, so the earliest realistic fill is the
+          next session, not a look-ahead fill on the triggering bar
+          itself)
+  exit  = same _session_avg_price, on the first trading day after the
+          5th trading-day close following entry -- i.e. the first session
+          after the NEXT screen date, for the same look-ahead reason (see
+          _window_series/_build_week). This also means a ticker that
+          stays in the same group week over week chains seamlessly --
+          week N's exit date/price is identically week N+1's own entry
+          date/price, so there's no separate "already held, skip
+          re-entry" case to model.
 
 then per group, equal-weight:
 
@@ -366,6 +377,27 @@ def _history_files(history_dir):
     return sorted(by_week.items())
 
 
+def _with_inactive(history, history_file):
+    """history plus every ticker only present in <history_file>_inactive.json (live data wins)."""
+    archive = _load_json_or_empty(history_file[:-5] + "_inactive.json")
+    merged = dict(history)
+    for ticker, bars in archive.items():
+        if ticker not in merged and bars:
+            merged[ticker] = bars
+    return merged
+
+
+def _closes_from_raw(raw):
+    closes = {}
+    for ticker, bars in raw.items():
+        series = sorted(
+            ((b["date"][:10], float(b["close"])) for b in bars or [] if b.get("date") and b.get("close") is not None)
+        )
+        if series:
+            closes[ticker] = series
+    return closes
+
+
 def _load_daily_closes(daily_file):
     """{ticker: [(date_iso, close), ...]} sorted by date."""
     try:
@@ -383,10 +415,15 @@ def _load_daily_closes(daily_file):
     return closes
 
 
-def _window_series(series, entry_cutoff, exit_cutoff):
-    """Close path for one ticker's weekly return: last bar on/before
-    entry_cutoff, then every bar after it up to exit_cutoff. None when
-    there's no entry bar or nothing after it in the window."""
+def _window_series(series, entry_cutoff, exit_cutoff, hourly_by_day=None):
+    """Close path for one ticker's weekly return: the FIRST TRADING DAY
+    AFTER entry_cutoff (not entry_cutoff's own close -- explicit
+    instruction, 2026-10-16: entry_cutoff is the Friday screen date, and
+    its rating isn't known until that bar closes, so the earliest a
+    position can actually be opened is the next session -- priced via
+    _session_avg_price rather than that day's own close, which would be
+    look-ahead bias), then every bar after it up to exit_cutoff. None when
+    there's no such entry bar or nothing after it in the window."""
     if not series:
         return None
     entry_idx = None
@@ -395,10 +432,11 @@ def _window_series(series, entry_cutoff, exit_cutoff):
             entry_idx = i
         else:
             break
-    if entry_idx is None:
+    if entry_idx is None or entry_idx + 1 >= len(series):
         return None
-    path = [series[entry_idx]]
-    for d, c in series[entry_idx + 1:]:
+    entry_day, entry_close = series[entry_idx + 1]
+    path = [(entry_day, _session_avg_price(hourly_by_day, entry_day, entry_close))]
+    for d, c in series[entry_idx + 2:]:
         if d <= exit_cutoff:
             path.append((d, c))
         else:
@@ -436,14 +474,19 @@ RESTRICTED_PCT_2 = 0.025
 # Net sector / industry limits on the weekly portfolio itself -- same limits as the
 # live optimizer (portfolio_optimizer.py step 4b) and the robot's entries: each leg
 # is 100% equal-weight (1/n), and the NET weight (longs minus shorts) of one industry
-# may not exceed +/-LIMIT_INDUSTRY (5%) nor of one sector group +/-LIMIT_SECTOR (10%)
-# on the side that is over. While a limit is breached, the WEAKEST-ranked member of
-# the over-weight leg inside the worst bucket is moved to long_blocked/short_blocked
+# may not exceed +/-NET_LIMIT_SECTOR (5%) in NET weight on the side that is over.
+# Industry is ASYMMETRIC (explicit instruction, 2026-10-15): +/-NET_LIMIT_INDUSTRY (5%)
+# on the long side, +/-NET_LIMIT_INDUSTRY_SHORT (3%, tighter) on the short side -- a
+# cluster of correlated shorts in one industry (the nuclear/uranium cluster --
+# VST/CEG/CCJ/LEU -- is what prompted this) is capped more strictly than the same
+# concentration on the long side. While a limit is breached, the WEAKEST-ranked member
+# of the over-weight leg inside the worst bucket is moved to long_blocked/short_blocked
 # with reason "sector_limit" (weights re-derived after each removal, since a leg
 # shrinking raises every remaining weight). Run on both the actual and the
 # current-model records; the entry overlay never re-admits such a name.
 NET_LIMIT_INDUSTRY = 0.05
-NET_LIMIT_SECTOR = 0.10
+NET_LIMIT_INDUSTRY_SHORT = 0.03
+NET_LIMIT_SECTOR = 0.05
 # Theme limit (explicit instruction): the same rule per theme of data/ticker_themes.json,
 # net +/-NET_LIMIT_THEME. A ticker with several themes counts fully in each; an untagged
 # ticker counts in none. Today's tags are used for every archived week (themes describe
@@ -467,7 +510,12 @@ def _apply_net_limits(records, themes=None):
 
     themes = _load_ticker_themes() if themes is None else themes
     styles = load_ticker_styles()
-    limits = {"ind": NET_LIMIT_INDUSTRY, "sec": NET_LIMIT_SECTOR, "theme": NET_LIMIT_THEME}
+    # "ind" is a (long_limit, short_limit) pair -- asymmetric; "sec"/"theme" stay symmetric floats.
+    limits = {"ind": (NET_LIMIT_INDUSTRY, NET_LIMIT_INDUSTRY_SHORT), "sec": NET_LIMIT_SECTOR, "theme": NET_LIMIT_THEME}
+
+    def limit_for(kind, v):
+        lim = limits[kind]
+        return lim[0] if (isinstance(lim, tuple) and v >= 0) else lim[1] if isinstance(lim, tuple) else lim
 
     def buckets(r):
         ind = r.get("sector") or ""
@@ -485,7 +533,7 @@ def _apply_net_limits(records, themes=None):
                     net[b] = net.get(b, 0.0) + sgn / len(leg)
         worst = None  # (excess, leg, bucket)
         for b, v in net.items():
-            excess = abs(v) - limits[b[0]] - 1e-9
+            excess = abs(v) - limit_for(b[0], v) - 1e-9
             if excess > 0 and (worst is None or excess > worst[0]):
                 worst = (excess, longs if v > 0 else shorts, b)
         # Defensive vs Growth tilt (modules/styles.py): net growth - net defensive.
@@ -579,7 +627,14 @@ def _rescore_current_model(csv_rows):
          corruption: a factor with the IDENTICAL rank for every ticker
          (missing) just adds the same constant to every score, changing no
          comparison between tickers."""
-    rows = [(r["ticker"], r) for r in csv_rows if r.get("ticker") and _f(r.get("score")) is not None]
+    # An equity REIT whose archived forwardPE was meaningless (blank score, "NA") is rankable
+    # again once it is on FFO (see _apply_reit_ffo_asof): include it like main's own gate would.
+    def scored(r):
+        if _f(r.get("score")) is not None:
+            return True
+        return r.get("earningsBasis") == "FFO" and (_f(r.get("forwardPE")) or 0) > 0 and (_f(r.get("price")) or 0) >= _MIN_PRICE
+
+    rows = [(r["ticker"], r) for r in csv_rows if r.get("ticker") and scored(r)]
     if not rows:
         return {}, {}
     scored = sorted(score_rows(rows), key=lambda item: item[2])
@@ -852,15 +907,50 @@ def _hourly_by_day(bars):
     return out
 
 
+# Realistic entry/exit fill (explicit instruction, 2026-10-16): a position
+# can't actually be opened or closed at the Friday close that TRIGGERS it --
+# the rating/drop isn't known until that bar closes, so the earliest fill is
+# the next session, approximated as the average close of its first 3 hourly
+# bars (9:30/10:00/11:00 in this data -- see _hourly_by_day -- the closest
+# bar-aligned approximation to "the first ~2 hours"). Both _window_series'
+# entry and _build_week's own exit repricing (see its own comment) call
+# this on "the first trading day after the triggering Friday," whatever
+# weekday that actually is (a Monday holiday just makes it Tuesday -- the
+# ticker's own daily-bar series decides, not the calendar).
+def _session_avg_price(hourly_by_day, day, fallback):
+    bars = (hourly_by_day or {}).get(day)
+    if bars:
+        sample = [c for (_, _, _, c) in bars[:3] if c is not None]
+        if sample:
+            return sum(sample) / len(sample)
+    return fallback  # no hourly bars that day (coverage gap, not a holiday): use the daily close
+
+
 def _intraday_fill(day_bars, prev_close, sigma, direction, entry=False):
     """Fill price of the rule's order on one day, or None. direction = +1 when
     the rule needs the price to RISE vs the previous close (take-profit on a
     long, entry of a short), -1 when it needs it to FALL (take-profit on a
-    short, entry of a long). See the block comment above. entry=True (the
-    entry rule): there is no resting limit -- at a bar that triggered (>= 1.5σ
-    move) and is not still running (stability test), the entry is made at that
-    bar's close only if the price is beyond the 1.6σ level; if it has pulled
-    back between 1.5σ and 1.6σ, no entry on this bar and the scan goes on."""
+    short, entry of a long). See the block comment above.
+    entry=True (the entry rule, explicit instruction 2026-10-15): a BAND, not
+    the take-profit rule's open-ended threshold+limit -- at the first bar
+    that is inside [ENTRY_TRIGGER_SD_MIN, ENTRY_TRIGGER_SD_MAX]σ and is not
+    still running (stability test), the entry fills at that bar's own close.
+    No resting limit: ENTRY_TRIGGER_SD_MAX (0.8σ) sits well inside
+    TAKE_PROFIT_LIMIT_SD (1.6σ), so the old "fill at the limit level, or
+    wait for a later bar to reach it" mechanics (built for a trigger ABOVE
+    the limit level) don't apply here -- a band this tight is itself the
+    fill condition. A bar beyond ENTRY_TRIGGER_SD_MAX no longer qualifies
+    (already run too far to be a fresh setup) and the scan moves to the
+    next bar, which may already be back in band or past it for good."""
+    if entry:
+        last_close = day_bars[0][0]
+        for k, (_, _, _, close) in enumerate(day_bars):
+            moved = direction * (close / prev_close - 1)
+            stable = k == len(day_bars) - 1 or direction * (close / last_close - 1) < TAKE_PROFIT_MAX_STEP_SD * sigma
+            last_close = close
+            if ENTRY_TRIGGER_SD_MIN * sigma <= moved <= ENTRY_TRIGGER_SD_MAX * sigma and stable:
+                return close
+        return None
     level = prev_close * (1 + direction * TAKE_PROFIT_LIMIT_SD * sigma)
     last_close = day_bars[0][0]  # the first bar's "previous hour" price is its own open
     for k, (_, _, _, close) in enumerate(day_bars):
@@ -875,8 +965,6 @@ def _intraday_fill(day_bars, prev_close, sigma, direction, entry=False):
             continue
         if direction * (close - level) >= 0:
             return close  # already beyond the limit level: passive quote ~ this bar's close
-        if entry:
-            continue  # pulled back inside 1.6σ: no entry now, look at the next bar
         for o, h, l, _ in day_bars[k + 1:]:  # resting limit: first later bar that reaches it
             reach = h if direction > 0 else l
             if direction * (reach - level) >= 0:
@@ -943,21 +1031,37 @@ def _position_pnl(path, sigma, sign, bars=None, intraday=None):
 # (week-start portfolio, Positions-page definition) must allow the side (buy
 # needs beta < +ENTRY_BETA_BAND, sell needs beta > -band); the net sector /
 # industry weight of the week-start portfolio (each leg 100% equal-weight)
-# must not exceed +/-ENTRY_SECTOR_NET_LIMIT / ENTRY_INDUSTRY_NET_LIMIT against
-# the side; the trigger / stability / fill logic runs on HOURLY bars (see
-# _intraday_fill: a Strong Buy needs the price at least TAKE_PROFIT_TRIGGER_SD
-# sigma BELOW the previous close at an hourly close, stable vs the previous
-# hour, and fills at the -TAKE_PROFIT_LIMIT_SD sigma limit or the hour's close
-# if already beyond; a Strong Sell mirrors it upward). One entry per ticker per
-# week; held to the week's last close (no take-profit on the entered
+# must not exceed +/-ENTRY_SECTOR_NET_LIMIT against the side; industry is
+# ASYMMETRIC, +/-ENTRY_INDUSTRY_NET_LIMIT on the long side, +/-ENTRY_INDUSTRY_NET_LIMIT_SHORT
+# (tighter) on the short side (mirrors ib_server.py); the trigger / stability / fill
+# logic runs on HOURLY bars (see _intraday_fill: a Strong Buy needs the price between
+# ENTRY_TRIGGER_SD_MIN and ENTRY_TRIGGER_SD_MAX sigma BELOW the previous close at an
+# hourly close, stable vs the previous hour, and fills at that bar's own close; a
+# Strong Sell mirrors it upward -- explicit instruction, 2026-10-15, replacing the old
+# open-ended TAKE_PROFIT_TRIGGER_SD/_LIMIT_SD threshold+limit for entries specifically;
+# take-profit EXITS are unaffected). `cut` (see this function's own docstring) also
+# restricts the candidate universe to the top/bottom RESTRICTED_PCT_4/_2 percentile --
+# the live robot now always uses the RESTRICTED_PCT_4 ("5% portfolio") cut, widened
+# from RESTRICTED_PCT_2 the same day (explicit instruction, 2026-10-15). One entry
+# per ticker per week; held to the week's last close (no take-profit on the entered
 # position). Sized ENTRY_SIZE_PCT of NAV, added on top of the portfolio.
 # NOT modelled: the 3%-of-NAV price cap, integer share rounding, take-profit
 # on the entered position, bid/ask spreads.
 ENTRY_BETA_BAND = 0.25  # mirrors ib_server.py
-ENTRY_SECTOR_NET_LIMIT = 0.10
+ENTRY_SECTOR_NET_LIMIT = 0.05
 ENTRY_INDUSTRY_NET_LIMIT = 0.05
+ENTRY_INDUSTRY_NET_LIMIT_SHORT = 0.03
 ENTRY_SIZE_PCT = 0.02
 ENTRY_TRIGGER_GATES = {"daily_move"}  # reasons the entry rule overrides (replaced by the live move test)
+# Entry trigger band (explicit instruction, 2026-10-15), mirrors ib_server.py's
+# own ENTRY_TRIGGER_SD_MIN/MAX -- replaces the old open-ended
+# TAKE_PROFIT_TRIGGER_SD threshold for entries specifically; take-profit
+# EXITS (_position_cum/_intraday_fill's entry=False path) still use
+# TAKE_PROFIT_TRIGGER_SD/TAKE_PROFIT_LIMIT_SD unchanged. See
+# _intraday_fill's own docstring for the entry=True fill mechanics this
+# band drives.
+ENTRY_TRIGGER_SD_MIN = 0.2
+ENTRY_TRIGGER_SD_MAX = 0.8
 
 
 def _entry_rule_overlay(current_records, rows_by_ticker, paths, ohlc, sigmas, intra=None, cut=None):
@@ -1028,7 +1132,7 @@ def _entry_rule_overlay(current_records, rows_by_ticker, paths, ohlc, sigmas, in
         sec_w, ind_w = sector_net.get(get_sector_group(ind), 0.0), industry_net.get(ind, 0.0)
         if is_long and (sec_w > ENTRY_SECTOR_NET_LIMIT or ind_w > ENTRY_INDUSTRY_NET_LIMIT):
             continue
-        if not is_long and (sec_w < -ENTRY_SECTOR_NET_LIMIT or ind_w < -ENTRY_INDUSTRY_NET_LIMIT):
+        if not is_long and (sec_w < -ENTRY_SECTOR_NET_LIMIT or ind_w < -ENTRY_INDUSTRY_NET_LIMIT_SHORT):
             continue
         th_w = [theme_net.get(th, 0.0) for th in themes.get(r["ticker"], [])]
         if (is_long and any(w > NET_LIMIT_THEME for w in th_w)) or (not is_long and any(w < -NET_LIMIT_THEME for w in th_w)):
@@ -1045,16 +1149,21 @@ def _entry_rule_overlay(current_records, rows_by_ticker, paths, ohlc, sigmas, in
                 fill = _intraday_fill(day_bars, prev_close, sigma, -side, entry=True)  # an entry needs the OPPOSITE move
                 if fill is None:
                     continue
-            else:  # no hourly bars that day: daily-bar approximation
-                o, h, l = ohlc.get(r["ticker"], {}).get(day, (None, None, None))
-                reach = l if is_long else h
-                if reach is None:
+            else:
+                # No hourly bars that day: daily-bar approximation. The band
+                # (ENTRY_TRIGGER_SD_MIN/MAX) has no high/low-reach equivalent
+                # without an intraday path -- a daily high/low can't say
+                # whether the move was still inside the band when it got
+                # there or had already blown through it -- so this uses the
+                # day's own CLOSE directly, same as _intraday_fill's entry
+                # path uses a bar's close (explicit instruction, 2026-10-15,
+                # replacing the old trigger/limit-level open/high/low logic,
+                # built for a threshold ABOVE the limit level, which the
+                # tighter band is not).
+                moved = -side * (close / prev_close - 1) / sigma
+                if not (ENTRY_TRIGGER_SD_MIN <= moved <= ENTRY_TRIGGER_SD_MAX):
                     continue
-                trigger = prev_close * (1 - side * TAKE_PROFIT_TRIGGER_SD * sigma)
-                limit = prev_close * (1 - side * TAKE_PROFIT_LIMIT_SD * sigma)
-                if side * (trigger - reach) < 0 or side * (limit - reach) < 0:
-                    continue  # never got to the trigger / the limit
-                fill = o if (o is not None and side * (limit - o) >= 0) else limit
+                fill = close
             pnl = side * (path[-1][1] / fill - 1)
             increments = {day: ENTRY_SIZE_PCT * side * (close / fill - 1)}
             for j in range(i + 1, len(path)):
@@ -1101,6 +1210,20 @@ def _add_entry_overlay_to_daily(daily, overlay, key="portfolio"):
     daily["series"][key] = out
 
 
+_REIT_FFO_FILE = os.path.join("data", "eulerpool", "reit_ffo.json")
+_FFO_FILING_LAG_DAYS = 90  # an annual report is assumed public this long after its fiscal year end
+_MIN_PRICE = 8  # main.MIN_PRICE (not imported: main imports this module)
+_reit_ffo_cache = {}
+
+
+def _apply_reit_ffo_asof(rows, as_of):
+    if "ffo" not in _reit_ffo_cache:
+        _reit_ffo_cache["ffo"] = _load_json_or_empty(_REIT_FFO_FILE)
+    cutoff = (as_of - timedelta(days=_FFO_FILING_LAG_DAYS)).isoformat()
+    hist = {t: [h for h in v if h["period"] <= cutoff] for t, v in _reit_ffo_cache["ffo"].items()}
+    derive.reconcile_reit_ffo({r["ticker"]: r for r in rows if r.get("ticker")}, hist, only_existing=True)
+
+
 def _build_week(week_iso, csv_path, closes, daily_history=None, hourly_history=None):
     screen_date = date.fromisoformat(week_iso)
     entry_cutoff = week_iso
@@ -1115,6 +1238,10 @@ def _build_week(week_iso, csv_path, closes, daily_history=None, hourly_history=N
 
     with open(csv_path, newline="") as f:
         rows = list(csv.DictReader(f))
+
+    # Equity REITs on FFO per share (derive.reconcile_reit_ffo), using only the fiscal years
+    # that were public by this week -- the snapshots themselves still carry GAAP EPS.
+    _apply_reit_ffo_asof(rows, screen_date)
 
     if daily_history is not None and hourly_history is not None:
         _recompute_momentum_asof(rows, week_iso, daily_history, hourly_history)
@@ -1146,12 +1273,31 @@ def _build_week(week_iso, csv_path, closes, daily_history=None, hourly_history=N
         ticker = row.get("ticker")
         if not ticker:
             continue
-        path = _window_series(closes.get(ticker), entry_cutoff, exit_cutoff)
+        path = _window_series(closes.get(ticker), entry_cutoff, exit_cutoff, intra(ticker))
         if path:
             # Entry bar + up to HOLDING_TRADING_DAYS bars after it -- if
             # fewer are actually available (short data at the edge of the
             # cache), use what's there rather than dropping the ticker.
-            paths[ticker] = path[: HOLDING_TRADING_DAYS + 1]
+            trimmed = path[: HOLDING_TRADING_DAYS + 1]
+            # Exit repricing (explicit instruction, 2026-10-16): when the
+            # full HOLDING_TRADING_DAYS are actually available, the last
+            # bar lands on the next model run's own Friday -- but by the
+            # same look-ahead argument as the entry fix above, that
+            # Friday's close isn't a realistic fill either (whether this
+            # ticker is still in the portfolio isn't known until that bar
+            # closes). Reprice it to the FOLLOWING session's own
+            # _session_avg_price -- which, chained week to week, is the
+            # SAME date/price the next week's own entry would compute for
+            # this ticker if it's still in the portfolio then, so a
+            # continuously-held position's weekly legs already chain
+            # seamlessly without needing to track "already held, skip
+            # re-entry" as a separate case. Left alone (still that day's
+            # plain close) when the week is still in progress -- there is
+            # no real exit yet to reprice.
+            if len(trimmed) == HOLDING_TRADING_DAYS + 1:
+                exit_day, exit_close = trimmed[-1]
+                trimmed[-1] = (exit_day, _session_avg_price(intra(ticker), exit_day, exit_close))
+            paths[ticker] = trimmed
             sigmas[ticker] = _entry_sigma(closes.get(ticker), path[0][0])
 
     def _records_for(rating_of, pct_of):
@@ -1241,12 +1387,16 @@ def build_backtest(history_dir, daily_file, hourly_file=None):
     _build_week, not reloaded per week. Omit (None, the default) to fall
     back to the old archived-value behavior for callers that don't have
     these files handy."""
-    closes = _load_daily_closes(daily_file)
     # Always loaded now: the take-profit limit needs each day's open/high/low
     # (_position_pnl), not just closes. Momentum is still only recomputed
     # as-of each week when hourly_history is also given (see _build_week).
-    daily_history = _load_json_or_empty(daily_file)
-    hourly_history = _load_json_or_empty(hourly_file) if hourly_file is not None else None
+    # Deactivated tickers' bars live in <file>_inactive.json (main._archive_inactive_bars):
+    # merged in here so a stock that was live in a past week is still traded in it.
+    daily_history = _with_inactive(_load_json_or_empty(daily_file), daily_file)
+    closes = _closes_from_raw(daily_history)
+    hourly_history = (
+        _with_inactive(_load_json_or_empty(hourly_file), hourly_file) if hourly_file is not None else None
+    )
     weeks = [
         w
         for week_iso, path in _history_files(history_dir)

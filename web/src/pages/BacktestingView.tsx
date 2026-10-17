@@ -168,6 +168,8 @@ export default function BacktestingView() {
   const [error, setError] = useState(false)
   const [groupFilter, setGroupFilter] = useState<GroupKey | 'all'>('all')
   const [weekPage, setWeekPage] = useState(0)
+  // Symbol filter for the Candidates table at the bottom of the page (see visibleRows below).
+  const [tickerSearch, setTickerSearch] = useState('')
   // Weekly (the original tables) / Daily (day-by-day portfolio returns).
   const [view, setView] = useState<'weekly' | 'daily'>('weekly')
 
@@ -243,7 +245,11 @@ export default function BacktestingView() {
     })
   }, [weeks])
 
-  const visibleRows = groupFilter === 'all' ? tickerRows : tickerRows.filter((r) => r.group === groupFilter)
+  const groupRows = groupFilter === 'all' ? tickerRows : tickerRows.filter((r) => r.group === groupFilter)
+  // Symbol filter for the Candidates table (explicit instruction) -- plain substring
+  // match against the ticker, case-insensitive; applied on top of the group tab above.
+  const tickerSearchTrimmed = tickerSearch.trim().toUpperCase()
+  const visibleRows = tickerSearchTrimmed ? groupRows.filter((r) => r.ticker.includes(tickerSearchTrimmed)) : groupRows
 
   // "All long" -- explicit instruction, corrected: EVERY symbol in that
   // week's whole rated universe (all six groups, whichever side each was
@@ -791,6 +797,15 @@ export default function BacktestingView() {
 
           <section className="target-section">
             <h2 className="section-heading">Candidates — weekly P&amp;L</h2>
+            <div className="candidates-filters">
+              <input
+                type="search"
+                className="candidates-ticker-search"
+                placeholder="Filter by symbol…"
+                value={tickerSearch}
+                onChange={(e) => setTickerSearch(e.target.value)}
+              />
+            </div>
             <div className="tab-bar">
               {(['all', ...GROUPS] as const).map((g) => (
                 <button

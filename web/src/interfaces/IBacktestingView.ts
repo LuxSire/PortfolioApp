@@ -108,7 +108,7 @@ export const GATE_REASON_LABEL: Record<GateReason, string> = {
   growth: 'Revenue growth too strong to short (>10%)',
   earnings: 'Earnings within the week',
   low_vol: 'Volatility too low (<5% annualized, likely acquisition-capped)',
-  sector_limit: 'Net industry >5% / sector >10% limit (weakest-ranked name dropped)',
+  sector_limit: 'Net industry (>5% long / >3% short) or sector >5% limit (weakest-ranked name dropped)',
   theme_limit: 'Net theme >5% limit (weakest-ranked name dropped)',
   style_limit: 'Defensive vs Growth tilt beyond ±20% (weakest-ranked name dropped)',
 }
