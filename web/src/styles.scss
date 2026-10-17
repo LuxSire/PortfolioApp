@@ -2541,21 +2541,17 @@ tr.row-target {
 .recommendation-card-stats {
   display: flex;
   gap: 20px;
+  // Explicit instruction: Price (the first stat here) was sitting flush against
+  // the card's own left padding, reading as too tight/cramped against the edge.
+  // A small nudge, not a full indent -- the ticker/name row above it is
+  // unaffected, so this only breathes out the stats row specifically.
+  padding-left: 6px;
 }
 
-/* RecommendationCard/RejectedCard's industry (c.sector -- see CardFooter's
-   own comment on that naming), sitting next to PriceStat's own figures in
-   the same .recommendation-card-stats row -- .stat .n's generic 20px/600
-   (shared with e.g. CloseCard's share count, which stays at that size
-   deliberately, a headline figure worth the weight) reads as too heavy
-   for a label-like value like an industry name, so this overrides it
-   specifically. Three classes (.stat .n.sector-value) so it wins over
-   .stat .n's own (0,2,0) specificity regardless of source order. */
-.stat .n.sector-value {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--muted);
-}
+/* RecommendationCard/CloseCard/RejectedCard's industry (c.sector) used to sit
+   here, next to PriceStat in .recommendation-card-stats, crowding that row --
+   moved to the card's footer instead (.recommendation-industry-label, stacked
+   below the broad sector, bottom right -- see CardFooter's own comment). */
 
 /* One or more reasons a held position landed in To close -- a rating
    contradiction, unsupportive momentum, and/or a risk flag (concentration,
@@ -2618,9 +2614,9 @@ tr.row-target {
 }
 
 /* Bottom row of every recommendation card -- see CardFooter in
-   RecommendationsView.tsx: sector on the left, percentile badge on the
-   right. Pinned to the card's actual bottom edge (margin-top: auto,
-   relying on .recommendation-card already being a flex column) rather
+   RecommendationsView.tsx: sector/industry stack on the left, percentile
+   badge on the right. Pinned to the card's actual bottom edge (margin-top:
+   auto, relying on .recommendation-card already being a flex column) rather
    than just trailing whatever content happens to precede it -- so every
    card in a grid row lines its footer up at the same height even when
    one card's rationale/reason list is much longer than its row-mates'
@@ -2629,15 +2625,34 @@ tr.row-target {
 .recommendation-card-footer {
   display: flex;
   justify-content: space-between;
-  align-items: baseline;
+  align-items: flex-end;
   margin-top: auto;
   padding-top: 10px;
+}
+
+// Sector (broad) stacked directly above Industry (granular, c.sector) --
+// left-aligned, bottom LEFT of the card (explicit instruction) -- the
+// industry moved down here from .recommendation-card-stats, where it used
+// to crowd the Price line.
+.recommendation-sector-industry {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  text-align: left;
 }
 
 .recommendation-sector-label {
   font-size: 11px;
   font-weight: 500;
   color: var(--muted);
+}
+
+.recommendation-industry-label {
+  font-size: 10px;
+  font-weight: 400;
+  color: var(--muted);
+  opacity: 0.8;
 }
 
 .recommendation-percentile-badge {
@@ -3533,6 +3548,21 @@ tr.has-notes {
   overflow: auto;
 }
 
+/* Backtesting > Candidates table symbol filter (BacktestingView.tsx) */
+.candidates-filters {
+  display: flex;
+  margin: 10px 0 8px;
+}
+
+.candidates-ticker-search {
+  min-width: 200px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+}
+
 .maths-vars-uses {
   margin: 0;
   padding-left: 16px;
@@ -3679,4 +3709,11 @@ tr.has-notes {
     margin-left: auto;
     margin-right: auto;
   }
+}
+
+/* PositionsView.tsx: the gross exposure a sector group is ranked by (shown above its net value) */
+.sector-group-gross {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
 }
