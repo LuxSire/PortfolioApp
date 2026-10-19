@@ -225,6 +225,13 @@ export interface RankedCandidate extends Candidate {
   // always a thumb-down (see rationaleLines), the mirror of the hedge line.
   concentrationLine?: string | null
   _sortScore: number
+  // Set only when this row was merged in from the blocked pool (see
+  // longBlockedTop5/shortBlockedTop5 in RecommendationsView.tsx) -- a
+  // Strong Buy/Strong Sell in the top/bottom 5% (RESTRICTED_PCT_4) that
+  // still failed an opening gate, shown inside Long/Short itself instead
+  // of only in the separate Long blocked/Short blocked tab.
+  blocked?: boolean
+  blockReasons?: Reason[]
 }
 
 // A To-close row -- a Candidate (screener-over-stale-candidate merged, see

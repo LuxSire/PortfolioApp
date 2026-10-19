@@ -138,7 +138,10 @@ output lives under data/, see main.py's DATA_DIR):
                                 Gateway's own historical data
                                 (reqHistoricalData), for candlestick +
                                 volume charts.
-  data/price_history_daily_3mo.json Same shape, 3 months of daily bars.
+  data/price_history_daily_3mo.json Same shape, 3 months of daily bars (plus
+                                a one-off 2-year backfill, 2026-10-19 -- see
+                                that file's own note -- merged in by date,
+                                never pruned by the regular 3-month refresh).
   data/news_sentiment.json          {ticker: {articleId: score}} -- every
                                 scored article's raw 1-5 FinBERT score
                                 (see news_loop / news_sentiment.py), for
@@ -803,6 +806,48 @@ streamed_symbols = set()
 subscribers = []
 subscribers_lock = threading.Lock()
 
+# Throttles the high-frequency event callbacks below (on_pending_tickers/
+# on_position/on_pnl_single/on_account_value -- IBKR pushes PnL updates
+# "roughly once a second per subscribed conId" per on_pnl_single's own
+# docstring, so with N held/streamed tickers that's on the order of N
+# broadcasts/sec) -- explicit instruction, 2026-10-19, after the frontend
+# review found this was the root cause of the Positions/Recommendations
+# pages "getting stuck": every one of those broadcasts replaces
+# positions/prices with a brand-new object on the frontend, which
+# invalidates several expensive useMemo chains (portfolio VaR, the
+# ~1,900-candidate gate-filtering) that were only meant to recompute when
+# something actually changed, not several times a second. Those four
+# handlers now just set this flag instead of calling broadcast() directly;
+# broadcast_loop() below flushes it at most once every
+# BROADCAST_INTERVAL_SECONDS. The OTHER broadcast() call sites (snapshot_
+# loop, trades_loop, open_orders_loop, take-profit, startup) are already on
+# their own multi-second-or-longer cadence and call broadcast() directly,
+# unthrottled -- immediate delivery there is both correct and cheap (one
+# call every few minutes, not several a second).
+BROADCAST_INTERVAL_SECONDS = 5
+_broadcast_dirty = False
+_broadcast_dirty_lock = threading.Lock()
+
+
+def _mark_broadcast_dirty():
+    global _broadcast_dirty
+    with _broadcast_dirty_lock:
+        _broadcast_dirty = True
+
+
+async def broadcast_loop():
+    """Flushes _mark_broadcast_dirty()'s flag into an actual broadcast() at
+    most once every BROADCAST_INTERVAL_SECONDS -- see that flag's own
+    comment for why. A quiet period (no ticks) costs nothing: the flag
+    stays False and this loop just sleeps."""
+    global _broadcast_dirty
+    while True:
+        await asyncio.sleep(BROADCAST_INTERVAL_SECONDS)
+        with _broadcast_dirty_lock:
+            dirty, _broadcast_dirty = _broadcast_dirty, False
+        if dirty:
+            broadcast()
+
 
 def _extract_price(ticker):
     """Mirrors IBApp.on_pending_tickers' last/bid/ask/close fallback, since
@@ -860,7 +905,7 @@ def on_pending_tickers(tickers):
                     "ask": _clean(t.ask),
                     "timestamp": now,
                 }
-    broadcast()
+    _mark_broadcast_dirty()
 
 
 def _on_index_future_tick(t, now):
@@ -983,7 +1028,7 @@ def on_position(position):
         print(f"reqPnLSingle (from position): {symbol} (conId={con_id})")
         _pnl_singles_by_conid[con_id] = app.subscribe_position_pnl(con_id)
 
-    broadcast()
+    _mark_broadcast_dirty()
 
 
 def on_pnl_single(pnl_single):
@@ -1007,7 +1052,7 @@ def on_pnl_single(pnl_single):
             "position": _safe_float(pnl_single.position),
             "value": _safe_float(pnl_single.value),
         }
-    broadcast()
+    _mark_broadcast_dirty()
 
 
 # Attempts per symbol, so a genuinely-unfixable 10168 (e.g. no market
@@ -1053,7 +1098,7 @@ def on_account_value(av):
             account_status[av.tag] = float(av.value)
         except (TypeError, ValueError):
             account_status[av.tag] = av.value
-    broadcast()
+    _mark_broadcast_dirty()
 
 
 async def fetch_candlestick_history(streamed_tickers):
@@ -1133,7 +1178,7 @@ async def fetch_candlestick_history(streamed_tickers):
     print(f"Wrote {DAILY_HISTORY_FILE} ({sum(1 for v in daily.values() if v)}/{len(daily)} tickers with bars, {len(tickers)} in this run's scope)")
 
 
-async def refresh_daily_history_on_demand(log_fn=None, tickers=None, overwrite=False):
+async def refresh_daily_history_on_demand(log_fn=None, tickers=None, overwrite=False, duration="3 M", force=False):
     """POST /api/admin/refresh-ib-daily (see _handle_refresh_ib_daily) --
     runs main.py's own download_ib_daily_history logic (same staleness
     gate: only a ticker whose existing bar is missing or older than
@@ -1179,7 +1224,19 @@ async def refresh_daily_history_on_demand(log_fn=None, tickers=None, overwrite=F
     on_ticker, plus a line before/after the batch) -- used by the
     Dataset tab's Run button (see _run_in_process_job) to show live
     per-ticker progress; the HTTP endpoint above calls this with no
-    log_fn, unchanged from before."""
+    log_fn, unchanged from before.
+
+    duration/force (explicit instruction, 2026-10-19): a one-off deeper
+    pull -- e.g. main.py's `backfill-daily` mode asking for "2 Y" -- without
+    permanently widening the regular 3-month refresh everything else here
+    keeps using by default. force=True skips the staleness gate entirely
+    (every requested ticker is refetched, not just the ones whose last bar
+    is behind) -- needed because a ticker already current-as-of-today under
+    the normal 3-month window would otherwise never be seen as "stale"
+    just because its HISTORY is shallow; depth, not recency, is what a
+    backfill is for. Still merges BY DATE into DAILY_HISTORY_FILE (see
+    main._merge_bar_series) exactly like the regular path -- a backfill
+    only ever adds bars, never replaces or truncates what's already there."""
     explicit_scope = tickers is not None
     if explicit_scope and not overwrite and _ib_refresh_recently_completed("daily"):
         msg = f"IB daily history was already fully refreshed within the last {IB_REFRESH_COOLDOWN_SECONDS // 3600}h -- skipping (run `python main.py all overwrite` to force)"
@@ -1199,7 +1256,7 @@ async def refresh_daily_history_on_demand(log_fn=None, tickers=None, overwrite=F
     except FileNotFoundError:
         existing = {}
     expected = most_recent_completed_trading_day()
-    stale = [t for t in tickers if not existing.get(t) or existing[t][-1]["date"][:10] < expected]
+    stale = list(tickers) if force else [t for t in tickers if not existing.get(t) or existing[t][-1]["date"][:10] < expected]
     if not stale:
         if log_fn:
             log_fn(f"IB daily history already current for all {len(tickers)} candidate ticker(s); skipping IB Gateway fetch")
@@ -1209,8 +1266,8 @@ async def refresh_daily_history_on_demand(log_fn=None, tickers=None, overwrite=F
         return {"skipped": True, "tickersTotal": len(tickers)}
 
     if log_fn:
-        log_fn(f"Fetching IB 3mo daily bars for {len(stale)}/{len(tickers)} stale/missing ticker(s) (paced, can take a while)...")
-    fresh = await app.get_ib_historical_bars_async(stale, "3 M", "1 day", on_ticker=(lambda s: log_fn(f"Fetching {s}...")) if log_fn else None)
+        log_fn(f"Fetching IB {duration} daily bars for {len(stale)}/{len(tickers)} stale/missing ticker(s) (paced, can take a while)...")
+    fresh = await app.get_ib_historical_bars_async(stale, duration, "1 day", on_ticker=(lambda s: log_fn(f"Fetching {s}...")) if log_fn else None)
     existing = _merge_bar_series(existing, fresh)
     existing = _prune_inactive_tickers(existing, keep_extra=tickers)
     with open(DAILY_HISTORY_FILE, "w") as f:
@@ -4525,12 +4582,17 @@ class Handler(BaseHTTPRequestHandler):
     def _handle_refresh_ib_daily(self):
         """POST /api/admin/refresh-ib-daily -- see
         refresh_daily_history_on_demand. Optional JSON body {"tickers":
-        [...], "overwrite": bool} requests a specific scope instead of
-        the default ranked/rated/held one, and/or bypasses the 3h
-        cooldown an explicit-scope request is otherwise gated by (see
-        _ib_refresh_recently_completed) -- main.py's download_all now
-        sends the WHOLE active universe here (and "overwrite": true only
-        for `python main.py all overwrite`), which needs the long 7200s
+        [...], "overwrite": bool, "duration": str, "force": bool} requests
+        a specific scope instead of the default ranked/rated/held one,
+        and/or bypasses the 3h cooldown an explicit-scope request is
+        otherwise gated by (see _ib_refresh_recently_completed) --
+        main.py's download_all now sends the WHOLE active universe here
+        (and "overwrite": true only for `python main.py all overwrite`).
+        duration (default "3 M")/force (default false), explicit
+        instruction 2026-10-19: main.py's own `backfill-daily` mode sends
+        duration="2 Y"/force=true for a one-off deeper pull -- see
+        refresh_daily_history_on_demand's own comment on force. Needs the
+        long 7200s
         (2hr) timeout below (the same one export_daily_history_on_demand's
         own multi-year backtest export uses): paced by IB's rate limit,
         ~2340 tickers at ~200 requests/6min is on the order of an hour
@@ -4553,11 +4615,15 @@ class Handler(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length", 0))
         tickers = None
         overwrite = False
+        duration = "3 M"
+        force = False
         if length:
             try:
                 body = json.loads(self.rfile.read(length))
                 tickers = body.get("tickers")
                 overwrite = bool(body.get("overwrite"))
+                duration = body.get("duration") or "3 M"
+                force = bool(body.get("force"))
             except (ValueError, json.JSONDecodeError):
                 self.send_response(400)
                 self.end_headers()
@@ -4581,7 +4647,10 @@ class Handler(BaseHTTPRequestHandler):
             }
         try:
             future = asyncio.run_coroutine_threadsafe(
-                refresh_daily_history_on_demand(tickers=tickers, overwrite=overwrite, log_fn=_job_log), ib_loop
+                refresh_daily_history_on_demand(
+                    tickers=tickers, overwrite=overwrite, duration=duration, force=force, log_fn=_job_log
+                ),
+                ib_loop,
             )
             result = future.result(timeout=7200)
         except Exception as e:
@@ -5071,6 +5140,7 @@ def run_ib_client(tickers, no_news=False):
         print("Could not connect to IB Gateway; /api/stream will keep serving empty snapshots.")
         return
     asyncio.ensure_future(stream_prices_and_positions(tickers))
+    asyncio.ensure_future(broadcast_loop())
     asyncio.ensure_future(snapshot_loop())
     asyncio.ensure_future(trades_loop())
     asyncio.ensure_future(open_orders_loop())

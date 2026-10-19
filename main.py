@@ -1053,7 +1053,7 @@ def _mark_ib_refresh_completed(kind):
         json.dump(state, f)
 
 
-def _call_ib_server_job_endpoint(path, port, timeout, tickers, overwrite):
+def _call_ib_server_job_endpoint(path, port, timeout, tickers, overwrite, duration=None, force=False):
     """POST an ib_server.py admin endpoint that runs as a tracked
     _current_job (see that module's _handle_refresh_ib_daily/-hourly --
     both now claim that job slot and log through it via log_fn) and print
@@ -1074,8 +1074,18 @@ def _call_ib_server_job_endpoint(path, port, timeout, tickers, overwrite):
     poll failure is swallowed and retried next cycle rather than treated
     as fatal -- a missed progress line doesn't mean the actual fetch
     (running in the other thread, on ib_server.py's own connection)
-    failed too."""
-    data = json.dumps({"tickers": tickers, "overwrite": overwrite}).encode() if tickers is not None or overwrite else b""
+    failed too.
+
+    duration/force (explicit instruction, 2026-10-19): threaded straight
+    into the request body for backfill_daily_history's own one-off deeper
+    pull -- see ib_server.py's _handle_refresh_ib_daily/
+    refresh_daily_history_on_demand for what they do server-side."""
+    body = {"tickers": tickers, "overwrite": overwrite}
+    if duration is not None:
+        body["duration"] = duration
+    if force:
+        body["force"] = force
+    data = json.dumps(body).encode() if tickers is not None or overwrite or duration is not None or force else b""
     req = urllib.request.Request(f"http://127.0.0.1:{port}{path}", method="POST", data=data)
 
     result_holder = {}
@@ -1103,7 +1113,7 @@ def _call_ib_server_job_endpoint(path, port, timeout, tickers, overwrite):
     return result_holder.get("result", {"error": "ib_server.py request thread ended with no result"})
 
 
-def _refresh_ib_daily_via_server(port=IB_SERVER_PORT, timeout=7200, tickers=None, overwrite=False):
+def _refresh_ib_daily_via_server(port=IB_SERVER_PORT, timeout=7200, tickers=None, overwrite=False, duration=None, force=False):
     """POST /api/admin/refresh-ib-daily on ib_server.py's already-running
     process (see that module's refresh_daily_history_on_demand) --
     {"skipped": bool, "tickersTotal": int, ...} on success, or
@@ -1118,8 +1128,10 @@ def _refresh_ib_daily_via_server(port=IB_SERVER_PORT, timeout=7200, tickers=None
     this process last saw. timeout is long (2hr, matching ib_server.py's
     own handler): a large stale ticker list, paced by IB's rate limit,
     can take a while. See _call_ib_server_job_endpoint for how progress
-    reaches this process's own terminal while that's happening."""
-    return _call_ib_server_job_endpoint("/api/admin/refresh-ib-daily", port, timeout, tickers, overwrite)
+    reaches this process's own terminal while that's happening.
+    duration/force: backfill_daily_history's own one-off deeper pull --
+    see _call_ib_server_job_endpoint's own comment."""
+    return _call_ib_server_job_endpoint("/api/admin/refresh-ib-daily", port, timeout, tickers, overwrite, duration, force)
 
 
 def _refresh_ib_hourly_via_server(port=IB_SERVER_PORT, timeout=7200, tickers=None, overwrite=False):
@@ -1248,10 +1260,14 @@ def _archive_inactive_bars(dropped):
         print(f"archived {len(tickers)} inactive ticker(s) to {path}")
 
 
-async def download_ib_daily_history(app, tickers):
+async def download_ib_daily_history(app, tickers, duration="3 M", force=False):
     """Refreshes DAILY_3MO_HISTORY_FILE (IB Gateway's own 3-month daily
     bars -- see that constant's own comment) for `tickers`, via an
-    already-connected `app`. Only actually fetches a ticker whose
+    already-connected `app`. duration/force (explicit instruction,
+    2026-10-19): backfill_daily_history's own one-off deeper pull -- see
+    ib_server.py's refresh_daily_history_on_demand (the mirror of this
+    function on that process's own connection) for what force does to the
+    staleness gate below. Only actually fetches a ticker whose
     existing entry is missing or older than
     most_recent_completed_trading_day() -- IB's paced historical-data
     limit (200 requests/6min, see IBApp.get_ib_historical_bars_async)
@@ -1281,13 +1297,13 @@ async def download_ib_daily_history(app, tickers):
     except FileNotFoundError:
         existing = {}
     expected = most_recent_completed_trading_day()
-    stale = [t for t in tickers if not existing.get(t) or existing[t][-1]["date"][:10] < expected]
+    stale = list(tickers) if force else [t for t in tickers if not existing.get(t) or existing[t][-1]["date"][:10] < expected]
     if not stale:
         print(f"IB daily history already current for all {len(tickers)} candidate ticker(s); skipping IB Gateway fetch")
         _update_missings("ib_daily", [t for t in tickers if not existing.get(t)])
         return
-    print(f"Fetching IB 3mo daily bars for {len(stale)}/{len(tickers)} stale/missing ticker(s) (paced, can take a while)...")
-    fresh = await app.get_ib_historical_bars_async(stale, "3 M", "1 day", on_ticker=_progress_printer("Daily", len(stale)))
+    print(f"Fetching IB {duration} daily bars for {len(stale)}/{len(tickers)} stale/missing ticker(s) (paced, can take a while)...")
+    fresh = await app.get_ib_historical_bars_async(stale, duration, "1 day", on_ticker=_progress_printer("Daily", len(stale)))
     existing = _merge_bar_series(existing, fresh)
     before = len(existing)
     existing = _prune_inactive_tickers(existing, keep_extra=tickers)
@@ -1316,10 +1332,13 @@ IB_HISTORY_CLIENT_ID = 7
 IB_HOURLY_HISTORY_CLIENT_ID = 8
 
 
-async def refresh_ib_daily_history(app, tickers=None, overwrite=False):
+async def refresh_ib_daily_history(app, tickers=None, overwrite=False, duration="3 M", force=False):
     """Connects `app` to IB Gateway (if it isn't already) just long enough
     to refresh daily bars (see download_ib_daily_history) for `tickers`,
     then disconnects again if this call is the one that connected it.
+    duration/force (explicit instruction, 2026-10-19): threaded through to
+    both the via-server and direct-connect paths below -- see
+    backfill_daily_history for the one-off deeper pull these exist for.
     Async (awaits connect_async/download_ib_daily_history/reqPositions
     Async, and offloads the sync ib_server.py-routing HTTP call to a
     thread via run_in_executor) so this can run concurrently with
@@ -1380,7 +1399,9 @@ async def refresh_ib_daily_history(app, tickers=None, overwrite=False):
         print(f"ib_server.py is already running on port {IB_SERVER_PORT}{pid_note} -- refreshing via its own IB Gateway connection instead of opening a second one")
         try:
             loop = asyncio.get_running_loop()
-            result = await loop.run_in_executor(None, functools.partial(_refresh_ib_daily_via_server, tickers=tickers, overwrite=overwrite))
+            result = await loop.run_in_executor(
+                None, functools.partial(_refresh_ib_daily_via_server, tickers=tickers, overwrite=overwrite, duration=duration, force=force)
+            )
         except (urllib.error.URLError, OSError, TimeoutError) as e:
             print(f"ib_server.py refresh request failed ({e}) -- skipping IB daily-history refresh (yfinance-only this run)")
             return
@@ -1407,7 +1428,7 @@ async def refresh_ib_daily_history(app, tickers=None, overwrite=False):
             return
         try:
             held = {p.contract.symbol for p in await app.ib.reqPositionsAsync() if p.contract.secType == "STK" and p.position != 0}
-            await download_ib_daily_history(app, sorted(ranked | rated | held))
+            await download_ib_daily_history(app, sorted(ranked | rated | held), duration=duration, force=force)
         finally:
             if not was_connected:
                 app.disconnect()
@@ -1419,7 +1440,7 @@ async def refresh_ib_daily_history(app, tickers=None, overwrite=False):
         print("Could not connect to IB Gateway (see the error logged above) -- skipping IB daily-history refresh (yfinance-only this run)")
         return
     try:
-        await download_ib_daily_history(app, tickers)
+        await download_ib_daily_history(app, tickers, duration=duration, force=force)
         _mark_ib_refresh_completed("daily")
     finally:
         if not was_connected:
@@ -2038,6 +2059,41 @@ def _run_ib_bar_refresh_in_background(tickers, overwrite):
     asyncio.run(_refresh_ib_daily_and_hourly(tickers, overwrite))
 
 
+def backfill_daily_history(duration="2 Y"):
+    """`python main.py backfill-daily [duration]` -- explicit instruction,
+    2026-10-19: a ONE-OFF deeper pull of IB's own daily bars into
+    DAILY_3MO_HISTORY_FILE, for every ticker in the active universe
+    (load_tickers(SYMBOLS_FILE), same scope `all`'s own IB bar refresh
+    uses), not just the normally-stale subset -- force=True on
+    refresh_ib_daily_history so a ticker that's already current under the
+    regular 3-month window (and so would otherwise never look "stale")
+    still gets refetched for its DEPTH, not its recency. duration defaults
+    to "2 Y" (argv[2], e.g. `python main.py backfill-daily 2 Y`) but takes
+    whatever IB duration string is given.
+
+    Deliberately separate from `all`'s own refresh_ib_daily_history call,
+    which keeps requesting "3 M" by default (see that function's own
+    comment) -- this backfill only ever ADDS bars (see main._merge_bar_
+    series, a by-date union: nothing already on disk is ever dropped or
+    replaced), so running this once and going back to the regular 3-month
+    refresh afterward is exactly the intended steady state: deep history
+    stays on file, every ordinary run only pulls the trailing 3 months on
+    top of it.
+
+    Same routing as every other IB daily-history call: goes through
+    ib_server.py's own connection via HTTP if that process is already
+    running (IB Gateway refuses a second simultaneous connection), else
+    opens a direct one itself. A full-universe pull at 1-2 years, paced
+    by IB's ~200 requests/6min limit, can take a long time (on the order
+    of an hour or more, same caveat download_all's own docstring gives
+    for its 3-month pull) -- this blocks until it's done and prints
+    progress as it goes."""
+    tickers = load_tickers(SYMBOLS_FILE)
+    print(f"Backfilling {duration} of daily bars for {len(tickers)} active ticker(s) into {DAILY_3MO_HISTORY_FILE} (one-off, paced, can take a while)...")
+    asyncio.run(refresh_ib_daily_history(IBApp(), tickers, overwrite=True, duration=duration, force=True))
+    print("Backfill complete.")
+
+
 def download_all(overwrite=False):
     """Full pipeline: fetch forward P/E data from Yahoo Finance, then the
     momentum score. Also refreshes IB Gateway's own daily AND hourly bars
@@ -2628,6 +2684,11 @@ if __name__ == "__main__":
         download_ib_prices()
     elif mode == "ibhprices":
         download_ib_hourly_prices()
+    elif mode == "backfill-daily":
+        # One-off, explicit instruction 2026-10-19 -- see backfill_daily_history's
+        # own docstring. `python main.py backfill-daily` (defaults to "2 Y") or
+        # `python main.py backfill-daily "1 Y"` for any other IB duration string.
+        backfill_daily_history(sys.argv[2] if len(sys.argv) > 2 else "2 Y")
     elif mode == "yfprices":
         download_yfinance_prices(force=(len(sys.argv) > 2 and sys.argv[2] == "overwrite"))
     elif mode == "themes":

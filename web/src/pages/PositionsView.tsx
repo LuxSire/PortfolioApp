@@ -12,6 +12,7 @@ import { assetPnlClass, rangeClass } from '../colorRules'
 import { FACTOR_COLUMNS, computeFactorAverages } from '../components/factorTable'
 import FactorCells from '../components/FactorCells'
 import TakeProfitLog from '../components/TakeProfitLog'
+import PortfolioPnlHistogram from '../components/PortfolioPnlHistogram'
 import type {
   Account,
   ClosedPositionRow,
@@ -35,6 +36,57 @@ import type {
 // uses, for the Expected Portfolio Performance container's Sharpe ratio
 // below, applied to the actual held book.
 const RF = 0
+
+// Entry-gate check, mirroring RecommendationsView.tsx's
+// buildRejectionReasons (trend/earnings/low-vol/sim-return/short-growth
+// gates) by hand -- explicit instruction, 2026-10-19: a held Strong Buy/
+// Strong Sell that would be blocked for a NEW entry gets a red exclamation
+// mark next to Rating. See TickerInfo's own comment on why this is
+// duplicated rather than imported (RecommendationsView.tsx's version is
+// private to that page's component) and on the one gate intentionally left
+// out here (the live intraday daily-move gate, which this page doesn't
+// track). Constants copied from RecommendationsView.tsx -- keep in sync by
+// hand, same as every other cross-file duplicated constant in this app
+// (ENTRY_SECTOR_NET_LIMIT and friends).
+const GATE_TREND_NO_BUY = 25
+const GATE_TREND_NO_SELL = 75
+const GATE_EARNINGS_BLOCK_DAYS = 7
+const GATE_VOL_MIN_ANNUALIZED = 0.05
+const GATE_SHORT_GROWTH_CEILING = 0.1
+
+function heldPositionBlocked(
+  rating: string | null,
+  side: 'Long' | 'Short',
+  trend: number | null,
+  earningsTimestampStart: number | null,
+  priceVolAnnualized: number | null,
+  simReturn: number | null,
+  revenueGrowth: number | null,
+  eulerRevGrowth1y: number | null,
+  now: number
+): boolean {
+  if (side === 'Long' ? rating !== 'Strong Buy' : rating !== 'Strong Sell') return false
+  if (typeof trend === 'number' && Number.isFinite(trend)) {
+    if (side === 'Long' ? trend < GATE_TREND_NO_BUY : trend > GATE_TREND_NO_SELL) return true
+  }
+  if (earningsTimestampStart !== null) {
+    const daysAway = (earningsTimestampStart * 1000 - now) / 86400000
+    if (daysAway > 0 && daysAway <= GATE_EARNINGS_BLOCK_DAYS) return true
+  }
+  if (priceVolAnnualized !== null && priceVolAnnualized < GATE_VOL_MIN_ANNUALIZED) return true
+  if (side === 'Long' && simReturn !== null && simReturn < 0) return true
+  if (side === 'Short' && simReturn !== null && simReturn > 0) return true
+  if (
+    side === 'Short' &&
+    revenueGrowth !== null &&
+    eulerRevGrowth1y !== null &&
+    revenueGrowth > GATE_SHORT_GROWTH_CEILING &&
+    eulerRevGrowth1y > GATE_SHORT_GROWTH_CEILING
+  ) {
+    return true
+  }
+  return false
+}
 
 // This table's own leading columns, followed by the shared factor-columns
 // tail (see FactorCells.jsx's FACTOR_COLUMNS — Avg PE through Score,
@@ -272,7 +324,15 @@ function portfolioVolatilityDecomposition(
   monthlyHistory: HistoryByTicker
 ): PortfolioVolResult {
   const total = rows.filter((r) => r.shares).length
-  const empty: PortfolioVolResult = { volDollar: null, cvolByTicker: new Map(), covered: 0, total, var95Dollar: null }
+  const empty: PortfolioVolResult = {
+    volDollar: null,
+    cvolByTicker: new Map(),
+    covered: 0,
+    total,
+    var95Dollar: null,
+    var99Dollar: null,
+    dailyPnl: [],
+  }
 
   const priced: { ticker: string; shares: number; byDate: Map<string, number> }[] = []
   for (const r of rows) {
@@ -335,8 +395,10 @@ function portfolioVolatilityDecomposition(
   // loss (the 5th percentile of $ CHANGE is itself negative on a book with any
   // real volatility).
   const var95Dollar = -percentile(dPortfolio, 0.05)
+  // Same empirical method, 1st percentile (explicit instruction, 2026-10-19).
+  const var99Dollar = -percentile(dPortfolio, 0.01)
 
-  return { volDollar, cvolByTicker, covered, total, var95Dollar }
+  return { volDollar, cvolByTicker, covered, total, var95Dollar, var99Dollar, dailyPnl: dPortfolio }
 }
 
 // Portfolio beta exposure: each held position's value * beta, summed,
@@ -520,6 +582,9 @@ export default function PositionsView() {
   // file, own state" fetch pattern as RecommendationsView.tsx's own
   // tickerForecast.
   const [tickerForecast, setTickerForecast] = useState<Record<string, number | null>>({})
+  // simReturn alongside forecastReturn, same simulations.json rows -- feeds
+  // heldPositionBlocked's sim-return gate (explicit instruction, 2026-10-19).
+  const [tickerSimReturn, setTickerSimReturn] = useState<Record<string, number | null>>({})
 
   useEffect(() => {
     Promise.all([
@@ -553,6 +618,9 @@ export default function PositionsView() {
             ern: toNum(row.earningsTimestampStart),
             upd: row.lastDownload || null,
             rating: row.rating || null,
+            trend: toNum(row.trend),
+            priceVolAnnualized: toNum(row.priceVolAnnualized),
+            eulerRevGrowth1y: toNum(row.eulerRevGrowth1y),
           }
           const fpe = toNum(row.forwardPE)
           if (row.sector && fpe !== null && fpe > 0) {
@@ -647,13 +715,16 @@ export default function PositionsView() {
     // every other optional factor across this app follows.
     fetch('/simulations.json')
       .then((r) => (r.ok ? r.json() : []))
-      .then((rows: { ticker: string; error?: string; forecastReturn?: number | null }[]) => {
+      .then((rows: { ticker: string; error?: string; forecastReturn?: number | null; simReturn?: number | null }[]) => {
         const forecast: Record<string, number | null> = {}
+        const simReturn: Record<string, number | null> = {}
         for (const row of rows) {
           if (row.error) continue
           forecast[row.ticker] = row.forecastReturn ?? null
+          simReturn[row.ticker] = row.simReturn ?? null
         }
         setTickerForecast(forecast)
+        setTickerSimReturn(simReturn)
       })
       .catch(() => {})
   }, [])
@@ -745,6 +816,20 @@ export default function PositionsView() {
         (shares !== null && ibPrice !== null && referencePrice !== null
           ? ibPrice * shares - referencePrice * (shares - todayQty) - todayValue
           : null)
+      const blocked =
+        shares !== null && shares !== 0
+          ? heldPositionBlocked(
+              info?.rating ?? null,
+              shares > 0 ? 'Long' : 'Short',
+              info?.trend ?? null,
+              info?.ern ?? null,
+              info?.priceVolAnnualized ?? null,
+              tickerSimReturn[ticker] ?? null,
+              factorsByTicker[ticker]?.revg ?? null,
+              info?.eulerRevGrowth1y ?? null,
+              Date.now()
+            )
+          : false
       return {
         ticker,
         name: info?.name || ticker,
@@ -766,6 +851,7 @@ export default function PositionsView() {
         ern: info?.ern ?? null,
         upd: info?.upd ?? null,
         rating: info?.rating ?? null,
+        blocked,
         // Screener factor columns (see screenerFactors.js) — feeds the
         // value-weighted Long/Short portfolio-factors table below only;
         // nothing else in this component reads these.
@@ -773,7 +859,7 @@ export default function PositionsView() {
         ...factorsByTicker[ticker],
       }
     })
-  }, [positions, prices, tickerInfo, dailyHistory3mo, monthlyHistory, trades, pnl, factorsByTicker, sectorAvgPE])
+  }, [positions, prices, tickerInfo, dailyHistory3mo, monthlyHistory, trades, pnl, factorsByTicker, sectorAvgPE, tickerSimReturn])
 
   // The directional trading book: `rows` minus cash-equivalent holdings
   // (data/cash.json via useCashEquivalents -- IB01, SGOV, ...). Those
@@ -1488,6 +1574,12 @@ export default function PositionsView() {
               <th className="col-rec" title="This screener's own forced-distribution rating, from its score percentile — not an analyst consensus.">
                 Rating
               </th>
+              <th
+                className="col-blocked"
+                title="Red ! when this is a held Strong Buy/Strong Sell that would be BLOCKED for a new entry right now (trend/earnings/low-vol/sim-return/short-growth gate) — see Recommendations' own Long/Short blocked treatment."
+              >
+                {' '}
+              </th>
               <th>Shares</th>
               <th>Value</th>
               <th title="Value divided by the account's Net Liquidation — this position's share of the whole account.">
@@ -1519,7 +1611,7 @@ export default function PositionsView() {
           <tbody>
             {bookRows.length === 0 && (
               <tr className="status-row">
-                <td colSpan={19}>
+                <td colSpan={20}>
                   No open positions — or ib_server.py isn't running / hasn't reported positions yet.
                 </td>
               </tr>
@@ -1579,6 +1671,16 @@ export default function PositionsView() {
                       </td>
                       <td className="col-rec">
                         <span className={`rec-badge ${ratingClass(r.rating)}`}>{r.rating || '—'}</span>
+                      </td>
+                      <td className="col-blocked">
+                        {r.blocked && (
+                          <span
+                            className="pos-blocked-mark"
+                            title="Blocked for a new entry right now (trend/earnings/low-vol/sim-return/short-growth gate) — still held, this is informational only."
+                          >
+                            !
+                          </span>
+                        )}
                       </td>
                       <td className="num">{fmtShares(r.shares)}</td>
                       <td className="num">{fmtMoney(r.value)}</td>
@@ -1648,6 +1750,9 @@ export default function PositionsView() {
             </tbody>
           </table>
         </div>
+      )}
+      {tab === 'positions' && (
+        <PortfolioPnlHistogram values={portfolioVol.dailyPnl} var95={portfolioVol.var95Dollar} var99={portfolioVol.var99Dollar} />
       )}
     </div>
   )

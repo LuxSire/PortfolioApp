@@ -2046,6 +2046,32 @@ td.col-rec {
   text-align: center;
 }
 
+/* Positions table's blocked-mark column (explicit instruction, 2026-10-19)
+   -- a narrow column right next to Rating, empty unless r.blocked (see
+   PositionsView.tsx's heldPositionBlocked). th.col-blocked gets no label
+   text (the header cell's own title tooltip explains it), just width. */
+th.col-blocked,
+td.col-blocked {
+  width: 28px;
+  text-align: center;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+.pos-blocked-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  background: #b3392e;
+  color: #fdeceb;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+}
+
 .rec-badge {
   display: inline-block;
   padding: 3px 9px;
@@ -2181,6 +2207,7 @@ td.col-rec {
 }
 
 .recommendation-card {
+  position: relative; // anchors recommendation-card-blocked-mark's top-right corner badge
   padding: 16px 18px;
   display: flex;
   flex-direction: column;
@@ -2433,6 +2460,54 @@ tr.row-target {
   --warn: #8a6a12;
   background: var(--surface);
   color: var(--ink);
+}
+
+/* Long/Short top/bottom-5% blocked rows (explicit instruction, 2026-10-17)
+   -- see longBlockedTop5/shortBlockedTop5 and RecommendationCard's own
+   comment: a Strong Buy/Strong Sell in the top/bottom 5% merged into
+   Long/Short itself, still failing a gate, and NOT already held --
+   decisive dark grey, same re-pin-every-token technique every other
+   recommendation-card-* variant here uses, so it reads as "this would be
+   a pick but isn't live" without being confused for the plain-navy
+   Long blocked/Short blocked tab (recommendation-card-blocked) or any
+   held/target-portfolio color. Never combined with recommendation-card-
+   held-portfolio -- RecommendationCard only adds this class when NOT held,
+   so no compound-override is needed the way target-portfolio/goodsign
+   need one against -held-portfolio. */
+.recommendation-card-blocked-top5 {
+  --surface: #30343a;
+  --surface-2: #3b4047;
+  --line: #4b515a;
+  --ink: #e8eaed;
+  --muted: #a8aeb8;
+  --good: #4cbd86;
+  --bad: #e2685c;
+  --warn: #d6b542;
+  background: var(--surface);
+  color: var(--ink);
+}
+
+/* Small corner flag for a HELD position that's also blocked for a new
+   entry (explicit instruction, 2026-10-17) -- the card itself stays the
+   normal recommendation-card-held-portfolio light blue (you already own
+   it, so it shouldn't read as greyed-out/inactive like
+   recommendation-card-blocked-top5 above), this is the only blocked
+   signal. Pinned top-right regardless of the card's own color tokens
+   (fixed warm-red palette, not var(--bad), since a held-portfolio card's
+   --bad is tuned for its own light surface and this needs to read the
+   same on every card color this can appear next to). */
+.recommendation-card-blocked-mark {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  background: #b3392e;
+  color: #fdeceb;
 }
 
 /* Sits right above the rationale bullets, right-aligned -- explicit

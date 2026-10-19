@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { memo, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { AlertTriangle, Flag, Info, Search, ThumbsDown, ThumbsUp } from 'lucide-react'
 import { parseCSV } from '../csv'
 import { fmtEarningsDate, useNowTick } from '../earnings'
@@ -1136,7 +1136,16 @@ function PriceStat({
 // held by construction) and RejectedCard (the blocked sections) keep the
 // established dark-brown recommendation-card-held treatment; this is a
 // separate class, not a recolor of that one.
-function RecommendationCard({
+// Memoized (explicit instruction, 2026-10-19, after the frontend
+// performance review): the parent still re-renders every ~5s off the SSE
+// throttle even though the underlying data arrays are now memo-stable
+// between ticks (see heldLongTickers/heldMerged's own comments), and
+// Long/Short can mount 100-150+ of these -- without memo every one of
+// them would re-render on every tick regardless of whether its own props
+// actually changed. Default shallow-prop comparison is enough: `c` is a
+// stable reference unless its own data actually changed, and `live` only
+// gets a new object when that ticker's own price tick changed.
+const RecommendationCard = memo(function RecommendationCard({
   c,
   held,
   live,
@@ -1170,10 +1179,29 @@ function RecommendationCard({
   // comment for why it still wins over the plain -held brown when a card
   // happens to be both.
   const inTargetPortfolio = !!c.in25Portfolio
+  // c.blocked (explicit instruction, 2026-10-17): a Strong Buy/Strong Sell
+  // in the top/bottom 5% (longBlockedTop5/shortBlockedTop5 below) that
+  // still failed an opening gate, merged into Long/Short itself instead of
+  // only showing in the separate Long blocked/Short blocked tab. NOT held:
+  // dark grey (recommendation-card-blocked-top5), a decisive "this would
+  // be a pick but isn't live" read, distinct from the plain-navy blocked
+  // tab. HELD: the opposite -- explicit instruction, a position you
+  // already own should look like every other held position (the same
+  // light blue), not be greyed out, so the color stays
+  // recommendation-card-held-portfolio instead. Either way the small
+  // corner mark (recommendation-card-blocked-mark below) also shows --
+  // explicit instruction, 2026-10-17: not held-only any more, every
+  // blocked card gets it, grey background or not.
+  const blockedNotHeld = !!c.blocked && !held
   return (
     <div
-      className={`asset-card recommendation-card${held ? ' recommendation-card-held-portfolio' : ''}${inTargetPortfolio ? ' recommendation-card-target-portfolio' : ''}`}
+      className={`asset-card recommendation-card${held ? ' recommendation-card-held-portfolio' : ''}${blockedNotHeld ? ' recommendation-card-blocked-top5' : ''}${inTargetPortfolio ? ' recommendation-card-target-portfolio' : ''}`}
     >
+      {c.blocked && (
+        <span className="recommendation-card-blocked-mark" title="Blocked for a new entry -- see the reason below">
+          Blocked
+        </span>
+      )}
       <div className="recommendation-card-header">
         <div>
           <a
@@ -1197,6 +1225,14 @@ function RecommendationCard({
         <PriceStat c={c} live={live} dailyHistory3mo={dailyHistory3mo} monthlyHistory={monthlyHistory} hideLabel side={side} held={held} />
       </div>
 
+      {c.blocked && c.blockReasons && c.blockReasons.length > 0 && (
+        <ul className="recommendation-close-reasons">
+          {c.blockReasons.map((r, i) => (
+            <li key={i}>{r.text}</li>
+          ))}
+        </ul>
+      )}
+
       <ThumbCounts lines={lines} />
       <ul className="recommendation-rationale">
         {groupRationaleLines(lines).map((group, i) => (
@@ -1215,14 +1251,16 @@ function RecommendationCard({
       <CardFooter c={c} inTargetPortfolio={inTargetPortfolio} />
     </div>
   )
-}
+})
 
 // Always shown as "held" (grey background) -- every row here is, by
 // construction, an existing position (see the closes filter below) -- plus
 // a "Close long"/"Close short" action tag and an explicit reason sentence
 // ahead of the same recent-signal rationale bullets RecommendationCard
 // uses, so the "why" isn't just the rating badge.
-function CloseCard({
+// Memoized -- same reasoning as RecommendationCard above (this is the
+// default "To close" tab's own card, mounted for every held position).
+const CloseCard = memo(function CloseCard({
   c,
   live,
   dailyHistory3mo,
@@ -1309,7 +1347,7 @@ function CloseCard({
       <CardFooter c={c} inTargetPortfolio={inTargetPortfolio} />
     </div>
   )
-}
+})
 
 // A Strong Buy/Strong Sell candidate that failed one of the Long/Short
 // idea-list gates -- see buildRejectionReasons. recommendation-card-blocked
@@ -1318,7 +1356,8 @@ function CloseCard({
 // card-held's --surface-2 banding -- most of these aren't held positions
 // at all, just candidates that scored a top rating but didn't clear an
 // opening gate, so reusing "held" styling here would be the wrong signal.
-function RejectedCard({
+// Memoized -- same reasoning as RecommendationCard above.
+const RejectedCard = memo(function RejectedCard({
   c,
   held,
   live,
@@ -1392,7 +1431,7 @@ function RejectedCard({
       <CardFooter c={c} />
     </div>
   )
-}
+})
 
 function RecommendationSection<T>({
   title,
@@ -2597,23 +2636,40 @@ export default function RecommendationsView() {
   // sets so they don't drive hedge matching, concentration, or a "To
   // close" suggestion (see nonEquityHoldings).
   const cashTickers = useCashEquivalents()
+  // positionsRef + `now` (explicit instruction, 2026-10-19, after the
+  // frontend review found this was a root cause of the page "getting
+  // stuck"): same pattern moveByTicker above already uses for livePrices --
+  // `positions` itself still gets a brand-new object on every SSE message
+  // (ib_server.py throttles the broadcast rate, but a position genuinely
+  // only changes on an actual trade, far less often than that), yet
+  // heldLongTickers/heldShortTickers used to depend on it directly, which
+  // invalidated them -- and therefore re-ran the full longs/shorts
+  // gate-filter over ~1,900 candidates -- on every single message instead
+  // of only when a position actually changed. Reading through a ref and
+  // keying off the minute tick instead means that expensive re-rank now
+  // runs at most once a minute, same cadence moveByTicker already settled
+  // on, not several times a second.
+  const positionsRef = useRef(positions)
+  positionsRef.current = positions
   const heldLongTickers = useMemo(
     () =>
       new Set(
-        Object.entries(positions)
+        Object.entries(positionsRef.current)
           .filter(([t, p]) => (p?.shares ?? 0) > 0 && !cashTickers.has(t))
           .map(([t]) => t)
       ),
-    [positions, cashTickers]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [cashTickers, now]
   )
   const heldShortTickers = useMemo(
     () =>
       new Set(
-        Object.entries(positions)
+        Object.entries(positionsRef.current)
           .filter(([t, p]) => (p?.shares ?? 0) < 0 && !cashTickers.has(t))
           .map(([t]) => t)
       ),
-    [positions, cashTickers]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [cashTickers, now]
   )
   const heldCount = useMemo(
     () => Object.entries(positions).filter(([t, p]) => p?.shares && !cashTickers.has(t)).length,
@@ -2806,7 +2862,7 @@ export default function RecommendationsView() {
   // trip", not "worst".
   const heldMerged = useMemo(() => {
     const rows: { ticker: string; shares: number; c: Candidate }[] = []
-    for (const [ticker, p] of Object.entries(positions)) {
+    for (const [ticker, p] of Object.entries(positionsRef.current)) {
       if (!p?.shares || cashTickers.has(ticker)) continue
       const side: 'Long' | 'Short' = p.shares > 0 ? 'Long' : 'Short'
       const merged: Candidate = {
@@ -2839,7 +2895,8 @@ export default function RecommendationsView() {
       })
     }
     return rows
-  }, [positions, tickerScreener, byTicker, tickerForecast, tickerTargetSide, tickerTargetPool, cashTickers, moveByTicker, now])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tickerScreener, byTicker, tickerForecast, tickerTargetSide, tickerTargetPool, cashTickers, moveByTicker, now])
 
   const closes: CloseRow[] = useMemo(() => {
     const rows: CloseRow[] = []
@@ -3066,6 +3123,42 @@ export default function RecommendationsView() {
     [rejectedStrong]
   )
 
+  // Blocked candidates in the top/bottom RESTRICTED_PCT_4 (5%) -- same cut
+  // ib_server.py's robot and modules/backtest.py's entryRuleRestricted4 use
+  // -- merged INTO Long/Short itself (explicit instruction, 2026-10-17)
+  // rather than only showing in the separate Long blocked/Short blocked
+  // tab, so a high-conviction name that's merely gated doesn't disappear
+  // from the list you actually scan. `blocked`/`blockReasons` mark each row
+  // so RecommendationCard can tell these apart from a normal pick (see its
+  // own comment on the resulting color rule).
+  const RESTRICTED_PCT_4 = 5
+  const longBlockedTop5: RankedCandidate[] = useMemo(
+    () =>
+      rejectedStrongBuy
+        .filter((c) => c.scorePercentile !== null && c.scorePercentile !== undefined && c.scorePercentile < RESTRICTED_PCT_4)
+        .map((c) => ({ ...c, _sortScore: c.score ?? 1, blocked: true, blockReasons: c.reasons })),
+    [rejectedStrongBuy]
+  )
+  const shortBlockedTop5: RankedCandidate[] = useMemo(
+    () =>
+      rejectedStrongSell
+        .filter((c) => c.scorePercentile !== null && c.scorePercentile !== undefined && c.scorePercentile >= 100 - RESTRICTED_PCT_4)
+        .map((c) => ({ ...c, _sortScore: c.score ?? 0, blocked: true, blockReasons: c.reasons })),
+    [rejectedStrongSell]
+  )
+  // Long/Short themselves, with the top/bottom-5% blocked rows interleaved
+  // in the same score order rather than appended -- so the merged list
+  // still reads as one ranked pool, not "the real picks, then the blocked
+  // ones tacked on."
+  const longsWithBlocked: RankedCandidate[] = useMemo(
+    () => [...longs, ...longBlockedTop5].sort((a, b) => a._sortScore - b._sortScore),
+    [longs, longBlockedTop5]
+  )
+  const shortsWithBlocked: RankedCandidate[] = useMemo(
+    () => [...shorts, ...shortBlockedTop5].sort((a, b) => b._sortScore - a._sortScore),
+    [shorts, shortBlockedTop5]
+  )
+
   // An industry-level roll-up of the same per-factor thumbs every single-
   // stock card already shows -- explicit instruction: sum thumbs-up/down
   // per industry across the four live recommendation pools (Long, Short,
@@ -3285,14 +3378,14 @@ export default function RecommendationsView() {
               className={`recommendation-tab-btn${activeSection === 'long' ? ' active' : ''}`}
               onClick={() => setActiveSection('long')}
             >
-              Long <span className="recommendation-tab-count">{longs.length}</span>
+              Long <span className="recommendation-tab-count">{longsWithBlocked.length}</span>
             </button>
             <button
               type="button"
               className={`recommendation-tab-btn${activeSection === 'short' ? ' active' : ''}`}
               onClick={() => setActiveSection('short')}
             >
-              Short <span className="recommendation-tab-count">{shorts.length}</span>
+              Short <span className="recommendation-tab-count">{shortsWithBlocked.length}</span>
             </button>
             <button
               type="button"
@@ -3426,8 +3519,8 @@ export default function RecommendationsView() {
           <RecommendationSection
             title="Long"
             titleInfo={<RulesInfo label="Selection rules" header="Every candidate must clear all of these" rules={LONG_RULES} />}
-            subtitle="Strong Buy with sim return not negative, best composite score first"
-            rows={filterByThumbs(filterBySector(filterBySymbol(longs)), 'Long')}
+            subtitle="Strong Buy with sim return not negative, best composite score first -- plus, greyed out (or in the usual held blue with a Blocked mark), any top-5% Strong Buy still failing a gate"
+            rows={filterByThumbs(filterBySector(filterBySymbol(longsWithBlocked)), 'Long')}
             renderCard={(c) => (
               <RecommendationCard
                 key={c.ticker}
@@ -3467,8 +3560,8 @@ export default function RecommendationsView() {
           <RecommendationSection
             title="Short"
             titleInfo={<RulesInfo label="Selection rules" header="Every candidate must clear all of these" rules={SHORT_RULES} />}
-            subtitle="Strong Sell with sim return not positive, worst composite score first"
-            rows={filterByThumbs(filterBySector(filterBySymbol(shorts)), 'Short')}
+            subtitle="Strong Sell with sim return not positive, worst composite score first -- plus, greyed out (or in the usual held blue with a Blocked mark), any top-5% Strong Sell still failing a gate"
+            rows={filterByThumbs(filterBySector(filterBySymbol(shortsWithBlocked)), 'Short')}
             renderCard={(c) => (
               <RecommendationCard
                 key={c.ticker}

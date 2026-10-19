@@ -16,6 +16,20 @@ export interface TickerInfo {
   ern: number | null
   upd: string | null
   rating: string | null
+  // Entry-gate inputs (explicit instruction, 2026-10-19) -- see
+  // PositionsView.tsx's heldPositionBlocked, which mirrors
+  // RecommendationsView.tsx's buildRejectionReasons (trend/earnings/
+  // low-vol/sim-return/short-growth gates) by hand, kept in sync the same
+  // way the robot/backtest/optimizer's own duplicated constants are, so a
+  // held Strong Buy/Strong Sell that would be blocked for a NEW entry
+  // shows the same red mark here as it does on the Recommendations page.
+  // Deliberately NOT the live intraday daily-move gate -- this page
+  // doesn't track live move z-scores, so the result can rarely diverge
+  // from Recommendations' own blocked read within a session, until the
+  // next screener refresh.
+  trend: number | null
+  priceVolAnnualized: number | null
+  eulerRevGrowth1y: number | null
 }
 
 export type TickerInfoByTicker = Record<string, TickerInfo>
@@ -128,6 +142,10 @@ export interface PositionRow extends Partial<TickerFactors> {
   upd: string | null
   rating: string | null
   savgpe: number | null
+  // true when rating is Strong Buy/Strong Sell and heldPositionBlocked
+  // (PositionsView.tsx) says a NEW entry would fail a gate right now --
+  // drives the red exclamation mark next to Rating.
+  blocked: boolean
 }
 
 // A symbol traded today (see TradesByTicker) that's now fully closed out
@@ -200,6 +218,14 @@ export interface PortfolioVolResult {
   // normal-distribution approximation (volDollar × 1.645) -- see
   // portfolioVolatilityDecomposition's own comment.
   var95Dollar: number | null
+  // Same empirical method, 1st percentile -- explicit instruction, 2026-10-19
+  // (added alongside the histogram at the bottom of the Positions page).
+  var99Dollar: number | null
+  // The raw simulated daily $ P&L series (dPortfolio) itself -- explicit
+  // instruction, 2026-10-19: feeds the historical-performance histogram at
+  // the bottom of the Positions page. Empty when there's no priced history
+  // (same conditions var95Dollar/volDollar are null under).
+  dailyPnl: number[]
 }
 
 // portfolioBetaExposure's return shape -- see that function's own comment
